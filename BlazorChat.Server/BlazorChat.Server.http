@@ -1,0 +1,6 @@
+@BlazorChat.Server_HostAddress = http://localhost:5224
+
+GET {{BlazorChat.Server_HostAddress}}/
+Accept: application/json
+
+###

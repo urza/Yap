@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Sdk Name="Aspire.AppHost.Sdk" Version="9.0.0" />
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsAspireHost>true</IsAspireHost>
+    <UserSecretsId>52e4d861-11c5-4148-a910-8b5321f035ad</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BlazorChat.Client.Serve\BlazorChat.Client.Serve.csproj" />
+    <ProjectReference Include="..\BlazorChat.Client\BlazorChat.Client.csproj" />
+    <ProjectReference Include="..\BlazorChat.Server\BlazorChat.Server.csproj" />
+  </ItemGroup>
+
+</Project>

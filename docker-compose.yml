@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  blazorchat-server:
+    build:
+      context: ./BlazorChat.Server
+      dockerfile: Dockerfile
+    ports:
+      - "5224:80"
+    environment:
+      - ASPNETCORE_URLS=http://+:80
+      - ASPNETCORE_ENVIRONMENT=Production
+    volumes:
+      - D:/tmp/blazorchat-uploads:/app/wwwroot/uploads
+    restart: unless-stopped
+
+  blazorchat:
+    build:
+      context: .
+      dockerfile: ./BlazorChat.Client.Serve/Dockerfile
+    ports:
+      - "5221:80"
+    environment:
+      - ASPNETCORE_URLS=http://+:80
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ApiUrl=http://localhost:5224
+    depends_on:
+      - blazorchat-server
+    restart: unless-stopped

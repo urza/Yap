@@ -1,0 +1,539 @@
+@page "/"
+@using Microsoft.AspNetCore.SignalR.Client
+@using BlazorChat.Client.Services
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject IConfiguration Configuration
+@inject HttpClient Http
+@inject ChatConfigService ChatConfig
+@inject EmojiService EmojiService
+@implements IAsyncDisposable
+@using System.Timers
+
+<PageTitle>@ChatConfig.ProjectName</PageTitle>
+
+@if (string.IsNullOrEmpty(username))
+{
+    <div class="username-container">
+        <h2>@welcomeMessage</h2>
+        <div class="username-form">
+            <input type="text" @bind="usernameInput" @bind:event="oninput" 
+                   placeholder="@usernamePlaceholder" class="username-input" 
+                   @onkeypress="@(async (e) => { if (e.Key == "Enter") await JoinChat(); })" />
+            <button class="join-button" @onclick="JoinChat" disabled="@(string.IsNullOrWhiteSpace(usernameInput))">
+                @joinButtonText
+            </button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="chat-container">
+        <div class="chat-header">
+            <h3>@roomHeader</h3>
+            <div class="header-controls">
+                <span class="connection-status @(IsConnected ? "connected" : "disconnected")">
+                    @connectionStatus
+                </span>
+                <button class="users-toggle" @onclick="ToggleSidebar" title="Toggle users list">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M14 8.00598C14 10.211 12.206 12.006 10 12.006C7.795 12.006 6 10.211 6 8.00598C6 5.80098 7.795 4.00598 10 4.00598C12.206 4.00598 14 5.80098 14 8.00598ZM2 19.006C2 15.473 5.29 13.006 10 13.006C14.711 13.006 18 15.473 18 19.006V20.006H2V19.006Z"/>
+                        <path d="M20.0001 20.006H22.0001V19.006C22.0001 16.4433 20.2697 14.4415 17.5213 13.5352C19.0621 14.9127 20.0001 16.8059 20.0001 19.006V20.006Z"/>
+                        <path d="M14.8834 11.9077C16.6657 11.5044 18.0001 9.9077 18.0001 8.00598C18.0001 5.96916 16.4693 4.28218 14.4971 4.0367C15.4322 5.09511 16.0001 6.48524 16.0001 8.00598C16.0001 9.44888 15.4889 10.7742 14.6378 11.8102C14.7203 11.8734 14.8022 11.9388 14.8834 11.9077Z"/>
+                    </svg>
+                    <span class="online-count">@onlineUsers.Count</span>
+                </button>
+            </div>
+        </div>
+        
+        <div class="chat-main">
+            <div class="messages-container">
+                <div class="messages" @ref="messagesElement">
+                    @for (int i = 0; i < messages.Count; i++)
+                    {
+                        var message = messages[i];
+                        var isSystemMessage = message.Username == "System";
+                        var showHeader = !isSystemMessage && (i == 0 || messages[i - 1].Username != message.Username);
+                        
+                        <div class="message-group @(isSystemMessage ? "system-message" : "")">
+                            @if (showHeader)
+                            {
+                                <div class="message-header">
+                                    <strong class="message-username">@message.Username</strong>
+                                    <span class="message-time">@message.Timestamp.ToString("HH:mm")</span>
+                                </div>
+                            }
+                            <div class="message-content">
+                                @if (message.IsImage)
+                                {
+                                    <img src="@message.Content" alt="Uploaded image" class="message-image" @onclick="() => ShowFullImage(message.Content)" />
+                                }
+                                else
+                                {
+                                    @EmojiService.ConvertEmojisToTwemoji(message.Content)
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+                
+                <div class="message-input-container">
+                    <input type="text" @bind="MessageInput" @bind:event="oninput" 
+                           placeholder="@messagePlaceholder" class="message-input"
+                           @onkeypress="@(async (e) => { if (e.Key == "Enter") await SendMessage(); })"
+                           disabled="@(!IsConnected)" />
+                    <label class="image-upload-button">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                            <polyline points="21 15 16 10 5 21"></polyline>
+                        </svg>
+                        <InputFile OnChange="HandleFileSelected" accept="image/*" style="display: none;" disabled="@(!IsConnected)" />
+                    </label>
+                </div>
+                
+                <div class="typing-indicator-container">
+                    @if (typingUsers.Any())
+                    {
+                        var otherTypingUsers = typingUsers.Where(u => u != username).ToList();
+                        if (otherTypingUsers.Any())
+                        {
+                            <div class="typing-indicator">
+                                <span style="display: flex; align-items: center; gap: 0.5rem; color: #72767d;">
+                                    <span class="typing-dots">
+                                        <span class="dot"></span>
+                                        <span class="dot"></span>
+                                        <span class="dot"></span>
+                                    </span>
+                                    <span>
+                                        @typingIndicatorText
+                                    </span>
+                                </span>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+            
+            <div class="users-sidebar @(sidebarOpen ? "sidebar-open" : "")">
+                <h4>@onlineUsersHeader</h4>
+                <div class="users-list">
+                    @foreach (var user in onlineUsers)
+                    {
+                        <div class="user-item @(user == username ? "current-user" : "")">
+                            @user
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="sidebar-backdrop @(sidebarOpen ? "show" : "")" @onclick="ToggleSidebar"></div>
+    </div>
+}
+
+@if (showImageModal)
+{
+    <div class="image-modal" @onclick="CloseImageModal">
+        <img src="@modalImageUrl" alt="Full size image" />
+    </div>
+}
+
+@code {
+    private HubConnection? hubConnection;
+    private string username = "";
+    private string usernameInput = "";
+    private string _messageInput = "";
+    private List<ChatMessage> messages = new();
+    private List<string> onlineUsers = new();
+    private List<string> typingUsers = new();
+    private ElementReference messagesElement;
+    private bool showImageModal = false;
+    private string modalImageUrl = "";
+    private bool sidebarOpen = false;
+    private string baseUrl = "http://localhost:5224";
+    private Timer? typingTimer;
+    private bool isTyping = false;
+    
+    // UI Text Variables
+    private string welcomeMessage = "";
+    private string joinButtonText = "";
+    private string usernamePlaceholder = "";
+    private string messagePlaceholder = "";
+    private string connectionStatus = "";
+    private string roomHeader = "";
+    private string onlineUsersHeader = "";
+    private string typingIndicatorText = "";
+    
+    private string MessageInput
+    {
+        get => _messageInput;
+        set
+        {
+            _messageInput = value;
+            _ = HandleTypingChange(value);
+        }
+    }
+    
+    private bool IsConnected => hubConnection?.State == HubConnectionState.Connected;
+    
+    protected override void OnInitialized()
+    {
+        // Initialize random UI texts
+        welcomeMessage = ChatConfig.GetRandomWelcomeMessage();
+        joinButtonText = ChatConfig.GetRandomJoinButtonText();
+        usernamePlaceholder = ChatConfig.GetRandomUsernamePlaceholder();
+        messagePlaceholder = ChatConfig.GetRandomMessagePlaceholder();
+        roomHeader = ChatConfig.GetRandomRoomHeader();
+        UpdateConnectionStatus();
+        UpdateOnlineUsersHeader();
+    }
+    
+    private void UpdateConnectionStatus()
+    {
+        connectionStatus = ChatConfig.GetRandomConnectionStatus(IsConnected);
+    }
+    
+    private void UpdateOnlineUsersHeader()
+    {
+        onlineUsersHeader = ChatConfig.GetRandomOnlineUsersHeader(onlineUsers.Count);
+    }
+    
+    private void UpdateTypingIndicator()
+    {
+        typingIndicatorText = ChatConfig.GetRandomTypingIndicator(typingUsers, username);
+    }
+    
+    private class ChatMessage
+    {
+        public string Username { get; set; } = "";
+        public string Content { get; set; } = "";
+        public DateTime Timestamp { get; set; }
+        public bool IsImage { get; set; }
+    }
+    
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var configResponse = await Http.GetAsync("/api/config");
+            if (configResponse.IsSuccessStatusCode)
+            {
+                var config = await configResponse.Content.ReadFromJsonAsync<ConfigResponse>();
+                if (config != null && !string.IsNullOrEmpty(config.ApiUrl))
+                {
+                    baseUrl = config.ApiUrl;
+                }
+            }
+        }
+        catch
+        {
+            // Use default if config fetch fails
+        }
+    }
+    
+    private async Task JoinChat()
+    {
+        if (string.IsNullOrWhiteSpace(usernameInput)) return;
+        
+        username = usernameInput.Trim();
+        
+        // Connect to the server
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl($"{baseUrl}/api/chathub")
+            .WithAutomaticReconnect()
+            .Build();
+            
+        hubConnection.On<string, string, DateTime>("ReceiveMessage", (user, message, timestamp) =>
+        {
+            messages.Add(new ChatMessage 
+            { 
+                Username = user, 
+                Content = message, 
+                Timestamp = timestamp,
+                IsImage = false
+            });
+            InvokeAsync(StateHasChanged);
+            InvokeAsync(ScrollToBottom);
+        });
+        
+        hubConnection.On<string, string, DateTime>("ReceiveImage", (user, imageUrl, timestamp) =>
+        {
+            messages.Add(new ChatMessage 
+            { 
+                Username = user, 
+                Content = imageUrl, 
+                Timestamp = timestamp,
+                IsImage = true
+            });
+            InvokeAsync(StateHasChanged);
+            InvokeAsync(ScrollToBottom);
+        });
+        
+        hubConnection.On<string>("UserJoined", (user) =>
+        {
+            messages.Add(new ChatMessage 
+            { 
+                Username = "System", 
+                Content = ChatConfig.GetRandomSystemMessage(user, true), 
+                Timestamp = DateTime.UtcNow,
+                IsImage = false
+            });
+            InvokeAsync(StateHasChanged);
+            InvokeAsync(ScrollToBottom);
+        });
+        
+        hubConnection.On<string>("UserLeft", (user) =>
+        {
+            messages.Add(new ChatMessage 
+            { 
+                Username = "System", 
+                Content = ChatConfig.GetRandomSystemMessage(user, false), 
+                Timestamp = DateTime.UtcNow,
+                IsImage = false
+            });
+            InvokeAsync(StateHasChanged);
+            InvokeAsync(ScrollToBottom);
+        });
+        
+        hubConnection.On<List<string>>("OnlineUsers", (users) =>
+        {
+            onlineUsers = users;
+            UpdateOnlineUsersHeader();
+            InvokeAsync(StateHasChanged);
+        });
+        
+        hubConnection.On<List<string>>("TypingUsers", (users) =>
+        {
+            typingUsers = users;
+            UpdateTypingIndicator();
+            InvokeAsync(StateHasChanged);
+        });
+        
+        hubConnection.Reconnecting += (exception) =>
+        {
+            UpdateConnectionStatus();
+            InvokeAsync(StateHasChanged);
+            return Task.CompletedTask;
+        };
+        
+        hubConnection.Reconnected += (connectionId) =>
+        {
+            UpdateConnectionStatus();
+            InvokeAsync(StateHasChanged);
+            return Task.CompletedTask;
+        };
+        
+        hubConnection.Closed += (exception) =>
+        {
+            UpdateConnectionStatus();
+            InvokeAsync(StateHasChanged);
+            return Task.CompletedTask;
+        };
+        
+        try
+        {
+            await hubConnection.StartAsync();
+            UpdateConnectionStatus();
+            
+            // Fetch chat history
+            try
+            {
+                var historyResponse = await Http.GetAsync($"{baseUrl}/api/chat/history?count=50");
+                if (historyResponse.IsSuccessStatusCode)
+                {
+                    var history = await historyResponse.Content.ReadFromJsonAsync<List<ChatHistoryMessage>>();
+                    if (history != null)
+                    {
+                        foreach (var msg in history)
+                        {
+                            messages.Add(new ChatMessage
+                            {
+                                Username = msg.Username,
+                                Content = msg.Content,
+                                Timestamp = msg.Timestamp,
+                                IsImage = msg.IsImage
+                            });
+                        }
+                        await InvokeAsync(StateHasChanged);
+                        await ScrollToBottom();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching chat history: {ex.Message}");
+            }
+            
+            await hubConnection.SendAsync("UserJoined", username);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error connecting to hub: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            // Try to show error to user
+            messages.Add(new ChatMessage 
+            { 
+                Username = "System", 
+                Content = $"Connection error: {ex.Message}", 
+                Timestamp = DateTime.UtcNow,
+                IsImage = false
+            });
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+    
+    private async Task SendMessage()
+    {
+        if (!string.IsNullOrWhiteSpace(_messageInput) && IsConnected)
+        {
+            await hubConnection!.SendAsync("SendMessage", username, _messageInput);
+            MessageInput = "";
+            await StopTyping();
+        }
+    }
+    
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file != null && IsConnected)
+        {
+            try
+            {
+                using var content = new MultipartFormDataContent();
+                using var fileContent = new StreamContent(file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024));
+                fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
+                content.Add(fileContent, "file", file.Name);
+                
+                var response = await Http.PostAsync($"{baseUrl}/api/images/upload", content);
+                
+                if (response.IsSuccessStatusCode)
+                {
+                    var result = await response.Content.ReadFromJsonAsync<ImageUploadResponse>();
+                    if (result != null && !string.IsNullOrEmpty(result.Url))
+                    {
+                        var fullImageUrl = result.Url.StartsWith("http") ? result.Url : $"{baseUrl}{result.Url}";
+                        Console.WriteLine($"Image uploaded successfully: {fullImageUrl}");
+                        await hubConnection!.SendAsync("SendImage", username, fullImageUrl);
+                    }
+                    else
+                    {
+                        Console.WriteLine("Image upload response was null or empty");
+                    }
+                }
+                else
+                {
+                    var error = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"Image upload failed: {response.StatusCode} - {error}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error uploading file: {ex.Message}");
+            }
+        }
+    }
+    
+    private async Task ScrollToBottom()
+    {
+        await JS.InvokeVoidAsync("scrollToBottom", messagesElement);
+    }
+    
+    private void ShowFullImage(string imageUrl)
+    {
+        modalImageUrl = imageUrl;
+        showImageModal = true;
+    }
+    
+    private void CloseImageModal()
+    {
+        showImageModal = false;
+        modalImageUrl = "";
+    }
+    
+    private void ToggleSidebar()
+    {
+        sidebarOpen = !sidebarOpen;
+    }
+    
+    private async Task HandleTypingChange(string currentValue)
+    {
+        if (!IsConnected) return;
+        
+        if (!string.IsNullOrWhiteSpace(currentValue) && !isTyping)
+        {
+            await StartTyping();
+        }
+        else if (string.IsNullOrWhiteSpace(currentValue) && isTyping)
+        {
+            await StopTyping();
+        }
+        
+        // Reset typing timer
+        typingTimer?.Stop();
+        typingTimer?.Dispose();
+        
+        if (!string.IsNullOrWhiteSpace(currentValue))
+        {
+            typingTimer = new Timer(3000); // 3 seconds
+            typingTimer.Elapsed += async (sender, args) =>
+            {
+                await StopTyping();
+                typingTimer?.Dispose();
+            };
+            typingTimer.Start();
+        }
+    }
+    
+    private async Task StartTyping()
+    {
+        if (IsConnected && !isTyping)
+        {
+            isTyping = true;
+            await hubConnection!.SendAsync("StartTyping", username);
+        }
+    }
+    
+    private async Task StopTyping()
+    {
+        if (IsConnected && isTyping)
+        {
+            isTyping = false;
+            await hubConnection!.SendAsync("StopTyping", username);
+            typingTimer?.Stop();
+            typingTimer?.Dispose();
+        }
+    }
+    
+    public async ValueTask DisposeAsync()
+    {
+        typingTimer?.Stop();
+        typingTimer?.Dispose();
+        
+        if (hubConnection is not null)
+        {
+            if (isTyping)
+            {
+                await StopTyping();
+            }
+            await hubConnection.DisposeAsync();
+        }
+    }
+    
+    private class ImageUploadResponse
+    {
+        public string Url { get; set; } = "";
+    }
+    
+    private class ChatHistoryMessage
+    {
+        public string Username { get; set; } = "";
+        public string Content { get; set; } = "";
+        public DateTime Timestamp { get; set; }
+        public bool IsImage { get; set; }
+    }
+    
+    private class ConfigResponse
+    {
+        public string ApiUrl { get; set; } = "";
+    }
+}
