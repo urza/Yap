@@ -56,7 +56,27 @@ chmod 777 uploads
 docker-compose -f docker-compose.prod.yml up -d
 ```
 
-## Step 4: Configure Nginx Proxy Manager
+## Step 4: Configure API URL for Reverse Proxy
+
+**IMPORTANT**: When using a reverse proxy, you must update the API URL configuration.
+
+Edit your `docker-compose.prod.yml` and update the `ApiUrl` environment variable:
+
+```yaml
+blazorchat:
+  environment:
+    - ASPNETCORE_ENVIRONMENT=Production
+    - ApiUrl=https://your-domain.com  # Change this to your reverse proxy URL
+```
+
+**Examples**:
+- If serving both apps from same domain: `ApiUrl=https://chat.yourdomain.com`
+- If using subpaths: `ApiUrl=https://yourdomain.com/api`
+- If using different ports: `ApiUrl=https://yourdomain.com:8080`
+
+This tells the WebAssembly client where to find the SignalR server through your reverse proxy.
+
+## Step 5: Configure Nginx Proxy Manager
 
 Add a new proxy host in Nginx Proxy Manager:
 
@@ -78,7 +98,7 @@ proxy_http_version 1.1;
 proxy_cache_bypass $http_upgrade;
 ```
 
-## Step 5: SSL Certificate
+## Step 6: SSL Certificate
 
 1. In Nginx Proxy Manager, go to SSL tab
 2. Request a new SSL certificate using Let's Encrypt

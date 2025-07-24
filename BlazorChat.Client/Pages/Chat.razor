@@ -154,6 +154,10 @@ else
     private Timer? typingTimer;
     private bool isTyping = false;
     
+    // Tab title notification tracking
+    private int unreadCount = 0;
+    private IJSObjectReference? tabNotificationsJS;
+    
     // UI Text Variables
     private string welcomeMessage = "";
     private string joinButtonText = "";
@@ -254,6 +258,7 @@ else
             });
             InvokeAsync(StateHasChanged);
             InvokeAsync(ScrollToBottom);
+            InvokeAsync(() => HandleNewMessage(user));
         });
         
         hubConnection.On<string, string, DateTime>("ReceiveImage", (user, imageUrl, timestamp) =>
@@ -267,6 +272,7 @@ else
             });
             InvokeAsync(StateHasChanged);
             InvokeAsync(ScrollToBottom);
+            InvokeAsync(() => HandleNewMessage(user));
         });
         
         hubConnection.On<string>("UserJoined", (user) =>
@@ -365,6 +371,9 @@ else
             }
             
             await hubConnection.SendAsync("UserJoined", username);
+            
+            // Setup tab notification system
+            await SetupTabNotifications();
         }
         catch (Exception ex)
         {
@@ -504,10 +513,89 @@ else
         }
     }
     
+    // Tab notification methods
+    private async Task SetupTabNotifications()
+    {
+        try
+        {
+            tabNotificationsJS = await JS.InvokeAsync<IJSObjectReference>("eval", "window.tabNotifications");
+            var dotNetRef = DotNetObjectReference.Create(this);
+            await tabNotificationsJS.InvokeVoidAsync("setupVisibilityListener", dotNetRef);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error setting up tab notifications: {ex.Message}");
+        }
+    }
+    
+    private async Task HandleNewMessage(string messageUser)
+    {
+        // Only increment unread count if:
+        // 1. Message is from another user (not self)
+        // 2. Page is not currently visible
+        if (messageUser != username)
+        {
+            try
+            {
+                var isVisible = await JS.InvokeAsync<bool>("eval", "window.tabNotifications.isPageVisible()");
+                if (!isVisible)
+                {
+                    unreadCount++;
+                    await UpdateTabTitle();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error handling new message notification: {ex.Message}");
+            }
+        }
+    }
+    
+    private async Task UpdateTabTitle()
+    {
+        try
+        {
+            if (tabNotificationsJS != null)
+            {
+                await tabNotificationsJS.InvokeVoidAsync("updateTitle", unreadCount);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating tab title: {ex.Message}");
+        }
+    }
+    
+    [JSInvokable]
+    public async Task OnPageBecameVisible()
+    {
+        // Reset unread count when user returns to tab
+        if (unreadCount > 0)
+        {
+            unreadCount = 0;
+            await UpdateTabTitle();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+    
     public async ValueTask DisposeAsync()
     {
         typingTimer?.Stop();
         typingTimer?.Dispose();
+        
+        // Cleanup tab notifications
+        if (tabNotificationsJS != null)
+        {
+            try
+            {
+                await tabNotificationsJS.InvokeVoidAsync("reset");
+                await tabNotificationsJS.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error disposing tab notifications: {ex.Message}");
+            }
+        }
         
         if (hubConnection is not null)
         {
