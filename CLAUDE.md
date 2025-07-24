@@ -98,6 +98,8 @@ A real-time chat application using Blazor WebAssembly client with SignalR for re
    - Online user count
    - Connection retry logic
    - Emoji support with Twemoji rendering
+   - **NEW**: Tab title notifications with unread message count
+   - **NEW**: Audio notifications for background tab messages
 
 ## Technical Details
 

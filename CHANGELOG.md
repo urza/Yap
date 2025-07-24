@@ -2,6 +2,30 @@
 
 All notable changes to the BlazorChat project are documented in this file.
 
+## [1.2.2] - 2025-07-24
+
+### ✨ New Features
+
+#### Tab Notifications System
+- ✅ **Tab Title Notifications**: Shows unread message count in browser tab title format "(3) ProjectName"
+- ✅ **Audio Notifications**: Plays custom sound notification when messages arrive in background tabs
+- ✅ **Smart Behavior**: Only triggers for messages from other users when tab is inactive
+- ✅ **Auto-Reset**: Both title and count reset when user returns to tab
+- ✅ **Discord-Style Experience**: Similar notification behavior to Discord desktop app
+
+### Technical Implementation
+- Added `tabNotifications` JavaScript helper with page visibility detection
+- Integrated with SignalR message handlers for real-time notification triggers
+- Uses Document Visibility API for accurate tab state detection
+- Proper cleanup and memory management for event listeners
+- Support for custom MP3 notification sounds in `wwwroot/` folder
+- Browser autoplay policy handling with graceful fallbacks
+
+### Files Modified
+- `BlazorChat.Client/wwwroot/chat.js` - Added notification system
+- `BlazorChat.Client/Pages/Chat.razor` - Integrated notification tracking
+- `BlazorChat.Client/wwwroot/notif.mp3` - Custom notification sound file
+
 ## [1.2.1] - 2025-07-21
 
 ### ✨ New Features

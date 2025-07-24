@@ -7,6 +7,7 @@ A real-time chat application built with Blazor WebAssembly and SignalR, featurin
 - **Real-time messaging** - Instant message delivery using SignalR WebSockets
 - **Image sharing** - Upload and share images up to 100MB
 - **Emoji support** - Consistent Twemoji rendering using v16 from [jdecked/twemoji](https://github.com/jdecked/twemoji) (official repository)
+- **Tab notifications** - Visual unread count in browser tab title + audio notifications
 - **Online users** - See who's currently in the chat
 - **Chat history** - Last 100 messages are preserved
 - **Mobile responsive** - Works great on all devices with collapsible sidebar

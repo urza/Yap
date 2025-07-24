@@ -530,7 +530,7 @@ else
     
     private async Task HandleNewMessage(string messageUser)
     {
-        // Only increment unread count if:
+        // Only increment unread count and play sound if:
         // 1. Message is from another user (not self)
         // 2. Page is not currently visible
         if (messageUser != username)
@@ -538,16 +538,39 @@ else
             try
             {
                 var isVisible = await JS.InvokeAsync<bool>("eval", "window.tabNotifications.isPageVisible()");
+                Console.WriteLine($"New message from {messageUser}, page visible: {isVisible}");
+                
                 if (!isVisible)
                 {
+                    Console.WriteLine("Playing notification - page not visible");
                     unreadCount++;
                     await UpdateTabTitle();
+                    await PlayNotificationSound();
+                }
+                else
+                {
+                    Console.WriteLine("Skipping notification - page is visible");
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error handling new message notification: {ex.Message}");
             }
+        }
+    }
+    
+    private async Task PlayNotificationSound()
+    {
+        try
+        {
+            if (tabNotificationsJS != null)
+            {
+                await tabNotificationsJS.InvokeVoidAsync("playNotificationSound");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error playing notification sound: {ex.Message}");
         }
     }
     

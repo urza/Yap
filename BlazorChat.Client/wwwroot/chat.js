@@ -43,10 +43,28 @@ window.tabNotifications = {
         });
     },
     
-    // Future: Sound notification functionality
+    // Sound notification functionality
     playNotificationSound: function() {
-        // TODO: Implement sound notification
-        // Will be added in future iteration
+        try {
+            console.log('Attempting to play notification sound...');
+            const audio = new Audio('/notif.mp3');
+            audio.volume = 0.5; // 50% volume
+            
+            // Handle autoplay policy restrictions
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+                playPromise
+                    .then(() => {
+                        console.log('Notification sound played successfully');
+                    })
+                    .catch(error => {
+                        // Auto-play was prevented
+                        console.log('Notification sound blocked by browser:', error.name, error.message);
+                    });
+            }
+        } catch (error) {
+            console.log('Error creating audio element:', error);
+        }
     },
     
     // Reset to original title
