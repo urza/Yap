@@ -1,172 +1,152 @@
-# BlazorChat Project Plan
+# Yap - Blazor Server Chat Application
 
 ## Overview
-A real-time chat application using Blazor WebAssembly client with SignalR for real-time messaging and image sharing capabilities.
+A real-time chat application built with Blazor Server (.NET 10), featuring instant messaging and image sharing capabilities.
 
 ## Architecture
 
-### Projects Structure
-1. **BlazorChat.Server** (Port 5224)
-   - Pure API server with SignalR Hub for real-time chat
-   - RESTful API for image upload and chat history
-   - File storage service for uploaded images
-   - CORS configuration for browser access
-   - **Important**: Browser connects directly to this server's external URL
+### Single Project Structure
+```
+Yap/
+├── Components/
+│   ├── Layout/
+│   │   ├── MainLayout.razor
+│   │   ├── ReconnectModal.razor      # .NET 10 built-in reconnection UI
+│   │   └── ReconnectModal.razor.js
+│   ├── Pages/
+│   │   ├── Chat.razor                # Main chat page (home route)
+│   │   ├── Chat.razor.css            # Discord-style dark theme
+│   │   ├── Error.razor
+│   │   └── NotFound.razor
+│   ├── App.razor
+│   ├── Routes.razor
+│   └── _Imports.razor
+├── Services/
+│   ├── ChatService.cs                # Core real-time functionality
+│   ├── ChatConfigService.cs          # UI text configuration
+│   └── EmojiService.cs               # Twemoji rendering
+├── Models/
+│   └── ChatMessage.cs                # Message record type
+├── wwwroot/
+│   ├── js/chat.js                    # Tab notification helpers
+│   ├── uploads/                      # Image storage
+│   ├── app.css                       # Base styles
+│   └── notif.mp3                     # Notification sound
+├── appsettings.json                  # Chat config + funny texts
+├── Program.cs
+└── Yap.csproj
+```
 
-2. **BlazorChat.Client** 
-   - Blazor WebAssembly code that runs **in the browser**
-   - Chat UI components with Discord-style dark theme
-   - Username entry screen with randomized UI text
-   - SignalR client connection to BlazorChat.Server
-   - Image upload/preview functionality
-   - Real-time typing indicators and emoji support
+## How It Works
 
-3. **BlazorChat.Client.Serve** (Port 5221)
-   - Host server that serves the WebAssembly client to browsers
-   - Provides `/api/config` endpoint so client knows API server location
-   - Acts as static file server + configuration provider
-   - **Key**: This is what users visit, but client connects to Server
+### Real-time Communication
+Blazor Server uses a persistent SignalR connection (circuit) for all UI updates. We leverage this existing connection for chat functionality:
 
-4. **BlazorChat.AppHost**
-   - .NET Aspire orchestration project
-   - Manages all services during development
+1. **ChatService** (singleton) - Holds all chat state and raises events
+2. **Chat.razor** components subscribe to ChatService events
+3. When a message is sent, ChatService notifies all subscribers
+4. Each component calls `StateHasChanged()` to update its UI
 
-## Implementation Plan
+No custom SignalR hub needed - Blazor's built-in circuit handles everything.
 
-### Phase 1: Server Setup
-1. Create BlazorChat.Server project
-   - ASP.NET Core Web API project
-   - Add SignalR and file handling packages
+### Key Components
 
-2. Implement ChatHub
-   ```csharp
-   public class ChatHub : Hub
-   {
-       // Handle user connections
-       // Broadcast messages
-       // Handle user disconnections
-   }
-   ```
+**ChatService.cs**
+- Manages online users, messages, typing indicators
+- Uses `ConcurrentDictionary` for thread-safe state
+- Exposes events: `OnMessageReceived`, `OnUserChanged`, `OnUsersListChanged`, `OnTypingUsersChanged`
 
-3. Image Upload API
-   - POST endpoint: `/api/images/upload`
-   - Store in `wwwroot/uploads/`
-   - Return image URL
+**Chat.razor**
+- Main chat UI component
+- Subscribes to ChatService events on join
+- Unsubscribes and removes user on dispose
+- Handles file uploads directly (no HTTP API needed)
 
-4. Configure Services
-   - CORS for Blazor client
-   - SignalR with WebSockets
-   - Static file serving
+**ChatConfigService.cs**
+- Provides randomized UI text from configuration
+- Fun Gen Z/Alpha slang for all UI elements
 
-### Phase 2: Client Implementation
-1. Username Entry Component
-   - Simple form before entering chat
-   - Store username in session/memory
+**EmojiService.cs**
+- Converts Unicode emojis to Twemoji SVGs
+- Supports large emoji rendering for emoji-only messages
 
-2. Chat Interface
-   - Message list component
-   - Message input with send button
-   - Image upload button
-   - Online users sidebar
+## Configuration
 
-3. SignalR Integration
-   - HubConnection setup
-   - Message send/receive handlers
-   - Connection state management
+All settings in `appsettings.json`:
 
-4. Image Features
-   - File picker for images
-   - Upload progress indicator
-   - Image preview in messages
-   - Click to view full size
+```json
+{
+  "ChatSettings": {
+    "ProjectName": "Yap",
+    "RoomName": "lobby",
+    "FunnyTexts": {
+      "WelcomeMessages": [...],
+      "JoinButtonTexts": [...],
+      "SystemMessages": { "UserJoined": [...], "UserLeft": [...] },
+      "TypingIndicators": { "Single": [...], "Double": [...], "Multiple": [...] }
+    }
+  }
+}
+```
 
-### Phase 3: Features & Polish
-1. Message Types
-   - Text messages
-   - Image messages
-   - System notifications (user joined/left)
+## Running the Application
 
-2. UI Enhancements
-   - Responsive design
-   - Auto-scroll to latest message
-   - Timestamps
-   - User avatars (generated from username)
+### Development
+```bash
+cd Yap
+dotnet run
+```
 
-3. Additional Features
-   - Typing indicators
-   - Message timestamps
-   - Online user count
-   - Connection retry logic
-   - Emoji support with Twemoji rendering
-   - **NEW**: Tab title notifications with unread message count
-   - **NEW**: Audio notifications for background tab messages
+Access at `https://localhost:5001` (or the port shown in console).
+
+### Docker
+```bash
+docker build -t yap .
+docker run -p 8080:8080 -v ./uploads:/app/wwwroot/uploads yap
+```
+
+## Features
+
+- **Real-time messaging** - Instant delivery via Blazor circuit
+- **Image sharing** - Direct file upload, up to 100MB
+- **Emoji support** - Twemoji rendering
+- **Tab notifications** - Unread count in title + audio
+- **Online users** - Live user list
+- **Chat history** - Last 100 messages preserved
+- **Typing indicators** - See who's typing
+- **Mobile responsive** - Collapsible sidebar
+- **Auto-reconnection** - .NET 10 ReconnectModal handles disconnects
+- **Dark theme** - Discord-inspired UI
 
 ## Technical Details
 
-### SignalR Hub Methods
-- `SendMessage(string user, string message)`
-- `SendImage(string user, string imageUrl)`
-- `UserJoined(string user)`
-- `UserLeft(string user)`
+### .NET 10 Features Used
+- `ReconnectModal` component for reconnection UI
+- `BlazorDisableThrowNavigationException` for cleaner navigation
+- `ResourcePreloader` for optimized asset loading
+- `MapStaticAssets()` for fingerprinted static files
 
-### API Endpoints (BlazorChat.Server)
-- `POST /api/images/upload` - Upload image file
-- `GET /uploads/{filename}` - Serve uploaded images
-- `GET /api/chat/history` - Get recent chat messages
-- `/api/chathub` - SignalR hub endpoint
-
-### Configuration Endpoints (BlazorChat.Client.Serve)
-- `GET /api/config` - Configuration discovery endpoint, returns ApiUrl for WebAssembly client
-
-### Client State
-- Current username
-- Connection status
-- Message history
-- Online users list
-
-## Networking Architecture
-
-### Development (Aspire)
-- All services run locally with Aspire orchestration
-- Client discovers server URL automatically
-
-### Docker Deployment
-- **Browser** → **BlazorChat.Client.Serve** (localhost:5221) - Gets WebAssembly app
-- **WebAssembly in Browser** → **BlazorChat.Client.Serve** `/api/config` - Gets API server URL
-- **WebAssembly in Browser** → **BlazorChat.Server** (localhost:5224) - API calls & SignalR
-- **Important**: WebAssembly needs external URLs, not Docker internal networking
-
-## Configuration Discovery Pattern
-
-### The Problem
-WebAssembly code runs in the browser and needs to connect to the API server, but:
-- WebAssembly is compiled at build time with fixed URLs
-- Different deployment environments need different API URLs
-- Can't hardcode URLs because they change per environment
-
-### The Solution: Runtime Configuration
-1. **WebAssembly asks BlazorChat.Client.Serve** for configuration via `/api/config`
-2. **BlazorChat.Client.Serve responds** with the correct API URL for the current environment  
-3. **WebAssembly uses discovered URL** to connect to **BlazorChat.Server**
-
-### Implementation Flow
-```
-Browser loads WebAssembly from BlazorChat.Client.Serve (localhost:5221)
-       ↓
-WebAssembly calls GET /api/config on BlazorChat.Client.Serve (same-origin)
-       ↓
-BlazorChat.Client.Serve responds: {"ApiUrl": "http://localhost:5224"}
-       ↓
-WebAssembly connects to SignalR on BlazorChat.Server at discovered URL
+### File Upload
+Images are uploaded directly in the component using `InputFile`:
+```csharp
+await file.OpenReadStream(maxAllowedSize: 100 * 1024 * 1024).CopyToAsync(stream);
 ```
 
-### Benefits
-- **Environment agnostic**: Same WebAssembly works in dev, staging, production
-- **Same-origin safety**: Config fetch always works (no CORS issues)
-- **Runtime flexibility**: Can change API URL without rebuilding WebAssembly
+No HTTP multipart, no API endpoint - just direct file I/O.
 
-## Security Considerations
-- File upload size limits
-- Image type validation
-- Sanitize user inputs
-- No authentication (as requested)
+### Tab Notifications
+Minimal JavaScript in `wwwroot/js/chat.js`:
+- `setupVisibilityListener` - Detects when tab becomes visible
+- `isPageVisible` - Checks current visibility state
+- `playNotificationSound` - Plays notification audio
+- `scrollToBottom` - Auto-scrolls message list
+
+## Previous Architecture (Migrated From)
+
+The app was migrated from a 4-project Blazor WebAssembly + SignalR architecture:
+- BlazorChat.Server (SignalR hub + API)
+- BlazorChat.Client (WebAssembly)
+- BlazorChat.Client.Serve (WASM host)
+- BlazorChat.AppHost (Aspire)
+
+See `MIGRATION_TO_BLAZOR_SERVER.md` for migration details.

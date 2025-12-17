@@ -1,169 +1,167 @@
-# BlazorChat Configuration Guide
+# Yap Configuration Guide
 
 ## Overview
-The BlazorChat client now supports configurable project/room names and random funny text variations for various UI elements to make the chat experience more entertaining.
+
+Yap supports configurable project/room names and randomized UI text variations to make the chat experience more entertaining.
 
 ## Configuration File
-The configuration is stored in `BlazorChat.Client/wwwroot/appsettings.json` (and `appsettings.Development.json` for development environment).
+
+All configuration is in `Yap/appsettings.json`.
 
 ## Configuration Structure
 
 ### Basic Settings
+
 ```json
 {
   "ChatSettings": {
-    "ProjectName": "BlazorChat",    // The name of your chat application
-    "RoomName": "lobby",            // The default room/channel name
-    "FunnyTexts": {                 // Collections of random text variations
-      // ... text collections ...
+    "ProjectName": "Yap",
+    "RoomName": "lobby",
+    "FunnyTexts": {
+      // Text variation collections
     }
   }
 }
 ```
 
-### Funny Text Collections
+### Text Collections
 
 #### Welcome Messages
-Displayed when users first arrive at the chat. Use `{0}` as placeholder for project name.
+Displayed when users first arrive. Use `{0}` as placeholder for project name.
+
 ```json
 "WelcomeMessages": [
-  "Welcome to {0}! Where conversations happen and typos are celebrated!",
-  "Greetings, brave soul! You've entered {0}, abandon all productivity!",
-  // ... more variations
+  "welcome to {0}",
+  "you ready?",
+  "you found {0}"
 ]
 ```
 
 #### Join Button Texts
 Random text for the join button:
+
 ```json
 "JoinButtonTexts": [
-  "Join Chat",
-  "Enter the Conversation",
-  "Jump In!",
-  // ... more variations
+  "lessgo",
+  "slide in",
+  "hop on",
+  "lock in"
 ]
 ```
 
 #### Username Placeholders
-Placeholder text for the username input field:
+Placeholder text for the username input:
+
 ```json
 "UsernamePlaceholders": [
-  "Enter your username",
-  "What should we call you?",
-  "Pick a cool name",
-  // ... more variations
+  "drop your @",
+  "who dis?",
+  "pick your fighter"
 ]
 ```
 
 #### Message Placeholders
-Placeholder text for the message input field:
+Placeholder text for the message input:
+
 ```json
 "MessagePlaceholders": [
-  "Type a message...",
-  "Say something nice...",
-  "Share your thoughts...",
-  // ... more variations
+  "say hi...",
+  "spill the tea...",
+  "drop a hot take..."
 ]
 ```
 
 #### Connection Statuses
-Different ways to show connection state:
+Connection state indicators:
+
 ```json
 "ConnectionStatuses": {
-  "Connected": [
-    "Connected",
-    "Online",
-    "Plugged In",
-    // ... more variations
-  ],
-  "Disconnected": [
-    "Disconnected",
-    "Offline",
-    "Connection Lost",
-    // ... more variations
-  ]
+  "Connected": ["online"],
+  "Disconnected": ["offline"]
 }
 ```
 
 #### System Messages
-Messages shown when users join or leave. Use `{0}` for username:
+User join/leave messages. Use `{0}` for username:
+
 ```json
 "SystemMessages": {
   "UserJoined": [
-    "{0} joined the chat",
-    "{0} has entered the building",
-    "Wild {0} appeared!",
-    // ... more variations
+    "{0} just dropped",
+    "{0} pulled up",
+    "{0} entered the chat"
   ],
   "UserLeft": [
-    "{0} left the chat",
-    "{0} disappeared into the void",
-    "{0} went to get snacks",
-    // ... more variations
+    "{0} dipped",
+    "{0} ghosted us",
+    "{0} went to touch grass"
   ]
 }
 ```
 
 #### Typing Indicators
 Messages shown when users are typing:
+
 ```json
 "TypingIndicators": {
   "Single": [
-    "{0} is typing..",
-    "{0} is crafting a message..",
-    // ... more variations
+    "{0} is cooking..",
+    "{0} is yapping.."
   ],
   "Double": [
-    "{0} and {1} are typing..",
-    "{0} and {1} are racing to type..",
-    // ... more variations
+    "{0} and {1} are cooking..",
+    "{0} and {1} causing chaos.."
   ],
   "Multiple": [
-    "{0} and {1} others are typing..",
-    "It's a typing party with {0} and {1} others..",
-    // ... more variations
+    "{0}, {1} and more going crazy..",
+    "everyone typing their hot takes.."
   ]
 }
 ```
 
 #### Other UI Elements
+
 ```json
 "OnlineUsersHeader": [
-  "Online Users ({0})",
-  "Active Chatters ({0})",
-  "Current Squad ({0})",
-  // ... more variations
+  "the gang ({0})",
+  "squad check ({0})"
 ],
 "RoomHeaders": [
   "# {0}",
-  "#{0} - Where magic happens",
-  "Welcome to #{0}",
-  // ... more variations
+  "{0} vibes only"
 ]
 ```
 
 ## How It Works
 
-1. **Random Selection**: Each UI element randomly selects from its configured text variations when rendered
+1. **Random Selection**: Each UI element randomly selects from its configured text variations
 2. **Fallback Values**: If a configuration is missing, sensible defaults are used
-3. **Environment-Specific**: Use `appsettings.Development.json` to override values for development
+3. **Placeholder Formatting**: `{0}`, `{1}` are replaced with actual values (username, count, etc.)
 
-## Example Development Configuration
+## Environment-Specific Configuration
+
+Create `appsettings.Development.json` for development overrides:
 
 ```json
 {
   "ChatSettings": {
-    "ProjectName": "DevChat",
-    "RoomName": "dev-lounge",
+    "ProjectName": "DevYap",
     "FunnyTexts": {
       "WelcomeMessages": [
-        "Welcome to {0} DEV MODE! Bugs are features here!",
-        "{0} Development Edition - Where console.log() is your best friend"
-      ],
-      "JoinButtonTexts": [
-        "Deploy to Chat",
-        "git push origin chat"
+        "Welcome to {0} DEV MODE!"
       ]
+    }
+  }
+}
+```
+
+Create `appsettings.Production.json` for production:
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Warning"
     }
   }
 }
@@ -171,14 +169,14 @@ Messages shown when users are typing:
 
 ## Adding New Variations
 
-Simply add more strings to any array in the configuration. The system will automatically include them in the random selection.
+Simply add more strings to any array in the configuration. The system automatically includes them in random selection.
 
 ## Technical Implementation
 
 The `ChatConfigService` class handles:
-- Loading configuration values
+- Loading configuration from `IConfiguration`
 - Random selection of text variations
 - Formatting placeholders with actual values
 - Providing fallback defaults
 
-The service is injected into the Chat component and used to populate UI text elements dynamically.
+The service is registered as scoped in `Program.cs` and injected into the Chat component.

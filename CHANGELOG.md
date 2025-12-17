@@ -1,6 +1,52 @@
 # Changelog
 
-All notable changes to the BlazorChat project are documented in this file.
+All notable changes to Yap are documented in this file.
+
+## [2.0.0] - 2025-12-17
+
+### Complete Rewrite to Blazor Server (.NET 10)
+
+This release represents a complete architectural rewrite from Blazor WebAssembly to Blazor Server.
+
+#### Architecture Changes
+- **Single Project**: Consolidated from 4 projects (Server, Client, Client.Serve, AppHost) to 1 project (Yap)
+- **No Custom SignalR Hub**: Real-time now handled by Blazor Server's built-in circuit
+- **No API Endpoints**: File uploads handled directly in components
+- **No CORS Configuration**: Same-origin requests only
+- **No Aspire Orchestration**: Single `dotnet run` to start
+
+#### .NET 10 Features
+- **ReconnectModal**: Built-in reconnection UI with circuit resume support
+- **ResourcePreloader**: Optimized asset loading
+- **BlazorDisableThrowNavigationException**: Cleaner navigation handling
+- **MapStaticAssets()**: Fingerprinted static file serving
+
+#### Technical Implementation
+- `ChatService` singleton with C# events replaces SignalR hub
+- Components subscribe to events and call `StateHasChanged()`
+- Direct `InputFile` + `FileStream` for image uploads
+- ~60% code reduction
+
+#### What's Removed
+| Removed | Reason |
+|---------|--------|
+| SignalR Hub | Blazor circuit handles real-time |
+| `/api/config` endpoint | Direct service injection |
+| `/api/images/upload` endpoint | Direct file handling |
+| `/api/chat/history` endpoint | Direct service access |
+| CORS configuration | Same-origin requests |
+| HttpClient service | No cross-server calls |
+| Aspire orchestration | Single project |
+| WebAssembly runtime | Server-rendered |
+
+#### Benefits
+- Single codebase to maintain
+- Simpler deployment (one container)
+- Better debugging (full server-side)
+- Faster development cycle
+- Standard ASP.NET Core patterns
+
+---
 
 ## [1.2.2] - 2025-07-24
 

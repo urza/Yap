@@ -1,5 +1,11 @@
 # Migration from Blazor WebAssembly to Blazor Server (.NET 10)
 
+> **Status: COMPLETED** - Migration was successfully completed on 2025-12-17.
+>
+> The application now runs as a single Blazor Server project (Yap) on .NET 10.
+
+---
+
 ## Overview
 
 This document outlines the migration of BlazorChat from a multi-project Blazor WebAssembly + SignalR architecture to a single-project Blazor Server application running on .NET 10.

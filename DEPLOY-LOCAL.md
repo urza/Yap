@@ -1,154 +1,165 @@
-# BlazorChat Local Docker Deployment Guide
+# Yap Local Deployment Guide
 
-This guide is for deploying BlazorChat on a single machine using local Docker builds (no container registry needed).
+This guide is for running Yap locally without Docker.
 
 ## Prerequisites
-- Docker Desktop installed and running
-- Git installed
-- Nginx Proxy Manager configured
 
-## Step 1: Clone the Repository
+- .NET 10 SDK
+- Git (optional)
 
-On your Docker machine:
+## Running Locally
+
+### Development Mode
 
 ```bash
-# Clone the repository
-git clone https://github.com/YOUR-USERNAME/BlazorChat.git
-cd BlazorChat/BlazorChat
-
-# Or copy the project files to your server
+cd Yap
+dotnet run
 ```
 
-## Step 2: Build and Run
+The app will start and display the URL (typically `https://localhost:5001` or `http://localhost:5000`).
 
-1. Create the uploads directory:
+### Watch Mode (Hot Reload)
+
 ```bash
-mkdir -p uploads
-chmod 777 uploads
+cd Yap
+dotnet watch
 ```
 
-2. Build and start the containers:
+Changes to `.razor`, `.cs`, and `.css` files will automatically reload.
+
+### Production Mode
+
 ```bash
-docker-compose up -d --build
+cd Yap
+dotnet run --configuration Release
 ```
 
-This command will:
-- Build both images locally
-- Start the containers
-- The `--build` flag ensures images are rebuilt
+## Building for Deployment
 
-### Understanding the Uploads Volume
+### Self-Contained Deployment
 
-The docker-compose.yml uses a bind mount for uploaded files:
-```yaml
-volumes:
-  - ./uploads:/app/wwwroot/uploads
-```
-
-This means:
-- **Host directory**: `./uploads` (relative to docker-compose.yml location)
-- **Container directory**: `/app/wwwroot/uploads`
-- **Files are stored directly on your host** - you can browse, backup, and manage them normally
-- **Persists across container restarts** - removing containers won't delete your uploads
-
-You can also use an absolute path if preferred:
-```yaml
-volumes:
-  - /path/to/my/uploads:/app/wwwroot/uploads
-  # Windows example:
-  - D:/tmp/blazorchat-uploads:/app/wwwroot/uploads
-```
-
-## Step 3: Configure Nginx Proxy Manager
-
-Add a new proxy host:
-
-1. **Domain Names**: `chat.yourdomain.com`
-2. **Scheme**: `http`
-3. **Forward Hostname/IP**: 
-   - Use `blazorchat` (if NPM is on same Docker network)
-   - Or use your Docker host IP (e.g., `192.168.1.100`)
-4. **Forward Port**: `80`
-5. **Enable Websockets Support**: ✓ (Required for SignalR!)
-
-### Custom Nginx Configuration:
-```nginx
-proxy_set_header X-Forwarded-Proto $scheme;
-proxy_set_header X-Real-IP $remote_addr;
-proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-
-# SignalR specific
-proxy_set_header Connection $http_connection;
-proxy_http_version 1.1;
-proxy_cache_bypass $http_upgrade;
-```
-
-## Step 4: Enable SSL
-
-1. In SSL tab, request Let's Encrypt certificate
-2. Enable "Force SSL"
-
-## Useful Commands
-
-### View logs:
 ```bash
-docker-compose logs -f
+cd Yap
+
+# Windows
+dotnet publish -c Release -r win-x64 --self-contained
+
+# Linux
+dotnet publish -c Release -r linux-x64 --self-contained
+
+# macOS
+dotnet publish -c Release -r osx-x64 --self-contained
 ```
 
-### Rebuild after code changes:
+Output will be in `bin/Release/net10.0/{runtime}/publish/`
+
+### Framework-Dependent Deployment
+
 ```bash
-docker-compose down
-docker-compose up -d --build
+dotnet publish -c Release
 ```
 
-### Update from Git:
+Requires .NET 10 runtime on the target machine.
+
+## File Storage
+
+Uploaded images are stored in `wwwroot/uploads/`. Ensure this directory:
+- Exists before running
+- Has write permissions
+- Is backed up regularly
+
+## Configuration
+
+Edit `appsettings.json` for customization:
+
+```json
+{
+  "ChatSettings": {
+    "ProjectName": "Yap",
+    "RoomName": "lobby"
+  }
+}
+```
+
+For production, use `appsettings.Production.json`:
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Warning"
+    }
+  }
+}
+```
+
+## Running as a Service
+
+### Windows (NSSM)
+
 ```bash
-git pull
-docker-compose up -d --build
+nssm install Yap "C:\path\to\Yap.exe"
+nssm set Yap AppDirectory "C:\path\to"
+nssm start Yap
 ```
 
-### Stop everything:
+### Linux (systemd)
+
+Create `/etc/systemd/system/yap.service`:
+
+```ini
+[Unit]
+Description=Yap Chat Application
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/yap
+ExecStart=/opt/yap/Yap
+Restart=always
+RestartSec=10
+User=www-data
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://localhost:5000
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
 ```bash
-docker-compose down
+sudo systemctl enable yap
+sudo systemctl start yap
 ```
-
-## Ports
-
-- BlazorChat UI: `http://localhost:5221`
-- SignalR Server: `http://localhost:5224`
-
-Access through your domain after Nginx setup.
 
 ## Troubleshooting
 
-### If containers won't start:
+### Port already in use
 ```bash
-docker-compose down -v
-docker-compose up -d --build
+# Find process using port
+netstat -ano | findstr :5000  # Windows
+lsof -i :5000                  # Linux/macOS
+
+# Use different port
+dotnet run --urls "http://localhost:5001"
 ```
 
-### If uploads aren't working:
+### Upload permissions
 ```bash
-docker exec -it blazorchat-server ls -la /app/wwwroot/uploads
-chmod -R 777 uploads/
+# Linux/macOS
+chmod 755 wwwroot/uploads
+
+# Windows - ensure IIS_IUSRS has write access
 ```
 
-### Check container status:
-```bash
-docker ps
-docker-compose ps
+### Logs
+Check console output or configure file logging in `appsettings.json`:
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information"
+    }
+  }
+}
 ```
-
-## Advantages of Local Build
-
-- No need for container registry
-- Faster deployment (no image push/pull)
-- Everything stays on your machine
-- Easier for single-server deployments
-
-## Production Tips
-
-1. Always use `restart: unless-stopped` in docker-compose.yml
-2. Set `ASPNETCORE_ENVIRONMENT=Production`
-3. Use a volume for uploads to persist data
-4. Regular backups of the uploads folder
