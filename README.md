@@ -18,14 +18,14 @@ Access at `http://localhost:5221` - it's up to you how to make this accessible f
 - **No reqistration requiered** - Just log in with username
 - **No database** - Messages live in memory and wipe out with app reset
 - **Image sharing** - Upload image(s) and see them in inline gallery
-- **Dark theme** - Discord-inspired UI
 - **Emoji support** - Beautiful Twemoji rendering
 - **Message actions** - Discord-style hover popup on messages
 - **Customizable labels in config** - Fun defaults
 - **Tab notifications** - Unread count in browser tab + audio notifications
+- **Chat history** - Last 100 messages for newcomers
+- **Typing indicators** - Yes again stolen from Discrod
 - **Online users** - See who's currently in the chat
-- **Chat history** - Last 100 messages preserved
-- **Typing indicators** - See who's typing in real-time
+- **Dark theme** - Discord-inspired UI
 - **Mobile responsive** - Works great on all devices with collapsible sidebar
 
 
