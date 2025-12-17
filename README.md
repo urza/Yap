@@ -5,6 +5,9 @@ A real-time chat application built with Blazor Server (.NET 10), featuring insta
 ## Features
 
 - **Real-time messaging** - Instant message delivery via Blazor Server circuit
+- **Message actions** - Discord-style hover popup on messages
+- **Reactions** - ❤️ 😂 🥹 emoji reactions with counts
+- **Edit/Delete** - Edit or delete your own messages
 - **Image sharing** - Upload and share images up to 100MB
 - **Emoji support** - Consistent Twemoji rendering
 - **Tab notifications** - Unread count in browser tab + audio notifications

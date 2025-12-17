@@ -532,3 +532,170 @@ body {
         opacity: 1;
     }
 }
+
+/* Message actions popup */
+.message-group {
+    position: relative;
+}
+
+.message-group.hovered {
+    background: #32353b;
+}
+
+.message-actions {
+    position: absolute;
+    top: -16px;
+    right: 16px;
+    display: flex;
+    gap: 2px;
+    background: #2f3136;
+    border-radius: 4px;
+    padding: 2px;
+    box-shadow: 0 0 0 1px rgba(4,4,5,0.15), 0 4px 4px rgba(0,0,0,0.1);
+    z-index: 10;
+    animation: fadeIn 0.1s ease;
+}
+
+.action-btn {
+    background: transparent;
+    border: none;
+    padding: 6px 8px;
+    cursor: pointer;
+    border-radius: 3px;
+    font-size: 1rem;
+    line-height: 1;
+    transition: background-color 0.1s;
+}
+
+.action-btn:hover {
+    background: #36393f;
+}
+
+.action-edit:hover {
+    background: #5865f2;
+}
+
+.action-delete:hover {
+    background: #ed4245;
+}
+
+/* Reactions display */
+.reactions-display {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.reaction-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #2f3136;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 2px 8px;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: background-color 0.1s, border-color 0.1s;
+}
+
+.reaction-pill:hover {
+    background: #36393f;
+    border-color: #4f545c;
+}
+
+.reaction-pill.reacted {
+    background: rgba(88, 101, 242, 0.3);
+    border-color: #5865f2;
+}
+
+.reaction-count {
+    color: #b9bbbe;
+    font-size: 0.75rem;
+}
+
+.reaction-pill.reacted .reaction-count {
+    color: #dee0fc;
+}
+
+/* Edit mode */
+.edit-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.edit-input {
+    width: 100%;
+    padding: 8px 12px;
+    background: #40444b;
+    border: 1px solid #202225;
+    border-radius: 4px;
+    color: #dcddde;
+    font-size: 1rem;
+    font-family: inherit;
+}
+
+.edit-input:focus {
+    outline: none;
+    border-color: #5865f2;
+}
+
+.edit-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.edit-save,
+.edit-cancel {
+    padding: 4px 12px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: background-color 0.1s;
+}
+
+.edit-save {
+    background: #3ba55c;
+    color: white;
+}
+
+.edit-save:hover {
+    background: #2d7d46;
+}
+
+.edit-cancel {
+    background: #4f545c;
+    color: #dcddde;
+}
+
+.edit-cancel:hover {
+    background: #5d6269;
+}
+
+/* Edited indicator */
+.edited-indicator {
+    color: #72767d;
+    font-size: 0.625rem;
+    margin-left: 4px;
+}
+
+/* Mobile adjustments for message actions */
+@media (max-width: 600px) {
+    .message-actions {
+        right: 8px;
+        top: -12px;
+    }
+
+    .action-btn {
+        padding: 4px 6px;
+        font-size: 0.875rem;
+    }
+
+    .reaction-pill {
+        padding: 2px 6px;
+        font-size: 0.75rem;
+    }
+}

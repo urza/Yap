@@ -52,9 +52,10 @@ No custom SignalR hub needed - Blazor's built-in circuit handles everything.
 ### Key Components
 
 **ChatService.cs**
-- Manages online users, messages, typing indicators
+- Manages online users, messages, typing indicators, reactions
 - Uses `ConcurrentDictionary` for thread-safe state
-- Exposes events: `OnMessageReceived`, `OnUserChanged`, `OnUsersListChanged`, `OnTypingUsersChanged`
+- Exposes events: `OnMessageReceived`, `OnMessageUpdated`, `OnMessageDeleted`, `OnReactionChanged`, `OnUserChanged`, `OnUsersListChanged`, `OnTypingUsersChanged`
+- Methods: `EditMessageAsync`, `DeleteMessageAsync`, `ToggleReactionAsync`
 
 **Chat.razor**
 - Main chat UI component
@@ -108,6 +109,9 @@ docker run -p 8080:8080 -v ./uploads:/app/wwwroot/uploads yap
 ## Features
 
 - **Real-time messaging** - Instant delivery via Blazor circuit
+- **Message actions** - Discord-style hover popup with reactions, edit, delete
+- **Reactions** - ❤️ 😂 🥹 reactions on any message, shown as pills with counts
+- **Edit/Delete** - Edit or delete your own messages (shows "edited" indicator)
 - **Image sharing** - Direct file upload, up to 100MB
 - **Emoji support** - Twemoji rendering
 - **Tab notifications** - Unread count in title + audio

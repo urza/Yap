@@ -2,6 +2,25 @@
 
 All notable changes to Yap are documented in this file.
 
+## [2.1.0] - 2025-12-17
+
+### Discord-Style Message Actions
+
+#### New Features
+- **Message hover popup** - Actions appear when hovering over messages
+- **Reactions** - ❤️ 😂 🥹 emoji reactions on any message
+- **Reaction pills** - Display under messages with count and who reacted (tooltip)
+- **Edit messages** - Edit your own text messages (shows "edited" indicator)
+- **Delete messages** - Delete your own messages
+
+#### Technical Changes
+- `ChatMessage` model now has `Id`, `IsEdited`, and `Reactions` dictionary
+- `ChatService` uses `ConcurrentDictionary` for O(1) message lookups
+- New events: `OnMessageUpdated`, `OnMessageDeleted`, `OnReactionChanged`
+- New methods: `EditMessageAsync`, `DeleteMessageAsync`, `ToggleReactionAsync`
+
+---
+
 ## [2.0.0] - 2025-12-17
 
 ### Complete Rewrite to Blazor Server (.NET 10)

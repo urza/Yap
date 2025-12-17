@@ -50,8 +50,13 @@ else
                         var message = messages[i];
                         var isSystemMessage = message.Username == "System";
                         var showHeader = !isSystemMessage && (i == 0 || messages[i - 1].Username != message.Username);
+                        var isOwnMessage = message.Username == username;
+                        var isHovered = hoveredMessageId == message.Id;
+                        var isEditing = editingMessageId == message.Id;
 
-                        <div class="message-group @(isSystemMessage ? "system-message" : "")">
+                        <div class="message-group @(isSystemMessage ? "system-message" : "") @(isHovered ? "hovered" : "")"
+                             @onmouseenter="() => OnMessageMouseEnter(message.Id)"
+                             @onmouseleave="OnMessageMouseLeave">
                             @if (showHeader)
                             {
                                 <div class="message-header">
@@ -60,7 +65,18 @@ else
                                 </div>
                             }
                             <div class="message-content">
-                                @if (message.IsImage)
+                                @if (isEditing)
+                                {
+                                    <div class="edit-container">
+                                        <input type="text" @bind="editContent" @bind:event="oninput"
+                                               class="edit-input" @onkeydown="HandleEditKeyDown" />
+                                        <div class="edit-actions">
+                                            <button class="edit-save" @onclick="SaveEdit" title="Save">✓</button>
+                                            <button class="edit-cancel" @onclick="CancelEdit" title="Cancel">✕</button>
+                                        </div>
+                                    </div>
+                                }
+                                else if (message.IsImage)
                                 {
                                     <img src="@message.Content" alt="Uploaded image"
                                          class="message-image" @onclick="() => ShowFullImage(message.Content)" />
@@ -68,8 +84,46 @@ else
                                 else
                                 {
                                     @EmojiService.ConvertEmojisToTwemoji(message.Content)
+                                    @if (message.IsEdited)
+                                    {
+                                        <span class="edited-indicator">(edited)</span>
+                                    }
                                 }
                             </div>
+
+                            @* Reactions display *@
+                            @if (message.Reactions.Count > 0)
+                            {
+                                <div class="reactions-display">
+                                    @foreach (var reaction in message.Reactions)
+                                    {
+                                        var hasReacted = reaction.Value.Contains(username);
+                                        <button class="reaction-pill @(hasReacted ? "reacted" : "")"
+                                                @onclick="() => ToggleReaction(message.Id, reaction.Key)"
+                                                title="@string.Join(", ", reaction.Value)">
+                                            @reaction.Key <span class="reaction-count">@reaction.Value.Count</span>
+                                        </button>
+                                    }
+                                </div>
+                            }
+
+                            @* Message actions popup *@
+                            @if (isHovered && !isSystemMessage && !isEditing)
+                            {
+                                <div class="message-actions">
+                                    <button class="action-btn" @onclick="@(() => ToggleReaction(message.Id, HEART))" title="Love">❤️</button>
+                                    <button class="action-btn" @onclick="@(() => ToggleReaction(message.Id, LAUGH))" title="Laugh">😂</button>
+                                    <button class="action-btn" @onclick="@(() => ToggleReaction(message.Id, TOUCHED))" title="Touched">🥹</button>
+                                    @if (isOwnMessage && !message.IsImage)
+                                    {
+                                        <button class="action-btn action-edit" @onclick="() => StartEdit(message)" title="Edit">✏️</button>
+                                    }
+                                    @if (isOwnMessage)
+                                    {
+                                        <button class="action-btn action-delete" @onclick="() => DeleteMessage(message.Id)" title="Delete">🗑️</button>
+                                    }
+                                </div>
+                            }
                         </div>
                     }
                 </div>
@@ -130,6 +184,11 @@ else
 }
 
 @code {
+    // Reaction emoji constants (to avoid quote escaping issues in markup)
+    private const string HEART = "❤️";
+    private const string LAUGH = "😂";
+    private const string TOUCHED = "🥹";
+
     private string circuitId = Guid.NewGuid().ToString();
 
     // State
@@ -145,6 +204,11 @@ else
     private bool sidebarOpen = false;
     private System.Timers.Timer? typingTimer;
     private bool isTyping = false;
+
+    // Message actions state
+    private Guid? hoveredMessageId = null;
+    private Guid? editingMessageId = null;
+    private string editContent = "";
 
     // Tab notifications
     private int unreadCount = 0;
@@ -190,6 +254,9 @@ else
 
         // Subscribe to events
         ChatService.OnMessageReceived += HandleMessageReceived;
+        ChatService.OnMessageUpdated += HandleMessageUpdated;
+        ChatService.OnMessageDeleted += HandleMessageDeleted;
+        ChatService.OnReactionChanged += HandleReactionChanged;
         ChatService.OnUserChanged += HandleUserChanged;
         ChatService.OnUsersListChanged += HandleUsersListChanged;
         ChatService.OnTypingUsersChanged += HandleTypingUsersChanged;
@@ -217,6 +284,44 @@ else
             StateHasChanged();
             await ScrollToBottom();
             await HandleNewMessageNotification(message.Username);
+        });
+    }
+
+    private async Task HandleMessageUpdated(ChatMessage message)
+    {
+        await InvokeAsync(() =>
+        {
+            var index = messages.FindIndex(m => m.Id == message.Id);
+            if (index >= 0)
+            {
+                messages[index] = message;
+            }
+            StateHasChanged();
+            return Task.CompletedTask;
+        });
+    }
+
+    private async Task HandleMessageDeleted(Guid messageId)
+    {
+        await InvokeAsync(() =>
+        {
+            messages.RemoveAll(m => m.Id == messageId);
+            StateHasChanged();
+            return Task.CompletedTask;
+        });
+    }
+
+    private async Task HandleReactionChanged(ChatMessage message)
+    {
+        await InvokeAsync(() =>
+        {
+            var index = messages.FindIndex(m => m.Id == message.Id);
+            if (index >= 0)
+            {
+                messages[index] = message;
+            }
+            StateHasChanged();
+            return Task.CompletedTask;
         });
     }
 
@@ -299,6 +404,60 @@ else
         {
             Console.WriteLine($"Error uploading file: {ex.Message}");
         }
+    }
+
+    // Message actions
+    private void OnMessageMouseEnter(Guid messageId)
+    {
+        hoveredMessageId = messageId;
+    }
+
+    private void OnMessageMouseLeave()
+    {
+        hoveredMessageId = null;
+    }
+
+    private async Task ToggleReaction(Guid messageId, string emoji)
+    {
+        await ChatService.ToggleReactionAsync(messageId, username, emoji);
+    }
+
+    private void StartEdit(ChatMessage message)
+    {
+        editingMessageId = message.Id;
+        editContent = message.Content;
+    }
+
+    private async Task SaveEdit()
+    {
+        if (editingMessageId.HasValue && !string.IsNullOrWhiteSpace(editContent))
+        {
+            await ChatService.EditMessageAsync(editingMessageId.Value, username, editContent);
+        }
+        CancelEdit();
+    }
+
+    private void CancelEdit()
+    {
+        editingMessageId = null;
+        editContent = "";
+    }
+
+    private async Task HandleEditKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SaveEdit();
+        }
+        else if (e.Key == "Escape")
+        {
+            CancelEdit();
+        }
+    }
+
+    private async Task DeleteMessage(Guid messageId)
+    {
+        await ChatService.DeleteMessageAsync(messageId, username);
     }
 
     private Task OnMessageInputChanged()
@@ -439,6 +598,9 @@ else
         if (!string.IsNullOrEmpty(username))
         {
             ChatService.OnMessageReceived -= HandleMessageReceived;
+            ChatService.OnMessageUpdated -= HandleMessageUpdated;
+            ChatService.OnMessageDeleted -= HandleMessageDeleted;
+            ChatService.OnReactionChanged -= HandleReactionChanged;
             ChatService.OnUserChanged -= HandleUserChanged;
             ChatService.OnUsersListChanged -= HandleUsersListChanged;
             ChatService.OnTypingUsersChanged -= HandleTypingUsersChanged;
