@@ -1,24 +1,33 @@
 # Yap
 
-A real-time chat application built with Blazor Server (.NET 10), featuring instant messaging and image sharing capabilities.
+Super minimalistic self hosted chat inspired by Discord aesthetics
+
+![Screenshot](screenshot.png)
+
+
+## Run with Docker
+
+```bash
+docker run -d --name yap -p 5221:8080 -v ./uploads:/app/wwwroot/uploads ghcr.io/urza/yap:latest
+```
+
+Access at `http://localhost:5221`
 
 ## Features
 
-- **Real-time messaging** - Instant message delivery via Blazor Server circuit
-- **Message actions** - Discord-style hover popup on messages
-- **Reactions** - ❤️ 😂 🥹 emoji reactions with counts
-- **Edit/Delete** - Edit or delete your own messages
-- **Image sharing** - Upload multiple images at once (up to 10 files, 100MB each)
-- **Drag & drop** - Drop images onto the input area to upload
-- **Image gallery** - Compact thumbnail row with "+N" overlay, full-size modal with navigation
-- **Emoji support** - Consistent Twemoji rendering
+- **No reqistration requiered** - Just log in with username
+- **No database** - Messages only live in memory and wipe out with app reset
+- **Dark theme** - Discord-inspired UI
+- **Emoji support** - Beautiful Twemoji rendering
+- **Customizable labels in config** - Fun defaults
+- **Image sharing** - Upload image(s) and see them in inline gallery
 - **Tab notifications** - Unread count in browser tab + audio notifications
 - **Online users** - See who's currently in the chat
 - **Chat history** - Last 100 messages preserved
 - **Typing indicators** - See who's typing in real-time
 - **Mobile responsive** - Works great on all devices with collapsible sidebar
-- **Dark theme** - Discord-inspired UI
-- **Auto-reconnection** - .NET 10's built-in ReconnectModal handles disconnects gracefully
+
+
 
 ## Architecture
 
@@ -52,36 +61,6 @@ Blazor Server maintains a persistent SignalR connection (circuit) for UI updates
 
 No custom SignalR hub needed - Blazor's built-in circuit handles everything.
 
-## Getting Started
-
-### Prerequisites
-
-- .NET 10 SDK
-- Visual Studio 2022 or VS Code (optional)
-
-### Running Locally
-
-```bash
-cd Yap
-dotnet run
-```
-
-Open the URL shown in the console (typically `https://localhost:5001`).
-
-### Running with Docker
-
-**Using pre-built image:**
-```bash
-docker run -d --name yap -p 5221:8080 -v ./uploads:/app/wwwroot/uploads --restart unless-stopped ghcr.io/urza/yap
-```
-
-**Or build locally:**
-```bash
-docker build -t yap ./Yap
-docker run -d --name yap -p 5221:8080 -v ./uploads:/app/wwwroot/uploads --restart unless-stopped yap
-```
-
-Access at `http://localhost:5221`
 
 ## Using the Chat
 
@@ -127,10 +106,6 @@ Edit `appsettings.json` to customize:
 - **Real-time**: Blazor circuit (built-in SignalR)
 - **Styling**: Scoped CSS with Discord-inspired dark theme
 - **Emojis**: Twemoji v16
-
-## Migration History
-
-This project was migrated from a 4-project Blazor WebAssembly + SignalR architecture to a single Blazor Server project. See `MIGRATION_TO_BLAZOR_SERVER.md` for details.
 
 ## Contributing
 
