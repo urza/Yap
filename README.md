@@ -53,7 +53,7 @@ Yap/
 
 ### How Real-time Works
 
-Blazor Server maintains a persistent SignalR connection (circuit) for UI updates. We use this same connection for chat:
+Blazor Server maintains a persistent SignalR (web sockets) connection for UI updates. We use this same connection for chat:
 
 1. `ChatService` (singleton) holds chat state and raises events
 2. Each user's `Chat.razor` component subscribes to these events
@@ -73,7 +73,7 @@ No custom SignalR hub needed - Blazor's built-in circuit handles everything.
 6. Hover over messages to react, edit, or delete
 7. Toggle the sidebar on mobile to see online users
 
-## Configuration
+## Configuration - change the app labels in your instance
 
 Edit `appsettings.json` to customize:
 
