@@ -2,6 +2,28 @@
 
 All notable changes to Yap are documented in this file.
 
+## [2.2.0] - 2025-12-17
+
+### Multi-Image Upload & Drag-Drop
+
+#### New Features
+- **Multiple image upload** - Select multiple images at once (up to 10 files)
+- **Drag and drop** - Drop images directly onto the message input area
+- **Image gallery display** - Messages with multiple images display in a grid layout
+  - 1 image: full width
+  - 2 images: side by side
+  - 3+ images: 2-column grid
+- **Visual drop feedback** - Input area highlights when dragging files over it
+
+#### Technical Changes
+- `ChatMessage` model changed from `bool IsImage` to `List<string> ImageUrls`
+- Added `HasImages` computed property for backward compatibility
+- `ChatService.SendMessageAsync` now accepts `List<string>? imageUrls` parameter
+- New CSS classes: `.image-gallery`, `.gallery-single`, `.gallery-double`, `.gallery-grid`
+- New JS function: `setupDropZone` for drag-drop file handling
+
+---
+
 ## [2.1.0] - 2025-12-17
 
 ### Discord-Style Message Actions

@@ -51,9 +51,9 @@ public class ChatService
         _users.Values.Select(u => u.Username).Distinct().ToList();
 
     // Messaging
-    public async Task SendMessageAsync(string username, string content, bool isImage = false)
+    public async Task SendMessageAsync(string username, string content, List<string>? imageUrls = null)
     {
-        var message = new ChatMessage(username, content, DateTime.UtcNow, isImage);
+        var message = new ChatMessage(username, content, DateTime.UtcNow, imageUrls);
         _messages[message.Id] = message;
 
         lock (_orderLock)
@@ -95,7 +95,7 @@ public class ChatService
         if (message.Username != username)
             return false;
 
-        if (message.IsImage)
+        if (message.HasImages)
             return false; // Can't edit image messages
 
         message.Content = newContent;

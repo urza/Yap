@@ -8,7 +8,9 @@ A real-time chat application built with Blazor Server (.NET 10), featuring insta
 - **Message actions** - Discord-style hover popup on messages
 - **Reactions** - ❤️ 😂 🥹 emoji reactions with counts
 - **Edit/Delete** - Edit or delete your own messages
-- **Image sharing** - Upload and share images up to 100MB
+- **Image sharing** - Upload multiple images at once (up to 10 files, 100MB each)
+- **Drag & drop** - Drop images onto the input area to upload
+- **Image gallery** - Multiple images display in a grid layout
 - **Emoji support** - Consistent Twemoji rendering
 - **Tab notifications** - Unread count in browser tab + audio notifications
 - **Online users** - See who's currently in the chat
@@ -83,8 +85,10 @@ Access at `http://localhost:8080`
 1. Enter your username on the welcome screen
 2. Start chatting - press Enter to send messages
 3. Use emojis naturally - they render as Twemoji SVGs
-4. Click the image button to upload pictures
-5. Toggle the sidebar on mobile to see online users
+4. Click the image button to upload pictures (supports multiple selection)
+5. Drag and drop images directly onto the message input area
+6. Hover over messages to react, edit, or delete
+7. Toggle the sidebar on mobile to see online users
 
 ## Configuration
 
@@ -109,8 +113,10 @@ Edit `appsettings.json` to customize:
 
 ## File Upload Limits
 
-- Maximum file size: 100MB
+- Maximum file size: 100MB per file
+- Maximum files per upload: 10
 - Supported formats: JPEG, PNG, GIF, WebP
+- Drag & drop: Supported
 
 ## Tech Stack
 

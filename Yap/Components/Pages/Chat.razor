@@ -76,10 +76,30 @@ else
                                         </div>
                                     </div>
                                 }
-                                else if (message.IsImage)
+                                else if (message.HasImages)
                                 {
-                                    <img src="@message.Content" alt="Uploaded image"
-                                         class="message-image" @onclick="() => ShowFullImage(message.Content)" />
+                                    var maxPreview = 4;
+                                    var hasMore = message.ImageUrls.Count > maxPreview;
+                                    var previewCount = hasMore ? maxPreview : message.ImageUrls.Count;
+                                    var extraCount = message.ImageUrls.Count - maxPreview;
+
+                                    <div class="image-gallery @GetGalleryClass(previewCount)">
+                                        @for (int imgIndex = 0; imgIndex < previewCount; imgIndex++)
+                                        {
+                                            var idx = imgIndex;
+                                            var imageUrl = message.ImageUrls[idx];
+                                            var isLastPreview = hasMore && idx == maxPreview - 1;
+
+                                            <div class="gallery-item @(isLastPreview ? "has-more" : "")"
+                                                 @onclick="() => ShowGallery(message.ImageUrls, idx)">
+                                                <img src="@imageUrl" alt="Uploaded image" class="gallery-image" />
+                                                @if (isLastPreview)
+                                                {
+                                                    <div class="gallery-more-overlay">+@extraCount</div>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
                                 }
                                 else
                                 {
@@ -114,7 +134,7 @@ else
                                     <button class="action-btn" @onclick="@(() => ToggleReaction(message.Id, HEART))" title="Love">❤️</button>
                                     <button class="action-btn" @onclick="@(() => ToggleReaction(message.Id, LAUGH))" title="Laugh">😂</button>
                                     <button class="action-btn" @onclick="@(() => ToggleReaction(message.Id, TOUCHED))" title="Touched">🥹</button>
-                                    @if (isOwnMessage && !message.IsImage)
+                                    @if (isOwnMessage && !message.HasImages)
                                     {
                                         <button class="action-btn action-edit" @onclick="() => StartEdit(message)" title="Edit">✏️</button>
                                     }
@@ -128,7 +148,14 @@ else
                     }
                 </div>
 
-                <div class="message-input-container">
+                <div class="message-input-container @(isDraggingOver ? "drag-over" : "")"
+                     @ref="dropZoneElement"
+                     @ondragenter="HandleDragEnter"
+                     @ondragover="HandleDragOver"
+                     @ondragover:preventDefault
+                     @ondragleave="HandleDragLeave"
+                     @ondrop="HandleDrop"
+                     @ondrop:preventDefault>
                     <input type="text" @bind="messageInput" @bind:event="oninput" @bind:after="OnMessageInputChanged"
                            placeholder="@messagePlaceholder" class="message-input"
                            @onkeypress="HandleMessageKeyPress" />
@@ -139,7 +166,7 @@ else
                             <circle cx="8.5" cy="8.5" r="1.5"></circle>
                             <polyline points="21 15 16 10 5 21"></polyline>
                         </svg>
-                        <InputFile OnChange="HandleFileSelected" accept="image/*" style="display: none;" />
+                        <InputFile @ref="fileInput" OnChange="HandleFileSelected" accept="image/*" multiple style="display: none;" id="fileInput" />
                     </label>
                 </div>
 
@@ -179,7 +206,17 @@ else
 @if (showImageModal)
 {
     <div class="image-modal" @onclick="CloseImageModal">
-        <img src="@modalImageUrl" alt="Full size image" />
+        @if (modalGallery.Count > 1)
+        {
+            <button class="modal-nav prev" @onclick="PrevImage" @onclick:stopPropagation="true" title="Previous">‹</button>
+        }
+        <img src="@modalGallery[modalImageIndex]" alt="Full size image" @onclick:stopPropagation="true" />
+        @if (modalGallery.Count > 1)
+        {
+            <button class="modal-nav next" @onclick="NextImage" @onclick:stopPropagation="true" title="Next">›</button>
+            <div class="modal-counter">@(modalImageIndex + 1) / @modalGallery.Count</div>
+        }
+        <button class="modal-close" @onclick="CloseImageModal" @onclick:stopPropagation="true" title="Close">×</button>
     </div>
 }
 
@@ -199,8 +236,11 @@ else
     private List<string> onlineUsers = new();
     private List<string> typingUsers = new();
     private ElementReference messagesElement;
+    private ElementReference dropZoneElement;
+    private InputFile? fileInput;
     private bool showImageModal = false;
-    private string modalImageUrl = "";
+    private List<string> modalGallery = new();
+    private int modalImageIndex = 0;
     private bool sidebarOpen = false;
     private System.Timers.Timer? typingTimer;
     private bool isTyping = false;
@@ -209,6 +249,9 @@ else
     private Guid? hoveredMessageId = null;
     private Guid? editingMessageId = null;
     private string editContent = "";
+
+    // Drag and drop state
+    private bool isDraggingOver = false;
 
     // Tab notifications
     private int unreadCount = 0;
@@ -274,6 +317,9 @@ else
 
         await InvokeAsync(StateHasChanged);
         await ScrollToBottom();
+
+        // Setup drag-drop zone (after render)
+        await SetupDropZone();
     }
 
     private async Task HandleMessageReceived(ChatMessage message)
@@ -373,38 +419,72 @@ else
 
     private async Task HandleFileSelected(InputFileChangeEventArgs e)
     {
-        var file = e.File;
-        if (file == null) return;
+        var files = e.GetMultipleFiles(10); // Max 10 files at once
+        if (files.Count == 0) return;
 
         var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
-        var extension = Path.GetExtension(file.Name).ToLowerInvariant();
-
-        if (!allowedExtensions.Contains(extension))
-        {
-            return;
-        }
-
-        if (file.Size > 100 * 1024 * 1024) return;
+        var imageUrls = new List<string>();
 
         try
         {
             var uploadsFolder = Path.Combine(Environment.WebRootPath, "uploads");
             Directory.CreateDirectory(uploadsFolder);
 
-            var uniqueFileName = $"{Guid.NewGuid()}{extension}";
-            var filePath = Path.Combine(uploadsFolder, uniqueFileName);
+            foreach (var file in files)
+            {
+                var extension = Path.GetExtension(file.Name).ToLowerInvariant();
+                if (!allowedExtensions.Contains(extension)) continue;
+                if (file.Size > 100 * 1024 * 1024) continue;
 
-            await using var stream = new FileStream(filePath, FileMode.Create);
-            await file.OpenReadStream(maxAllowedSize: 100 * 1024 * 1024).CopyToAsync(stream);
+                var uniqueFileName = $"{Guid.NewGuid()}{extension}";
+                var filePath = Path.Combine(uploadsFolder, uniqueFileName);
 
-            var imageUrl = $"/uploads/{uniqueFileName}";
-            await ChatService.SendMessageAsync(username, imageUrl, isImage: true);
+                await using var stream = new FileStream(filePath, FileMode.Create);
+                await file.OpenReadStream(maxAllowedSize: 100 * 1024 * 1024).CopyToAsync(stream);
+
+                imageUrls.Add($"/uploads/{uniqueFileName}");
+            }
+
+            if (imageUrls.Count > 0)
+            {
+                await ChatService.SendMessageAsync(username, "", imageUrls);
+            }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error uploading file: {ex.Message}");
+            Console.WriteLine($"Error uploading files: {ex.Message}");
         }
     }
+
+    // Drag and drop handlers
+    private void HandleDragEnter(DragEventArgs e)
+    {
+        isDraggingOver = true;
+    }
+
+    private void HandleDragOver(DragEventArgs e)
+    {
+        isDraggingOver = true;
+    }
+
+    private void HandleDragLeave(DragEventArgs e)
+    {
+        isDraggingOver = false;
+    }
+
+    private void HandleDrop(DragEventArgs e)
+    {
+        isDraggingOver = false;
+        // Actual file handling is done by JS (setupDropZone)
+    }
+
+    // Gallery layout helper
+    private string GetGalleryClass(int imageCount) => imageCount switch
+    {
+        1 => "gallery-single",
+        2 => "gallery-double",
+        _ => "gallery-grid"
+    };
 
     // Message actions
     private void OnMessageMouseEnter(Guid messageId)
@@ -512,7 +592,16 @@ else
         }
     }
 
-    // Tab notification methods
+    // Setup methods
+    private async Task SetupDropZone()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("setupDropZone", dropZoneElement, "fileInput");
+        }
+        catch { }
+    }
+
     private async Task SetupTabNotifications()
     {
         try
@@ -570,16 +659,90 @@ else
         catch { }
     }
 
-    private void ShowFullImage(string imageUrl)
+    private async Task ShowGallery(List<string> gallery, int startIndex)
     {
-        modalImageUrl = imageUrl;
+        modalGallery = gallery;
+        modalImageIndex = startIndex;
         showImageModal = true;
+        await SetupModalKeyboard();
     }
 
-    private void CloseImageModal()
+    private async Task ShowFullImage(string imageUrl)
+    {
+        await ShowGallery(new List<string> { imageUrl }, 0);
+    }
+
+    private async Task CloseImageModal()
     {
         showImageModal = false;
-        modalImageUrl = "";
+        modalGallery = new();
+        modalImageIndex = 0;
+        await RemoveModalKeyboard();
+    }
+
+    private void NextImage()
+    {
+        if (modalGallery.Count > 0)
+        {
+            modalImageIndex = (modalImageIndex + 1) % modalGallery.Count;
+        }
+    }
+
+    private void PrevImage()
+    {
+        if (modalGallery.Count > 0)
+        {
+            modalImageIndex = (modalImageIndex - 1 + modalGallery.Count) % modalGallery.Count;
+        }
+    }
+
+    // JS-invokable methods for keyboard navigation
+    [JSInvokable]
+    public async Task CloseModalFromJs()
+    {
+        await InvokeAsync(async () =>
+        {
+            await CloseImageModal();
+            StateHasChanged();
+        });
+    }
+
+    [JSInvokable]
+    public void NextImageFromJs()
+    {
+        InvokeAsync(() =>
+        {
+            NextImage();
+            StateHasChanged();
+        });
+    }
+
+    [JSInvokable]
+    public void PrevImageFromJs()
+    {
+        InvokeAsync(() =>
+        {
+            PrevImage();
+            StateHasChanged();
+        });
+    }
+
+    private async Task SetupModalKeyboard()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("setupModalKeyboard", DotNetObjectReference.Create(this));
+        }
+        catch { }
+    }
+
+    private async Task RemoveModalKeyboard()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("removeModalKeyboard");
+        }
+        catch { }
     }
 
     private void ToggleSidebar() => sidebarOpen = !sidebarOpen;

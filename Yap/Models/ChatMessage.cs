@@ -6,17 +6,19 @@ public class ChatMessage
     public string Username { get; init; } = "";
     public string Content { get; set; } = "";
     public DateTime Timestamp { get; init; }
-    public bool IsImage { get; init; }
+    public List<string> ImageUrls { get; init; } = new();
     public bool IsEdited { get; set; }
 
     // Key = emoji, Value = set of usernames who reacted
     public Dictionary<string, HashSet<string>> Reactions { get; } = new();
 
-    public ChatMessage(string username, string content, DateTime timestamp, bool isImage = false)
+    public bool HasImages => ImageUrls.Count > 0;
+
+    public ChatMessage(string username, string content, DateTime timestamp, List<string>? imageUrls = null)
     {
         Username = username;
         Content = content;
         Timestamp = timestamp;
-        IsImage = isImage;
+        ImageUrls = imageUrls ?? new();
     }
 }
