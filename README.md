@@ -10,7 +10,7 @@ A real-time chat application built with Blazor Server (.NET 10), featuring insta
 - **Edit/Delete** - Edit or delete your own messages
 - **Image sharing** - Upload multiple images at once (up to 10 files, 100MB each)
 - **Drag & drop** - Drop images onto the input area to upload
-- **Image gallery** - Multiple images display in a grid layout
+- **Image gallery** - Compact thumbnail row with "+N" overlay, full-size modal with navigation
 - **Emoji support** - Consistent Twemoji rendering
 - **Tab notifications** - Unread count in browser tab + audio notifications
 - **Online users** - See who's currently in the chat

@@ -9,18 +9,23 @@ All notable changes to Yap are documented in this file.
 #### New Features
 - **Multiple image upload** - Select multiple images at once (up to 10 files)
 - **Drag and drop** - Drop images directly onto the message input area
-- **Image gallery display** - Messages with multiple images display in a grid layout
-  - 1 image: full width
-  - 2 images: side by side
-  - 3+ images: 2-column grid
+- **Gallery preview** - Compact single-row thumbnail display
+  - 1 image: larger preview (up to 300px)
+  - 2 images: medium thumbnails (100x100px)
+  - 3-4 images: compact thumbnails (80x80px)
+  - 5+ images: shows 4 thumbnails with "+N" overlay on the last one
+- **Image modal navigation** - Click any thumbnail to open full-size viewer
+  - Prev/next buttons for multi-image galleries
+  - Image counter (e.g., "3 / 7")
+  - Keyboard support: Arrow keys to navigate, Escape to close
 - **Visual drop feedback** - Input area highlights when dragging files over it
 
 #### Technical Changes
 - `ChatMessage` model changed from `bool IsImage` to `List<string> ImageUrls`
-- Added `HasImages` computed property for backward compatibility
+- Added `HasImages` computed property
 - `ChatService.SendMessageAsync` now accepts `List<string>? imageUrls` parameter
-- New CSS classes: `.image-gallery`, `.gallery-single`, `.gallery-double`, `.gallery-grid`
-- New JS function: `setupDropZone` for drag-drop file handling
+- New CSS classes: `.image-gallery`, `.gallery-item`, `.gallery-more-overlay`
+- New JS functions: `setupDropZone`, `setupModalKeyboard`, `removeModalKeyboard`
 
 ---
 

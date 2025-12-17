@@ -1,29 +1,13 @@
-version: '3.8'
-
 services:
-  blazorchat-server:
+  yap:
     build:
-      context: ./BlazorChat.Server
+      context: ./Yap
       dockerfile: Dockerfile
     ports:
-      - "5224:80"
+      - "8080:8080"
     environment:
-      - ASPNETCORE_URLS=http://+:80
+      - ASPNETCORE_URLS=http://+:8080
       - ASPNETCORE_ENVIRONMENT=Production
     volumes:
-      - D:/tmp/blazorchat-uploads:/app/wwwroot/uploads
-    restart: unless-stopped
-
-  blazorchat:
-    build:
-      context: .
-      dockerfile: ./BlazorChat.Client.Serve/Dockerfile
-    ports:
-      - "5221:80"
-    environment:
-      - ASPNETCORE_URLS=http://+:80
-      - ASPNETCORE_ENVIRONMENT=Production
-      - ApiUrl=http://localhost:5224
-    depends_on:
-      - blazorchat-server
+      - ./uploads:/app/wwwroot/uploads
     restart: unless-stopped
