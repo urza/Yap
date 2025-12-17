@@ -16,11 +16,12 @@ Access at `http://localhost:5221`
 ## Features
 
 - **No reqistration requiered** - Just log in with username
-- **No database** - Messages only live in memory and wipe out with app reset
+- **No database** - Messages live in memory and wipe out with app reset
+- **Image sharing** - Upload image(s) and see them in inline gallery
 - **Dark theme** - Discord-inspired UI
 - **Emoji support** - Beautiful Twemoji rendering
+- **Message actions** - Discord-style hover popup on messages
 - **Customizable labels in config** - Fun defaults
-- **Image sharing** - Upload image(s) and see them in inline gallery
 - **Tab notifications** - Unread count in browser tab + audio notifications
 - **Online users** - See who's currently in the chat
 - **Chat history** - Last 100 messages preserved
