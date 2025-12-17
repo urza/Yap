@@ -1,8 +1,23 @@
 // Tab notification helpers
 let dotNetRef = null;
+let notificationAudio = null;
+
+// Pre-load audio on first user interaction
+function ensureAudioLoaded() {
+    if (!notificationAudio) {
+        notificationAudio = new Audio('/notif.mp3');
+        notificationAudio.volume = 0.5;
+        notificationAudio.load();
+    }
+}
+
+// Initialize audio on first user interaction (required by browsers)
+document.addEventListener('click', ensureAudioLoaded, { once: true });
+document.addEventListener('keydown', ensureAudioLoaded, { once: true });
 
 window.setupVisibilityListener = (ref) => {
     dotNetRef = ref;
+    ensureAudioLoaded();
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible' && dotNetRef) {
             dotNetRef.invokeMethodAsync('OnPageBecameVisible');
@@ -12,10 +27,26 @@ window.setupVisibilityListener = (ref) => {
 
 window.isPageVisible = () => document.visibilityState === 'visible';
 
+window.setDocumentTitle = (title) => {
+    document.title = title;
+};
+
 window.playNotificationSound = () => {
-    const audio = new Audio('/notif.mp3');
-    audio.volume = 0.5;
-    audio.play().catch(() => {});
+    ensureAudioLoaded();
+    if (notificationAudio) {
+        notificationAudio.currentTime = 0;
+        notificationAudio.play().catch(() => {});
+    }
+};
+
+// Combined function to reduce round-trips
+window.notifyNewMessage = (title) => {
+    document.title = title;
+    ensureAudioLoaded();
+    if (notificationAudio) {
+        notificationAudio.currentTime = 0;
+        notificationAudio.play().catch(() => {});
+    }
 };
 
 window.scrollToBottom = (element) => {

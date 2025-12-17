@@ -622,8 +622,8 @@ else
                 if (!isVisible)
                 {
                     unreadCount++;
-                    await UpdateTabTitle();
-                    await JS.InvokeVoidAsync("playNotificationSound");
+                    var title = $"({unreadCount}) {ChatConfig.ProjectName}";
+                    await JS.InvokeVoidAsync("notifyNewMessage", title);
                 }
             }
             catch { }
@@ -636,18 +636,9 @@ else
         if (unreadCount > 0)
         {
             unreadCount = 0;
-            await UpdateTabTitle();
+            await JS.InvokeVoidAsync("setDocumentTitle", ChatConfig.ProjectName);
             await InvokeAsync(StateHasChanged);
         }
-    }
-
-    private async Task UpdateTabTitle()
-    {
-        var title = unreadCount > 0
-            ? $"({unreadCount}) {ChatConfig.ProjectName}"
-            : ChatConfig.ProjectName;
-        pageTitle = title;
-        await InvokeAsync(StateHasChanged);
     }
 
     private async Task ScrollToBottom()
