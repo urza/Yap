@@ -11,7 +11,7 @@ Super minimalistic self hosted chat inspired by Discord aesthetics
 docker run -d --name yap -p 5221:8080 -v ./uploads:/app/wwwroot/uploads ghcr.io/urza/yap:latest
 ```
 
-Access at `http://localhost:5221`
+Access at `http://localhost:5221` - it's up to you how to make this accessible for others. For example use some reverse proxy like nginx proxy manager - https://nginxproxymanager.com/
 
 ## Features
 
