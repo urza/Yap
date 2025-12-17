@@ -15,8 +15,7 @@ docker build -t yap ./Yap
 # Run with persistent uploads
 docker run -d \
   --name yap \
-  -p 5221:5221 \
-  -e ASPNETCORE_URLS=http://+:5221 \
+  -p 5221:8080 \
   -v ./uploads:/app/wwwroot/uploads \
   --restart unless-stopped \
   yap
@@ -33,11 +32,10 @@ services:
   yap:
     build: ./Yap
     ports:
-      - "5221:5221"
+      - "5221:8080"
     volumes:
       - ./uploads:/app/wwwroot/uploads
     environment:
-      - ASPNETCORE_URLS=http://+:5221
       - ASPNETCORE_ENVIRONMENT=Production
     restart: unless-stopped
 ```
@@ -110,7 +108,7 @@ chmod -R 777 uploads/
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ASPNETCORE_ENVIRONMENT` | `Production` | Runtime environment |
-| `ASPNETCORE_URLS` | `http://+:5221` | Listen URL |
+| `ASPNETCORE_URLS` | `http://+:8080` | Listen URL (default, no need to set) |
 
 ## Production Tips
 

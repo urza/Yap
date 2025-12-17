@@ -4,9 +4,8 @@ services:
       context: ./Yap
       dockerfile: Dockerfile
     ports:
-      - "5221:5221"
+      - "5221:8080"
     environment:
-      - ASPNETCORE_URLS=http://+:5221
       - ASPNETCORE_ENVIRONMENT=Production
     volumes:
       - ./uploads:/app/wwwroot/uploads
