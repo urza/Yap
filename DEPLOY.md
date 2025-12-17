@@ -15,13 +15,14 @@ docker build -t yap ./Yap
 # Run with persistent uploads
 docker run -d \
   --name yap \
-  -p 8080:8080 \
+  -p 5221:5221 \
+  -e ASPNETCORE_URLS=http://+:5221 \
   -v ./uploads:/app/wwwroot/uploads \
   --restart unless-stopped \
   yap
 ```
 
-Access at `http://localhost:8080`
+Access at `http://localhost:5221`
 
 ### Option 2: Docker Compose
 
@@ -32,10 +33,11 @@ services:
   yap:
     build: ./Yap
     ports:
-      - "8080:8080"
+      - "5221:5221"
     volumes:
       - ./uploads:/app/wwwroot/uploads
     environment:
+      - ASPNETCORE_URLS=http://+:5221
       - ASPNETCORE_ENVIRONMENT=Production
     restart: unless-stopped
 ```
@@ -50,7 +52,7 @@ docker-compose up -d
 1. **Domain Names**: `chat.yourdomain.com`
 2. **Scheme**: `http`
 3. **Forward Hostname/IP**: `yap` (container name) or host IP
-4. **Forward Port**: `8080`
+4. **Forward Port**: `5221`
 5. **Enable Websockets Support**: Required for Blazor Server
 
 ### Custom Nginx Configuration:
@@ -108,7 +110,7 @@ chmod -R 777 uploads/
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ASPNETCORE_ENVIRONMENT` | `Production` | Runtime environment |
-| `ASPNETCORE_URLS` | `http://+:8080` | Listen URL |
+| `ASPNETCORE_URLS` | `http://+:5221` | Listen URL |
 
 ## Production Tips
 

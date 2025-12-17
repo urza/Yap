@@ -75,10 +75,10 @@ Open the URL shown in the console (typically `https://localhost:5001`).
 docker build -t yap ./Yap
 
 # Run
-docker run -p 8080:8080 -v ./uploads:/app/wwwroot/uploads yap
+docker run -p 5221:5221 -e ASPNETCORE_URLS=http://+:5221 -v ./uploads:/app/wwwroot/uploads yap
 ```
 
-Access at `http://localhost:8080`
+Access at `http://localhost:5221`
 
 ## Using the Chat
 
