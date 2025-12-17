@@ -1,10 +1,16 @@
 using Yap.Components;
+using Yap.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+// Chat services
+builder.Services.AddSingleton<ChatService>();
+builder.Services.AddScoped<ChatConfigService>();
+builder.Services.AddScoped<EmojiService>();
 
 var app = builder.Build();
 
