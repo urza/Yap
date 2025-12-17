@@ -70,12 +70,15 @@ Open the URL shown in the console (typically `https://localhost:5001`).
 
 ### Running with Docker
 
+**Using pre-built image:**
 ```bash
-# Build
-docker build -t yap ./Yap
+docker run -d --name yap -p 5221:8080 -v ./uploads:/app/wwwroot/uploads --restart unless-stopped ghcr.io/urza/yap
+```
 
-# Run
-docker run -p 5221:8080 -v ./uploads:/app/wwwroot/uploads yap
+**Or build locally:**
+```bash
+docker build -t yap ./Yap
+docker run -d --name yap -p 5221:8080 -v ./uploads:/app/wwwroot/uploads --restart unless-stopped yap
 ```
 
 Access at `http://localhost:5221`
