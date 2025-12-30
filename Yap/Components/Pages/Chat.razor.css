@@ -380,7 +380,29 @@
 }
 
 .send-button {
-    display: none; /* Discord style - send with Enter */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    background: #5865f2;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background-color 0.2s, opacity 0.2s;
+    margin-left: 0.5rem;
+}
+
+.send-button:hover:not(:disabled) {
+    background: #4752c4;
+}
+
+.send-button:disabled,
+.send-button.disabled {
+    background: #4f545c;
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .image-upload-button {

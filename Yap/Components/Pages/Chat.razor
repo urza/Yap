@@ -159,7 +159,7 @@ else
                     <input type="text" @bind="messageInput" @bind:event="oninput" @bind:after="OnMessageInputChanged"
                            placeholder="@messagePlaceholder" class="message-input"
                            @onkeypress="HandleMessageKeyPress" />
-                    <label class="image-upload-button">
+                    <label class="image-upload-button" title="Upload images">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="2">
                             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
@@ -168,6 +168,14 @@ else
                         </svg>
                         <InputFile @ref="fileInput" OnChange="HandleFileSelected" accept="image/*" multiple style="display: none;" id="fileInput" />
                     </label>
+                    <button class="send-button @(string.IsNullOrWhiteSpace(messageInput) ? "disabled" : "")"
+                            @onclick="SendMessage"
+                            disabled="@string.IsNullOrWhiteSpace(messageInput)"
+                            title="Send message">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                        </svg>
+                    </button>
                 </div>
 
                 <div class="typing-indicator-container">
