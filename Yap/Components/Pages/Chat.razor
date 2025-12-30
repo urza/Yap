@@ -622,6 +622,7 @@ else
         return dmUnreadCounts.TryGetValue(key, out var count) ? count : 0;
     }
 
+
     #endregion
 
     #region Event Handlers (Room)
@@ -714,12 +715,21 @@ else
 
     private async Task HandleUsersListChanged()
     {
-        await InvokeAsync(() =>
+        await InvokeAsync(async () =>
         {
             onlineUsers = ChatService.GetOnlineUsers();
             UpdateOnlineUsersHeader();
+
+            // If viewing DM with someone who left, go back to room
+            if (currentDMUser != null && !onlineUsers.Any(u => u.Equals(currentDMUser, StringComparison.OrdinalIgnoreCase)))
+            {
+                currentDMUser = null;
+                dmMessages.Clear();
+                messages = ChatService.GetRoomMessages(currentRoomId).ToList();
+                await UpdatePageTitle();
+            }
+
             StateHasChanged();
-            return Task.CompletedTask;
         });
     }
 

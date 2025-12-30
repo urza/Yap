@@ -672,6 +672,21 @@
     margin-right: 0.25rem;
 }
 
+/* Offline users */
+.user-item.offline {
+    opacity: 0.6;
+}
+
+.user-item.offline:hover {
+    opacity: 0.8;
+}
+
+.offline-badge {
+    font-size: 0.625rem;
+    color: #72767d;
+    margin-left: 0.25rem;
+}
+
 /* DM unread badge */
 .dm-unread-badge {
     background: #ed4245;

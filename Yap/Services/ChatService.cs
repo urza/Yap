@@ -176,10 +176,31 @@ public class ChatService
                 dmTyping.TryRemove(session.Username, out _);
             }
 
+            // Clear all DMs involving this user (ephemeral DMs)
+            ClearUserDMs(session.Username);
+
             if (OnUserChanged != null)
                 await OnUserChanged.Invoke(session.Username, false);
             if (OnUsersListChanged != null)
                 await OnUsersListChanged.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// Clears all DM conversations involving a user (called when user leaves)
+    /// </summary>
+    private void ClearUserDMs(string username)
+    {
+        var userLower = username.ToLowerInvariant();
+        var keysToRemove = _directMessages.Keys
+            .Where(k => k.Split('|').Contains(userLower))
+            .ToList();
+
+        foreach (var key in keysToRemove)
+        {
+            _directMessages.TryRemove(key, out _);
+            _dmOrder.TryRemove(key, out _);
+            _dmTypingUsers.TryRemove(key, out _);
         }
     }
 
