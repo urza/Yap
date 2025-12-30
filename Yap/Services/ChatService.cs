@@ -548,6 +548,46 @@ public class ChatService
         return true;
     }
 
+    /// <summary>
+    /// Gets the timestamp of the last DM in a conversation
+    /// </summary>
+    public DateTime? GetLastDMTimestamp(string user1, string user2)
+    {
+        var key = DirectMessage.GetConversationKey(user1, user2);
+        if (!_directMessages.TryGetValue(key, out var messages) || messages.Count == 0)
+            return null;
+
+        lock (_dmLock)
+        {
+            return messages.LastOrDefault()?.Timestamp;
+        }
+    }
+
+    /// <summary>
+    /// Gets total unread DM count for a user across all conversations
+    /// </summary>
+    public int GetTotalUnreadDMCount(string forUser)
+    {
+        var total = 0;
+        var userLower = forUser.ToLowerInvariant();
+
+        foreach (var kvp in _directMessages)
+        {
+            var parts = kvp.Key.Split('|');
+            if (parts.Length == 2 && (parts[0] == userLower || parts[1] == userLower))
+            {
+                lock (_dmLock)
+                {
+                    total += kvp.Value.Count(m =>
+                        m.ToUser.Equals(forUser, StringComparison.OrdinalIgnoreCase) &&
+                        !m.IsRead);
+                }
+            }
+        }
+
+        return total;
+    }
+
     #endregion
 
     #region DM Typing Indicators
