@@ -878,11 +878,11 @@ body {
     }
 
     .typing-indicator-container {
-        height: 1.25rem;
+        height: 0.875rem;
     }
 
     .typing-indicator {
-        font-size: 0.7rem;
+        font-size: 0.625rem;
         padding: 0 0.5rem;
     }
 
@@ -925,7 +925,7 @@ body {
 
 /* Typing indicator styles */
 .typing-indicator-container {
-    height: 1.5rem;
+    height: 1rem;
     background: #36393f;
     overflow: hidden;
 }
@@ -935,7 +935,7 @@ body {
     padding: 0 1rem;
     display: flex;
     align-items: center;
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     animation: fadeIn 0.2s ease;
 }
 
