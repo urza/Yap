@@ -11,21 +11,21 @@ Super minimalistic self hosted chat inspired by Discord aesthetics
 docker run -d --name yap -p 5221:8080 -v ./uploads:/app/wwwroot/uploads ghcr.io/urza/yap:latest
 ```
 
-Access at `http://localhost:5221`
+Access at `http://localhost:5221` - it's up to you how to make this accessible for others. For example use some reverse proxy like nginx proxy manager - https://nginxproxymanager.com/
 
 ## Features
 
 - **No reqistration requiered** - Just log in with username
 - **No database** - Messages live in memory and wipe out with app reset
 - **Image sharing** - Upload image(s) and see them in inline gallery
-- **Dark theme** - Discord-inspired UI
 - **Emoji support** - Beautiful Twemoji rendering
 - **Message actions** - Discord-style hover popup on messages
 - **Customizable labels in config** - Fun defaults
 - **Tab notifications** - Unread count in browser tab + audio notifications
+- **Chat history** - Last 100 messages for newcomers
+- **Typing indicators** - Yes again stolen from Discrod
 - **Online users** - See who's currently in the chat
-- **Chat history** - Last 100 messages preserved
-- **Typing indicators** - See who's typing in real-time
+- **Dark theme** - Discord-inspired UI
 - **Mobile responsive** - Works great on all devices with collapsible sidebar
 
 
@@ -53,7 +53,7 @@ Yap/
 
 ### How Real-time Works
 
-Blazor Server maintains a persistent SignalR connection (circuit) for UI updates. We use this same connection for chat:
+Blazor Server maintains a persistent SignalR (web sockets) connection for UI updates. We use this same connection for chat:
 
 1. `ChatService` (singleton) holds chat state and raises events
 2. Each user's `Chat.razor` component subscribes to these events
@@ -73,7 +73,7 @@ No custom SignalR hub needed - Blazor's built-in circuit handles everything.
 6. Hover over messages to react, edit, or delete
 7. Toggle the sidebar on mobile to see online users
 
-## Configuration
+## Configuration - change the app labels in your instance
 
 Edit `appsettings.json` to customize:
 
