@@ -7,6 +7,8 @@
 @inject IWebHostEnvironment Environment
 @implements IAsyncDisposable
 
+@using Yap.Models
+
 <PageTitle>@pageTitle</PageTitle>
 
 @if (string.IsNullOrEmpty(username))
@@ -28,10 +30,10 @@ else
 {
     <div class="chat-container">
         <div class="chat-header">
-            <h3>@roomHeader</h3>
+            <h3>@GetCurrentViewHeader()</h3>
             <div class="header-controls">
                 <span class="connection-status connected">@connectionStatus</span>
-                <button class="users-toggle" @onclick="ToggleSidebar" title="Toggle users list">
+                <button class="users-toggle" @onclick="ToggleSidebar" title="Toggle sidebar">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M14 8.00598C14 10.211 12.206 12.006 10 12.006C7.795 12.006 6 10.211 6 8.00598C6 5.80098 7.795 4.00598 10 4.00598C12.206 4.00598 14 5.80098 14 8.00598ZM2 19.006C2 15.473 5.29 13.006 10 13.006C14.711 13.006 18 15.473 18 19.006V20.006H2V19.006Z"/>
                         <path d="M20.0001 20.006H22.0001V19.006C22.0001 16.4433 20.2697 14.4415 17.5213 13.5352C19.0621 14.9127 20.0001 16.8059 20.0001 19.006V20.006Z"/>
@@ -45,106 +47,203 @@ else
         <div class="chat-main">
             <div class="messages-container">
                 <div class="messages" @ref="messagesElement">
-                    @for (int i = 0; i < messages.Count; i++)
+                    @if (currentDMUser == null)
                     {
-                        var message = messages[i];
-                        var isSystemMessage = message.Username == "System";
-                        var showHeader = !isSystemMessage && (i == 0 || messages[i - 1].Username != message.Username);
-                        var isOwnMessage = message.Username == username;
-                        var isHovered = hoveredMessageId == message.Id;
-                        var isEditing = editingMessageId == message.Id;
+                        @* Room messages *@
+                        @for (int i = 0; i < messages.Count; i++)
+                        {
+                            var message = messages[i];
+                            var isSystemMessage = message.Username == "System";
+                            var showHeader = !isSystemMessage && (i == 0 || messages[i - 1].Username != message.Username);
+                            var isOwnMessage = message.Username == username;
+                            var isHovered = hoveredMessageId == message.Id;
+                            var isEditing = editingMessageId == message.Id;
 
-                        <div class="message-group @(isSystemMessage ? "system-message" : "") @(isHovered ? "hovered" : "")"
-                             @onmouseenter="() => OnMessageMouseEnter(message.Id)"
-                             @onmouseleave="OnMessageMouseLeave">
-                            @if (showHeader)
-                            {
-                                <div class="message-header">
-                                    <strong class="message-username">@message.Username</strong>
-                                    <span class="message-time">@message.Timestamp.ToLocalTime().ToString("HH:mm")</span>
-                                </div>
-                            }
-                            <div class="message-content">
-                                @if (isEditing)
+                            <div class="message-group @(isSystemMessage ? "system-message" : "") @(isHovered ? "hovered" : "")"
+                                 @onmouseenter="() => OnMessageMouseEnter(message.Id)"
+                                 @onmouseleave="OnMessageMouseLeave">
+                                @if (showHeader)
                                 {
-                                    <div class="edit-container">
-                                        <input type="text" @bind="editContent" @bind:event="oninput"
-                                               class="edit-input" @onkeydown="HandleEditKeyDown" />
-                                        <div class="edit-actions">
-                                            <button class="edit-save" @onclick="SaveEdit" title="Save">✓</button>
-                                            <button class="edit-cancel" @onclick="CancelEdit" title="Cancel">✕</button>
-                                        </div>
+                                    <div class="message-header">
+                                        @if (ChatService.IsAdmin(message.Username))
+                                        {
+                                            <span class="admin-badge" title="Admin">👑</span>
+                                        }
+                                        <strong class="message-username">@message.Username</strong>
+                                        <span class="message-time">@message.Timestamp.ToLocalTime().ToString("HH:mm")</span>
                                     </div>
                                 }
-                                else if (message.HasImages)
-                                {
-                                    var maxPreview = 4;
-                                    var hasMore = message.ImageUrls.Count > maxPreview;
-                                    var previewCount = hasMore ? maxPreview : message.ImageUrls.Count;
-                                    var extraCount = message.ImageUrls.Count - maxPreview;
-
-                                    <div class="image-gallery @GetGalleryClass(previewCount)">
-                                        @for (int imgIndex = 0; imgIndex < previewCount; imgIndex++)
-                                        {
-                                            var idx = imgIndex;
-                                            var imageUrl = message.ImageUrls[idx];
-                                            var isLastPreview = hasMore && idx == maxPreview - 1;
-
-                                            <div class="gallery-item @(isLastPreview ? "has-more" : "")"
-                                                 @onclick="() => ShowGallery(message.ImageUrls, idx)">
-                                                <img src="@imageUrl" alt="Uploaded image" class="gallery-image" />
-                                                @if (isLastPreview)
-                                                {
-                                                    <div class="gallery-more-overlay">+@extraCount</div>
-                                                }
+                                <div class="message-content">
+                                    @if (isEditing)
+                                    {
+                                        <div class="edit-container">
+                                            <input type="text" @bind="editContent" @bind:event="oninput"
+                                                   class="edit-input" @onkeydown="HandleEditKeyDown" />
+                                            <div class="edit-actions">
+                                                <button class="edit-save" @onclick="SaveEdit" title="Save">✓</button>
+                                                <button class="edit-cancel" @onclick="CancelEdit" title="Cancel">✕</button>
                                             </div>
+                                        </div>
+                                    }
+                                    else if (message.HasImages)
+                                    {
+                                        var maxPreview = 4;
+                                        var hasMore = message.ImageUrls.Count > maxPreview;
+                                        var previewCount = hasMore ? maxPreview : message.ImageUrls.Count;
+                                        var extraCount = message.ImageUrls.Count - maxPreview;
+
+                                        <div class="image-gallery @GetGalleryClass(previewCount)">
+                                            @for (int imgIndex = 0; imgIndex < previewCount; imgIndex++)
+                                            {
+                                                var idx = imgIndex;
+                                                var imageUrl = message.ImageUrls[idx];
+                                                var isLastPreview = hasMore && idx == maxPreview - 1;
+
+                                                <div class="gallery-item @(isLastPreview ? "has-more" : "")"
+                                                     @onclick="() => ShowGallery(message.ImageUrls, idx)">
+                                                    <img src="@imageUrl" alt="Uploaded image" class="gallery-image" />
+                                                    @if (isLastPreview)
+                                                    {
+                                                        <div class="gallery-more-overlay">+@extraCount</div>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        @EmojiService.ConvertEmojisToTwemoji(message.Content)
+                                        @if (message.IsEdited)
+                                        {
+                                            <span class="edited-indicator">(edited)</span>
+                                        }
+                                    }
+                                </div>
+
+                                @* Reactions display *@
+                                @if (message.Reactions.Count > 0)
+                                {
+                                    <div class="reactions-display">
+                                        @foreach (var reaction in message.Reactions)
+                                        {
+                                            var hasReacted = reaction.Value.Contains(username);
+                                            <button class="reaction-pill @(hasReacted ? "reacted" : "")"
+                                                    @onclick="() => ToggleReaction(message.Id, reaction.Key)"
+                                                    title="@string.Join(", ", reaction.Value)">
+                                                @reaction.Key <span class="reaction-count">@reaction.Value.Count</span>
+                                            </button>
                                         }
                                     </div>
                                 }
-                                else
+
+                                @* Message actions popup *@
+                                @if (isHovered && !isSystemMessage && !isEditing)
                                 {
-                                    @EmojiService.ConvertEmojisToTwemoji(message.Content)
-                                    @if (message.IsEdited)
-                                    {
-                                        <span class="edited-indicator">(edited)</span>
-                                    }
+                                    <div class="message-actions">
+                                        <button class="action-btn" @onclick="@(() => ToggleReaction(message.Id, HEART))" title="Love">❤️</button>
+                                        <button class="action-btn" @onclick="@(() => ToggleReaction(message.Id, LAUGH))" title="Laugh">😂</button>
+                                        <button class="action-btn" @onclick="@(() => ToggleReaction(message.Id, TOUCHED))" title="Touched">🥹</button>
+                                        @if (isOwnMessage && !message.HasImages)
+                                        {
+                                            <button class="action-btn action-edit" @onclick="() => StartEdit(message)" title="Edit">✏️</button>
+                                        }
+                                        @if (isOwnMessage)
+                                        {
+                                            <button class="action-btn action-delete" @onclick="() => DeleteMessage(message.Id)" title="Delete">🗑️</button>
+                                        }
+                                    </div>
                                 }
                             </div>
+                        }
+                    }
+                    else
+                    {
+                        @* DM messages *@
+                        @for (int i = 0; i < dmMessages.Count; i++)
+                        {
+                            var message = dmMessages[i];
+                            var showHeader = i == 0 || dmMessages[i - 1].FromUser != message.FromUser;
+                            var isOwnMessage = message.FromUser.Equals(username, StringComparison.OrdinalIgnoreCase);
+                            var isHovered = hoveredDMId == message.Id;
+                            var isEditing = editingDMId == message.Id;
 
-                            @* Reactions display *@
-                            @if (message.Reactions.Count > 0)
-                            {
-                                <div class="reactions-display">
-                                    @foreach (var reaction in message.Reactions)
+                            <div class="message-group @(isHovered ? "hovered" : "")"
+                                 @onmouseenter="() => OnDMMouseEnter(message.Id)"
+                                 @onmouseleave="OnDMMouseLeave">
+                                @if (showHeader)
+                                {
+                                    <div class="message-header">
+                                        @if (ChatService.IsAdmin(message.FromUser))
+                                        {
+                                            <span class="admin-badge" title="Admin">👑</span>
+                                        }
+                                        <strong class="message-username">@message.FromUser</strong>
+                                        <span class="message-time">@message.Timestamp.ToLocalTime().ToString("HH:mm")</span>
+                                    </div>
+                                }
+                                <div class="message-content">
+                                    @if (isEditing)
                                     {
-                                        var hasReacted = reaction.Value.Contains(username);
-                                        <button class="reaction-pill @(hasReacted ? "reacted" : "")"
-                                                @onclick="() => ToggleReaction(message.Id, reaction.Key)"
-                                                title="@string.Join(", ", reaction.Value)">
-                                            @reaction.Key <span class="reaction-count">@reaction.Value.Count</span>
-                                        </button>
+                                        <div class="edit-container">
+                                            <input type="text" @bind="editDMContent" @bind:event="oninput"
+                                                   class="edit-input" @onkeydown="HandleDMEditKeyDown" />
+                                            <div class="edit-actions">
+                                                <button class="edit-save" @onclick="SaveDMEdit" title="Save">✓</button>
+                                                <button class="edit-cancel" @onclick="CancelDMEdit" title="Cancel">✕</button>
+                                            </div>
+                                        </div>
+                                    }
+                                    else if (message.HasImages)
+                                    {
+                                        var maxPreview = 4;
+                                        var hasMore = message.ImageUrls.Count > maxPreview;
+                                        var previewCount = hasMore ? maxPreview : message.ImageUrls.Count;
+                                        var extraCount = message.ImageUrls.Count - maxPreview;
+
+                                        <div class="image-gallery @GetGalleryClass(previewCount)">
+                                            @for (int imgIndex = 0; imgIndex < previewCount; imgIndex++)
+                                            {
+                                                var idx = imgIndex;
+                                                var imageUrl = message.ImageUrls[idx];
+                                                var isLastPreview = hasMore && idx == maxPreview - 1;
+
+                                                <div class="gallery-item @(isLastPreview ? "has-more" : "")"
+                                                     @onclick="() => ShowGallery(message.ImageUrls, idx)">
+                                                    <img src="@imageUrl" alt="Uploaded image" class="gallery-image" />
+                                                    @if (isLastPreview)
+                                                    {
+                                                        <div class="gallery-more-overlay">+@extraCount</div>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        @EmojiService.ConvertEmojisToTwemoji(message.Content)
+                                        @if (message.IsEdited)
+                                        {
+                                            <span class="edited-indicator">(edited)</span>
+                                        }
                                     }
                                 </div>
-                            }
 
-                            @* Message actions popup *@
-                            @if (isHovered && !isSystemMessage && !isEditing)
-                            {
-                                <div class="message-actions">
-                                    <button class="action-btn" @onclick="@(() => ToggleReaction(message.Id, HEART))" title="Love">❤️</button>
-                                    <button class="action-btn" @onclick="@(() => ToggleReaction(message.Id, LAUGH))" title="Laugh">😂</button>
-                                    <button class="action-btn" @onclick="@(() => ToggleReaction(message.Id, TOUCHED))" title="Touched">🥹</button>
-                                    @if (isOwnMessage && !message.HasImages)
-                                    {
-                                        <button class="action-btn action-edit" @onclick="() => StartEdit(message)" title="Edit">✏️</button>
-                                    }
-                                    @if (isOwnMessage)
-                                    {
-                                        <button class="action-btn action-delete" @onclick="() => DeleteMessage(message.Id)" title="Delete">🗑️</button>
-                                    }
-                                </div>
-                            }
-                        </div>
+                                @* DM Message actions popup *@
+                                @if (isHovered && !isEditing)
+                                {
+                                    <div class="message-actions">
+                                        @if (isOwnMessage && !message.HasImages)
+                                        {
+                                            <button class="action-btn action-edit" @onclick="() => StartDMEdit(message)" title="Edit">✏️</button>
+                                        }
+                                        @if (isOwnMessage)
+                                        {
+                                            <button class="action-btn action-delete" @onclick="() => DeleteDM(message.Id)" title="Delete">🗑️</button>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
                     }
                 </div>
 
@@ -157,7 +256,7 @@ else
                      @ondrop="HandleDrop"
                      @ondrop:preventDefault>
                     <input type="text" @bind="messageInput" @bind:event="oninput" @bind:after="OnMessageInputChanged"
-                           placeholder="@messagePlaceholder" class="message-input"
+                           placeholder="@GetMessagePlaceholder()" class="message-input"
                            @onkeypress="HandleMessageKeyPress" />
                     <label class="image-upload-button" title="Upload images">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
@@ -196,14 +295,71 @@ else
             </div>
 
             <div class="users-sidebar @(sidebarOpen ? "sidebar-open" : "")">
-                <h4>@onlineUsersHeader</h4>
-                <div class="users-list">
-                    @foreach (var user in onlineUsers)
-                    {
-                        <div class="user-item @(user == username ? "current-user" : "")">
-                            @user
-                        </div>
-                    }
+                @* Rooms section *@
+                <div class="sidebar-section">
+                    <h4>ROOMS</h4>
+                    <div class="rooms-list">
+                        @foreach (var room in rooms)
+                        {
+                            var isActive = currentDMUser == null && currentRoomId == room.Id;
+                            <div class="room-item @(isActive ? "active" : "")" @onclick="() => SwitchToRoom(room.Id)">
+                                <span class="room-icon">#</span>
+                                <span class="room-name">@room.Name</span>
+                                @if (isAdmin && !room.IsDefault)
+                                {
+                                    <button class="room-delete" @onclick="() => DeleteRoom(room.Id)" @onclick:stopPropagation="true" title="Delete room">×</button>
+                                }
+                            </div>
+                        }
+                        @if (isAdmin)
+                        {
+                            @if (showNewRoomInput)
+                            {
+                                <div class="new-room-input">
+                                    <input type="text" @bind="newRoomName" @bind:event="oninput"
+                                           placeholder="room name" class="room-name-input"
+                                           @onkeypress="HandleNewRoomKeyPress" />
+                                    <button class="room-create-btn" @onclick="CreateRoom" title="Create">✓</button>
+                                    <button class="room-cancel-btn" @onclick="CancelNewRoom" title="Cancel">✕</button>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="room-item add-room" @onclick="ShowNewRoomInput">
+                                    <span class="room-icon">+</span>
+                                    <span class="room-name">Add Room</span>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+
+                @* Online users section *@
+                <div class="sidebar-section">
+                    <h4>@onlineUsersHeader</h4>
+                    <div class="users-list">
+                        @foreach (var user in onlineUsers)
+                        {
+                            var isCurrentUser = user.Equals(username, StringComparison.OrdinalIgnoreCase);
+                            var isUserAdmin = ChatService.IsAdmin(user);
+                            var unreadCount = isCurrentUser ? 0 : GetUnreadDMCount(user);
+                            var isActiveDM = currentDMUser != null && currentDMUser.Equals(user, StringComparison.OrdinalIgnoreCase);
+
+                            <div class="user-item @(isCurrentUser ? "current-user" : "") @(isActiveDM ? "active-dm" : "")"
+                                 @onclick="() => OpenDM(user)"
+                                 title="@(isCurrentUser ? "You" : $"Message {user}")">
+                                @if (isUserAdmin)
+                                {
+                                    <span class="admin-badge">👑</span>
+                                }
+                                <span class="user-name">@user</span>
+                                @if (unreadCount > 0)
+                                {
+                                    <span class="dm-unread-badge">@unreadCount</span>
+                                }
+                            </div>
+                        }
+                    </div>
                 </div>
             </div>
         </div>
@@ -229,7 +385,7 @@ else
 }
 
 @code {
-    // Reaction emoji constants (to avoid quote escaping issues in markup)
+    // Reaction emoji constants
     private const string HEART = "❤️";
     private const string LAUGH = "😂";
     private const string TOUCHED = "🥹";
@@ -253,10 +409,28 @@ else
     private System.Timers.Timer? typingTimer;
     private bool isTyping = false;
 
-    // Message actions state
+    // Room state
+    private List<Room> rooms = new();
+    private Guid currentRoomId;
+    private bool isAdmin = false;
+    private bool showNewRoomInput = false;
+    private string newRoomName = "";
+
+    // DM state
+    private string? currentDMUser = null;
+    private List<DirectMessage> dmMessages = new();
+    private List<string> dmTypingUsers = new();
+    private Dictionary<string, int> dmUnreadCounts = new();
+
+    // Message actions state (room)
     private Guid? hoveredMessageId = null;
     private Guid? editingMessageId = null;
     private string editContent = "";
+
+    // Message actions state (DM)
+    private Guid? hoveredDMId = null;
+    private Guid? editingDMId = null;
+    private string editDMContent = "";
 
     // Drag and drop state
     private bool isDraggingOver = false;
@@ -271,7 +445,6 @@ else
     private string usernamePlaceholder = "";
     private string messagePlaceholder = "";
     private string connectionStatus = "";
-    private string roomHeader = "";
     private string onlineUsersHeader = "";
     private string typingIndicatorText = "";
 
@@ -281,10 +454,25 @@ else
         joinButtonText = ChatConfig.GetRandomJoinButtonText();
         usernamePlaceholder = ChatConfig.GetRandomUsernamePlaceholder();
         messagePlaceholder = ChatConfig.GetRandomMessagePlaceholder();
-        roomHeader = ChatConfig.GetRandomRoomHeader();
         connectionStatus = ChatConfig.GetRandomConnectionStatus(true);
         UpdateOnlineUsersHeader();
         pageTitle = ChatConfig.ProjectName;
+    }
+
+    private string GetCurrentViewHeader()
+    {
+        if (currentDMUser != null)
+            return $"DM with {currentDMUser}";
+
+        var room = rooms.FirstOrDefault(r => r.Id == currentRoomId);
+        return room != null ? $"# {room.Name}" : ChatConfig.GetRandomRoomHeader();
+    }
+
+    private string GetMessagePlaceholder()
+    {
+        if (currentDMUser != null)
+            return $"Message @{currentDMUser}";
+        return messagePlaceholder;
     }
 
     private async Task HandleUsernameKeyPress(KeyboardEventArgs e)
@@ -311,14 +499,32 @@ else
         ChatService.OnUserChanged += HandleUserChanged;
         ChatService.OnUsersListChanged += HandleUsersListChanged;
         ChatService.OnTypingUsersChanged += HandleTypingUsersChanged;
+        ChatService.OnRoomCreated += HandleRoomCreated;
+        ChatService.OnRoomDeleted += HandleRoomDeleted;
+        ChatService.OnAdminChanged += HandleAdminChanged;
+        ChatService.OnDirectMessageReceived += HandleDirectMessageReceived;
+        ChatService.OnDirectMessageUpdated += HandleDirectMessageUpdated;
+        ChatService.OnDirectMessageDeleted += HandleDirectMessageDeleted;
+        ChatService.OnDMTypingUsersChanged += HandleDMTypingUsersChanged;
 
-        // Load history
-        messages = ChatService.GetRecentMessages().ToList();
+        // Load rooms
+        rooms = ChatService.GetRooms();
+        currentRoomId = ChatService.LobbyId;
+
+        // Load room history
+        messages = ChatService.GetRoomMessages(currentRoomId).ToList();
         onlineUsers = ChatService.GetOnlineUsers();
         UpdateOnlineUsersHeader();
 
         // Join chat
         await ChatService.AddUserAsync(circuitId, username);
+
+        // Check if we're admin
+        isAdmin = ChatService.IsAdmin(username);
+
+        // Refresh users after join (to include ourselves)
+        onlineUsers = ChatService.GetOnlineUsers();
+        UpdateOnlineUsersHeader();
 
         // Setup tab notifications
         await SetupTabNotifications();
@@ -326,18 +532,117 @@ else
         await InvokeAsync(StateHasChanged);
         await ScrollToBottom();
 
-        // Setup drag-drop zone (after render)
+        // Setup drag-drop zone
         await SetupDropZone();
     }
+
+    #region Room Management
+
+    private async Task SwitchToRoom(Guid roomId)
+    {
+        if (currentRoomId == roomId && currentDMUser == null) return;
+
+        currentDMUser = null;
+        currentRoomId = roomId;
+        messages = ChatService.GetRoomMessages(roomId).ToList();
+        typingUsers = ChatService.GetTypingUsers(roomId);
+        UpdateTypingIndicator();
+
+        // Reset unread count when switching
+        unreadCount = 0;
+        await JS.InvokeVoidAsync("setDocumentTitle", ChatConfig.ProjectName);
+
+        await InvokeAsync(StateHasChanged);
+        await ScrollToBottom();
+    }
+
+    private void ShowNewRoomInput()
+    {
+        showNewRoomInput = true;
+        newRoomName = "";
+    }
+
+    private void CancelNewRoom()
+    {
+        showNewRoomInput = false;
+        newRoomName = "";
+    }
+
+    private async Task HandleNewRoomKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await CreateRoom();
+        else if (e.Key == "Escape") CancelNewRoom();
+    }
+
+    private async Task CreateRoom()
+    {
+        if (string.IsNullOrWhiteSpace(newRoomName)) return;
+
+        var room = await ChatService.CreateRoomAsync(username, newRoomName);
+        if (room != null)
+        {
+            showNewRoomInput = false;
+            newRoomName = "";
+        }
+    }
+
+    private async Task DeleteRoom(Guid roomId)
+    {
+        await ChatService.DeleteRoomAsync(username, roomId);
+    }
+
+    #endregion
+
+    #region DM Management
+
+    private async Task OpenDM(string targetUser)
+    {
+        if (targetUser.Equals(username, StringComparison.OrdinalIgnoreCase)) return;
+
+        currentDMUser = targetUser;
+        dmMessages = ChatService.GetDirectMessages(username, targetUser).ToList();
+        dmTypingUsers = ChatService.GetDMTypingUsers(username, targetUser);
+        UpdateTypingIndicator();
+
+        // Mark messages as read
+        ChatService.MarkDMsAsRead(username, targetUser);
+        dmUnreadCounts[targetUser.ToLowerInvariant()] = 0;
+
+        // Reset unread count
+        unreadCount = 0;
+        await JS.InvokeVoidAsync("setDocumentTitle", ChatConfig.ProjectName);
+
+        await InvokeAsync(StateHasChanged);
+        await ScrollToBottom();
+    }
+
+    private int GetUnreadDMCount(string fromUser)
+    {
+        var key = fromUser.ToLowerInvariant();
+        return dmUnreadCounts.TryGetValue(key, out var count) ? count : 0;
+    }
+
+    #endregion
+
+    #region Event Handlers (Room)
 
     private async Task HandleMessageReceived(ChatMessage message)
     {
         await InvokeAsync(async () =>
         {
-            messages.Add(message);
-            StateHasChanged();
-            await ScrollToBottom();
-            await HandleNewMessageNotification(message.Username);
+            // Only add if it's for the current room
+            if (message.RoomId == currentRoomId && currentDMUser == null)
+            {
+                messages.Add(message);
+                StateHasChanged();
+                await ScrollToBottom();
+            }
+
+            // Handle notification for room messages (no sound, just count)
+            if (message.Username != username && message.Username != "System" && currentDMUser == null)
+            {
+                await HandleNewMessageNotification(message.Username, isDM: false);
+            }
         });
     }
 
@@ -345,22 +650,28 @@ else
     {
         await InvokeAsync(() =>
         {
-            var index = messages.FindIndex(m => m.Id == message.Id);
-            if (index >= 0)
+            if (message.RoomId == currentRoomId && currentDMUser == null)
             {
-                messages[index] = message;
+                var index = messages.FindIndex(m => m.Id == message.Id);
+                if (index >= 0)
+                {
+                    messages[index] = message;
+                }
+                StateHasChanged();
             }
-            StateHasChanged();
             return Task.CompletedTask;
         });
     }
 
-    private async Task HandleMessageDeleted(Guid messageId)
+    private async Task HandleMessageDeleted(Guid messageId, Guid roomId)
     {
         await InvokeAsync(() =>
         {
-            messages.RemoveAll(m => m.Id == messageId);
-            StateHasChanged();
+            if (roomId == currentRoomId && currentDMUser == null)
+            {
+                messages.RemoveAll(m => m.Id == messageId);
+                StateHasChanged();
+            }
             return Task.CompletedTask;
         });
     }
@@ -369,12 +680,15 @@ else
     {
         await InvokeAsync(() =>
         {
-            var index = messages.FindIndex(m => m.Id == message.Id);
-            if (index >= 0)
+            if (message.RoomId == currentRoomId && currentDMUser == null)
             {
-                messages[index] = message;
+                var index = messages.FindIndex(m => m.Id == message.Id);
+                if (index >= 0)
+                {
+                    messages[index] = message;
+                }
+                StateHasChanged();
             }
-            StateHasChanged();
             return Task.CompletedTask;
         });
     }
@@ -383,12 +697,17 @@ else
     {
         await InvokeAsync(() =>
         {
-            messages.Add(new ChatMessage(
-                "System",
-                ChatConfig.GetRandomSystemMessage(user, isJoining),
-                DateTime.UtcNow
-            ));
-            StateHasChanged();
+            // System message for lobby
+            if (currentRoomId == ChatService.LobbyId && currentDMUser == null)
+            {
+                messages.Add(new ChatMessage(
+                    ChatService.LobbyId,
+                    "System",
+                    ChatConfig.GetRandomSystemMessage(user, isJoining),
+                    DateTime.UtcNow
+                ));
+                StateHasChanged();
+            }
             return Task.CompletedTask;
         });
     }
@@ -404,22 +723,174 @@ else
         });
     }
 
-    private async Task HandleTypingUsersChanged()
+    private async Task HandleTypingUsersChanged(Guid roomId)
     {
         await InvokeAsync(() =>
         {
-            typingUsers = ChatService.GetTypingUsers();
-            UpdateTypingIndicator();
+            if (roomId == currentRoomId && currentDMUser == null)
+            {
+                typingUsers = ChatService.GetTypingUsers(roomId);
+                UpdateTypingIndicator();
+                StateHasChanged();
+            }
+            return Task.CompletedTask;
+        });
+    }
+
+    private async Task HandleRoomCreated(Room room)
+    {
+        await InvokeAsync(() =>
+        {
+            rooms = ChatService.GetRooms();
             StateHasChanged();
             return Task.CompletedTask;
         });
     }
 
+    private async Task HandleRoomDeleted(Guid roomId)
+    {
+        await InvokeAsync(() =>
+        {
+            rooms = ChatService.GetRooms();
+
+            // If we were in the deleted room, switch to lobby
+            if (currentRoomId == roomId)
+            {
+                currentRoomId = ChatService.LobbyId;
+                messages = ChatService.GetRoomMessages(currentRoomId).ToList();
+            }
+
+            StateHasChanged();
+            return Task.CompletedTask;
+        });
+    }
+
+    private async Task HandleAdminChanged(string? adminUser)
+    {
+        await InvokeAsync(() =>
+        {
+            isAdmin = ChatService.IsAdmin(username);
+            StateHasChanged();
+            return Task.CompletedTask;
+        });
+    }
+
+    #endregion
+
+    #region Event Handlers (DM)
+
+    private async Task HandleDirectMessageReceived(DirectMessage message)
+    {
+        await InvokeAsync(async () =>
+        {
+            var isForMe = message.ToUser.Equals(username, StringComparison.OrdinalIgnoreCase) ||
+                          message.FromUser.Equals(username, StringComparison.OrdinalIgnoreCase);
+
+            if (!isForMe) return;
+
+            var otherUser = message.FromUser.Equals(username, StringComparison.OrdinalIgnoreCase)
+                ? message.ToUser
+                : message.FromUser;
+
+            // If this DM is currently open, add to view
+            if (currentDMUser != null && currentDMUser.Equals(otherUser, StringComparison.OrdinalIgnoreCase))
+            {
+                dmMessages.Add(message);
+                ChatService.MarkDMsAsRead(username, otherUser);
+                StateHasChanged();
+                await ScrollToBottom();
+            }
+            else if (message.ToUser.Equals(username, StringComparison.OrdinalIgnoreCase))
+            {
+                // Increment unread count for this sender
+                var key = otherUser.ToLowerInvariant();
+                if (!dmUnreadCounts.ContainsKey(key))
+                    dmUnreadCounts[key] = 0;
+                dmUnreadCounts[key]++;
+                StateHasChanged();
+            }
+
+            // Handle notification for DMs (with sound!)
+            if (!message.FromUser.Equals(username, StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleNewMessageNotification(message.FromUser, isDM: true);
+            }
+        });
+    }
+
+    private async Task HandleDirectMessageUpdated(DirectMessage message)
+    {
+        await InvokeAsync(() =>
+        {
+            var otherUser = message.FromUser.Equals(username, StringComparison.OrdinalIgnoreCase)
+                ? message.ToUser
+                : message.FromUser;
+
+            if (currentDMUser != null && currentDMUser.Equals(otherUser, StringComparison.OrdinalIgnoreCase))
+            {
+                var index = dmMessages.FindIndex(m => m.Id == message.Id);
+                if (index >= 0)
+                {
+                    dmMessages[index] = message;
+                }
+                StateHasChanged();
+            }
+            return Task.CompletedTask;
+        });
+    }
+
+    private async Task HandleDirectMessageDeleted(Guid messageId, string conversationKey)
+    {
+        await InvokeAsync(() =>
+        {
+            if (currentDMUser != null)
+            {
+                var key = DirectMessage.GetConversationKey(username, currentDMUser);
+                if (key == conversationKey)
+                {
+                    dmMessages.RemoveAll(m => m.Id == messageId);
+                    StateHasChanged();
+                }
+            }
+            return Task.CompletedTask;
+        });
+    }
+
+    private async Task HandleDMTypingUsersChanged(string conversationKey)
+    {
+        await InvokeAsync(() =>
+        {
+            if (currentDMUser != null)
+            {
+                var key = DirectMessage.GetConversationKey(username, currentDMUser);
+                if (key == conversationKey)
+                {
+                    dmTypingUsers = ChatService.GetDMTypingUsers(username, currentDMUser);
+                    UpdateTypingIndicator();
+                    StateHasChanged();
+                }
+            }
+            return Task.CompletedTask;
+        });
+    }
+
+    #endregion
+
+    #region Send Messages
+
     private async Task SendMessage()
     {
         if (string.IsNullOrWhiteSpace(messageInput)) return;
 
-        await ChatService.SendMessageAsync(username, messageInput);
+        if (currentDMUser != null)
+        {
+            await ChatService.SendDirectMessageAsync(username, currentDMUser, messageInput);
+        }
+        else
+        {
+            await ChatService.SendMessageAsync(currentRoomId, username, messageInput);
+        }
+
         messageInput = "";
         await StopTyping();
         await InvokeAsync(StateHasChanged);
@@ -427,7 +898,7 @@ else
 
     private async Task HandleFileSelected(InputFileChangeEventArgs e)
     {
-        var files = e.GetMultipleFiles(10); // Max 10 files at once
+        var files = e.GetMultipleFiles(10);
         if (files.Count == 0) return;
 
         var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
@@ -455,7 +926,14 @@ else
 
             if (imageUrls.Count > 0)
             {
-                await ChatService.SendMessageAsync(username, "", imageUrls);
+                if (currentDMUser != null)
+                {
+                    await ChatService.SendDirectMessageAsync(username, currentDMUser, "", imageUrls);
+                }
+                else
+                {
+                    await ChatService.SendMessageAsync(currentRoomId, username, "", imageUrls);
+                }
             }
         }
         catch (Exception ex)
@@ -464,29 +942,19 @@ else
         }
     }
 
-    // Drag and drop handlers
-    private void HandleDragEnter(DragEventArgs e)
-    {
-        isDraggingOver = true;
-    }
+    #endregion
 
-    private void HandleDragOver(DragEventArgs e)
-    {
-        isDraggingOver = true;
-    }
+    #region Drag and Drop
 
-    private void HandleDragLeave(DragEventArgs e)
-    {
-        isDraggingOver = false;
-    }
+    private void HandleDragEnter(DragEventArgs e) => isDraggingOver = true;
+    private void HandleDragOver(DragEventArgs e) => isDraggingOver = true;
+    private void HandleDragLeave(DragEventArgs e) => isDraggingOver = false;
+    private void HandleDrop(DragEventArgs e) => isDraggingOver = false;
 
-    private void HandleDrop(DragEventArgs e)
-    {
-        isDraggingOver = false;
-        // Actual file handling is done by JS (setupDropZone)
-    }
+    #endregion
 
-    // Gallery layout helper
+    #region Message Actions (Room)
+
     private string GetGalleryClass(int imageCount) => imageCount switch
     {
         1 => "gallery-single",
@@ -494,20 +962,12 @@ else
         _ => "gallery-grid"
     };
 
-    // Message actions
-    private void OnMessageMouseEnter(Guid messageId)
-    {
-        hoveredMessageId = messageId;
-    }
-
-    private void OnMessageMouseLeave()
-    {
-        hoveredMessageId = null;
-    }
+    private void OnMessageMouseEnter(Guid messageId) => hoveredMessageId = messageId;
+    private void OnMessageMouseLeave() => hoveredMessageId = null;
 
     private async Task ToggleReaction(Guid messageId, string emoji)
     {
-        await ChatService.ToggleReactionAsync(messageId, username, emoji);
+        await ChatService.ToggleReactionAsync(messageId, currentRoomId, username, emoji);
     }
 
     private void StartEdit(ChatMessage message)
@@ -520,7 +980,7 @@ else
     {
         if (editingMessageId.HasValue && !string.IsNullOrWhiteSpace(editContent))
         {
-            await ChatService.EditMessageAsync(editingMessageId.Value, username, editContent);
+            await ChatService.EditMessageAsync(editingMessageId.Value, currentRoomId, username, editContent);
         }
         CancelEdit();
     }
@@ -533,25 +993,62 @@ else
 
     private async Task HandleEditKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter")
-        {
-            await SaveEdit();
-        }
-        else if (e.Key == "Escape")
-        {
-            CancelEdit();
-        }
+        if (e.Key == "Enter") await SaveEdit();
+        else if (e.Key == "Escape") CancelEdit();
     }
 
     private async Task DeleteMessage(Guid messageId)
     {
-        await ChatService.DeleteMessageAsync(messageId, username);
+        await ChatService.DeleteMessageAsync(messageId, currentRoomId, username);
     }
 
-    private Task OnMessageInputChanged()
+    #endregion
+
+    #region Message Actions (DM)
+
+    private void OnDMMouseEnter(Guid messageId) => hoveredDMId = messageId;
+    private void OnDMMouseLeave() => hoveredDMId = null;
+
+    private void StartDMEdit(DirectMessage message)
     {
-        return HandleTypingChangeAsync(messageInput);
+        editingDMId = message.Id;
+        editDMContent = message.Content;
     }
+
+    private async Task SaveDMEdit()
+    {
+        if (editingDMId.HasValue && !string.IsNullOrWhiteSpace(editDMContent) && currentDMUser != null)
+        {
+            await ChatService.EditDirectMessageAsync(editingDMId.Value, username, currentDMUser, editDMContent);
+        }
+        CancelDMEdit();
+    }
+
+    private void CancelDMEdit()
+    {
+        editingDMId = null;
+        editDMContent = "";
+    }
+
+    private async Task HandleDMEditKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SaveDMEdit();
+        else if (e.Key == "Escape") CancelDMEdit();
+    }
+
+    private async Task DeleteDM(Guid messageId)
+    {
+        if (currentDMUser != null)
+        {
+            await ChatService.DeleteDirectMessageAsync(messageId, username, currentDMUser);
+        }
+    }
+
+    #endregion
+
+    #region Typing Indicators
+
+    private Task OnMessageInputChanged() => HandleTypingChangeAsync(messageInput);
 
     private async Task HandleTypingChangeAsync(string currentValue)
     {
@@ -564,7 +1061,6 @@ else
             await StopTyping();
         }
 
-        // Reset typing timer
         typingTimer?.Stop();
         typingTimer?.Dispose();
 
@@ -585,7 +1081,14 @@ else
         if (!isTyping)
         {
             isTyping = true;
-            await ChatService.StartTypingAsync(username);
+            if (currentDMUser != null)
+            {
+                await ChatService.StartDMTypingAsync(username, currentDMUser);
+            }
+            else
+            {
+                await ChatService.StartTypingAsync(currentRoomId, username);
+            }
         }
     }
 
@@ -594,48 +1097,56 @@ else
         if (isTyping)
         {
             isTyping = false;
-            await ChatService.StopTypingAsync(username);
+            if (currentDMUser != null)
+            {
+                await ChatService.StopDMTypingAsync(username, currentDMUser);
+            }
+            else
+            {
+                await ChatService.StopTypingAsync(currentRoomId, username);
+            }
             typingTimer?.Stop();
             typingTimer?.Dispose();
         }
     }
 
-    // Setup methods
+    #endregion
+
+    #region Notifications
+
     private async Task SetupDropZone()
     {
-        try
-        {
-            await JS.InvokeVoidAsync("setupDropZone", dropZoneElement, "fileInput");
-        }
-        catch { }
+        try { await JS.InvokeVoidAsync("setupDropZone", dropZoneElement, "fileInput"); } catch { }
     }
 
     private async Task SetupTabNotifications()
     {
-        try
-        {
-            await JS.InvokeVoidAsync("setupVisibilityListener",
-                DotNetObjectReference.Create(this));
-        }
-        catch { }
+        try { await JS.InvokeVoidAsync("setupVisibilityListener", DotNetObjectReference.Create(this)); } catch { }
     }
 
-    private async Task HandleNewMessageNotification(string messageUser)
+    private async Task HandleNewMessageNotification(string messageUser, bool isDM)
     {
-        if (messageUser != username && messageUser != "System")
+        try
         {
-            try
+            var isVisible = await JS.InvokeAsync<bool>("isPageVisible");
+            if (!isVisible)
             {
-                var isVisible = await JS.InvokeAsync<bool>("isPageVisible");
-                if (!isVisible)
+                unreadCount++;
+                var title = $"({unreadCount}) {ChatConfig.ProjectName}";
+
+                if (isDM)
                 {
-                    unreadCount++;
-                    var title = $"({unreadCount}) {ChatConfig.ProjectName}";
+                    // DMs get sound
                     await JS.InvokeVoidAsync("notifyNewMessage", title);
                 }
+                else
+                {
+                    // Room messages just update title
+                    await JS.InvokeVoidAsync("setDocumentTitle", title);
+                }
             }
-            catch { }
         }
+        catch { }
     }
 
     [JSInvokable]
@@ -649,13 +1160,13 @@ else
         }
     }
 
+    #endregion
+
+    #region UI Helpers
+
     private async Task ScrollToBottom()
     {
-        try
-        {
-            await JS.InvokeVoidAsync("scrollToBottom", messagesElement);
-        }
-        catch { }
+        try { await JS.InvokeVoidAsync("scrollToBottom", messagesElement); } catch { }
     }
 
     private async Task ShowGallery(List<string> gallery, int startIndex)
@@ -664,11 +1175,6 @@ else
         modalImageIndex = startIndex;
         showImageModal = true;
         await SetupModalKeyboard();
-    }
-
-    private async Task ShowFullImage(string imageUrl)
-    {
-        await ShowGallery(new List<string> { imageUrl }, 0);
     }
 
     private async Task CloseImageModal()
@@ -682,66 +1188,35 @@ else
     private void NextImage()
     {
         if (modalGallery.Count > 0)
-        {
             modalImageIndex = (modalImageIndex + 1) % modalGallery.Count;
-        }
     }
 
     private void PrevImage()
     {
         if (modalGallery.Count > 0)
-        {
             modalImageIndex = (modalImageIndex - 1 + modalGallery.Count) % modalGallery.Count;
-        }
     }
 
-    // JS-invokable methods for keyboard navigation
     [JSInvokable]
     public async Task CloseModalFromJs()
     {
-        await InvokeAsync(async () =>
-        {
-            await CloseImageModal();
-            StateHasChanged();
-        });
+        await InvokeAsync(async () => { await CloseImageModal(); StateHasChanged(); });
     }
 
     [JSInvokable]
-    public void NextImageFromJs()
-    {
-        InvokeAsync(() =>
-        {
-            NextImage();
-            StateHasChanged();
-        });
-    }
+    public void NextImageFromJs() => InvokeAsync(() => { NextImage(); StateHasChanged(); });
 
     [JSInvokable]
-    public void PrevImageFromJs()
-    {
-        InvokeAsync(() =>
-        {
-            PrevImage();
-            StateHasChanged();
-        });
-    }
+    public void PrevImageFromJs() => InvokeAsync(() => { PrevImage(); StateHasChanged(); });
 
     private async Task SetupModalKeyboard()
     {
-        try
-        {
-            await JS.InvokeVoidAsync("setupModalKeyboard", DotNetObjectReference.Create(this));
-        }
-        catch { }
+        try { await JS.InvokeVoidAsync("setupModalKeyboard", DotNetObjectReference.Create(this)); } catch { }
     }
 
     private async Task RemoveModalKeyboard()
     {
-        try
-        {
-            await JS.InvokeVoidAsync("removeModalKeyboard");
-        }
-        catch { }
+        try { await JS.InvokeVoidAsync("removeModalKeyboard"); } catch { }
     }
 
     private void ToggleSidebar() => sidebarOpen = !sidebarOpen;
@@ -749,8 +1224,21 @@ else
     private void UpdateOnlineUsersHeader() =>
         onlineUsersHeader = ChatConfig.GetRandomOnlineUsersHeader(onlineUsers.Count);
 
-    private void UpdateTypingIndicator() =>
-        typingIndicatorText = ChatConfig.GetRandomTypingIndicator(typingUsers, username);
+    private void UpdateTypingIndicator()
+    {
+        if (currentDMUser != null)
+        {
+            // DM typing - filter out self
+            var others = dmTypingUsers.Where(u => !u.Equals(username, StringComparison.OrdinalIgnoreCase)).ToList();
+            typingIndicatorText = others.Count > 0 ? $"{string.Join(", ", others)} is typing..." : "";
+        }
+        else
+        {
+            typingIndicatorText = ChatConfig.GetRandomTypingIndicator(typingUsers, username);
+        }
+    }
+
+    #endregion
 
     public async ValueTask DisposeAsync()
     {
@@ -766,10 +1254,20 @@ else
             ChatService.OnUserChanged -= HandleUserChanged;
             ChatService.OnUsersListChanged -= HandleUsersListChanged;
             ChatService.OnTypingUsersChanged -= HandleTypingUsersChanged;
+            ChatService.OnRoomCreated -= HandleRoomCreated;
+            ChatService.OnRoomDeleted -= HandleRoomDeleted;
+            ChatService.OnAdminChanged -= HandleAdminChanged;
+            ChatService.OnDirectMessageReceived -= HandleDirectMessageReceived;
+            ChatService.OnDirectMessageUpdated -= HandleDirectMessageUpdated;
+            ChatService.OnDirectMessageDeleted -= HandleDirectMessageDeleted;
+            ChatService.OnDMTypingUsersChanged -= HandleDMTypingUsersChanged;
 
             if (isTyping)
             {
-                await ChatService.StopTypingAsync(username);
+                if (currentDMUser != null)
+                    await ChatService.StopDMTypingAsync(username, currentDMUser);
+                else
+                    await ChatService.StopTypingAsync(currentRoomId, username);
             }
             await ChatService.RemoveUserAsync(circuitId);
         }

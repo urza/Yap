@@ -3,6 +3,7 @@ namespace Yap.Models;
 public class ChatMessage
 {
     public Guid Id { get; init; } = Guid.NewGuid();
+    public Guid RoomId { get; init; }
     public string Username { get; init; } = "";
     public string Content { get; set; } = "";
     public DateTime Timestamp { get; init; }
@@ -14,8 +15,9 @@ public class ChatMessage
 
     public bool HasImages => ImageUrls.Count > 0;
 
-    public ChatMessage(string username, string content, DateTime timestamp, List<string>? imageUrls = null)
+    public ChatMessage(Guid roomId, string username, string content, DateTime timestamp, List<string>? imageUrls = null)
     {
+        RoomId = roomId;
         Username = username;
         Content = content;
         Timestamp = timestamp;
