@@ -51,7 +51,10 @@ window.notifyNewMessage = (title) => {
 
 window.scrollToBottom = (element) => {
     if (element) {
-        element.scrollTop = element.scrollHeight;
+        // Use requestAnimationFrame to ensure DOM has updated
+        requestAnimationFrame(() => {
+            element.scrollTop = element.scrollHeight;
+        });
     }
 };
 
