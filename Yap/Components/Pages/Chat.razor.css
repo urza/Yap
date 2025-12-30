@@ -231,21 +231,18 @@
 /* System messages styling */
 .system-message {
     text-align: center;
-    margin: 0.25rem 0;
-}
-
-/* Remove spacing between consecutive system messages */
-.system-message + .system-message {
-    margin-top: 0;
+    margin: 0 !important;
+    padding: 0.0625rem 1rem !important;
 }
 
 .system-message .message-content {
     display: inline-block;
     color: #a3a6aa;
     font-style: italic;
-    font-size: 0.875rem;
-    padding: 0.25rem 1rem;
+    font-size: 0.8125rem;
+    padding: 0;
     background: transparent;
+    line-height: 1.4;
 }
 
 /* Image gallery styles - single row thumbnails */
@@ -644,12 +641,14 @@
 
 /* Admin badge */
 .admin-badge {
-    font-size: 0.875rem;
-    margin-right: 0.25rem;
+    font-size: 0.75rem;
+    margin-left: 0.25rem;
+    opacity: 0.8;
 }
 
 .message-header .admin-badge {
-    font-size: 0.75rem;
+    font-size: 0.625rem;
+    margin-right: 0.25rem;
 }
 
 /* DM unread badge */

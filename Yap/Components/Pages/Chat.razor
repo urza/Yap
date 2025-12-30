@@ -65,10 +65,6 @@ else
                                 @if (showHeader)
                                 {
                                     <div class="message-header">
-                                        @if (ChatService.IsAdmin(message.Username))
-                                        {
-                                            <span class="admin-badge" title="Admin">👑</span>
-                                        }
                                         <strong class="message-username">@message.Username</strong>
                                         <span class="message-time">@message.Timestamp.ToLocalTime().ToString("HH:mm")</span>
                                     </div>
@@ -173,10 +169,6 @@ else
                                 @if (showHeader)
                                 {
                                     <div class="message-header">
-                                        @if (ChatService.IsAdmin(message.FromUser))
-                                        {
-                                            <span class="admin-badge" title="Admin">👑</span>
-                                        }
                                         <strong class="message-username">@message.FromUser</strong>
                                         <span class="message-time">@message.Timestamp.ToLocalTime().ToString("HH:mm")</span>
                                     </div>
@@ -348,11 +340,11 @@ else
                             <div class="user-item @(isCurrentUser ? "current-user" : "") @(isActiveDM ? "active-dm" : "")"
                                  @onclick="() => OpenDM(user)"
                                  title="@(isCurrentUser ? "You" : $"Message {user}")">
+                                <span class="user-name">@user</span>
                                 @if (isUserAdmin)
                                 {
-                                    <span class="admin-badge">👑</span>
+                                    <span class="admin-badge" title="Admin">🛡️</span>
                                 }
-                                <span class="user-name">@user</span>
                                 @if (unreadCount > 0)
                                 {
                                     <span class="dm-unread-badge">@unreadCount</span>
@@ -438,6 +430,7 @@ else
     // Tab notifications
     private int unreadCount = 0;
     private string pageTitle = "Yap";
+    private string currentContext = "";
 
     // UI Text
     private string welcomeMessage = "";
@@ -528,6 +521,7 @@ else
 
         // Setup tab notifications
         await SetupTabNotifications();
+        await UpdatePageTitle();
 
         await InvokeAsync(StateHasChanged);
         await ScrollToBottom();
@@ -550,7 +544,7 @@ else
 
         // Reset unread count when switching
         unreadCount = 0;
-        await JS.InvokeVoidAsync("setDocumentTitle", ChatConfig.ProjectName);
+        await UpdatePageTitle();
 
         await InvokeAsync(StateHasChanged);
         await ScrollToBottom();
@@ -610,7 +604,7 @@ else
 
         // Reset unread count
         unreadCount = 0;
-        await JS.InvokeVoidAsync("setDocumentTitle", ChatConfig.ProjectName);
+        await UpdatePageTitle();
 
         await InvokeAsync(StateHasChanged);
         await ScrollToBottom();
@@ -1132,7 +1126,7 @@ else
             if (!isVisible)
             {
                 unreadCount++;
-                var title = $"({unreadCount}) {ChatConfig.ProjectName}";
+                var title = $"({unreadCount}) {ChatConfig.ProjectName} | {currentContext}";
 
                 if (isDM)
                 {
@@ -1155,7 +1149,7 @@ else
         if (unreadCount > 0)
         {
             unreadCount = 0;
-            await JS.InvokeVoidAsync("setDocumentTitle", ChatConfig.ProjectName);
+            await UpdatePageTitle();
             await InvokeAsync(StateHasChanged);
         }
     }
@@ -1223,6 +1217,26 @@ else
 
     private void UpdateOnlineUsersHeader() =>
         onlineUsersHeader = ChatConfig.GetRandomOnlineUsersHeader(onlineUsers.Count);
+
+    private async Task UpdatePageTitle()
+    {
+        if (currentDMUser != null)
+        {
+            currentContext = currentDMUser;
+        }
+        else
+        {
+            var room = rooms.FirstOrDefault(r => r.Id == currentRoomId);
+            currentContext = room?.Name ?? "lobby";
+        }
+
+        var title = unreadCount > 0
+            ? $"({unreadCount}) {ChatConfig.ProjectName} | {currentContext}"
+            : $"{ChatConfig.ProjectName} | {currentContext}";
+
+        pageTitle = title;
+        try { await JS.InvokeVoidAsync("setDocumentTitle", title); } catch { }
+    }
 
     private void UpdateTypingIndicator()
     {
