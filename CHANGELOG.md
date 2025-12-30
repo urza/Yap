@@ -2,6 +2,47 @@
 
 All notable changes to Yap are documented in this file.
 
+## [2.3.0] - 2025-12-30
+
+### Rooms, Admin & DM Improvements
+
+#### New Features
+- **Multiple chat rooms** - Create and switch between different chat rooms
+  - Default "lobby" room always exists
+  - Each room has its own message history
+  - Rooms listed in sidebar with # prefix
+- **Admin system** - First user to join becomes admin
+  - Admin badge (🛡️) displayed next to admin's name
+  - Only admin can create/delete rooms
+  - Admin status persists until server restart
+- **Mailbox icon in header** - Shows total unread DM count even when sidebar is closed
+  - Outline icon when no unreads, filled with badge when messages waiting
+  - Click to open sidebar
+- **User sorting** - Users in sidebar sorted by last DM message time, unread conversations always on top
+- **DM ephemeral notice** - System message at top of DM conversations explaining messages disappear when either user leaves
+- **Discord-style multiline input** - Textarea that auto-expands as you type
+  - Enter sends message, Shift+Enter for new line
+  - Auto-resizes up to 200px max height
+  - Hidden scrollbar for cleaner look
+- **Long text wrapping** - Messages and input now properly wrap long text without spaces (URLs, hashes, etc.)
+- **Clear uploads on start** - Configurable option to delete all uploaded files when app starts (default: true)
+
+#### UI Polish
+- Reduced typing indicator height for more compact footer
+- Fixed scrollbar flash when sending messages
+- Fixed first keypress sometimes not registering after sending
+
+#### Technical Changes
+- Added `Room` model with Id, Name, CreatedAt, CreatedBy, IsDefault
+- Added admin tracking with `OnAdminChanged` event
+- Added `CreateRoomAsync()`, `DeleteRoomAsync()`, `GetRooms()` to ChatService
+- Added `GetLastDMTimestamp()` and `GetTotalUnreadDMCount()` to ChatService
+- Changed message input from `<input>` to `<textarea>` with JS auto-resize
+- Added `autoResizeTextarea` and `resetTextareaHeight` JS functions
+- New config option: `ChatSettings:ClearUploadsOnStart`
+
+---
+
 ## [2.2.0] - 2025-12-17
 
 ### Multi-Image Upload & Drag-Drop

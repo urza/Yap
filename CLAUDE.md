@@ -26,7 +26,8 @@ Yap/
 │   ├── ChatConfigService.cs          # UI text configuration
 │   └── EmojiService.cs               # Twemoji rendering
 ├── Models/
-│   └── ChatMessage.cs                # Message record type
+│   ├── ChatMessage.cs                # Message record type
+│   └── Room.cs                       # Chat room model
 ├── wwwroot/
 │   ├── js/chat.js                    # Tab notification helpers
 │   ├── uploads/                      # Image storage
@@ -52,10 +53,11 @@ No custom SignalR hub needed - Blazor's built-in circuit handles everything.
 ### Key Components
 
 **ChatService.cs**
-- Manages online users, messages, typing indicators, reactions
+- Manages online users, messages, rooms, DMs, typing indicators, reactions
+- First user to join becomes admin (can create/delete rooms)
 - Uses `ConcurrentDictionary` for thread-safe state
-- Exposes events: `OnMessageReceived`, `OnMessageUpdated`, `OnMessageDeleted`, `OnReactionChanged`, `OnUserChanged`, `OnUsersListChanged`, `OnTypingUsersChanged`
-- Methods: `EditMessageAsync`, `DeleteMessageAsync`, `ToggleReactionAsync`
+- Exposes events: `OnMessageReceived`, `OnMessageUpdated`, `OnMessageDeleted`, `OnReactionChanged`, `OnUserChanged`, `OnUsersListChanged`, `OnTypingUsersChanged`, `OnAdminChanged`, `OnRoomCreated`, `OnRoomDeleted`
+- Methods: `CreateRoomAsync`, `DeleteRoomAsync`, `EditMessageAsync`, `DeleteMessageAsync`, `ToggleReactionAsync`, `SendDirectMessageAsync`
 
 **Chat.razor**
 - Main chat UI component
@@ -80,6 +82,7 @@ All settings in `appsettings.json`:
   "ChatSettings": {
     "ProjectName": "Yap",
     "RoomName": "lobby",
+    "ClearUploadsOnStart": true,
     "FunnyTexts": {
       "WelcomeMessages": [...],
       "JoinButtonTexts": [...],
@@ -89,6 +92,8 @@ All settings in `appsettings.json`:
   }
 }
 ```
+
+- `ClearUploadsOnStart` - Delete all files in `wwwroot/uploads` on app start (default: true)
 
 ## Running the Application
 
@@ -109,18 +114,24 @@ docker run -p 8080:8080 -v ./uploads:/app/wwwroot/uploads yap
 ## Features
 
 - **Real-time messaging** - Instant delivery via Blazor circuit
+- **Multiple rooms** - Create and switch between chat rooms (admin only)
+- **Admin system** - First user becomes admin, can manage rooms (🛡️ badge)
+- **Direct messages** - Private conversations with ephemeral notice
+- **Mailbox indicator** - Unread DM count in header, visible even with sidebar closed
 - **Message actions** - Discord-style hover popup with reactions, edit, delete
 - **Reactions** - ❤️ 😂 🥹 reactions on any message, shown as pills with counts
 - **Edit/Delete** - Edit or delete your own messages (shows "edited" indicator)
-- **Image sharing** - Direct file upload, up to 100MB
+- **Image sharing** - Direct file upload, up to 100MB, drag & drop support
+- **Multiline input** - Discord-style auto-expanding textarea (Shift+Enter for newlines)
 - **Emoji support** - Twemoji rendering
 - **Tab notifications** - Unread count in title + audio
-- **Online users** - Live user list
-- **Chat history** - Last 100 messages preserved
+- **Online users** - Live user list, sorted by recent DM activity
+- **Chat history** - Last 100 messages preserved per room
 - **Typing indicators** - See who's typing
 - **Mobile responsive** - Collapsible sidebar
 - **Auto-reconnection** - .NET 10 ReconnectModal handles disconnects
 - **Dark theme** - Discord-inspired UI
+- **Auto-cleanup** - Configurable upload clearing on app start
 
 ## Technical Details
 

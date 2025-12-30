@@ -17,12 +17,19 @@ All configuration is in `Yap/appsettings.json`.
   "ChatSettings": {
     "ProjectName": "Yap",
     "RoomName": "lobby",
+    "ClearUploadsOnStart": true,
     "FunnyTexts": {
       // Text variation collections
     }
   }
 }
 ```
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `ProjectName` | string | "Yap" | App name shown in UI |
+| `RoomName` | string | "lobby" | Default chat room name |
+| `ClearUploadsOnStart` | bool | true | Delete all uploaded files when app starts |
 
 ### Text Collections
 

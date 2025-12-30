@@ -14,6 +14,19 @@ builder.Services.AddScoped<EmojiService>();
 
 var app = builder.Build();
 
+// Clear uploads folder on start if configured
+if (builder.Configuration.GetValue<bool>("ChatSettings:ClearUploadsOnStart", true))
+{
+    var uploadsPath = Path.Combine(app.Environment.WebRootPath, "uploads");
+    if (Directory.Exists(uploadsPath))
+    {
+        foreach (var file in Directory.GetFiles(uploadsPath))
+        {
+            try { File.Delete(file); } catch { /* ignore errors */ }
+        }
+    }
+}
+
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
