@@ -117,3 +117,21 @@ window.setupDropZone = (dropZoneElement, fileInputId) => {
         }
     });
 };
+
+// Auto-resize textarea (Discord-style)
+window.autoResizeTextarea = (id) => {
+    requestAnimationFrame(() => {
+        const textarea = document.getElementById(id);
+        if (textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+        }
+    });
+};
+
+window.resetTextareaHeight = (id) => {
+    const textarea = document.getElementById(id);
+    if (textarea) {
+        textarea.style.height = 'auto';
+    }
+};

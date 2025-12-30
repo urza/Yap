@@ -273,7 +273,8 @@
     font-size: 1rem;
     line-height: 1.375;
     padding-left: 0;
-    word-wrap: break-word;
+    word-break: break-word;
+    overflow-wrap: break-word;
     margin: 0;
 }
 
@@ -382,7 +383,7 @@
 
 .message-input-container {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     padding: 1rem;
     background: #36393f;
     transition: background-color 0.2s, box-shadow 0.2s;
@@ -415,6 +416,15 @@
     background: #40444b;
     color: #dcddde;
     margin-right: 0.5rem;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    /* Textarea-specific styles */
+    resize: none;
+    min-height: 44px;
+    max-height: 200px;
+    overflow-y: auto;
+    line-height: 1.375;
+    font-family: inherit;
 }
 
 .message-input:focus {

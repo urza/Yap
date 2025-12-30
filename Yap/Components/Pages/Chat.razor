@@ -265,9 +265,10 @@ else
                      @ondragleave="HandleDragLeave"
                      @ondrop="HandleDrop"
                      @ondrop:preventDefault>
-                    <input type="text" @bind="messageInput" @bind:event="oninput" @bind:after="OnMessageInputChanged"
-                           placeholder="@GetMessagePlaceholder()" class="message-input"
-                           @onkeypress="HandleMessageKeyPress" />
+                    <textarea @bind="messageInput" @bind:event="oninput" @bind:after="OnMessageInputChanged"
+                              placeholder="@GetMessagePlaceholder()" class="message-input"
+                              @onkeydown="HandleMessageKeyDown" @onkeydown:preventDefault="shouldPreventDefault"
+                              rows="1" id="messageTextarea"></textarea>
                     <label class="image-upload-button" title="Upload images">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="2">
@@ -494,9 +495,22 @@ else
         if (e.Key == "Enter") await JoinChat();
     }
 
-    private async Task HandleMessageKeyPress(KeyboardEventArgs e)
+    private bool shouldPreventDefault = false;
+
+    private async Task HandleMessageKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter") await SendMessage();
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            shouldPreventDefault = true;
+            await SendMessage();
+            await JS.InvokeVoidAsync("resetTextareaHeight", "messageTextarea");
+        }
+        else
+        {
+            shouldPreventDefault = false;
+            // Auto-resize on next tick after content changes
+            await JS.InvokeVoidAsync("autoResizeTextarea", "messageTextarea");
+        }
     }
 
     private async Task JoinChat()
