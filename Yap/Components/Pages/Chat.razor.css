@@ -96,11 +96,17 @@
 .chat-header {
     background: #202225;
     color: #fff;
-    padding: 0.75rem 1.5rem;
+    padding: 0.5rem 1rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
     box-shadow: 0 1px 0 rgba(4,4,5,0.2),0 1.5px 0 rgba(6,6,7,0.05),0 2px 0 rgba(4,4,5,0.05);
+}
+
+.chat-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
 }
 
 .header-controls {
@@ -424,24 +430,39 @@
     width: 240px;
     background: #2f3136;
     padding: 1rem;
-    transition: transform 0.3s ease;
+    transition: width 0.2s ease, padding 0.2s ease, opacity 0.2s ease;
+    overflow: hidden;
 }
 
+/* Desktop: collapse to 0 width when not open */
+.users-sidebar:not(.sidebar-open) {
+    width: 0;
+    padding: 0;
+    opacity: 0;
+}
 
 @media (max-width: 768px) {
     .users-sidebar {
         position: fixed;
         right: 0;
-        top: 0;
-        height: 100vh;
+        top: 41px; /* Below header */
+        height: calc(100vh - 41px);
         transform: translateX(100%);
         z-index: 99;
+        width: 240px;
+        padding: 1rem;
+        opacity: 1;
+    }
+
+    .users-sidebar:not(.sidebar-open) {
+        width: 240px;
+        padding: 1rem;
+        opacity: 1;
     }
 
     .users-sidebar.sidebar-open {
         transform: translateX(0);
     }
-
 
     .chat-main {
         width: 100%;
@@ -809,21 +830,21 @@ body {
     }
 }
 
-/* Backdrop should be outside media query to work properly */
+/* Backdrop - only on mobile for tap-to-close */
 .sidebar-backdrop {
     display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 98;
 }
 
 @media (max-width: 768px) {
     .sidebar-backdrop.show {
         display: block;
+        position: fixed;
+        top: 41px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: transparent;
+        z-index: 98;
     }
 }
 
