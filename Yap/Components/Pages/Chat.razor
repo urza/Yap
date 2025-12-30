@@ -172,6 +172,14 @@ else
                     }
                     else
                     {
+                        @* DM system notice *@
+                        <div class="message-group system-message">
+                            <div class="message-content">
+                                This is the beginning of your direct message history with <strong>@currentDMUser</strong>.
+                                Messages are ephemeral and will disappear when either of you leaves.
+                            </div>
+                        </div>
+
                         @* DM messages *@
                         @for (int i = 0; i < dmMessages.Count; i++)
                         {
