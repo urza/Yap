@@ -512,13 +512,9 @@ else
             shouldPreventDefault = true;
             await SendMessage();
             await JS.InvokeVoidAsync("resetTextareaHeight", "messageTextarea");
+            shouldPreventDefault = false; // Reset immediately after handling
         }
-        else
-        {
-            shouldPreventDefault = false;
-            // Auto-resize on next tick after content changes
-            await JS.InvokeVoidAsync("autoResizeTextarea", "messageTextarea");
-        }
+        // No else needed - auto-resize is handled by OnMessageInputChanged
     }
 
     private async Task JoinChat()
@@ -1138,7 +1134,11 @@ else
 
     #region Typing Indicators
 
-    private Task OnMessageInputChanged() => HandleTypingChangeAsync(messageInput);
+    private async Task OnMessageInputChanged()
+    {
+        await JS.InvokeVoidAsync("autoResizeTextarea", "messageTextarea");
+        await HandleTypingChangeAsync(messageInput);
+    }
 
     private async Task HandleTypingChangeAsync(string currentValue)
     {

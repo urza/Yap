@@ -425,6 +425,13 @@
     overflow-y: auto;
     line-height: 1.375;
     font-family: inherit;
+    /* Hide scrollbar but keep scroll functionality */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+}
+
+.message-input::-webkit-scrollbar {
+    display: none; /* Chrome/Safari/Opera */
 }
 
 .message-input:focus {

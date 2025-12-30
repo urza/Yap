@@ -132,6 +132,6 @@ window.autoResizeTextarea = (id) => {
 window.resetTextareaHeight = (id) => {
     const textarea = document.getElementById(id);
     if (textarea) {
-        textarea.style.height = 'auto';
+        textarea.style.height = '44px'; // Reset to min-height, avoids scrollbar flash
     }
 };
