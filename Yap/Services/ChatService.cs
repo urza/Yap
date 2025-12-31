@@ -201,6 +201,9 @@ public class ChatService
     public List<string> GetOnlineUsers() =>
         _users.Values.Select(u => u.Username).Distinct().ToList();
 
+    public bool IsUsernameTaken(string username) =>
+        _users.Values.Any(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase));
+
     #endregion
 
     #region Room Messaging

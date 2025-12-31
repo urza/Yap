@@ -1,5 +1,6 @@
 @page "/"
 @inject ChatConfigService ChatConfig
+@inject ChatService ChatService
 @inject UserStateService UserState
 @inject NavigationManager Navigation
 
@@ -8,11 +9,17 @@
 <div class="username-container">
     <h2>@welcomeMessage</h2>
     <div class="username-form">
-        <input type="text" @bind="usernameInput" @bind:event="oninput"
-               placeholder="@usernamePlaceholder" class="username-input"
-               @onkeypress="HandleUsernameKeyPress" />
+        <div class="input-wrapper">
+            <input type="text" @bind="usernameInput" @bind:event="oninput" @bind:after="ValidateUsername"
+                   placeholder="@usernamePlaceholder" class="username-input @(hasError ? "invalid" : "")"
+                   @onkeypress="HandleUsernameKeyPress" maxlength="32" />
+            @if (hasError)
+            {
+                <span class="validation-error">@errorMessage</span>
+            }
+        </div>
         <button class="join-button" @onclick="JoinChat"
-                disabled="@(string.IsNullOrWhiteSpace(usernameInput))">
+                disabled="@(!IsValid)">
             @joinButtonText
         </button>
     </div>
@@ -23,6 +30,14 @@
     private string welcomeMessage = "";
     private string joinButtonText = "";
     private string usernamePlaceholder = "";
+    private string errorMessage = "";
+    private bool hasError = false;
+
+    // Discord username rules: 2-32 chars, lowercase a-z, 0-9, underscore, period, no consecutive periods
+    private static readonly System.Text.RegularExpressions.Regex ValidUsernameRegex =
+        new(@"^[a-z0-9._]+$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private bool IsValid => !string.IsNullOrWhiteSpace(usernameInput) && !hasError;
 
     protected override void OnInitialized()
     {
@@ -39,14 +54,62 @@
         usernamePlaceholder = ChatConfig.GetRandomUsernamePlaceholder();
     }
 
+    private void ValidateUsername()
+    {
+        hasError = false;
+        errorMessage = "";
+
+        if (string.IsNullOrWhiteSpace(usernameInput))
+            return;
+
+        // Auto-convert to lowercase
+        var normalized = usernameInput.ToLowerInvariant();
+        if (normalized != usernameInput)
+        {
+            usernameInput = normalized;
+        }
+
+        // Length check (2-32 characters)
+        if (usernameInput.Length < 2)
+        {
+            hasError = true;
+            errorMessage = "Username must be at least 2 characters";
+            return;
+        }
+
+        // Character validation (a-z, 0-9, underscore, period only)
+        if (!ValidUsernameRegex.IsMatch(usernameInput))
+        {
+            hasError = true;
+            errorMessage = "Only lowercase letters, numbers, _ and . allowed";
+            return;
+        }
+
+        // No consecutive periods
+        if (usernameInput.Contains(".."))
+        {
+            hasError = true;
+            errorMessage = "Cannot have consecutive periods";
+            return;
+        }
+
+        // Username must be unique
+        if (ChatService.IsUsernameTaken(usernameInput))
+        {
+            hasError = true;
+            errorMessage = "Username is already taken";
+            return;
+        }
+    }
+
     private async Task HandleUsernameKeyPress(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter") await JoinChat();
+        if (e.Key == "Enter" && IsValid) await JoinChat();
     }
 
     private Task JoinChat()
     {
-        if (string.IsNullOrWhiteSpace(usernameInput)) return Task.CompletedTask;
+        if (!IsValid) return Task.CompletedTask;
 
         UserState.Username = usernameInput.Trim();
         Navigation.NavigateTo("/chat");

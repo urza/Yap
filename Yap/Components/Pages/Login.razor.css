@@ -85,3 +85,22 @@
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+.input-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.username-input.invalid {
+    border-color: #ed4245;
+}
+
+.username-input.invalid:focus {
+    border-color: #ed4245;
+}
+
+.validation-error {
+    color: #ed4245;
+    font-size: 0.75rem;
+}
