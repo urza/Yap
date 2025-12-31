@@ -1,0 +1,147 @@
+@inject EmojiService EmojiService
+
+<div class="message-group @(IsSystem ? "system-message" : "") @(IsHovered ? "hovered" : "")"
+     @onmouseenter="() => OnMouseEnter.InvokeAsync()"
+     @onmouseleave="() => OnMouseLeave.InvokeAsync()">
+
+    @if (ShowHeader)
+    {
+        <div class="message-header">
+            <strong class="message-username">@Username</strong>
+            <span class="message-time">@Timestamp.ToLocalTime().ToString("HH:mm")</span>
+        </div>
+    }
+
+    <div class="message-content">
+        @if (IsEditing)
+        {
+            <div class="edit-container">
+                <input type="text" value="@EditContent" @oninput="OnEditInput"
+                       class="edit-input" @onkeydown="HandleEditKeyDown" />
+                <div class="edit-actions">
+                    <button class="edit-save" @onclick="() => OnSaveEdit.InvokeAsync()" title="Save">✓</button>
+                    <button class="edit-cancel" @onclick="() => OnCancelEdit.InvokeAsync()" title="Cancel">✕</button>
+                </div>
+            </div>
+        }
+        else if (HasImages)
+        {
+            var maxPreview = 4;
+            var hasMore = ImageUrls.Count > maxPreview;
+            var previewCount = hasMore ? maxPreview : ImageUrls.Count;
+            var extraCount = ImageUrls.Count - maxPreview;
+
+            <div class="image-gallery @GetGalleryClass(previewCount)">
+                @for (int imgIndex = 0; imgIndex < previewCount; imgIndex++)
+                {
+                    var idx = imgIndex;
+                    var imageUrl = ImageUrls[idx];
+                    var isLastPreview = hasMore && idx == maxPreview - 1;
+
+                    <div class="gallery-item @(isLastPreview ? "has-more" : "")"
+                         @onclick="() => OnImageClick.InvokeAsync((ImageUrls, idx))">
+                        <img src="@imageUrl" alt="Uploaded image" class="gallery-image" />
+                        @if (isLastPreview)
+                        {
+                            <div class="gallery-more-overlay">+@extraCount</div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            @EmojiService.ConvertEmojisToTwemoji(Content)
+            @if (IsEdited)
+            {
+                <span class="edited-indicator">(edited)</span>
+            }
+        }
+    </div>
+
+    @* Reactions display *@
+    @if (Reactions?.Count > 0)
+    {
+        <div class="reactions-display">
+            @foreach (var reaction in Reactions)
+            {
+                var hasReacted = reaction.Value.Contains(CurrentUsername);
+                <button class="reaction-pill @(hasReacted ? "reacted" : "")"
+                        @onclick="() => OnReaction.InvokeAsync(reaction.Key)"
+                        title="@string.Join(", ", reaction.Value)">
+                    @reaction.Key <span class="reaction-count">@reaction.Value.Count</span>
+                </button>
+            }
+        </div>
+    }
+
+    @* Message actions popup *@
+    @if (IsHovered && !IsSystem && !IsEditing)
+    {
+        <div class="message-actions">
+            @if (ShowReactions)
+            {
+                <button class="action-btn" @onclick="@(() => OnReaction.InvokeAsync("❤️"))" title="Love">❤️</button>
+                <button class="action-btn" @onclick="@(() => OnReaction.InvokeAsync("😂"))" title="Laugh">😂</button>
+                <button class="action-btn" @onclick="@(() => OnReaction.InvokeAsync("🥹"))" title="Touched">🥹</button>
+            }
+            @if (IsOwn && !HasImages)
+            {
+                <button class="action-btn action-edit" @onclick="() => OnStartEdit.InvokeAsync()" title="Edit">✏️</button>
+            }
+            @if (IsOwn)
+            {
+                <button class="action-btn action-delete" @onclick="() => OnDelete.InvokeAsync()" title="Delete">🗑️</button>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Username { get; set; } = "";
+    [Parameter] public string Content { get; set; } = "";
+    [Parameter] public DateTime Timestamp { get; set; }
+    [Parameter] public bool ShowHeader { get; set; }
+    [Parameter] public bool IsOwn { get; set; }
+    [Parameter] public bool IsSystem { get; set; }
+    [Parameter] public bool IsEdited { get; set; }
+    [Parameter] public bool IsHovered { get; set; }
+    [Parameter] public bool IsEditing { get; set; }
+    [Parameter] public bool HasImages { get; set; }
+    [Parameter] public List<string> ImageUrls { get; set; } = new();
+    [Parameter] public Dictionary<string, HashSet<string>>? Reactions { get; set; }
+    [Parameter] public bool ShowReactions { get; set; } = true;
+    [Parameter] public string CurrentUsername { get; set; } = "";
+
+    // Edit state
+    [Parameter] public string EditContent { get; set; } = "";
+    [Parameter] public EventCallback<string> EditContentChanged { get; set; }
+
+    // Callbacks
+    [Parameter] public EventCallback OnMouseEnter { get; set; }
+    [Parameter] public EventCallback OnMouseLeave { get; set; }
+    [Parameter] public EventCallback<string> OnReaction { get; set; }
+    [Parameter] public EventCallback OnStartEdit { get; set; }
+    [Parameter] public EventCallback OnSaveEdit { get; set; }
+    [Parameter] public EventCallback OnCancelEdit { get; set; }
+    [Parameter] public EventCallback OnDelete { get; set; }
+    [Parameter] public EventCallback<(List<string> Images, int Index)> OnImageClick { get; set; }
+
+    private async Task OnEditInput(ChangeEventArgs e)
+    {
+        await EditContentChanged.InvokeAsync(e.Value?.ToString() ?? "");
+    }
+
+    private async Task HandleEditKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await OnSaveEdit.InvokeAsync();
+        else if (e.Key == "Escape") await OnCancelEdit.InvokeAsync();
+    }
+
+    private static string GetGalleryClass(int imageCount) => imageCount switch
+    {
+        1 => "gallery-single",
+        2 => "gallery-double",
+        _ => "gallery-grid"
+    };
+}

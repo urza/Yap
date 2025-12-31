@@ -1,0 +1,87 @@
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@if (Visible)
+{
+    <div class="image-modal" @onclick="Close">
+        @if (Images.Count > 1)
+        {
+            <button class="modal-nav prev" @onclick="PrevImage" @onclick:stopPropagation="true" title="Previous">‹</button>
+        }
+        <img src="@Images[currentIndex]" alt="Full size image" @onclick:stopPropagation="true" />
+        @if (Images.Count > 1)
+        {
+            <button class="modal-nav next" @onclick="NextImage" @onclick:stopPropagation="true" title="Next">›</button>
+            <div class="modal-counter">@(currentIndex + 1) / @Images.Count</div>
+        }
+        <button class="modal-close" @onclick="Close" @onclick:stopPropagation="true" title="Close">×</button>
+    </div>
+}
+
+@code {
+    private int currentIndex = 0;
+    private DotNetObjectReference<ImageGalleryModal>? dotNetRef;
+
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public List<string> Images { get; set; } = new();
+    [Parameter] public int StartIndex { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Visible && Images.Count > 0)
+        {
+            currentIndex = StartIndex;
+            await SetupKeyboard();
+        }
+    }
+
+    private async Task SetupKeyboard()
+    {
+        dotNetRef?.Dispose();
+        dotNetRef = DotNetObjectReference.Create(this);
+        try { await JS.InvokeVoidAsync("setupModalKeyboard", dotNetRef); } catch { }
+    }
+
+    private async Task RemoveKeyboard()
+    {
+        try { await JS.InvokeVoidAsync("removeModalKeyboard"); } catch { }
+        dotNetRef?.Dispose();
+        dotNetRef = null;
+    }
+
+    private async Task Close()
+    {
+        await RemoveKeyboard();
+        await OnClose.InvokeAsync();
+    }
+
+    private void NextImage()
+    {
+        if (Images.Count > 0)
+            currentIndex = (currentIndex + 1) % Images.Count;
+    }
+
+    private void PrevImage()
+    {
+        if (Images.Count > 0)
+            currentIndex = (currentIndex - 1 + Images.Count) % Images.Count;
+    }
+
+    [JSInvokable]
+    public async Task CloseModalFromJs()
+    {
+        await InvokeAsync(async () => { await Close(); StateHasChanged(); });
+    }
+
+    [JSInvokable]
+    public void NextImageFromJs() => InvokeAsync(() => { NextImage(); StateHasChanged(); });
+
+    [JSInvokable]
+    public void PrevImageFromJs() => InvokeAsync(() => { PrevImage(); StateHasChanged(); });
+
+    public async ValueTask DisposeAsync()
+    {
+        await RemoveKeyboard();
+    }
+}

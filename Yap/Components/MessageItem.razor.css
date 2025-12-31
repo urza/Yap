@@ -1,0 +1,301 @@
+/* Message group container */
+.message-group {
+    padding: 0.125rem 1rem;
+    position: relative;
+}
+
+.message-group:hover:not(.system-message) {
+    background: #32353b;
+}
+
+.message-group:has(.message-header) {
+    margin-top: 1.0625rem;
+}
+
+.message-group:first-child {
+    margin-top: 0;
+}
+
+.message-group.hovered {
+    background: #32353b;
+}
+
+/* Message header */
+.message-header {
+    display: flex;
+    align-items: baseline;
+    margin-bottom: 0.125rem;
+}
+
+.message-username {
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 500;
+    margin-right: 0.5rem;
+}
+
+.message-time {
+    color: #a3a6aa;
+    font-size: 0.75rem;
+    font-weight: 400;
+}
+
+/* Message content */
+.message-content {
+    color: #dcddde;
+    font-size: 1rem;
+    line-height: 1.375;
+    padding-left: 0;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    margin: 0;
+}
+
+/* System messages */
+.system-message {
+    text-align: center;
+    margin: 0 !important;
+    padding: 0.0625rem 1rem !important;
+}
+
+.system-message .message-content {
+    display: inline-block;
+    color: #a3a6aa;
+    font-style: italic;
+    font-size: 0.8125rem;
+    padding: 0;
+    background: transparent;
+    line-height: 1.4;
+}
+
+/* Image gallery styles */
+.image-gallery {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 4px;
+    margin-top: 0.25rem;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.gallery-item {
+    position: relative;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.gallery-image {
+    height: 80px;
+    width: 80px;
+    object-fit: cover;
+    border-radius: 4px;
+    transition: opacity 0.15s;
+    display: block;
+}
+
+.gallery-single .gallery-item {
+    flex-shrink: 1;
+}
+
+.gallery-single .gallery-image {
+    height: auto;
+    width: auto;
+    max-height: 300px;
+    max-width: 400px;
+    object-fit: contain;
+    background: #2f3136;
+}
+
+.gallery-double .gallery-image {
+    height: 100px;
+    width: 100px;
+}
+
+.gallery-grid .gallery-image {
+    height: 80px;
+    width: 80px;
+}
+
+.gallery-item:hover .gallery-image {
+    opacity: 0.85;
+}
+
+.gallery-more-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    font-weight: 600;
+    border-radius: 4px;
+    pointer-events: none;
+}
+
+/* Message actions popup */
+.message-actions {
+    position: absolute;
+    top: -16px;
+    right: 16px;
+    display: flex;
+    gap: 2px;
+    background: #2f3136;
+    border-radius: 4px;
+    padding: 2px;
+    box-shadow: 0 0 0 1px rgba(4,4,5,0.15), 0 4px 4px rgba(0,0,0,0.1);
+    z-index: 10;
+    animation: fadeIn 0.1s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.action-btn {
+    background: transparent;
+    border: none;
+    padding: 6px 8px;
+    cursor: pointer;
+    border-radius: 3px;
+    font-size: 1rem;
+    line-height: 1;
+    transition: background-color 0.1s;
+}
+
+.action-btn:hover {
+    background: #36393f;
+}
+
+.action-edit:hover {
+    background: #5865f2;
+}
+
+.action-delete:hover {
+    background: #ed4245;
+}
+
+/* Reactions display */
+.reactions-display {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.reaction-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #2f3136;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 2px 8px;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: background-color 0.1s, border-color 0.1s;
+}
+
+.reaction-pill:hover {
+    background: #36393f;
+    border-color: #4f545c;
+}
+
+.reaction-pill.reacted {
+    background: rgba(88, 101, 242, 0.3);
+    border-color: #5865f2;
+}
+
+.reaction-count {
+    color: #b9bbbe;
+    font-size: 0.75rem;
+}
+
+.reaction-pill.reacted .reaction-count {
+    color: #dee0fc;
+}
+
+/* Edit mode */
+.edit-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.edit-input {
+    width: 100%;
+    padding: 8px 12px;
+    background: #40444b;
+    border: 1px solid #202225;
+    border-radius: 4px;
+    color: #dcddde;
+    font-size: 1rem;
+    font-family: inherit;
+}
+
+.edit-input:focus {
+    outline: none;
+    border-color: #5865f2;
+}
+
+.edit-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.edit-save,
+.edit-cancel {
+    padding: 4px 12px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: background-color 0.1s;
+}
+
+.edit-save {
+    background: #3ba55c;
+    color: white;
+}
+
+.edit-save:hover {
+    background: #2d7d46;
+}
+
+.edit-cancel {
+    background: #4f545c;
+    color: #dcddde;
+}
+
+.edit-cancel:hover {
+    background: #5d6269;
+}
+
+/* Edited indicator */
+.edited-indicator {
+    color: #72767d;
+    font-size: 0.625rem;
+    margin-left: 4px;
+}
+
+/* Mobile adjustments */
+@media (max-width: 600px) {
+    .message-actions {
+        right: 8px;
+        top: -12px;
+    }
+
+    .action-btn {
+        padding: 4px 6px;
+        font-size: 0.875rem;
+    }
+
+    .message-group {
+        padding: 0.125rem 0.5rem;
+    }
+}
