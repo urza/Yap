@@ -11,7 +11,6 @@ public class ChatService
     // Rooms
     private readonly ConcurrentDictionary<Guid, Room> _rooms = new();
     private readonly ConcurrentDictionary<Guid, List<ChatMessage>> _roomMessages = new();
-    private readonly ConcurrentDictionary<Guid, List<Guid>> _roomMessageOrder = new();
     private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<string, DateTime>> _roomTypingUsers = new();
     private readonly object _roomLock = new();
 
@@ -21,7 +20,6 @@ public class ChatService
 
     // Direct Messages
     private readonly ConcurrentDictionary<string, List<DirectMessage>> _directMessages = new();
-    private readonly ConcurrentDictionary<string, List<Guid>> _dmOrder = new();
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, DateTime>> _dmTypingUsers = new();
     private readonly object _dmLock = new();
 
@@ -59,7 +57,6 @@ public class ChatService
         LobbyId = lobby.Id;
         _rooms[lobby.Id] = lobby;
         _roomMessages[lobby.Id] = new List<ChatMessage>();
-        _roomMessageOrder[lobby.Id] = new List<Guid>();
         _roomTypingUsers[lobby.Id] = new ConcurrentDictionary<string, DateTime>();
     }
 
@@ -111,7 +108,6 @@ public class ChatService
         var room = new Room(roomName, adminUsername);
         _rooms[room.Id] = room;
         _roomMessages[room.Id] = new List<ChatMessage>();
-        _roomMessageOrder[room.Id] = new List<Guid>();
         _roomTypingUsers[room.Id] = new ConcurrentDictionary<string, DateTime>();
 
         if (OnRoomCreated != null)
@@ -134,7 +130,6 @@ public class ChatService
 
         _rooms.TryRemove(roomId, out _);
         _roomMessages.TryRemove(roomId, out _);
-        _roomMessageOrder.TryRemove(roomId, out _);
         _roomTypingUsers.TryRemove(roomId, out _);
 
         if (OnRoomDeleted != null)
@@ -199,7 +194,6 @@ public class ChatService
         foreach (var key in keysToRemove)
         {
             _directMessages.TryRemove(key, out _);
-            _dmOrder.TryRemove(key, out _);
             _dmTypingUsers.TryRemove(key, out _);
         }
     }
@@ -222,18 +216,13 @@ public class ChatService
         {
             if (!_roomMessages.TryGetValue(roomId, out var messages))
                 return;
-            if (!_roomMessageOrder.TryGetValue(roomId, out var order))
-                return;
 
             messages.Add(message);
-            order.Add(message.Id);
 
             // Remove old messages if we exceed the limit
-            while (order.Count > _maxMessages)
+            while (messages.Count > _maxMessages)
             {
-                var oldestId = order[0];
-                order.RemoveAt(0);
-                messages.RemoveAll(m => m.Id == oldestId);
+                messages.RemoveAt(0);
             }
         }
 
@@ -286,8 +275,6 @@ public class ChatService
     {
         if (!_roomMessages.TryGetValue(roomId, out var messages))
             return false;
-        if (!_roomMessageOrder.TryGetValue(roomId, out var order))
-            return false;
 
         ChatMessage? message;
         lock (_roomLock)
@@ -297,7 +284,6 @@ public class ChatService
                 return false;
 
             messages.Remove(message);
-            order.Remove(messageId);
         }
 
         if (OnMessageDeleted != null)
@@ -395,24 +381,14 @@ public class ChatService
             {
                 messages = new List<DirectMessage>();
                 _directMessages[key] = messages;
-                _dmOrder[key] = new List<Guid>();
-            }
-
-            if (!_dmOrder.TryGetValue(key, out var order))
-            {
-                order = new List<Guid>();
-                _dmOrder[key] = order;
             }
 
             messages.Add(message);
-            order.Add(message.Id);
 
             // Remove old messages if we exceed the limit
-            while (order.Count > _maxMessages)
+            while (messages.Count > _maxMessages)
             {
-                var oldestId = order[0];
-                order.RemoveAt(0);
-                messages.RemoveAll(m => m.Id == oldestId);
+                messages.RemoveAt(0);
             }
         }
 
@@ -528,8 +504,6 @@ public class ChatService
         var key = DirectMessage.GetConversationKey(fromUser, toUser);
         if (!_directMessages.TryGetValue(key, out var messages))
             return false;
-        if (!_dmOrder.TryGetValue(key, out var order))
-            return false;
 
         DirectMessage? message;
         lock (_dmLock)
@@ -539,7 +513,6 @@ public class ChatService
                 return false;
 
             messages.Remove(message);
-            order.Remove(messageId);
         }
 
         if (OnDirectMessageDeleted != null)
