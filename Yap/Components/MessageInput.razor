@@ -1,0 +1,110 @@
+@inject IJSRuntime JS
+
+<div class="message-input-container @(isDraggingOver ? "drag-over" : "")"
+     @ref="dropZoneElement"
+     @ondragenter="HandleDragEnter"
+     @ondragover="HandleDragOver"
+     @ondragover:preventDefault
+     @ondragleave="HandleDragLeave"
+     @ondrop="HandleDrop"
+     @ondrop:preventDefault>
+    <textarea @bind="MessageText" @bind:event="oninput" @bind:after="OnInputChangedInternal"
+              placeholder="@Placeholder" class="message-input"
+              @onkeydown="HandleKeyDown" @onkeydown:preventDefault="shouldPreventDefault"
+              rows="1" id="@TextareaId"></textarea>
+    <label class="image-upload-button" title="Upload images">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+            <polyline points="21 15 16 10 5 21"></polyline>
+        </svg>
+        <InputFile OnChange="HandleFileSelected" accept="image/*" multiple style="display: none;" id="@FileInputId" />
+    </label>
+    <button class="send-button @(string.IsNullOrWhiteSpace(MessageText) ? "disabled" : "")"
+            @onclick="HandleSend"
+            disabled="@string.IsNullOrWhiteSpace(MessageText)"
+            title="Send message">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+        </svg>
+    </button>
+</div>
+
+<div class="typing-indicator-container">
+    @if (!string.IsNullOrEmpty(TypingIndicatorText))
+    {
+        <div class="typing-indicator">
+            <span style="display: flex; align-items: center; gap: 0.5rem; color: #72767d;">
+                <span class="typing-dots">
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                </span>
+                <span>@TypingIndicatorText</span>
+            </span>
+        </div>
+    }
+</div>
+
+@code {
+    private ElementReference dropZoneElement;
+    private bool isDraggingOver = false;
+    private bool shouldPreventDefault = false;
+
+    // Unique IDs for this instance
+    private string TextareaId = $"messageTextarea_{Guid.NewGuid():N}";
+    private string FileInputId = $"fileInput_{Guid.NewGuid():N}";
+
+    [Parameter] public string MessageText { get; set; } = "";
+    [Parameter] public EventCallback<string> MessageTextChanged { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "Type a message...";
+    [Parameter] public string TypingIndicatorText { get; set; } = "";
+
+    [Parameter] public EventCallback OnSend { get; set; }
+    [Parameter] public EventCallback<InputFileChangeEventArgs> OnFilesSelected { get; set; }
+    [Parameter] public EventCallback OnInputChanged { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try { await JS.InvokeVoidAsync("setupDropZone", dropZoneElement, FileInputId); } catch { }
+        }
+    }
+
+    private async Task OnInputChangedInternal()
+    {
+        await MessageTextChanged.InvokeAsync(MessageText);
+        await JS.InvokeVoidAsync("autoResizeTextarea", TextareaId);
+        await OnInputChanged.InvokeAsync();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            shouldPreventDefault = true;
+            await HandleSend();
+            try { await JS.InvokeVoidAsync("resetTextareaHeight", TextareaId); } catch { }
+            shouldPreventDefault = false;
+        }
+    }
+
+    private async Task HandleSend()
+    {
+        if (string.IsNullOrWhiteSpace(MessageText)) return;
+        await OnSend.InvokeAsync();
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        await OnFilesSelected.InvokeAsync(e);
+    }
+
+    // Drag and drop handlers
+    private void HandleDragEnter(DragEventArgs e) => isDraggingOver = true;
+    private void HandleDragOver(DragEventArgs e) => isDraggingOver = true;
+    private void HandleDragLeave(DragEventArgs e) => isDraggingOver = false;
+    private void HandleDrop(DragEventArgs e) => isDraggingOver = false;
+}

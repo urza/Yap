@@ -1,0 +1,190 @@
+.message-input-container {
+    display: flex;
+    align-items: flex-end;
+    padding: 0.5rem;
+    background: #36393f;
+    transition: background-color 0.2s, box-shadow 0.2s;
+    position: relative;
+}
+
+.message-input-container.drag-over {
+    background: #3d4147;
+    box-shadow: inset 0 0 0 2px #5865f2;
+}
+
+.message-input-container.drag-over::after {
+    content: "Drop images here";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #5865f2;
+    font-size: 0.875rem;
+    font-weight: 500;
+    pointer-events: none;
+}
+
+.message-input {
+    flex: 1;
+    padding: 0.6875rem 1rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    background: #40444b;
+    color: #dcddde;
+    margin-right: 0.5rem;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    resize: none;
+    min-height: 44px;
+    max-height: 200px;
+    overflow-y: auto;
+    line-height: 1.375;
+    font-family: inherit;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.message-input::-webkit-scrollbar {
+    display: none;
+}
+
+.message-input:focus {
+    outline: none;
+}
+
+.message-input::placeholder {
+    color: #72767d;
+}
+
+.send-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    background: #5865f2;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background-color 0.2s, opacity 0.2s;
+    margin-left: 0.5rem;
+}
+
+.send-button:hover:not(:disabled) {
+    background: #4752c4;
+}
+
+.send-button:disabled,
+.send-button.disabled {
+    background: #4f545c;
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.image-upload-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    background: transparent;
+    color: #b9bbbe;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.5rem;
+    transition: color 0.2s;
+}
+
+.image-upload-button:hover {
+    color: #dcddde;
+}
+
+/* Typing indicator styles */
+.typing-indicator-container {
+    height: 0.875rem;
+    background: #36393f;
+    overflow: hidden;
+}
+
+.typing-indicator {
+    height: 100%;
+    padding: 0 1rem;
+    display: flex;
+    align-items: center;
+    font-size: 0.625rem;
+    animation: fadeIn 0.2s ease;
+}
+
+.typing-dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    animation: fadeIn 0.3s ease;
+}
+
+.typing-dots .dot {
+    width: 6px;
+    height: 6px;
+    background-color: #72767d;
+    border-radius: 50%;
+    animation: discordBounce 1.4s infinite ease-in-out;
+}
+
+.typing-dots .dot:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.typing-dots .dot:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+.typing-dots .dot:nth-child(3) {
+    animation-delay: 0s;
+}
+
+@keyframes discordBounce {
+    0%, 60%, 100% {
+        transform: translateY(0);
+        opacity: 0.4;
+    }
+    30% {
+        transform: translateY(-6px);
+        opacity: 1;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* Mobile adjustments */
+@media (max-width: 600px) {
+    .message-input-container {
+        padding: 0.5rem;
+    }
+
+    .typing-indicator-container {
+        height: 0.875rem;
+    }
+
+    .typing-indicator {
+        font-size: 0.625rem;
+        padding: 0 0.5rem;
+    }
+
+    .message-input {
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+
+    .image-upload-button {
+        width: 40px;
+        height: 40px;
+    }
+}
