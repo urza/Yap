@@ -1,0 +1,39 @@
+@inherits LayoutComponentBase
+@inject UserStateService UserState
+@inject ChatNavigationState NavState
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<div class="chat-container">
+    <ChatHeader />
+
+    <div class="chat-main">
+        <div class="messages-container">
+            @Body
+        </div>
+
+        <ChatSidebar />
+    </div>
+
+    <div class="sidebar-backdrop @(NavState.SidebarOpen ? "show" : "")" @onclick="NavState.ToggleSidebar"></div>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        NavState.OnChange += StateHasChanged;
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && !UserState.IsLoggedIn)
+        {
+            Navigation.NavigateTo("/");
+        }
+    }
+
+    public void Dispose()
+    {
+        NavState.OnChange -= StateHasChanged;
+    }
+}

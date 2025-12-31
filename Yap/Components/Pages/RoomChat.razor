@@ -1,38 +1,13 @@
 @page "/chat"
 @page "/lobby"
 @page "/room/{RoomId:guid}"
+@layout ChatLayout
 @inherits ChatBase
+@implements IDisposable
 
-<ChatMain PageTitle="@pageTitle"
-            HeaderTitle="@GetHeaderTitle()"
-            Username="@Username"
-            TotalUnreadDMs="@totalUnreadDMs"
-            OnlineCount="@onlineUsers.Count"
-            @bind-MessageText="messageInput"
-            Placeholder="@GetMessagePlaceholder()"
-            TypingIndicatorText="@typingIndicatorText"
-            Rooms="@rooms"
-            CurrentRoomId="@currentRoomId"
-            CurrentDMUser="@null"
-            OnlineUsersHeader="@onlineUsersHeader"
-            IsAdmin="@isAdmin"
-            SidebarOpen="@sidebarOpen"
-            ShowImageModal="@showImageModal"
-            ModalGallery="@modalGallery"
-            ModalImageIndex="@modalImageIndex"
-            OnMailboxClick="OpenSidebarForDMs"
-            OnToggleSidebar="ToggleSidebar"
-            OnSend="HandleSendMessageAsync"
-            OnFilesSelected="HandleFileSelectedAsync"
-            OnInputChanged="HandleInputChangedAsync"
-            OnSwitchRoom="SwitchToRoomAsync"
-            OnDeleteRoom="DeleteRoomAsync"
-            OnOpenDM="OpenDM"
-            OnCreateRoom="CreateRoomAsync"
-            OnCloseModal="CloseImageModal"
-            GetUnreadDMCount="GetUnreadDMCount"
-            GetSortedUsers="GetSortedUsers">
+<PageTitle>@ChatConfig.ProjectName | @currentContext</PageTitle>
 
+<div class="messages">
     @for (int i = 0; i < messages.Count; i++)
     {
         var message = messages[i];
@@ -64,14 +39,21 @@
                      OnDelete="@(() => DeleteMessage(message.Id))"
                      OnImageClick="@(args => ShowGallery(args.Images, args.Index))" />
     }
-</ChatMain>
+</div>
+
+<MessageInput RoomId="@currentRoomId" />
+
+<ImageGalleryModal Visible="@showImageModal"
+                   Images="@modalGallery"
+                   StartIndex="@modalImageIndex"
+                   OnClose="CloseImageModal" />
 
 @code {
     [Parameter] public Guid? RoomId { get; set; }
 
-    // Room-specific state
+    // State
+    private Guid currentRoomId;
     private List<ChatMessage> messages = new();
-    private List<string> typingUsers = new();
     private Guid? hoveredMessageId = null;
     private Guid? editingMessageId = null;
     private string editContent = "";
@@ -88,73 +70,43 @@
         previousRoomId = newRoomId;
     }
 
-    private async Task SwitchRoomContentAsync(Guid newRoomId)
-    {
-        // Stop typing in old room
-        if (isTyping)
-        {
-            await ChatService.StopTypingAsync(currentRoomId, Username);
-            SetTyping(false);
-        }
-
-        // Switch to new room
-        currentRoomId = newRoomId;
-        messages = ChatService.GetRoomMessages(currentRoomId).ToList();
-        typingUsers = ChatService.GetTypingUsers(currentRoomId);
-        UpdateTypingIndicator();
-
-        // Update page title
-        var room = rooms.FirstOrDefault(r => r.Id == currentRoomId);
-        currentContext = room?.Name ?? "lobby";
-        await UpdatePageTitleAsync();
-
-        await InvokeAsync(StateHasChanged);
-        await ScrollToBottomAsync();
-    }
-
-    protected override string GetHeaderTitle()
-    {
-        var room = rooms.FirstOrDefault(r => r.Id == currentRoomId);
-        return room != null ? $"# {room.Name}" : ChatConfig.GetRandomRoomHeader();
-    }
-
-    protected override string GetMessagePlaceholder() => messagePlaceholder;
-
     protected override async Task OnInitializedChatAsync()
     {
-        // Handle route parameter
-        if (RoomId.HasValue && RoomId.Value != Guid.Empty)
-        {
-            currentRoomId = RoomId.Value;
-        }
+        // Set current room
+        currentRoomId = RoomId ?? ChatService.LobbyId;
+        previousRoomId = currentRoomId;
 
-        // Load room messages
+        // Load messages
         messages = ChatService.GetRoomMessages(currentRoomId).ToList();
-        typingUsers = ChatService.GetTypingUsers(currentRoomId);
-        UpdateTypingIndicator();
 
-        // Set context for notifications
-        var room = rooms.FirstOrDefault(r => r.Id == currentRoomId);
+        // Set navigation context
+        var room = ChatService.GetRooms().FirstOrDefault(r => r.Id == currentRoomId);
         currentContext = room?.Name ?? "lobby";
-        await UpdatePageTitleAsync();
-    }
+        NavState.SetRoomContext(currentRoomId, currentContext);
 
-    protected override void SubscribeToEvents()
-    {
+        await UpdatePageTitleAsync();
+
+        // Subscribe to events
         ChatService.OnMessageReceived += HandleMessageReceived;
         ChatService.OnMessageUpdated += HandleMessageUpdated;
         ChatService.OnMessageDeleted += HandleMessageDeleted;
         ChatService.OnReactionChanged += HandleReactionChanged;
-        ChatService.OnTypingUsersChanged += HandleTypingUsersChanged;
+        ChatService.OnUserChanged += HandleUserChanged;
+        ChatService.OnRoomDeleted += HandleRoomDeleted;
     }
 
-    protected override void UnsubscribeFromEvents()
+    private async Task SwitchRoomContentAsync(Guid newRoomId)
     {
-        ChatService.OnMessageReceived -= HandleMessageReceived;
-        ChatService.OnMessageUpdated -= HandleMessageUpdated;
-        ChatService.OnMessageDeleted -= HandleMessageDeleted;
-        ChatService.OnReactionChanged -= HandleReactionChanged;
-        ChatService.OnTypingUsersChanged -= HandleTypingUsersChanged;
+        currentRoomId = newRoomId;
+        messages = ChatService.GetRoomMessages(currentRoomId).ToList();
+
+        var room = ChatService.GetRooms().FirstOrDefault(r => r.Id == currentRoomId);
+        currentContext = room?.Name ?? "lobby";
+        NavState.SetRoomContext(currentRoomId, currentContext);
+
+        await UpdatePageTitleAsync();
+        await InvokeAsync(StateHasChanged);
+        await ScrollToBottomAsync();
     }
 
     #region Event Handlers
@@ -187,7 +139,6 @@
                 if (index >= 0) messages[index] = message;
                 StateHasChanged();
             }
-            return Task.CompletedTask;
         });
     }
 
@@ -200,7 +151,6 @@
                 messages.RemoveAll(m => m.Id == messageId);
                 StateHasChanged();
             }
-            return Task.CompletedTask;
         });
     }
 
@@ -214,88 +164,36 @@
                 if (index >= 0) messages[index] = message;
                 StateHasChanged();
             }
-            return Task.CompletedTask;
         });
     }
 
-    private async Task HandleTypingUsersChanged(Guid roomId)
+    private async Task HandleUserChanged(string user, bool isJoining)
     {
         await InvokeAsync(() =>
         {
-            if (roomId == currentRoomId)
+            // Add system message in lobby
+            if (currentRoomId == ChatService.LobbyId)
             {
-                typingUsers = ChatService.GetTypingUsers(roomId);
-                UpdateTypingIndicator();
+                messages.Add(new ChatMessage(
+                    ChatService.LobbyId,
+                    "System",
+                    ChatConfig.GetRandomSystemMessage(user, isJoining),
+                    DateTime.UtcNow
+                ));
                 StateHasChanged();
             }
-            return Task.CompletedTask;
         });
     }
 
-    protected override void OnUserChanged(string user, bool isJoining)
+    private async Task HandleRoomDeleted(Guid roomId)
     {
-        if (currentRoomId == ChatService.LobbyId)
+        await InvokeAsync(() =>
         {
-            messages.Add(new ChatMessage(
-                ChatService.LobbyId,
-                "System",
-                ChatConfig.GetRandomSystemMessage(user, isJoining),
-                DateTime.UtcNow
-            ));
-            StateHasChanged();
-        }
-    }
-
-    protected override void OnRoomDeleted(Guid roomId)
-    {
-        if (currentRoomId == roomId)
-        {
-            currentRoomId = ChatService.LobbyId;
-            messages = ChatService.GetRoomMessages(currentRoomId).ToList();
-            Navigation.NavigateTo("/lobby", replace: true);
-        }
-    }
-
-    #endregion
-
-    #region Send Messages
-
-    protected override async Task SendMessageAsync()
-    {
-        await ChatService.SendMessageAsync(currentRoomId, Username, messageInput);
-    }
-
-    protected override async Task SendImagesAsync(List<string> imageUrls)
-    {
-        await ChatService.SendMessageAsync(currentRoomId, Username, "", imageUrls);
-    }
-
-    #endregion
-
-    #region Typing
-
-    protected override void UpdateTypingIndicator()
-    {
-        typingIndicatorText = ChatConfig.GetRandomTypingIndicator(typingUsers, Username);
-    }
-
-    protected override async Task StartTypingAsync()
-    {
-        if (!isTyping)
-        {
-            SetTyping(true);
-            await ChatService.StartTypingAsync(currentRoomId, Username);
-        }
-    }
-
-    protected override async Task StopTypingAsync()
-    {
-        if (isTyping)
-        {
-            SetTyping(false);
-            await ChatService.StopTypingAsync(currentRoomId, Username);
-            StopTypingTimer();
-        }
+            if (currentRoomId == roomId)
+            {
+                Navigation.NavigateTo("/lobby", replace: true);
+            }
+        });
     }
 
     #endregion
@@ -334,4 +232,14 @@
     }
 
     #endregion
+
+    public void Dispose()
+    {
+        ChatService.OnMessageReceived -= HandleMessageReceived;
+        ChatService.OnMessageUpdated -= HandleMessageUpdated;
+        ChatService.OnMessageDeleted -= HandleMessageDeleted;
+        ChatService.OnReactionChanged -= HandleReactionChanged;
+        ChatService.OnUserChanged -= HandleUserChanged;
+        ChatService.OnRoomDeleted -= HandleRoomDeleted;
+    }
 }

@@ -1,24 +1,29 @@
 @inject ChatService ChatService
+@inject UserStateService UserState
+@inject ChatConfigService ChatConfig
+@inject ChatNavigationState NavState
+@inject NavigationManager Navigation
+@implements IDisposable
 
-<div class="users-sidebar @(SidebarOpen ? "sidebar-open" : "")">
+<div class="users-sidebar @(NavState.SidebarOpen ? "sidebar-open" : "")">
     @* Rooms section *@
     <div class="sidebar-section">
         <h4>ROOMS</h4>
         <div class="rooms-list">
-            @foreach (var room in Rooms)
+            @foreach (var room in rooms)
             {
-                var isActive = CurrentDMUser == null && CurrentRoomId == room.Id;
-                <div class="room-item @(isActive ? "active" : "")" @onclick="() => OnSwitchRoom.InvokeAsync(room.Id)">
+                var isActive = NavState.CurrentDmUser == null && NavState.CurrentRoomId == room.Id;
+                <div class="room-item @(isActive ? "active" : "")" @onclick="() => SwitchToRoom(room.Id)">
                     <span class="room-icon">#</span>
                     <span class="room-name">@room.Name</span>
-                    @if (IsAdmin && !room.IsDefault)
+                    @if (isAdmin && !room.IsDefault)
                     {
-                        <button class="room-delete" @onclick="() => OnDeleteRoom.InvokeAsync(room.Id)"
+                        <button class="room-delete" @onclick="() => DeleteRoom(room.Id)"
                                 @onclick:stopPropagation="true" title="Delete room">×</button>
                     }
                 </div>
             }
-            @if (IsAdmin)
+            @if (isAdmin)
             {
                 @if (showNewRoomInput)
                 {
@@ -43,17 +48,17 @@
 
     @* Online users section *@
     <div class="sidebar-section">
-        <h4>@OnlineUsersHeader</h4>
+        <h4>@onlineUsersHeader</h4>
         <div class="users-list">
             @foreach (var user in GetSortedUsers())
             {
                 var isCurrentUser = user.Equals(Username, StringComparison.OrdinalIgnoreCase);
                 var isUserAdmin = ChatService.IsAdmin(user);
                 var userUnreadCount = isCurrentUser ? 0 : GetUnreadDMCount(user);
-                var isActiveDM = CurrentDMUser != null && CurrentDMUser.Equals(user, StringComparison.OrdinalIgnoreCase);
+                var isActiveDM = NavState.CurrentDmUser != null && NavState.CurrentDmUser.Equals(user, StringComparison.OrdinalIgnoreCase);
 
                 <div class="user-item @(isCurrentUser ? "current-user" : "") @(isActiveDM ? "active-dm" : "")"
-                     @onclick="() => OnOpenDM.InvokeAsync(user)"
+                     @onclick="() => OpenDM(user)"
                      title="@(isCurrentUser ? "You" : $"Message {user}")">
                     <span class="user-name">@user</span>
                     @if (isUserAdmin)
@@ -71,28 +76,131 @@
 </div>
 
 @code {
-    // Parameters from parent
-    [Parameter] public List<Room> Rooms { get; set; } = new();
-    [Parameter] public Guid CurrentRoomId { get; set; }
-    [Parameter] public string? CurrentDMUser { get; set; }
-    [Parameter] public string Username { get; set; } = "";
-    [Parameter] public string OnlineUsersHeader { get; set; } = "";
-    [Parameter] public bool IsAdmin { get; set; }
-    [Parameter] public bool SidebarOpen { get; set; }
+    private string Username => UserState.Username ?? "";
 
-    // Callbacks to parent
-    [Parameter] public EventCallback<Guid> OnSwitchRoom { get; set; }
-    [Parameter] public EventCallback<Guid> OnDeleteRoom { get; set; }
-    [Parameter] public EventCallback<string> OnOpenDM { get; set; }
-    [Parameter] public EventCallback<string> OnCreateRoom { get; set; }
+    // Internal state
+    private List<Room> rooms = new();
+    private List<string> onlineUsers = new();
+    private Dictionary<string, int> dmUnreadCounts = new();
+    private bool isAdmin = false;
+    private string onlineUsersHeader = "";
 
-    // Functions from parent
-    [Parameter] public Func<string, int> GetUnreadDMCount { get; set; } = _ => 0;
-    [Parameter] public Func<IEnumerable<string>> GetSortedUsers { get; set; } = Enumerable.Empty<string>;
-
-    // Internal state for room creation UI
+    // Room creation UI
     private bool showNewRoomInput = false;
     private string newRoomName = "";
+
+    protected override void OnInitialized()
+    {
+        // Get initial state
+        rooms = ChatService.GetRooms();
+        onlineUsers = ChatService.GetOnlineUsers();
+        isAdmin = ChatService.IsAdmin(Username);
+        UpdateOnlineUsersHeader();
+        LoadUnreadCounts();
+
+        // Subscribe to events
+        ChatService.OnRoomCreated += HandleRoomCreated;
+        ChatService.OnRoomDeleted += HandleRoomDeleted;
+        ChatService.OnUsersListChanged += HandleUsersListChanged;
+        ChatService.OnDirectMessageReceived += HandleDirectMessageReceived;
+        ChatService.OnAdminChanged += HandleAdminChanged;
+        NavState.OnChange += StateHasChanged;
+    }
+
+    private void LoadUnreadCounts()
+    {
+        dmUnreadCounts.Clear();
+        foreach (var user in onlineUsers)
+        {
+            if (!user.Equals(Username, StringComparison.OrdinalIgnoreCase))
+            {
+                var count = ChatService.GetUnreadDMCount(Username, user);
+                if (count > 0) dmUnreadCounts[user.ToLowerInvariant()] = count;
+            }
+        }
+    }
+
+    #region Event Handlers
+
+    private async Task HandleRoomCreated(Room room)
+    {
+        await InvokeAsync(() =>
+        {
+            rooms = ChatService.GetRooms();
+            StateHasChanged();
+        });
+    }
+
+    private async Task HandleRoomDeleted(Guid roomId)
+    {
+        await InvokeAsync(() =>
+        {
+            rooms = ChatService.GetRooms();
+            StateHasChanged();
+        });
+    }
+
+    private async Task HandleUsersListChanged()
+    {
+        await InvokeAsync(() =>
+        {
+            onlineUsers = ChatService.GetOnlineUsers();
+            UpdateOnlineUsersHeader();
+            LoadUnreadCounts();
+            StateHasChanged();
+        });
+    }
+
+    private async Task HandleDirectMessageReceived(DirectMessage message)
+    {
+        await InvokeAsync(() =>
+        {
+            if (message.ToUser.Equals(Username, StringComparison.OrdinalIgnoreCase))
+            {
+                // Don't increment if we're viewing this DM
+                if (NavState.CurrentDmUser == null ||
+                    !NavState.CurrentDmUser.Equals(message.FromUser, StringComparison.OrdinalIgnoreCase))
+                {
+                    var key = message.FromUser.ToLowerInvariant();
+                    if (!dmUnreadCounts.ContainsKey(key)) dmUnreadCounts[key] = 0;
+                    dmUnreadCounts[key]++;
+                    StateHasChanged();
+                }
+            }
+        });
+    }
+
+    private async Task HandleAdminChanged(string? adminUser)
+    {
+        await InvokeAsync(() =>
+        {
+            isAdmin = ChatService.IsAdmin(Username);
+            StateHasChanged();
+        });
+    }
+
+    #endregion
+
+    #region Room Management
+
+    private void SwitchToRoom(Guid roomId)
+    {
+        var url = roomId == ChatService.LobbyId ? "/lobby" : $"/room/{roomId}";
+        Navigation.NavigateTo(url);
+    }
+
+    private async Task CreateRoom()
+    {
+        if (string.IsNullOrWhiteSpace(newRoomName)) return;
+        await ChatService.CreateRoomAsync(Username, newRoomName);
+        showNewRoomInput = false;
+        newRoomName = "";
+    }
+
+    private async Task DeleteRoom(Guid roomId)
+    {
+        await ChatService.DeleteRoomAsync(Username, roomId);
+    }
 
     private void ShowNewRoomInput()
     {
@@ -112,12 +220,68 @@
         else if (e.Key == "Escape") CancelNewRoom();
     }
 
-    private async Task CreateRoom()
-    {
-        if (string.IsNullOrWhiteSpace(newRoomName)) return;
+    #endregion
 
-        await OnCreateRoom.InvokeAsync(newRoomName);
-        showNewRoomInput = false;
-        newRoomName = "";
+    #region DM Management
+
+    private void OpenDM(string targetUser)
+    {
+        if (targetUser.Equals(Username, StringComparison.OrdinalIgnoreCase)) return;
+
+        // Clear unread count when opening DM
+        var key = targetUser.ToLowerInvariant();
+        if (dmUnreadCounts.ContainsKey(key))
+        {
+            dmUnreadCounts[key] = 0;
+        }
+
+        Navigation.NavigateTo($"/dm/{Uri.EscapeDataString(targetUser)}");
+    }
+
+    private int GetUnreadDMCount(string fromUser)
+    {
+        var key = fromUser.ToLowerInvariant();
+        return dmUnreadCounts.TryGetValue(key, out var count) ? count : 0;
+    }
+
+    private IEnumerable<string> GetSortedUsers()
+    {
+        var currentUserList = onlineUsers.Where(u => u.Equals(Username, StringComparison.OrdinalIgnoreCase));
+        var otherUsers = onlineUsers.Where(u => !u.Equals(Username, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        var sorted = otherUsers
+            .Select(u => new
+            {
+                User = u,
+                UnreadCount = GetUnreadDMCount(u),
+                LastDM = ChatService.GetLastDMTimestamp(Username, u)
+            })
+            .OrderByDescending(x => x.UnreadCount > 0)
+            .ThenByDescending(x => x.LastDM ?? DateTime.MinValue)
+            .ThenBy(x => x.User)
+            .Select(x => x.User);
+
+        return currentUserList.Concat(sorted);
+    }
+
+    #endregion
+
+    #region Helpers
+
+    private void UpdateOnlineUsersHeader()
+    {
+        onlineUsersHeader = ChatConfig.GetRandomOnlineUsersHeader(onlineUsers.Count);
+    }
+
+    #endregion
+
+    public void Dispose()
+    {
+        ChatService.OnRoomCreated -= HandleRoomCreated;
+        ChatService.OnRoomDeleted -= HandleRoomDeleted;
+        ChatService.OnUsersListChanged -= HandleUsersListChanged;
+        ChatService.OnDirectMessageReceived -= HandleDirectMessageReceived;
+        ChatService.OnAdminChanged -= HandleAdminChanged;
+        NavState.OnChange -= StateHasChanged;
     }
 }

@@ -1,4 +1,9 @@
+@inject ChatService ChatService
+@inject ChatConfigService ChatConfig
+@inject UserStateService UserState
 @inject IJSRuntime JS
+@inject IWebHostEnvironment Environment
+@implements IAsyncDisposable
 
 <div class="message-input-container @(isDraggingOver ? "drag-over" : "")"
      @ref="dropZoneElement"
@@ -8,8 +13,8 @@
      @ondragleave="HandleDragLeave"
      @ondrop="HandleDrop"
      @ondrop:preventDefault>
-    <textarea @bind="MessageText" @bind:event="oninput" @bind:after="OnInputChangedInternal"
-              placeholder="@Placeholder" class="message-input"
+    <textarea @bind="messageText" @bind:event="oninput" @bind:after="OnInputChangedInternal"
+              placeholder="@placeholder" class="message-input"
               @onkeydown="HandleKeyDown" @onkeydown:preventDefault="shouldPreventDefault"
               rows="1" id="@TextareaId"></textarea>
     <label class="image-upload-button" title="Upload images">
@@ -21,9 +26,9 @@
         </svg>
         <InputFile OnChange="HandleFileSelected" accept="image/*" multiple style="display: none;" id="@FileInputId" />
     </label>
-    <button class="send-button @(string.IsNullOrWhiteSpace(MessageText) ? "disabled" : "")"
+    <button class="send-button @(string.IsNullOrWhiteSpace(messageText) ? "disabled" : "")"
             @onclick="HandleSend"
-            disabled="@string.IsNullOrWhiteSpace(MessageText)"
+            disabled="@string.IsNullOrWhiteSpace(messageText)"
             title="Send message">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
             <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
@@ -32,7 +37,7 @@
 </div>
 
 <div class="typing-indicator-container">
-    @if (!string.IsNullOrEmpty(TypingIndicatorText))
+    @if (!string.IsNullOrEmpty(typingIndicatorText))
     {
         <div class="typing-indicator">
             <span style="display: flex; align-items: center; gap: 0.5rem; color: #72767d;">
@@ -41,29 +46,57 @@
                     <span class="dot"></span>
                     <span class="dot"></span>
                 </span>
-                <span>@TypingIndicatorText</span>
+                <span>@typingIndicatorText</span>
             </span>
         </div>
     }
 </div>
 
 @code {
+    // Context parameters - one or the other will be set
+    [Parameter] public Guid? RoomId { get; set; }
+    [Parameter] public string? DmUser { get; set; }
+
+    private string Username => UserState.Username ?? "";
+    private bool IsRoomContext => RoomId.HasValue;
+    private bool IsDmContext => !string.IsNullOrEmpty(DmUser);
+
+    // Internal state
     private ElementReference dropZoneElement;
     private bool isDraggingOver = false;
     private bool shouldPreventDefault = false;
+    private string messageText = "";
+    private string placeholder = "";
+    private string typingIndicatorText = "";
+    private bool isTyping = false;
+    private System.Timers.Timer? typingTimer;
 
     // Unique IDs for this instance
     private string TextareaId = $"messageTextarea_{Guid.NewGuid():N}";
     private string FileInputId = $"fileInput_{Guid.NewGuid():N}";
 
-    [Parameter] public string MessageText { get; set; } = "";
-    [Parameter] public EventCallback<string> MessageTextChanged { get; set; }
-    [Parameter] public string Placeholder { get; set; } = "Type a message...";
-    [Parameter] public string TypingIndicatorText { get; set; } = "";
+    protected override void OnInitialized()
+    {
+        UpdatePlaceholder();
 
-    [Parameter] public EventCallback OnSend { get; set; }
-    [Parameter] public EventCallback<InputFileChangeEventArgs> OnFilesSelected { get; set; }
-    [Parameter] public EventCallback OnInputChanged { get; set; }
+        // Subscribe to typing events
+        if (IsRoomContext)
+        {
+            ChatService.OnTypingUsersChanged += HandleTypingUsersChanged;
+        }
+        else if (IsDmContext)
+        {
+            ChatService.OnDMTypingUsersChanged += HandleDMTypingUsersChanged;
+        }
+
+        UpdateTypingIndicator();
+    }
+
+    protected override void OnParametersSet()
+    {
+        UpdatePlaceholder();
+        UpdateTypingIndicator();
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -73,11 +106,132 @@
         }
     }
 
+    private void UpdatePlaceholder()
+    {
+        if (IsDmContext)
+        {
+            placeholder = $"Message @{DmUser}";
+        }
+        else
+        {
+            placeholder = ChatConfig.GetRandomMessagePlaceholder();
+        }
+    }
+
+    #region Typing Indicator
+
+    private void UpdateTypingIndicator()
+    {
+        if (IsRoomContext && RoomId.HasValue)
+        {
+            var typingUsers = ChatService.GetTypingUsers(RoomId.Value);
+            typingIndicatorText = ChatConfig.GetRandomTypingIndicator(typingUsers, Username);
+        }
+        else if (IsDmContext && !string.IsNullOrEmpty(DmUser))
+        {
+            var typingUsers = ChatService.GetDMTypingUsers(Username, DmUser);
+            var others = typingUsers.Where(u => !u.Equals(Username, StringComparison.OrdinalIgnoreCase)).ToList();
+            typingIndicatorText = others.Count > 0 ? $"{string.Join(", ", others)} is typing..." : "";
+        }
+        else
+        {
+            typingIndicatorText = "";
+        }
+    }
+
+    private async Task HandleTypingUsersChanged(Guid roomId)
+    {
+        if (IsRoomContext && RoomId == roomId)
+        {
+            await InvokeAsync(() =>
+            {
+                UpdateTypingIndicator();
+                StateHasChanged();
+            });
+        }
+    }
+
+    private async Task HandleDMTypingUsersChanged(string conversationKey)
+    {
+        if (IsDmContext && !string.IsNullOrEmpty(DmUser))
+        {
+            var key = DirectMessage.GetConversationKey(Username, DmUser);
+            if (key == conversationKey)
+            {
+                await InvokeAsync(() =>
+                {
+                    UpdateTypingIndicator();
+                    StateHasChanged();
+                });
+            }
+        }
+    }
+
+    private async Task StartTypingAsync()
+    {
+        if (isTyping) return;
+        isTyping = true;
+
+        if (IsRoomContext && RoomId.HasValue)
+        {
+            await ChatService.StartTypingAsync(RoomId.Value, Username);
+        }
+        else if (IsDmContext && !string.IsNullOrEmpty(DmUser))
+        {
+            await ChatService.StartDMTypingAsync(Username, DmUser);
+        }
+    }
+
+    private async Task StopTypingAsync()
+    {
+        if (!isTyping) return;
+        isTyping = false;
+
+        if (IsRoomContext && RoomId.HasValue)
+        {
+            await ChatService.StopTypingAsync(RoomId.Value, Username);
+        }
+        else if (IsDmContext && !string.IsNullOrEmpty(DmUser))
+        {
+            await ChatService.StopDMTypingAsync(Username, DmUser);
+        }
+
+        typingTimer?.Stop();
+        typingTimer?.Dispose();
+        typingTimer = null;
+    }
+
+    #endregion
+
+    #region Input Handling
+
     private async Task OnInputChangedInternal()
     {
-        await MessageTextChanged.InvokeAsync(MessageText);
         await JS.InvokeVoidAsync("autoResizeTextarea", TextareaId);
-        await OnInputChanged.InvokeAsync();
+
+        // Handle typing state
+        if (!string.IsNullOrWhiteSpace(messageText) && !isTyping)
+        {
+            await StartTypingAsync();
+        }
+        else if (string.IsNullOrWhiteSpace(messageText) && isTyping)
+        {
+            await StopTypingAsync();
+        }
+
+        // Reset typing timer
+        typingTimer?.Stop();
+        typingTimer?.Dispose();
+
+        if (!string.IsNullOrWhiteSpace(messageText))
+        {
+            typingTimer = new System.Timers.Timer(3000);
+            typingTimer.Elapsed += async (s, e) =>
+            {
+                await StopTypingAsync();
+            };
+            typingTimer.Start();
+        }
     }
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
@@ -93,18 +247,97 @@
 
     private async Task HandleSend()
     {
-        if (string.IsNullOrWhiteSpace(MessageText)) return;
-        await OnSend.InvokeAsync();
+        if (string.IsNullOrWhiteSpace(messageText)) return;
+
+        var content = messageText;
+        messageText = "";
+
+        if (IsRoomContext && RoomId.HasValue)
+        {
+            await ChatService.SendMessageAsync(RoomId.Value, Username, content);
+        }
+        else if (IsDmContext && !string.IsNullOrEmpty(DmUser))
+        {
+            await ChatService.SendDirectMessageAsync(Username, DmUser, content);
+        }
+
+        await StopTypingAsync();
     }
+
+    #endregion
+
+    #region File Upload
 
     private async Task HandleFileSelected(InputFileChangeEventArgs e)
     {
-        await OnFilesSelected.InvokeAsync(e);
+        var files = e.GetMultipleFiles(10);
+        if (files.Count == 0) return;
+
+        var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+        var imageUrls = new List<string>();
+
+        try
+        {
+            var uploadsFolder = Path.Combine(Environment.WebRootPath, "uploads");
+            Directory.CreateDirectory(uploadsFolder);
+
+            foreach (var file in files)
+            {
+                var extension = Path.GetExtension(file.Name).ToLowerInvariant();
+                if (!allowedExtensions.Contains(extension)) continue;
+                if (file.Size > 100 * 1024 * 1024) continue;
+
+                var uniqueFileName = $"{Guid.NewGuid()}{extension}";
+                var filePath = Path.Combine(uploadsFolder, uniqueFileName);
+
+                await using var stream = new FileStream(filePath, FileMode.Create);
+                await file.OpenReadStream(maxAllowedSize: 100 * 1024 * 1024).CopyToAsync(stream);
+
+                imageUrls.Add($"/uploads/{uniqueFileName}");
+            }
+
+            if (imageUrls.Count > 0)
+            {
+                if (IsRoomContext && RoomId.HasValue)
+                {
+                    await ChatService.SendMessageAsync(RoomId.Value, Username, "", imageUrls);
+                }
+                else if (IsDmContext && !string.IsNullOrEmpty(DmUser))
+                {
+                    await ChatService.SendDirectMessageAsync(Username, DmUser, "", imageUrls);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error uploading files: {ex.Message}");
+        }
     }
 
-    // Drag and drop handlers
+    #endregion
+
+    #region Drag and Drop
+
     private void HandleDragEnter(DragEventArgs e) => isDraggingOver = true;
     private void HandleDragOver(DragEventArgs e) => isDraggingOver = true;
     private void HandleDragLeave(DragEventArgs e) => isDraggingOver = false;
     private void HandleDrop(DragEventArgs e) => isDraggingOver = false;
+
+    #endregion
+
+    public async ValueTask DisposeAsync()
+    {
+        typingTimer?.Stop();
+        typingTimer?.Dispose();
+
+        // Unsubscribe from events
+        ChatService.OnTypingUsersChanged -= HandleTypingUsersChanged;
+        ChatService.OnDMTypingUsersChanged -= HandleDMTypingUsersChanged;
+
+        // Stop typing if we were
+        if (isTyping)
+        {
+            await StopTypingAsync();
+        }
+    }
 }
