@@ -31,15 +31,6 @@ window.setDocumentTitle = (title) => {
     document.title = title;
 };
 
-window.playNotificationSound = () => {
-    ensureAudioLoaded();
-    if (notificationAudio) {
-        notificationAudio.currentTime = 0;
-        notificationAudio.play().catch(() => {});
-    }
-};
-
-// Combined function to reduce round-trips
 window.notifyNewMessage = (title) => {
     document.title = title;
     ensureAudioLoaded();
