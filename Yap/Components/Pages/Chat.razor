@@ -1,5 +1,4 @@
 @page "/chat"
-@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inject ChatService ChatService
 @inject ChatConfigService ChatConfig
 @inject EmojiService EmojiService
@@ -12,361 +11,361 @@
 <PageTitle>@pageTitle</PageTitle>
 
 <div class="chat-container">
-        <div class="chat-header">
-            <h3>@GetCurrentViewHeader()</h3>
-            <div class="header-controls">
-                <span class="connection-status connected">@username</span>
-                <button class="mailbox-button @(totalUnreadDMs > 0 ? "has-unread" : "")" @onclick="OpenSidebarForDMs" title="@(totalUnreadDMs > 0 ? $"{totalUnreadDMs} unread messages" : "Messages")">
-                    @if (totalUnreadDMs > 0)
-                    {
-                        @* Filled inbox icon *@
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5v-3h3.56c.69 1.19 1.97 2 3.45 2s2.75-.81 3.45-2H19v3zm0-5h-4.99c0 1.1-.9 2-2 2s-2-.9-2-2H5V5h14v9z"/>
-                        </svg>
-                        <span class="mailbox-badge">@totalUnreadDMs</span>
-                    }
-                    else
-                    {
-                        @* Outline inbox icon *@
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M22 12h-6l-2 3h-4l-2-3H2"/>
-                            <path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/>
-                        </svg>
-                    }
-                </button>
-                <button class="users-toggle" @onclick="ToggleSidebar" title="Toggle sidebar">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M14 8.00598C14 10.211 12.206 12.006 10 12.006C7.795 12.006 6 10.211 6 8.00598C6 5.80098 7.795 4.00598 10 4.00598C12.206 4.00598 14 5.80098 14 8.00598ZM2 19.006C2 15.473 5.29 13.006 10 13.006C14.711 13.006 18 15.473 18 19.006V20.006H2V19.006Z"/>
-                        <path d="M20.0001 20.006H22.0001V19.006C22.0001 16.4433 20.2697 14.4415 17.5213 13.5352C19.0621 14.9127 20.0001 16.8059 20.0001 19.006V20.006Z"/>
-                        <path d="M14.8834 11.9077C16.6657 11.5044 18.0001 9.9077 18.0001 8.00598C18.0001 5.96916 16.4693 4.28218 14.4971 4.0367C15.4322 5.09511 16.0001 6.48524 16.0001 8.00598C16.0001 9.44888 15.4889 10.7742 14.6378 11.8102C14.7203 11.8734 14.8022 11.9388 14.8834 11.9077Z"/>
+    <div class="chat-header">
+        <h3>@GetCurrentViewHeader()</h3>
+        <div class="header-controls">
+            <span class="connection-status connected">@username</span>
+            <button class="mailbox-button @(totalUnreadDMs > 0 ? "has-unread" : "")" @onclick="OpenSidebarForDMs" title="@(totalUnreadDMs > 0 ? $"{totalUnreadDMs} unread messages" : "Messages")">
+                @if (totalUnreadDMs > 0)
+                {
+                    @* Filled inbox icon *@
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5v-3h3.56c.69 1.19 1.97 2 3.45 2s2.75-.81 3.45-2H19v3zm0-5h-4.99c0 1.1-.9 2-2 2s-2-.9-2-2H5V5h14v9z"/>
                     </svg>
-                    <span class="online-count">@onlineUsers.Count</span>
+                    <span class="mailbox-badge">@totalUnreadDMs</span>
+                }
+                else
+                {
+                    @* Outline inbox icon *@
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 12h-6l-2 3h-4l-2-3H2"/>
+                        <path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/>
+                    </svg>
+                }
+            </button>
+            <button class="users-toggle" @onclick="ToggleSidebar" title="Toggle sidebar">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M14 8.00598C14 10.211 12.206 12.006 10 12.006C7.795 12.006 6 10.211 6 8.00598C6 5.80098 7.795 4.00598 10 4.00598C12.206 4.00598 14 5.80098 14 8.00598ZM2 19.006C2 15.473 5.29 13.006 10 13.006C14.711 13.006 18 15.473 18 19.006V20.006H2V19.006Z"/>
+                    <path d="M20.0001 20.006H22.0001V19.006C22.0001 16.4433 20.2697 14.4415 17.5213 13.5352C19.0621 14.9127 20.0001 16.8059 20.0001 19.006V20.006Z"/>
+                    <path d="M14.8834 11.9077C16.6657 11.5044 18.0001 9.9077 18.0001 8.00598C18.0001 5.96916 16.4693 4.28218 14.4971 4.0367C15.4322 5.09511 16.0001 6.48524 16.0001 8.00598C16.0001 9.44888 15.4889 10.7742 14.6378 11.8102C14.7203 11.8734 14.8022 11.9388 14.8834 11.9077Z"/>
+                </svg>
+                <span class="online-count">@onlineUsers.Count</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="chat-main">
+        <div class="messages-container">
+            <div class="messages" @ref="messagesElement">
+                @if (currentDMUser == null)
+                {
+                    @* Room messages *@
+                    @for (int i = 0; i < messages.Count; i++)
+                    {
+                        var message = messages[i];
+                        var isSystemMessage = message.Username == "System";
+                        var showHeader = !isSystemMessage && (i == 0 || messages[i - 1].Username != message.Username);
+                        var isOwnMessage = message.Username == username;
+                        var isHovered = hoveredMessageId == message.Id;
+                        var isEditing = editingMessageId == message.Id;
+
+                        <div class="message-group @(isSystemMessage ? "system-message" : "") @(isHovered ? "hovered" : "")"
+                             @onmouseenter="() => OnMessageMouseEnter(message.Id)"
+                             @onmouseleave="OnMessageMouseLeave">
+                            @if (showHeader)
+                            {
+                                <div class="message-header">
+                                    <strong class="message-username">@message.Username</strong>
+                                    <span class="message-time">@message.Timestamp.ToLocalTime().ToString("HH:mm")</span>
+                                </div>
+                            }
+                            <div class="message-content">
+                                @if (isEditing)
+                                {
+                                    <div class="edit-container">
+                                        <input type="text" @bind="editContent" @bind:event="oninput"
+                                               class="edit-input" @onkeydown="HandleEditKeyDown" />
+                                        <div class="edit-actions">
+                                            <button class="edit-save" @onclick="SaveEdit" title="Save">✓</button>
+                                            <button class="edit-cancel" @onclick="CancelEdit" title="Cancel">✕</button>
+                                        </div>
+                                    </div>
+                                }
+                                else if (message.HasImages)
+                                {
+                                    var maxPreview = 4;
+                                    var hasMore = message.ImageUrls.Count > maxPreview;
+                                    var previewCount = hasMore ? maxPreview : message.ImageUrls.Count;
+                                    var extraCount = message.ImageUrls.Count - maxPreview;
+
+                                    <div class="image-gallery @GetGalleryClass(previewCount)">
+                                        @for (int imgIndex = 0; imgIndex < previewCount; imgIndex++)
+                                        {
+                                            var idx = imgIndex;
+                                            var imageUrl = message.ImageUrls[idx];
+                                            var isLastPreview = hasMore && idx == maxPreview - 1;
+
+                                            <div class="gallery-item @(isLastPreview ? "has-more" : "")"
+                                                 @onclick="() => ShowGallery(message.ImageUrls, idx)">
+                                                <img src="@imageUrl" alt="Uploaded image" class="gallery-image" />
+                                                @if (isLastPreview)
+                                                {
+                                                    <div class="gallery-more-overlay">+@extraCount</div>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    @EmojiService.ConvertEmojisToTwemoji(message.Content)
+                                    @if (message.IsEdited)
+                                    {
+                                        <span class="edited-indicator">(edited)</span>
+                                    }
+                                }
+                            </div>
+
+                            @* Reactions display *@
+                            @if (message.Reactions.Count > 0)
+                            {
+                                <div class="reactions-display">
+                                    @foreach (var reaction in message.Reactions)
+                                    {
+                                        var hasReacted = reaction.Value.Contains(username);
+                                        <button class="reaction-pill @(hasReacted ? "reacted" : "")"
+                                                @onclick="() => ToggleReaction(message.Id, reaction.Key)"
+                                                title="@string.Join(", ", reaction.Value)">
+                                            @reaction.Key <span class="reaction-count">@reaction.Value.Count</span>
+                                        </button>
+                                    }
+                                </div>
+                            }
+
+                            @* Message actions popup *@
+                            @if (isHovered && !isSystemMessage && !isEditing)
+                            {
+                                <div class="message-actions">
+                                    <button class="action-btn" @onclick="@(() => ToggleReaction(message.Id, HEART))" title="Love">❤️</button>
+                                    <button class="action-btn" @onclick="@(() => ToggleReaction(message.Id, LAUGH))" title="Laugh">😂</button>
+                                    <button class="action-btn" @onclick="@(() => ToggleReaction(message.Id, TOUCHED))" title="Touched">🥹</button>
+                                    @if (isOwnMessage && !message.HasImages)
+                                    {
+                                        <button class="action-btn action-edit" @onclick="() => StartEdit(message)" title="Edit">✏️</button>
+                                    }
+                                    @if (isOwnMessage)
+                                    {
+                                        <button class="action-btn action-delete" @onclick="() => DeleteMessage(message.Id)" title="Delete">🗑️</button>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+                else
+                {
+                    @* DM system notice *@
+                    <div class="message-group system-message">
+                        <div class="message-content">
+                            This is the beginning of your direct message history with <strong>@currentDMUser</strong>.
+                            Messages are ephemeral and will disappear when either of you leaves.
+                        </div>
+                    </div>
+
+                    @* DM messages *@
+                    @for (int i = 0; i < dmMessages.Count; i++)
+                    {
+                        var message = dmMessages[i];
+                        var showHeader = i == 0 || dmMessages[i - 1].FromUser != message.FromUser;
+                        var isOwnMessage = message.FromUser.Equals(username, StringComparison.OrdinalIgnoreCase);
+                        var isHovered = hoveredDMId == message.Id;
+                        var isEditing = editingDMId == message.Id;
+
+                        <div class="message-group @(isHovered ? "hovered" : "")"
+                             @onmouseenter="() => OnDMMouseEnter(message.Id)"
+                             @onmouseleave="OnDMMouseLeave">
+                            @if (showHeader)
+                            {
+                                <div class="message-header">
+                                    <strong class="message-username">@message.FromUser</strong>
+                                    <span class="message-time">@message.Timestamp.ToLocalTime().ToString("HH:mm")</span>
+                                </div>
+                            }
+                            <div class="message-content">
+                                @if (isEditing)
+                                {
+                                    <div class="edit-container">
+                                        <input type="text" @bind="editDMContent" @bind:event="oninput"
+                                               class="edit-input" @onkeydown="HandleDMEditKeyDown" />
+                                        <div class="edit-actions">
+                                            <button class="edit-save" @onclick="SaveDMEdit" title="Save">✓</button>
+                                            <button class="edit-cancel" @onclick="CancelDMEdit" title="Cancel">✕</button>
+                                        </div>
+                                    </div>
+                                }
+                                else if (message.HasImages)
+                                {
+                                    var maxPreview = 4;
+                                    var hasMore = message.ImageUrls.Count > maxPreview;
+                                    var previewCount = hasMore ? maxPreview : message.ImageUrls.Count;
+                                    var extraCount = message.ImageUrls.Count - maxPreview;
+
+                                    <div class="image-gallery @GetGalleryClass(previewCount)">
+                                        @for (int imgIndex = 0; imgIndex < previewCount; imgIndex++)
+                                        {
+                                            var idx = imgIndex;
+                                            var imageUrl = message.ImageUrls[idx];
+                                            var isLastPreview = hasMore && idx == maxPreview - 1;
+
+                                            <div class="gallery-item @(isLastPreview ? "has-more" : "")"
+                                                 @onclick="() => ShowGallery(message.ImageUrls, idx)">
+                                                <img src="@imageUrl" alt="Uploaded image" class="gallery-image" />
+                                                @if (isLastPreview)
+                                                {
+                                                    <div class="gallery-more-overlay">+@extraCount</div>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    @EmojiService.ConvertEmojisToTwemoji(message.Content)
+                                    @if (message.IsEdited)
+                                    {
+                                        <span class="edited-indicator">(edited)</span>
+                                    }
+                                }
+                            </div>
+
+                            @* DM Message actions popup *@
+                            @if (isHovered && !isEditing)
+                            {
+                                <div class="message-actions">
+                                    @if (isOwnMessage && !message.HasImages)
+                                    {
+                                        <button class="action-btn action-edit" @onclick="() => StartDMEdit(message)" title="Edit">✏️</button>
+                                    }
+                                    @if (isOwnMessage)
+                                    {
+                                        <button class="action-btn action-delete" @onclick="() => DeleteDM(message.Id)" title="Delete">🗑️</button>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+
+            <div class="message-input-container @(isDraggingOver ? "drag-over" : "")"
+                 @ref="dropZoneElement"
+                 @ondragenter="HandleDragEnter"
+                 @ondragover="HandleDragOver"
+                 @ondragover:preventDefault
+                 @ondragleave="HandleDragLeave"
+                 @ondrop="HandleDrop"
+                 @ondrop:preventDefault>
+                <textarea @bind="messageInput" @bind:event="oninput" @bind:after="OnMessageInputChanged"
+                          placeholder="@GetMessagePlaceholder()" class="message-input"
+                          @onkeydown="HandleMessageKeyDown" @onkeydown:preventDefault="shouldPreventDefault"
+                          rows="1" id="messageTextarea"></textarea>
+                <label class="image-upload-button" title="Upload images">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                        <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
+                    <InputFile @ref="fileInput" OnChange="HandleFileSelected" accept="image/*" multiple style="display: none;" id="fileInput" />
+                </label>
+                <button class="send-button @(string.IsNullOrWhiteSpace(messageInput) ? "disabled" : "")"
+                        @onclick="SendMessage"
+                        disabled="@string.IsNullOrWhiteSpace(messageInput)"
+                        title="Send message">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    </svg>
                 </button>
             </div>
-        </div>
 
-        <div class="chat-main">
-            <div class="messages-container">
-                <div class="messages" @ref="messagesElement">
-                    @if (currentDMUser == null)
-                    {
-                        @* Room messages *@
-                        @for (int i = 0; i < messages.Count; i++)
-                        {
-                            var message = messages[i];
-                            var isSystemMessage = message.Username == "System";
-                            var showHeader = !isSystemMessage && (i == 0 || messages[i - 1].Username != message.Username);
-                            var isOwnMessage = message.Username == username;
-                            var isHovered = hoveredMessageId == message.Id;
-                            var isEditing = editingMessageId == message.Id;
-
-                            <div class="message-group @(isSystemMessage ? "system-message" : "") @(isHovered ? "hovered" : "")"
-                                 @onmouseenter="() => OnMessageMouseEnter(message.Id)"
-                                 @onmouseleave="OnMessageMouseLeave">
-                                @if (showHeader)
-                                {
-                                    <div class="message-header">
-                                        <strong class="message-username">@message.Username</strong>
-                                        <span class="message-time">@message.Timestamp.ToLocalTime().ToString("HH:mm")</span>
-                                    </div>
-                                }
-                                <div class="message-content">
-                                    @if (isEditing)
-                                    {
-                                        <div class="edit-container">
-                                            <input type="text" @bind="editContent" @bind:event="oninput"
-                                                   class="edit-input" @onkeydown="HandleEditKeyDown" />
-                                            <div class="edit-actions">
-                                                <button class="edit-save" @onclick="SaveEdit" title="Save">✓</button>
-                                                <button class="edit-cancel" @onclick="CancelEdit" title="Cancel">✕</button>
-                                            </div>
-                                        </div>
-                                    }
-                                    else if (message.HasImages)
-                                    {
-                                        var maxPreview = 4;
-                                        var hasMore = message.ImageUrls.Count > maxPreview;
-                                        var previewCount = hasMore ? maxPreview : message.ImageUrls.Count;
-                                        var extraCount = message.ImageUrls.Count - maxPreview;
-
-                                        <div class="image-gallery @GetGalleryClass(previewCount)">
-                                            @for (int imgIndex = 0; imgIndex < previewCount; imgIndex++)
-                                            {
-                                                var idx = imgIndex;
-                                                var imageUrl = message.ImageUrls[idx];
-                                                var isLastPreview = hasMore && idx == maxPreview - 1;
-
-                                                <div class="gallery-item @(isLastPreview ? "has-more" : "")"
-                                                     @onclick="() => ShowGallery(message.ImageUrls, idx)">
-                                                    <img src="@imageUrl" alt="Uploaded image" class="gallery-image" />
-                                                    @if (isLastPreview)
-                                                    {
-                                                        <div class="gallery-more-overlay">+@extraCount</div>
-                                                    }
-                                                </div>
-                                            }
-                                        </div>
-                                    }
-                                    else
-                                    {
-                                        @EmojiService.ConvertEmojisToTwemoji(message.Content)
-                                        @if (message.IsEdited)
-                                        {
-                                            <span class="edited-indicator">(edited)</span>
-                                        }
-                                    }
-                                </div>
-
-                                @* Reactions display *@
-                                @if (message.Reactions.Count > 0)
-                                {
-                                    <div class="reactions-display">
-                                        @foreach (var reaction in message.Reactions)
-                                        {
-                                            var hasReacted = reaction.Value.Contains(username);
-                                            <button class="reaction-pill @(hasReacted ? "reacted" : "")"
-                                                    @onclick="() => ToggleReaction(message.Id, reaction.Key)"
-                                                    title="@string.Join(", ", reaction.Value)">
-                                                @reaction.Key <span class="reaction-count">@reaction.Value.Count</span>
-                                            </button>
-                                        }
-                                    </div>
-                                }
-
-                                @* Message actions popup *@
-                                @if (isHovered && !isSystemMessage && !isEditing)
-                                {
-                                    <div class="message-actions">
-                                        <button class="action-btn" @onclick="@(() => ToggleReaction(message.Id, HEART))" title="Love">❤️</button>
-                                        <button class="action-btn" @onclick="@(() => ToggleReaction(message.Id, LAUGH))" title="Laugh">😂</button>
-                                        <button class="action-btn" @onclick="@(() => ToggleReaction(message.Id, TOUCHED))" title="Touched">🥹</button>
-                                        @if (isOwnMessage && !message.HasImages)
-                                        {
-                                            <button class="action-btn action-edit" @onclick="() => StartEdit(message)" title="Edit">✏️</button>
-                                        }
-                                        @if (isOwnMessage)
-                                        {
-                                            <button class="action-btn action-delete" @onclick="() => DeleteMessage(message.Id)" title="Delete">🗑️</button>
-                                        }
-                                    </div>
-                                }
-                            </div>
-                        }
-                    }
-                    else
-                    {
-                        @* DM system notice *@
-                        <div class="message-group system-message">
-                            <div class="message-content">
-                                This is the beginning of your direct message history with <strong>@currentDMUser</strong>.
-                                Messages are ephemeral and will disappear when either of you leaves.
-                            </div>
-                        </div>
-
-                        @* DM messages *@
-                        @for (int i = 0; i < dmMessages.Count; i++)
-                        {
-                            var message = dmMessages[i];
-                            var showHeader = i == 0 || dmMessages[i - 1].FromUser != message.FromUser;
-                            var isOwnMessage = message.FromUser.Equals(username, StringComparison.OrdinalIgnoreCase);
-                            var isHovered = hoveredDMId == message.Id;
-                            var isEditing = editingDMId == message.Id;
-
-                            <div class="message-group @(isHovered ? "hovered" : "")"
-                                 @onmouseenter="() => OnDMMouseEnter(message.Id)"
-                                 @onmouseleave="OnDMMouseLeave">
-                                @if (showHeader)
-                                {
-                                    <div class="message-header">
-                                        <strong class="message-username">@message.FromUser</strong>
-                                        <span class="message-time">@message.Timestamp.ToLocalTime().ToString("HH:mm")</span>
-                                    </div>
-                                }
-                                <div class="message-content">
-                                    @if (isEditing)
-                                    {
-                                        <div class="edit-container">
-                                            <input type="text" @bind="editDMContent" @bind:event="oninput"
-                                                   class="edit-input" @onkeydown="HandleDMEditKeyDown" />
-                                            <div class="edit-actions">
-                                                <button class="edit-save" @onclick="SaveDMEdit" title="Save">✓</button>
-                                                <button class="edit-cancel" @onclick="CancelDMEdit" title="Cancel">✕</button>
-                                            </div>
-                                        </div>
-                                    }
-                                    else if (message.HasImages)
-                                    {
-                                        var maxPreview = 4;
-                                        var hasMore = message.ImageUrls.Count > maxPreview;
-                                        var previewCount = hasMore ? maxPreview : message.ImageUrls.Count;
-                                        var extraCount = message.ImageUrls.Count - maxPreview;
-
-                                        <div class="image-gallery @GetGalleryClass(previewCount)">
-                                            @for (int imgIndex = 0; imgIndex < previewCount; imgIndex++)
-                                            {
-                                                var idx = imgIndex;
-                                                var imageUrl = message.ImageUrls[idx];
-                                                var isLastPreview = hasMore && idx == maxPreview - 1;
-
-                                                <div class="gallery-item @(isLastPreview ? "has-more" : "")"
-                                                     @onclick="() => ShowGallery(message.ImageUrls, idx)">
-                                                    <img src="@imageUrl" alt="Uploaded image" class="gallery-image" />
-                                                    @if (isLastPreview)
-                                                    {
-                                                        <div class="gallery-more-overlay">+@extraCount</div>
-                                                    }
-                                                </div>
-                                            }
-                                        </div>
-                                    }
-                                    else
-                                    {
-                                        @EmojiService.ConvertEmojisToTwemoji(message.Content)
-                                        @if (message.IsEdited)
-                                        {
-                                            <span class="edited-indicator">(edited)</span>
-                                        }
-                                    }
-                                </div>
-
-                                @* DM Message actions popup *@
-                                @if (isHovered && !isEditing)
-                                {
-                                    <div class="message-actions">
-                                        @if (isOwnMessage && !message.HasImages)
-                                        {
-                                            <button class="action-btn action-edit" @onclick="() => StartDMEdit(message)" title="Edit">✏️</button>
-                                        }
-                                        @if (isOwnMessage)
-                                        {
-                                            <button class="action-btn action-delete" @onclick="() => DeleteDM(message.Id)" title="Delete">🗑️</button>
-                                        }
-                                    </div>
-                                }
-                            </div>
-                        }
-                    }
-                </div>
-
-                <div class="message-input-container @(isDraggingOver ? "drag-over" : "")"
-                     @ref="dropZoneElement"
-                     @ondragenter="HandleDragEnter"
-                     @ondragover="HandleDragOver"
-                     @ondragover:preventDefault
-                     @ondragleave="HandleDragLeave"
-                     @ondrop="HandleDrop"
-                     @ondrop:preventDefault>
-                    <textarea @bind="messageInput" @bind:event="oninput" @bind:after="OnMessageInputChanged"
-                              placeholder="@GetMessagePlaceholder()" class="message-input"
-                              @onkeydown="HandleMessageKeyDown" @onkeydown:preventDefault="shouldPreventDefault"
-                              rows="1" id="messageTextarea"></textarea>
-                    <label class="image-upload-button" title="Upload images">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-                             stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                            <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                            <polyline points="21 15 16 10 5 21"></polyline>
-                        </svg>
-                        <InputFile @ref="fileInput" OnChange="HandleFileSelected" accept="image/*" multiple style="display: none;" id="fileInput" />
-                    </label>
-                    <button class="send-button @(string.IsNullOrWhiteSpace(messageInput) ? "disabled" : "")"
-                            @onclick="SendMessage"
-                            disabled="@string.IsNullOrWhiteSpace(messageInput)"
-                            title="Send message">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                        </svg>
-                    </button>
-                </div>
-
-                <div class="typing-indicator-container">
-                    @if (!string.IsNullOrEmpty(typingIndicatorText))
-                    {
-                        <div class="typing-indicator">
-                            <span style="display: flex; align-items: center; gap: 0.5rem; color: #72767d;">
-                                <span class="typing-dots">
-                                    <span class="dot"></span>
-                                    <span class="dot"></span>
-                                    <span class="dot"></span>
-                                </span>
-                                <span>@typingIndicatorText</span>
+            <div class="typing-indicator-container">
+                @if (!string.IsNullOrEmpty(typingIndicatorText))
+                {
+                    <div class="typing-indicator">
+                        <span style="display: flex; align-items: center; gap: 0.5rem; color: #72767d;">
+                            <span class="typing-dots">
+                                <span class="dot"></span>
+                                <span class="dot"></span>
+                                <span class="dot"></span>
                             </span>
+                            <span>@typingIndicatorText</span>
+                        </span>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="users-sidebar @(sidebarOpen ? "sidebar-open" : "")">
+            @* Rooms section *@
+            <div class="sidebar-section">
+                <h4>ROOMS</h4>
+                <div class="rooms-list">
+                    @foreach (var room in rooms)
+                    {
+                        var isActive = currentDMUser == null && currentRoomId == room.Id;
+                        <div class="room-item @(isActive ? "active" : "")" @onclick="() => SwitchToRoom(room.Id)">
+                            <span class="room-icon">#</span>
+                            <span class="room-name">@room.Name</span>
+                            @if (isAdmin && !room.IsDefault)
+                            {
+                                <button class="room-delete" @onclick="() => DeleteRoom(room.Id)" @onclick:stopPropagation="true" title="Delete room">×</button>
+                            }
                         </div>
+                    }
+                    @if (isAdmin)
+                    {
+                        @if (showNewRoomInput)
+                        {
+                            <div class="new-room-input">
+                                <input type="text" @bind="newRoomName" @bind:event="oninput"
+                                       placeholder="room name" class="room-name-input"
+                                       @onkeypress="HandleNewRoomKeyPress" />
+                                <button class="room-create-btn" @onclick="CreateRoom" title="Create">✓</button>
+                                <button class="room-cancel-btn" @onclick="CancelNewRoom" title="Cancel">✕</button>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="room-item add-room" @onclick="ShowNewRoomInput">
+                                <span class="room-icon">+</span>
+                                <span class="room-name">Add Room</span>
+                            </div>
+                        }
                     }
                 </div>
             </div>
 
-            <div class="users-sidebar @(sidebarOpen ? "sidebar-open" : "")">
-                @* Rooms section *@
-                <div class="sidebar-section">
-                    <h4>ROOMS</h4>
-                    <div class="rooms-list">
-                        @foreach (var room in rooms)
-                        {
-                            var isActive = currentDMUser == null && currentRoomId == room.Id;
-                            <div class="room-item @(isActive ? "active" : "")" @onclick="() => SwitchToRoom(room.Id)">
-                                <span class="room-icon">#</span>
-                                <span class="room-name">@room.Name</span>
-                                @if (isAdmin && !room.IsDefault)
-                                {
-                                    <button class="room-delete" @onclick="() => DeleteRoom(room.Id)" @onclick:stopPropagation="true" title="Delete room">×</button>
-                                }
-                            </div>
-                        }
-                        @if (isAdmin)
-                        {
-                            @if (showNewRoomInput)
-                            {
-                                <div class="new-room-input">
-                                    <input type="text" @bind="newRoomName" @bind:event="oninput"
-                                           placeholder="room name" class="room-name-input"
-                                           @onkeypress="HandleNewRoomKeyPress" />
-                                    <button class="room-create-btn" @onclick="CreateRoom" title="Create">✓</button>
-                                    <button class="room-cancel-btn" @onclick="CancelNewRoom" title="Cancel">✕</button>
-                                </div>
-                            }
-                            else
-                            {
-                                <div class="room-item add-room" @onclick="ShowNewRoomInput">
-                                    <span class="room-icon">+</span>
-                                    <span class="room-name">Add Room</span>
-                                </div>
-                            }
-                        }
-                    </div>
-                </div>
+            @* Online users section *@
+            <div class="sidebar-section">
+                <h4>@onlineUsersHeader</h4>
+                <div class="users-list">
+                    @foreach (var user in GetSortedUsers())
+                    {
+                        var isCurrentUser = user.Equals(username, StringComparison.OrdinalIgnoreCase);
+                        var isUserAdmin = ChatService.IsAdmin(user);
+                        var userUnreadCount = isCurrentUser ? 0 : GetUnreadDMCount(user);
+                        var isActiveDM = currentDMUser != null && currentDMUser.Equals(user, StringComparison.OrdinalIgnoreCase);
 
-                @* Online users section *@
-                <div class="sidebar-section">
-                    <h4>@onlineUsersHeader</h4>
-                    <div class="users-list">
-                        @foreach (var user in GetSortedUsers())
-                        {
-                            var isCurrentUser = user.Equals(username, StringComparison.OrdinalIgnoreCase);
-                            var isUserAdmin = ChatService.IsAdmin(user);
-                            var userUnreadCount = isCurrentUser ? 0 : GetUnreadDMCount(user);
-                            var isActiveDM = currentDMUser != null && currentDMUser.Equals(user, StringComparison.OrdinalIgnoreCase);
-
-                            <div class="user-item @(isCurrentUser ? "current-user" : "") @(isActiveDM ? "active-dm" : "")"
-                                 @onclick="() => OpenDM(user)"
-                                 title="@(isCurrentUser ? "You" : $"Message {user}")">
-                                <span class="user-name">@user</span>
-                                @if (isUserAdmin)
-                                {
-                                    <span class="admin-badge" title="Admin">🛡️</span>
-                                }
-                                @if (userUnreadCount > 0)
-                                {
-                                    <span class="dm-unread-badge">@userUnreadCount</span>
-                                }
-                            </div>
-                        }
-                    </div>
+                        <div class="user-item @(isCurrentUser ? "current-user" : "") @(isActiveDM ? "active-dm" : "")"
+                             @onclick="() => OpenDM(user)"
+                             title="@(isCurrentUser ? "You" : $"Message {user}")">
+                            <span class="user-name">@user</span>
+                            @if (isUserAdmin)
+                            {
+                                <span class="admin-badge" title="Admin">🛡️</span>
+                            }
+                            @if (userUnreadCount > 0)
+                            {
+                                <span class="dm-unread-badge">@userUnreadCount</span>
+                            }
+                        </div>
+                    }
                 </div>
             </div>
         </div>
-        <div class="sidebar-backdrop @(sidebarOpen ? "show" : "")" @onclick="ToggleSidebar"></div>
     </div>
+    <div class="sidebar-backdrop @(sidebarOpen ? "show" : "")" @onclick="ToggleSidebar"></div>
+</div>
 
 @if (showImageModal)
 {
@@ -445,15 +444,12 @@
 
     // UI Text
     private string messagePlaceholder = "";
-    private string connectionStatus = "";
     private string onlineUsersHeader = "";
     private string typingIndicatorText = "";
-    private bool initialized = false;
 
     protected override void OnInitialized()
     {
         messagePlaceholder = ChatConfig.GetRandomMessagePlaceholder();
-        connectionStatus = ChatConfig.GetRandomConnectionStatus(true);
         UpdateOnlineUsersHeader();
         pageTitle = ChatConfig.ProjectName;
     }
@@ -469,7 +465,6 @@
                 return;
             }
 
-            initialized = true;
             await InitializeChat();
         }
     }

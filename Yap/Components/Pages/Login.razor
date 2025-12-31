@@ -1,5 +1,4 @@
 @page "/"
-@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inject ChatConfigService ChatConfig
 @inject UserStateService UserState
 @inject NavigationManager Navigation
@@ -28,6 +27,7 @@
     protected override void OnInitialized()
     {
         // If already logged in, redirect to chat
+        // Note: This works because prerendering is disabled globally in App.razor
         if (UserState.IsLoggedIn)
         {
             Navigation.NavigateTo("/chat");
