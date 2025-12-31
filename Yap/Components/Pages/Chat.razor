@@ -175,74 +175,19 @@
             </div>
         </div>
 
-        <div class="users-sidebar @(sidebarOpen ? "sidebar-open" : "")">
-            @* Rooms section *@
-            <div class="sidebar-section">
-                <h4>ROOMS</h4>
-                <div class="rooms-list">
-                    @foreach (var room in rooms)
-                    {
-                        var isActive = currentDMUser == null && currentRoomId == room.Id;
-                        <div class="room-item @(isActive ? "active" : "")" @onclick="() => SwitchToRoom(room.Id)">
-                            <span class="room-icon">#</span>
-                            <span class="room-name">@room.Name</span>
-                            @if (isAdmin && !room.IsDefault)
-                            {
-                                <button class="room-delete" @onclick="() => DeleteRoom(room.Id)" @onclick:stopPropagation="true" title="Delete room">×</button>
-                            }
-                        </div>
-                    }
-                    @if (isAdmin)
-                    {
-                        @if (showNewRoomInput)
-                        {
-                            <div class="new-room-input">
-                                <input type="text" @bind="newRoomName" @bind:event="oninput"
-                                       placeholder="room name" class="room-name-input"
-                                       @onkeypress="HandleNewRoomKeyPress" />
-                                <button class="room-create-btn" @onclick="CreateRoom" title="Create">✓</button>
-                                <button class="room-cancel-btn" @onclick="CancelNewRoom" title="Cancel">✕</button>
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="room-item add-room" @onclick="ShowNewRoomInput">
-                                <span class="room-icon">+</span>
-                                <span class="room-name">Add Room</span>
-                            </div>
-                        }
-                    }
-                </div>
-            </div>
-
-            @* Online users section *@
-            <div class="sidebar-section">
-                <h4>@onlineUsersHeader</h4>
-                <div class="users-list">
-                    @foreach (var user in GetSortedUsers())
-                    {
-                        var isCurrentUser = user.Equals(username, StringComparison.OrdinalIgnoreCase);
-                        var isUserAdmin = ChatService.IsAdmin(user);
-                        var userUnreadCount = isCurrentUser ? 0 : GetUnreadDMCount(user);
-                        var isActiveDM = currentDMUser != null && currentDMUser.Equals(user, StringComparison.OrdinalIgnoreCase);
-
-                        <div class="user-item @(isCurrentUser ? "current-user" : "") @(isActiveDM ? "active-dm" : "")"
-                             @onclick="() => OpenDM(user)"
-                             title="@(isCurrentUser ? "You" : $"Message {user}")">
-                            <span class="user-name">@user</span>
-                            @if (isUserAdmin)
-                            {
-                                <span class="admin-badge" title="Admin">🛡️</span>
-                            }
-                            @if (userUnreadCount > 0)
-                            {
-                                <span class="dm-unread-badge">@userUnreadCount</span>
-                            }
-                        </div>
-                    }
-                </div>
-            </div>
-        </div>
+        <ChatSidebar Rooms="rooms"
+                     CurrentRoomId="currentRoomId"
+                     CurrentDMUser="currentDMUser"
+                     Username="username"
+                     OnlineUsersHeader="@onlineUsersHeader"
+                     IsAdmin="isAdmin"
+                     SidebarOpen="sidebarOpen"
+                     OnSwitchRoom="SwitchToRoom"
+                     OnDeleteRoom="DeleteRoom"
+                     OnOpenDM="OpenDM"
+                     OnCreateRoom="CreateRoom"
+                     GetUnreadDMCount="GetUnreadDMCount"
+                     GetSortedUsers="GetSortedUsers" />
     </div>
     <div class="sidebar-backdrop @(sidebarOpen ? "show" : "")" @onclick="ToggleSidebar"></div>
 </div>
@@ -279,8 +224,6 @@
     private List<Room> rooms = new();
     private Guid currentRoomId;
     private bool isAdmin = false;
-    private bool showNewRoomInput = false;
-    private string newRoomName = "";
 
     // DM state
     private string? currentDMUser = null;
@@ -443,34 +386,10 @@
         await ScrollToBottom();
     }
 
-    private void ShowNewRoomInput()
+    private async Task CreateRoom(string roomName)
     {
-        showNewRoomInput = true;
-        newRoomName = "";
-    }
-
-    private void CancelNewRoom()
-    {
-        showNewRoomInput = false;
-        newRoomName = "";
-    }
-
-    private async Task HandleNewRoomKeyPress(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter") await CreateRoom();
-        else if (e.Key == "Escape") CancelNewRoom();
-    }
-
-    private async Task CreateRoom()
-    {
-        if (string.IsNullOrWhiteSpace(newRoomName)) return;
-
-        var room = await ChatService.CreateRoomAsync(username, newRoomName);
-        if (room != null)
-        {
-            showNewRoomInput = false;
-            newRoomName = "";
-        }
+        if (string.IsNullOrWhiteSpace(roomName)) return;
+        await ChatService.CreateRoomAsync(username, roomName);
     }
 
     private async Task DeleteRoom(Guid roomId)

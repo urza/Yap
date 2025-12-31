@@ -1,0 +1,123 @@
+@inject ChatService ChatService
+
+<div class="users-sidebar @(SidebarOpen ? "sidebar-open" : "")">
+    @* Rooms section *@
+    <div class="sidebar-section">
+        <h4>ROOMS</h4>
+        <div class="rooms-list">
+            @foreach (var room in Rooms)
+            {
+                var isActive = CurrentDMUser == null && CurrentRoomId == room.Id;
+                <div class="room-item @(isActive ? "active" : "")" @onclick="() => OnSwitchRoom.InvokeAsync(room.Id)">
+                    <span class="room-icon">#</span>
+                    <span class="room-name">@room.Name</span>
+                    @if (IsAdmin && !room.IsDefault)
+                    {
+                        <button class="room-delete" @onclick="() => OnDeleteRoom.InvokeAsync(room.Id)"
+                                @onclick:stopPropagation="true" title="Delete room">×</button>
+                    }
+                </div>
+            }
+            @if (IsAdmin)
+            {
+                @if (showNewRoomInput)
+                {
+                    <div class="new-room-input">
+                        <input type="text" @bind="newRoomName" @bind:event="oninput"
+                               placeholder="room name" class="room-name-input"
+                               @onkeypress="HandleNewRoomKeyPress" />
+                        <button class="room-create-btn" @onclick="CreateRoom" title="Create">✓</button>
+                        <button class="room-cancel-btn" @onclick="CancelNewRoom" title="Cancel">✕</button>
+                    </div>
+                }
+                else
+                {
+                    <div class="room-item add-room" @onclick="ShowNewRoomInput">
+                        <span class="room-icon">+</span>
+                        <span class="room-name">Add Room</span>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+
+    @* Online users section *@
+    <div class="sidebar-section">
+        <h4>@OnlineUsersHeader</h4>
+        <div class="users-list">
+            @foreach (var user in GetSortedUsers())
+            {
+                var isCurrentUser = user.Equals(Username, StringComparison.OrdinalIgnoreCase);
+                var isUserAdmin = ChatService.IsAdmin(user);
+                var userUnreadCount = isCurrentUser ? 0 : GetUnreadDMCount(user);
+                var isActiveDM = CurrentDMUser != null && CurrentDMUser.Equals(user, StringComparison.OrdinalIgnoreCase);
+
+                <div class="user-item @(isCurrentUser ? "current-user" : "") @(isActiveDM ? "active-dm" : "")"
+                     @onclick="() => OnOpenDM.InvokeAsync(user)"
+                     title="@(isCurrentUser ? "You" : $"Message {user}")">
+                    <span class="user-name">@user</span>
+                    @if (isUserAdmin)
+                    {
+                        <span class="admin-badge" title="Admin">🛡️</span>
+                    }
+                    @if (userUnreadCount > 0)
+                    {
+                        <span class="dm-unread-badge">@userUnreadCount</span>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    // Parameters from parent
+    [Parameter] public List<Room> Rooms { get; set; } = new();
+    [Parameter] public Guid CurrentRoomId { get; set; }
+    [Parameter] public string? CurrentDMUser { get; set; }
+    [Parameter] public string Username { get; set; } = "";
+    [Parameter] public string OnlineUsersHeader { get; set; } = "";
+    [Parameter] public bool IsAdmin { get; set; }
+    [Parameter] public bool SidebarOpen { get; set; }
+
+    // Callbacks to parent
+    [Parameter] public EventCallback<Guid> OnSwitchRoom { get; set; }
+    [Parameter] public EventCallback<Guid> OnDeleteRoom { get; set; }
+    [Parameter] public EventCallback<string> OnOpenDM { get; set; }
+    [Parameter] public EventCallback<string> OnCreateRoom { get; set; }
+
+    // Functions from parent
+    [Parameter] public Func<string, int> GetUnreadDMCount { get; set; } = _ => 0;
+    [Parameter] public Func<IEnumerable<string>> GetSortedUsers { get; set; } = Enumerable.Empty<string>;
+
+    // Internal state for room creation UI
+    private bool showNewRoomInput = false;
+    private string newRoomName = "";
+
+    private void ShowNewRoomInput()
+    {
+        showNewRoomInput = true;
+        newRoomName = "";
+    }
+
+    private void CancelNewRoom()
+    {
+        showNewRoomInput = false;
+        newRoomName = "";
+    }
+
+    private async Task HandleNewRoomKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await CreateRoom();
+        else if (e.Key == "Escape") CancelNewRoom();
+    }
+
+    private async Task CreateRoom()
+    {
+        if (string.IsNullOrWhiteSpace(newRoomName)) return;
+
+        await OnCreateRoom.InvokeAsync(newRoomName);
+        showNewRoomInput = false;
+        newRoomName = "";
+    }
+}
