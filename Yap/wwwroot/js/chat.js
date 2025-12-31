@@ -40,13 +40,14 @@ window.notifyNewMessage = (title) => {
     }
 };
 
-window.scrollToBottom = (element) => {
-    if (element) {
-        // Use requestAnimationFrame to ensure DOM has updated
-        requestAnimationFrame(() => {
+window.scrollToBottom = () => {
+    // Use requestAnimationFrame to ensure DOM has updated
+    requestAnimationFrame(() => {
+        const element = document.querySelector('.messages');
+        if (element) {
             element.scrollTop = element.scrollHeight;
-        });
-    }
+        }
+    });
 };
 
 // Image modal keyboard navigation

@@ -1,0 +1,337 @@
+@page "/chat"
+@page "/lobby"
+@page "/room/{RoomId:guid}"
+@inherits ChatBase
+
+<ChatMain PageTitle="@pageTitle"
+            HeaderTitle="@GetHeaderTitle()"
+            Username="@Username"
+            TotalUnreadDMs="@totalUnreadDMs"
+            OnlineCount="@onlineUsers.Count"
+            @bind-MessageText="messageInput"
+            Placeholder="@GetMessagePlaceholder()"
+            TypingIndicatorText="@typingIndicatorText"
+            Rooms="@rooms"
+            CurrentRoomId="@currentRoomId"
+            CurrentDMUser="@null"
+            OnlineUsersHeader="@onlineUsersHeader"
+            IsAdmin="@isAdmin"
+            SidebarOpen="@sidebarOpen"
+            ShowImageModal="@showImageModal"
+            ModalGallery="@modalGallery"
+            ModalImageIndex="@modalImageIndex"
+            OnMailboxClick="OpenSidebarForDMs"
+            OnToggleSidebar="ToggleSidebar"
+            OnSend="HandleSendMessageAsync"
+            OnFilesSelected="HandleFileSelectedAsync"
+            OnInputChanged="HandleInputChangedAsync"
+            OnSwitchRoom="SwitchToRoomAsync"
+            OnDeleteRoom="DeleteRoomAsync"
+            OnOpenDM="OpenDM"
+            OnCreateRoom="CreateRoomAsync"
+            OnCloseModal="CloseImageModal"
+            GetUnreadDMCount="GetUnreadDMCount"
+            GetSortedUsers="GetSortedUsers">
+
+    @for (int i = 0; i < messages.Count; i++)
+    {
+        var message = messages[i];
+        var isSystemMessage = message.Username == "System";
+        var showHeader = !isSystemMessage && (i == 0 || messages[i - 1].Username != message.Username);
+
+        <MessageItem Username="@message.Username"
+                     Content="@message.Content"
+                     Timestamp="@message.Timestamp"
+                     ShowHeader="@showHeader"
+                     IsOwn="@(message.Username == Username)"
+                     IsSystem="@isSystemMessage"
+                     IsEdited="@message.IsEdited"
+                     IsHovered="@(hoveredMessageId == message.Id)"
+                     IsEditing="@(editingMessageId == message.Id)"
+                     HasImages="@message.HasImages"
+                     ImageUrls="@message.ImageUrls"
+                     Reactions="@message.Reactions"
+                     ShowReactions="true"
+                     CurrentUsername="@Username"
+                     EditContent="@editContent"
+                     EditContentChanged="@(v => editContent = v)"
+                     OnMouseEnter="@(() => hoveredMessageId = message.Id)"
+                     OnMouseLeave="@(() => hoveredMessageId = null)"
+                     OnReaction="@(emoji => ToggleReaction(message.Id, emoji))"
+                     OnStartEdit="@(() => StartEdit(message))"
+                     OnSaveEdit="SaveEdit"
+                     OnCancelEdit="CancelEdit"
+                     OnDelete="@(() => DeleteMessage(message.Id))"
+                     OnImageClick="@(args => ShowGallery(args.Images, args.Index))" />
+    }
+</ChatMain>
+
+@code {
+    [Parameter] public Guid? RoomId { get; set; }
+
+    // Room-specific state
+    private List<ChatMessage> messages = new();
+    private List<string> typingUsers = new();
+    private Guid? hoveredMessageId = null;
+    private Guid? editingMessageId = null;
+    private string editContent = "";
+    private Guid? previousRoomId = null;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Detect room parameter changes (navigating between rooms)
+        var newRoomId = RoomId ?? ChatService.LobbyId;
+        if (previousRoomId.HasValue && previousRoomId.Value != newRoomId)
+        {
+            await SwitchRoomContentAsync(newRoomId);
+        }
+        previousRoomId = newRoomId;
+    }
+
+    private async Task SwitchRoomContentAsync(Guid newRoomId)
+    {
+        // Stop typing in old room
+        if (isTyping)
+        {
+            await ChatService.StopTypingAsync(currentRoomId, Username);
+            SetTyping(false);
+        }
+
+        // Switch to new room
+        currentRoomId = newRoomId;
+        messages = ChatService.GetRoomMessages(currentRoomId).ToList();
+        typingUsers = ChatService.GetTypingUsers(currentRoomId);
+        UpdateTypingIndicator();
+
+        // Update page title
+        var room = rooms.FirstOrDefault(r => r.Id == currentRoomId);
+        currentContext = room?.Name ?? "lobby";
+        await UpdatePageTitleAsync();
+
+        await InvokeAsync(StateHasChanged);
+        await ScrollToBottomAsync();
+    }
+
+    protected override string GetHeaderTitle()
+    {
+        var room = rooms.FirstOrDefault(r => r.Id == currentRoomId);
+        return room != null ? $"# {room.Name}" : ChatConfig.GetRandomRoomHeader();
+    }
+
+    protected override string GetMessagePlaceholder() => messagePlaceholder;
+
+    protected override async Task OnInitializedChatAsync()
+    {
+        // Handle route parameter
+        if (RoomId.HasValue && RoomId.Value != Guid.Empty)
+        {
+            currentRoomId = RoomId.Value;
+        }
+
+        // Load room messages
+        messages = ChatService.GetRoomMessages(currentRoomId).ToList();
+        typingUsers = ChatService.GetTypingUsers(currentRoomId);
+        UpdateTypingIndicator();
+
+        // Set context for notifications
+        var room = rooms.FirstOrDefault(r => r.Id == currentRoomId);
+        currentContext = room?.Name ?? "lobby";
+        await UpdatePageTitleAsync();
+    }
+
+    protected override void SubscribeToEvents()
+    {
+        ChatService.OnMessageReceived += HandleMessageReceived;
+        ChatService.OnMessageUpdated += HandleMessageUpdated;
+        ChatService.OnMessageDeleted += HandleMessageDeleted;
+        ChatService.OnReactionChanged += HandleReactionChanged;
+        ChatService.OnTypingUsersChanged += HandleTypingUsersChanged;
+    }
+
+    protected override void UnsubscribeFromEvents()
+    {
+        ChatService.OnMessageReceived -= HandleMessageReceived;
+        ChatService.OnMessageUpdated -= HandleMessageUpdated;
+        ChatService.OnMessageDeleted -= HandleMessageDeleted;
+        ChatService.OnReactionChanged -= HandleReactionChanged;
+        ChatService.OnTypingUsersChanged -= HandleTypingUsersChanged;
+    }
+
+    #region Event Handlers
+
+    private async Task HandleMessageReceived(ChatMessage message)
+    {
+        await InvokeAsync(async () =>
+        {
+            if (message.RoomId == currentRoomId)
+            {
+                messages.Add(message);
+                StateHasChanged();
+                await ScrollToBottomAsync();
+            }
+
+            if (message.Username != Username && message.Username != "System")
+            {
+                await HandleNewMessageNotificationAsync(message.Username, isDM: false);
+            }
+        });
+    }
+
+    private async Task HandleMessageUpdated(ChatMessage message)
+    {
+        await InvokeAsync(() =>
+        {
+            if (message.RoomId == currentRoomId)
+            {
+                var index = messages.FindIndex(m => m.Id == message.Id);
+                if (index >= 0) messages[index] = message;
+                StateHasChanged();
+            }
+            return Task.CompletedTask;
+        });
+    }
+
+    private async Task HandleMessageDeleted(Guid messageId, Guid roomId)
+    {
+        await InvokeAsync(() =>
+        {
+            if (roomId == currentRoomId)
+            {
+                messages.RemoveAll(m => m.Id == messageId);
+                StateHasChanged();
+            }
+            return Task.CompletedTask;
+        });
+    }
+
+    private async Task HandleReactionChanged(ChatMessage message)
+    {
+        await InvokeAsync(() =>
+        {
+            if (message.RoomId == currentRoomId)
+            {
+                var index = messages.FindIndex(m => m.Id == message.Id);
+                if (index >= 0) messages[index] = message;
+                StateHasChanged();
+            }
+            return Task.CompletedTask;
+        });
+    }
+
+    private async Task HandleTypingUsersChanged(Guid roomId)
+    {
+        await InvokeAsync(() =>
+        {
+            if (roomId == currentRoomId)
+            {
+                typingUsers = ChatService.GetTypingUsers(roomId);
+                UpdateTypingIndicator();
+                StateHasChanged();
+            }
+            return Task.CompletedTask;
+        });
+    }
+
+    protected override void OnUserChanged(string user, bool isJoining)
+    {
+        if (currentRoomId == ChatService.LobbyId)
+        {
+            messages.Add(new ChatMessage(
+                ChatService.LobbyId,
+                "System",
+                ChatConfig.GetRandomSystemMessage(user, isJoining),
+                DateTime.UtcNow
+            ));
+            StateHasChanged();
+        }
+    }
+
+    protected override void OnRoomDeleted(Guid roomId)
+    {
+        if (currentRoomId == roomId)
+        {
+            currentRoomId = ChatService.LobbyId;
+            messages = ChatService.GetRoomMessages(currentRoomId).ToList();
+            Navigation.NavigateTo("/lobby", replace: true);
+        }
+    }
+
+    #endregion
+
+    #region Send Messages
+
+    protected override async Task SendMessageAsync()
+    {
+        await ChatService.SendMessageAsync(currentRoomId, Username, messageInput);
+    }
+
+    protected override async Task SendImagesAsync(List<string> imageUrls)
+    {
+        await ChatService.SendMessageAsync(currentRoomId, Username, "", imageUrls);
+    }
+
+    #endregion
+
+    #region Typing
+
+    protected override void UpdateTypingIndicator()
+    {
+        typingIndicatorText = ChatConfig.GetRandomTypingIndicator(typingUsers, Username);
+    }
+
+    protected override async Task StartTypingAsync()
+    {
+        if (!isTyping)
+        {
+            SetTyping(true);
+            await ChatService.StartTypingAsync(currentRoomId, Username);
+        }
+    }
+
+    protected override async Task StopTypingAsync()
+    {
+        if (isTyping)
+        {
+            SetTyping(false);
+            await ChatService.StopTypingAsync(currentRoomId, Username);
+            StopTypingTimer();
+        }
+    }
+
+    #endregion
+
+    #region Message Actions
+
+    private async Task ToggleReaction(Guid messageId, string emoji)
+    {
+        await ChatService.ToggleReactionAsync(messageId, currentRoomId, Username, emoji);
+    }
+
+    private void StartEdit(ChatMessage message)
+    {
+        editingMessageId = message.Id;
+        editContent = message.Content;
+    }
+
+    private async Task SaveEdit()
+    {
+        if (editingMessageId.HasValue && !string.IsNullOrWhiteSpace(editContent))
+        {
+            await ChatService.EditMessageAsync(editingMessageId.Value, currentRoomId, Username, editContent);
+        }
+        CancelEdit();
+    }
+
+    private void CancelEdit()
+    {
+        editingMessageId = null;
+        editContent = "";
+    }
+
+    private async Task DeleteMessage(Guid messageId)
+    {
+        await ChatService.DeleteMessageAsync(messageId, currentRoomId, Username);
+    }
+
+    #endregion
+}

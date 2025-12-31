@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Components.Server.Circuits;
 using Yap.Components;
 using Yap.Services;
 
@@ -12,6 +13,7 @@ builder.Services.AddSingleton<ChatService>();
 builder.Services.AddScoped<ChatConfigService>();
 builder.Services.AddScoped<EmojiService>();
 builder.Services.AddScoped<UserStateService>();
+builder.Services.AddScoped<CircuitHandler, ChatCircuitHandler>();
 
 var app = builder.Build();
 

@@ -1,0 +1,316 @@
+@page "/dm/{DmUser}"
+@inherits ChatBase
+
+<ChatMain PageTitle="@pageTitle"
+            HeaderTitle="@GetHeaderTitle()"
+            Username="@Username"
+            TotalUnreadDMs="@totalUnreadDMs"
+            OnlineCount="@onlineUsers.Count"
+            @bind-MessageText="messageInput"
+            Placeholder="@GetMessagePlaceholder()"
+            TypingIndicatorText="@typingIndicatorText"
+            Rooms="@rooms"
+            CurrentRoomId="@currentRoomId"
+            CurrentDMUser="@DmUser"
+            OnlineUsersHeader="@onlineUsersHeader"
+            IsAdmin="@isAdmin"
+            SidebarOpen="@sidebarOpen"
+            ShowImageModal="@showImageModal"
+            ModalGallery="@modalGallery"
+            ModalImageIndex="@modalImageIndex"
+            OnMailboxClick="OpenSidebarForDMs"
+            OnToggleSidebar="ToggleSidebar"
+            OnSend="HandleSendMessageAsync"
+            OnFilesSelected="HandleFileSelectedAsync"
+            OnInputChanged="HandleInputChangedAsync"
+            OnSwitchRoom="SwitchToRoomAsync"
+            OnDeleteRoom="DeleteRoomAsync"
+            OnOpenDM="OpenDM"
+            OnCreateRoom="CreateRoomAsync"
+            OnCloseModal="CloseImageModal"
+            GetUnreadDMCount="GetUnreadDMCount"
+            GetSortedUsers="GetSortedUsers">
+
+    @* DM system notice *@
+    <div class="message-group system-message">
+        <div class="message-content">
+            This is the beginning of your direct message history with <strong>@DmUser</strong>.
+            Messages are ephemeral and will disappear when either of you leaves.
+        </div>
+    </div>
+
+    @for (int i = 0; i < dmMessages.Count; i++)
+    {
+        var message = dmMessages[i];
+        var showHeader = i == 0 || dmMessages[i - 1].FromUser != message.FromUser;
+
+        <MessageItem Username="@message.FromUser"
+                     Content="@message.Content"
+                     Timestamp="@message.Timestamp"
+                     ShowHeader="@showHeader"
+                     IsOwn="@message.FromUser.Equals(Username, StringComparison.OrdinalIgnoreCase)"
+                     IsSystem="false"
+                     IsEdited="@message.IsEdited"
+                     IsHovered="@(hoveredDMId == message.Id)"
+                     IsEditing="@(editingDMId == message.Id)"
+                     HasImages="@message.HasImages"
+                     ImageUrls="@message.ImageUrls"
+                     ShowReactions="false"
+                     CurrentUsername="@Username"
+                     EditContent="@editDMContent"
+                     EditContentChanged="@(v => editDMContent = v)"
+                     OnMouseEnter="@(() => hoveredDMId = message.Id)"
+                     OnMouseLeave="@(() => hoveredDMId = null)"
+                     OnStartEdit="@(() => StartDMEdit(message))"
+                     OnSaveEdit="SaveDMEdit"
+                     OnCancelEdit="CancelDMEdit"
+                     OnDelete="@(() => DeleteDM(message.Id))"
+                     OnImageClick="@(args => ShowGallery(args.Images, args.Index))" />
+    }
+</ChatMain>
+
+@code {
+    [Parameter] public string DmUser { get; set; } = "";
+
+    // DM-specific state
+    private List<DirectMessage> dmMessages = new();
+    private List<string> dmTypingUsers = new();
+    private Guid? hoveredDMId = null;
+    private Guid? editingDMId = null;
+    private string editDMContent = "";
+    private bool initialized = false;
+    private string? previousDmUser = null;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Detect DM user parameter changes (navigating between DMs)
+        if (previousDmUser != null && !previousDmUser.Equals(DmUser, StringComparison.OrdinalIgnoreCase))
+        {
+            await SwitchDmContentAsync();
+        }
+        previousDmUser = DmUser;
+    }
+
+    private async Task SwitchDmContentAsync()
+    {
+        // Stop typing in old DM
+        if (isTyping && previousDmUser != null)
+        {
+            await ChatService.StopDMTypingAsync(Username, previousDmUser);
+            SetTyping(false);
+        }
+
+        // Load new DM messages
+        dmMessages = ChatService.GetDirectMessages(Username, DmUser).ToList();
+        dmTypingUsers = ChatService.GetDMTypingUsers(Username, DmUser);
+        UpdateTypingIndicator();
+
+        // Mark as read
+        MarkDMAsRead(DmUser);
+
+        // Update page title
+        currentContext = DmUser;
+        await UpdatePageTitleAsync();
+
+        await InvokeAsync(StateHasChanged);
+        await ScrollToBottomAsync();
+    }
+
+    protected override string GetHeaderTitle() => $"DM with {DmUser}";
+
+    protected override string GetMessagePlaceholder() => $"Message @{DmUser}";
+
+    protected override bool IsViewingDmWith(string user) =>
+        DmUser.Equals(user, StringComparison.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedChatAsync()
+    {
+        // Load DM messages
+        dmMessages = ChatService.GetDirectMessages(Username, DmUser).ToList();
+        dmTypingUsers = ChatService.GetDMTypingUsers(Username, DmUser);
+        UpdateTypingIndicator();
+
+        // Mark messages as read
+        MarkDMAsRead(DmUser);
+
+        // Set context for notifications
+        currentContext = DmUser;
+        await UpdatePageTitleAsync();
+
+        initialized = true;
+    }
+
+    protected override void SubscribeToEvents()
+    {
+        ChatService.OnDirectMessageReceived += HandleDirectMessageReceived;
+        ChatService.OnDirectMessageUpdated += HandleDirectMessageUpdated;
+        ChatService.OnDirectMessageDeleted += HandleDirectMessageDeleted;
+        ChatService.OnDMTypingUsersChanged += HandleDMTypingUsersChanged;
+    }
+
+    protected override void UnsubscribeFromEvents()
+    {
+        ChatService.OnDirectMessageReceived -= HandleDirectMessageReceived;
+        ChatService.OnDirectMessageUpdated -= HandleDirectMessageUpdated;
+        ChatService.OnDirectMessageDeleted -= HandleDirectMessageDeleted;
+        ChatService.OnDMTypingUsersChanged -= HandleDMTypingUsersChanged;
+    }
+
+    #region Event Handlers
+
+    private async Task HandleDirectMessageReceived(DirectMessage message)
+    {
+        await InvokeAsync(async () =>
+        {
+            var isForThisConversation =
+                (message.FromUser.Equals(Username, StringComparison.OrdinalIgnoreCase) &&
+                 message.ToUser.Equals(DmUser, StringComparison.OrdinalIgnoreCase)) ||
+                (message.FromUser.Equals(DmUser, StringComparison.OrdinalIgnoreCase) &&
+                 message.ToUser.Equals(Username, StringComparison.OrdinalIgnoreCase));
+
+            if (isForThisConversation)
+            {
+                dmMessages.Add(message);
+                ChatService.MarkDMsAsRead(Username, DmUser);
+                StateHasChanged();
+                await ScrollToBottomAsync();
+            }
+
+            if (!message.FromUser.Equals(Username, StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleNewMessageNotificationAsync(message.FromUser, isDM: true);
+            }
+        });
+    }
+
+    private async Task HandleDirectMessageUpdated(DirectMessage message)
+    {
+        await InvokeAsync(() =>
+        {
+            var otherUser = message.FromUser.Equals(Username, StringComparison.OrdinalIgnoreCase)
+                ? message.ToUser
+                : message.FromUser;
+
+            if (DmUser.Equals(otherUser, StringComparison.OrdinalIgnoreCase))
+            {
+                var index = dmMessages.FindIndex(m => m.Id == message.Id);
+                if (index >= 0) dmMessages[index] = message;
+                StateHasChanged();
+            }
+            return Task.CompletedTask;
+        });
+    }
+
+    private async Task HandleDirectMessageDeleted(Guid messageId, string conversationKey)
+    {
+        await InvokeAsync(() =>
+        {
+            var key = DirectMessage.GetConversationKey(Username, DmUser);
+            if (key == conversationKey)
+            {
+                dmMessages.RemoveAll(m => m.Id == messageId);
+                StateHasChanged();
+            }
+            return Task.CompletedTask;
+        });
+    }
+
+    private async Task HandleDMTypingUsersChanged(string conversationKey)
+    {
+        await InvokeAsync(() =>
+        {
+            var key = DirectMessage.GetConversationKey(Username, DmUser);
+            if (key == conversationKey)
+            {
+                dmTypingUsers = ChatService.GetDMTypingUsers(Username, DmUser);
+                UpdateTypingIndicator();
+                StateHasChanged();
+            }
+            return Task.CompletedTask;
+        });
+    }
+
+    protected override async Task OnUsersListChangedAsync()
+    {
+        // If the DM user left, go back to lobby (only after initialization)
+        if (initialized && !onlineUsers.Any(u => u.Equals(DmUser, StringComparison.OrdinalIgnoreCase)))
+        {
+            Navigation.NavigateTo("/lobby");
+        }
+    }
+
+    #endregion
+
+    #region Send Messages
+
+    protected override async Task SendMessageAsync()
+    {
+        await ChatService.SendDirectMessageAsync(Username, DmUser, messageInput);
+    }
+
+    protected override async Task SendImagesAsync(List<string> imageUrls)
+    {
+        await ChatService.SendDirectMessageAsync(Username, DmUser, "", imageUrls);
+    }
+
+    #endregion
+
+    #region Typing
+
+    protected override void UpdateTypingIndicator()
+    {
+        var others = dmTypingUsers.Where(u => !u.Equals(Username, StringComparison.OrdinalIgnoreCase)).ToList();
+        typingIndicatorText = others.Count > 0 ? $"{string.Join(", ", others)} is typing..." : "";
+    }
+
+    protected override async Task StartTypingAsync()
+    {
+        if (!isTyping)
+        {
+            SetTyping(true);
+            await ChatService.StartDMTypingAsync(Username, DmUser);
+        }
+    }
+
+    protected override async Task StopTypingAsync()
+    {
+        if (isTyping)
+        {
+            SetTyping(false);
+            await ChatService.StopDMTypingAsync(Username, DmUser);
+            StopTypingTimer();
+        }
+    }
+
+    #endregion
+
+    #region Message Actions
+
+    private void StartDMEdit(DirectMessage message)
+    {
+        editingDMId = message.Id;
+        editDMContent = message.Content;
+    }
+
+    private async Task SaveDMEdit()
+    {
+        if (editingDMId.HasValue && !string.IsNullOrWhiteSpace(editDMContent))
+        {
+            await ChatService.EditDirectMessageAsync(editingDMId.Value, Username, DmUser, editDMContent);
+        }
+        CancelDMEdit();
+    }
+
+    private void CancelDMEdit()
+    {
+        editingDMId = null;
+        editDMContent = "";
+    }
+
+    private async Task DeleteDM(Guid messageId)
+    {
+        await ChatService.DeleteDirectMessageAsync(messageId, Username, DmUser);
+    }
+
+    #endregion
+}

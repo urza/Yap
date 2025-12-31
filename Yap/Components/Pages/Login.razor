@@ -11,9 +11,9 @@
     <div class="username-form">
         <div class="input-wrapper">
             <input type="text" @bind="usernameInput" @bind:event="oninput" @bind:after="ValidateUsername"
-                   placeholder="@usernamePlaceholder" class="username-input @(hasError ? "invalid" : "")"
-                   @onkeypress="HandleUsernameKeyPress" maxlength="32" />
-            @if (hasError)
+                   placeholder="@usernamePlaceholder" class="username-input @(showError ? "invalid" : "")"
+                   @onkeypress="HandleUsernameKeyPress" @onblur="OnInputBlur" maxlength="32" />
+            @if (showError)
             {
                 <span class="validation-error">@errorMessage</span>
             }
@@ -32,12 +32,17 @@
     private string usernamePlaceholder = "";
     private string errorMessage = "";
     private bool hasError = false;
+    private bool isLengthError = false;
+    private bool hasBlurred = false;
 
     // Discord username rules: 2-32 chars, lowercase a-z, 0-9, underscore, period, no consecutive periods
     private static readonly System.Text.RegularExpressions.Regex ValidUsernameRegex =
         new(@"^[a-z0-9._]+$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
     private bool IsValid => !string.IsNullOrWhiteSpace(usernameInput) && !hasError;
+
+    // Only show length errors after user has blurred the input (finished typing)
+    private bool showError => hasError && (!isLengthError || hasBlurred);
 
     protected override void OnInitialized()
     {
@@ -57,6 +62,7 @@
     private void ValidateUsername()
     {
         hasError = false;
+        isLengthError = false;
         errorMessage = "";
 
         if (string.IsNullOrWhiteSpace(usernameInput))
@@ -73,6 +79,7 @@
         if (usernameInput.Length < 2)
         {
             hasError = true;
+            isLengthError = true;
             errorMessage = "Username must be at least 2 characters";
             return;
         }
@@ -105,6 +112,11 @@
     private async Task HandleUsernameKeyPress(KeyboardEventArgs e)
     {
         if (e.Key == "Enter" && IsValid) await JoinChat();
+    }
+
+    private void OnInputBlur()
+    {
+        hasBlurred = true;
     }
 
     private Task JoinChat()
