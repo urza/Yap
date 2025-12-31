@@ -1,32 +1,17 @@
-@page "/"
-@rendermode InteractiveServer
+@page "/chat"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inject ChatService ChatService
 @inject ChatConfigService ChatConfig
 @inject EmojiService EmojiService
+@inject UserStateService UserState
+@inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Environment
 @implements IAsyncDisposable
 
 <PageTitle>@pageTitle</PageTitle>
 
-@if (string.IsNullOrEmpty(username))
-{
-    <div class="username-container">
-        <h2>@welcomeMessage</h2>
-        <div class="username-form">
-            <input type="text" @bind="usernameInput" @bind:event="oninput"
-                   placeholder="@usernamePlaceholder" class="username-input"
-                   @onkeypress="HandleUsernameKeyPress" />
-            <button class="join-button" @onclick="JoinChat"
-                    disabled="@(string.IsNullOrWhiteSpace(usernameInput))">
-                @joinButtonText
-            </button>
-        </div>
-    </div>
-}
-else
-{
-    <div class="chat-container">
+<div class="chat-container">
         <div class="chat-header">
             <h3>@GetCurrentViewHeader()</h3>
             <div class="header-controls">
@@ -382,7 +367,6 @@ else
         </div>
         <div class="sidebar-backdrop @(sidebarOpen ? "show" : "")" @onclick="ToggleSidebar"></div>
     </div>
-}
 
 @if (showImageModal)
 {
@@ -410,8 +394,7 @@ else
     private string circuitId = Guid.NewGuid().ToString();
 
     // State
-    private string username = "";
-    private string usernameInput = "";
+    private string username => UserState.Username ?? "";
     private string messageInput = "";
     private List<ChatMessage> messages = new();
     private List<string> onlineUsers = new();
@@ -461,23 +444,34 @@ else
     private int totalUnreadDMs = 0;
 
     // UI Text
-    private string welcomeMessage = "";
-    private string joinButtonText = "";
-    private string usernamePlaceholder = "";
     private string messagePlaceholder = "";
     private string connectionStatus = "";
     private string onlineUsersHeader = "";
     private string typingIndicatorText = "";
+    private bool initialized = false;
 
     protected override void OnInitialized()
     {
-        welcomeMessage = ChatConfig.GetRandomWelcomeMessage();
-        joinButtonText = ChatConfig.GetRandomJoinButtonText();
-        usernamePlaceholder = ChatConfig.GetRandomUsernamePlaceholder();
         messagePlaceholder = ChatConfig.GetRandomMessagePlaceholder();
         connectionStatus = ChatConfig.GetRandomConnectionStatus(true);
         UpdateOnlineUsersHeader();
         pageTitle = ChatConfig.ProjectName;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Redirect to login if not logged in (check here to avoid prerender issues)
+            if (!UserState.IsLoggedIn)
+            {
+                Navigation.NavigateTo("/");
+                return;
+            }
+
+            initialized = true;
+            await InitializeChat();
+        }
     }
 
     private string GetCurrentViewHeader()
@@ -496,11 +490,6 @@ else
         return messagePlaceholder;
     }
 
-    private async Task HandleUsernameKeyPress(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter") await JoinChat();
-    }
-
     private bool shouldPreventDefault = false;
 
     private async Task HandleMessageKeyDown(KeyboardEventArgs e)
@@ -515,12 +504,8 @@ else
         // No else needed - auto-resize is handled by OnMessageInputChanged
     }
 
-    private async Task JoinChat()
+    private async Task InitializeChat()
     {
-        if (string.IsNullOrWhiteSpace(usernameInput)) return;
-
-        username = usernameInput.Trim();
-
         // Subscribe to events
         ChatService.OnMessageReceived += HandleMessageReceived;
         ChatService.OnMessageUpdated += HandleMessageUpdated;

@@ -11,6 +11,7 @@ builder.Services.AddRazorComponents()
 builder.Services.AddSingleton<ChatService>();
 builder.Services.AddScoped<ChatConfigService>();
 builder.Services.AddScoped<EmojiService>();
+builder.Services.AddScoped<UserStateService>();
 
 var app = builder.Build();
 
