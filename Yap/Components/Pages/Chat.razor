@@ -1,4 +1,7 @@
 @page "/chat"
+@page "/lobby"
+@page "/room/{RoomId:guid}"
+@page "/dm/{DmUser}"
 @inject ChatService ChatService
 @inject ChatConfigService ChatConfig
 @inject EmojiService EmojiService
@@ -385,6 +388,10 @@
 }
 
 @code {
+    // Route parameters (for URL display only, deep linking not yet supported)
+    [Parameter] public Guid? RoomId { get; set; }
+    [Parameter] public string? DmUser { get; set; }
+
     // Reaction emoji constants
     private const string HEART = "❤️";
     private const string LAUGH = "😂";
@@ -540,6 +547,9 @@
         await SetupTabNotifications();
         await UpdatePageTitle();
 
+        // Set initial URL
+        UpdateUrl();
+
         await InvokeAsync(StateHasChanged);
         await ScrollToBottom();
 
@@ -562,6 +572,9 @@
         // Reset unread count when switching
         unreadCount = 0;
         await UpdatePageTitle();
+
+        // Update URL
+        UpdateUrl();
 
         // Auto-close sidebar on mobile
         sidebarOpen = false;
@@ -626,6 +639,9 @@
         // Reset unread count
         unreadCount = 0;
         await UpdatePageTitle();
+
+        // Update URL
+        UpdateUrl();
 
         // Auto-close sidebar on mobile
         sidebarOpen = false;
@@ -780,6 +796,7 @@
                 dmMessages.Clear();
                 messages = ChatService.GetRoomMessages(currentRoomId).ToList();
                 await UpdatePageTitle();
+                UpdateUrl();
             }
 
             StateHasChanged();
@@ -821,6 +838,7 @@
             {
                 currentRoomId = ChatService.LobbyId;
                 messages = ChatService.GetRoomMessages(currentRoomId).ToList();
+                UpdateUrl();
             }
 
             StateHasChanged();
@@ -1324,6 +1342,25 @@
         {
             typingIndicatorText = ChatConfig.GetRandomTypingIndicator(typingUsers, username);
         }
+    }
+
+    private void UpdateUrl()
+    {
+        string url;
+        if (currentDMUser != null)
+        {
+            url = $"/dm/{Uri.EscapeDataString(currentDMUser)}";
+        }
+        else if (currentRoomId == ChatService.LobbyId)
+        {
+            url = "/lobby";
+        }
+        else
+        {
+            url = $"/room/{currentRoomId}";
+        }
+
+        Navigation.NavigateTo(url, forceLoad: false, replace: true);
     }
 
     #endregion
