@@ -1,0 +1,116 @@
+.chat-header {
+    background: #202225;
+    color: #fff;
+    padding: 0.5rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 1px 0 rgba(4,4,5,0.2),0 1.5px 0 rgba(6,6,7,0.05),0 2px 0 rgba(4,4,5,0.05);
+}
+
+.chat-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+/* Mailbox button */
+.mailbox-button {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: #b9bbbe;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.mailbox-button:hover {
+    background: rgba(79, 84, 92, 0.4);
+    color: #dcddde;
+}
+
+.mailbox-button.has-unread {
+    color: #faa61a;
+}
+
+.mailbox-button.has-unread:hover {
+    color: #fcc24f;
+}
+
+.mailbox-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: #ed4245;
+    color: white;
+    font-size: 0.625rem;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 8px;
+    min-width: 14px;
+    text-align: center;
+    line-height: 1.2;
+}
+
+.users-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: transparent;
+    border: none;
+    color: #b9bbbe;
+    cursor: pointer;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.users-toggle:hover {
+    background: rgba(79, 84, 92, 0.4);
+    color: #dcddde;
+}
+
+.users-toggle svg {
+    width: 20px;
+    height: 20px;
+}
+
+.online-count {
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.connection-status {
+    font-size: 0.875rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 3px;
+}
+
+.connection-status.connected {
+    background: #3ba55c;
+}
+
+.connection-status.disconnected {
+    background: #ed4245;
+}
+
+@media (max-width: 600px) {
+    .chat-header {
+        padding: 0.75rem 1rem;
+    }
+
+    .chat-header h3 {
+        font-size: 1.25rem;
+    }
+}

@@ -14,38 +14,12 @@
 <PageTitle>@pageTitle</PageTitle>
 
 <div class="chat-container">
-    <div class="chat-header">
-        <h3>@GetCurrentViewHeader()</h3>
-        <div class="header-controls">
-            <span class="connection-status connected">@username</span>
-            <button class="mailbox-button @(totalUnreadDMs > 0 ? "has-unread" : "")" @onclick="OpenSidebarForDMs" title="@(totalUnreadDMs > 0 ? $"{totalUnreadDMs} unread messages" : "Messages")">
-                @if (totalUnreadDMs > 0)
-                {
-                    @* Filled inbox icon *@
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5v-3h3.56c.69 1.19 1.97 2 3.45 2s2.75-.81 3.45-2H19v3zm0-5h-4.99c0 1.1-.9 2-2 2s-2-.9-2-2H5V5h14v9z"/>
-                    </svg>
-                    <span class="mailbox-badge">@totalUnreadDMs</span>
-                }
-                else
-                {
-                    @* Outline inbox icon *@
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M22 12h-6l-2 3h-4l-2-3H2"/>
-                        <path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/>
-                    </svg>
-                }
-            </button>
-            <button class="users-toggle" @onclick="ToggleSidebar" title="Toggle sidebar">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M14 8.00598C14 10.211 12.206 12.006 10 12.006C7.795 12.006 6 10.211 6 8.00598C6 5.80098 7.795 4.00598 10 4.00598C12.206 4.00598 14 5.80098 14 8.00598ZM2 19.006C2 15.473 5.29 13.006 10 13.006C14.711 13.006 18 15.473 18 19.006V20.006H2V19.006Z"/>
-                    <path d="M20.0001 20.006H22.0001V19.006C22.0001 16.4433 20.2697 14.4415 17.5213 13.5352C19.0621 14.9127 20.0001 16.8059 20.0001 19.006V20.006Z"/>
-                    <path d="M14.8834 11.9077C16.6657 11.5044 18.0001 9.9077 18.0001 8.00598C18.0001 5.96916 16.4693 4.28218 14.4971 4.0367C15.4322 5.09511 16.0001 6.48524 16.0001 8.00598C16.0001 9.44888 15.4889 10.7742 14.6378 11.8102C14.7203 11.8734 14.8022 11.9388 14.8834 11.9077Z"/>
-                </svg>
-                <span class="online-count">@onlineUsers.Count</span>
-            </button>
-        </div>
-    </div>
+    <ChatHeader Title="@GetCurrentViewHeader()"
+                Username="@username"
+                TotalUnreadDMs="@totalUnreadDMs"
+                OnlineCount="@onlineUsers.Count"
+                OnMailboxClick="OpenSidebarForDMs"
+                OnToggleSidebar="ToggleSidebar" />
 
     <div class="chat-main">
         <div class="messages-container">
