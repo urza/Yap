@@ -30,12 +30,15 @@
                      IsEditing="@(editingDMId == message.Id)"
                      HasImages="@message.HasImages"
                      ImageUrls="@message.ImageUrls"
-                     ShowReactions="false"
+                     Reactions="@message.Reactions"
+                     ShowReactions="true"
                      CurrentUsername="@Username"
+                     RecentEmojis="@recentEmojis"
                      EditContent="@editDMContent"
                      EditContentChanged="@(v => editDMContent = v)"
                      OnMouseEnter="@(() => hoveredDMId = message.Id)"
                      OnMouseLeave="@(() => hoveredDMId = null)"
+                     OnReaction="@(emoji => ToggleDMReaction(message.Id, emoji))"
                      OnStartEdit="@(() => StartDMEdit(message))"
                      OnSaveEdit="SaveDMEdit"
                      OnCancelEdit="CancelDMEdit"
@@ -92,6 +95,7 @@
         ChatService.OnDirectMessageReceived += HandleDirectMessageReceived;
         ChatService.OnDirectMessageUpdated += HandleDirectMessageUpdated;
         ChatService.OnDirectMessageDeleted += HandleDirectMessageDeleted;
+        ChatService.OnDirectMessageReactionChanged += HandleDirectMessageReactionChanged;
         ChatService.OnUsersListChanged += HandleUsersListChanged;
 
         initialized = true;
@@ -171,6 +175,23 @@
         });
     }
 
+    private async Task HandleDirectMessageReactionChanged(DirectMessage message)
+    {
+        await InvokeAsync(() =>
+        {
+            var otherUser = message.FromUser.Equals(Username, StringComparison.OrdinalIgnoreCase)
+                ? message.ToUser
+                : message.FromUser;
+
+            if (DmUser.Equals(otherUser, StringComparison.OrdinalIgnoreCase))
+            {
+                var index = dmMessages.FindIndex(m => m.Id == message.Id);
+                if (index >= 0) dmMessages[index] = message;
+                StateHasChanged();
+            }
+        });
+    }
+
     private async Task HandleUsersListChanged()
     {
         await InvokeAsync(() =>
@@ -190,6 +211,12 @@
     #endregion
 
     #region Message Actions
+
+    private async Task ToggleDMReaction(Guid messageId, string emoji)
+    {
+        await AddRecentEmojiAsync(emoji);
+        await ChatService.ToggleDirectMessageReactionAsync(messageId, Username, DmUser, Username, emoji);
+    }
 
     private void StartDMEdit(DirectMessage message)
     {
@@ -224,6 +251,7 @@
         ChatService.OnDirectMessageReceived -= HandleDirectMessageReceived;
         ChatService.OnDirectMessageUpdated -= HandleDirectMessageUpdated;
         ChatService.OnDirectMessageDeleted -= HandleDirectMessageDeleted;
+        ChatService.OnDirectMessageReactionChanged -= HandleDirectMessageReactionChanged;
         ChatService.OnUsersListChanged -= HandleUsersListChanged;
     }
 }

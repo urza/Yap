@@ -11,6 +11,9 @@ public class DirectMessage
     public bool IsEdited { get; set; }
     public bool IsRead { get; set; }
 
+    // Key = emoji, Value = set of usernames who reacted
+    public Dictionary<string, HashSet<string>> Reactions { get; } = new();
+
     public bool HasImages => ImageUrls.Count > 0;
 
     public DirectMessage(string fromUser, string toUser, string content, DateTime timestamp, List<string>? imageUrls = null)

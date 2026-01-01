@@ -43,6 +43,7 @@ public class ChatService
     public event Func<DirectMessage, Task>? OnDirectMessageReceived;
     public event Func<DirectMessage, Task>? OnDirectMessageUpdated;
     public event Func<Guid, string, Task>? OnDirectMessageDeleted; // messageId, conversationKey
+    public event Func<DirectMessage, Task>? OnDirectMessageReactionChanged;
     public event Func<string, Task>? OnDMTypingUsersChanged; // conversationKey
 
     // Admin events
@@ -522,6 +523,40 @@ public class ChatService
             await OnDirectMessageDeleted.Invoke(messageId, key);
 
         return true;
+    }
+
+    public async Task ToggleDirectMessageReactionAsync(Guid messageId, string user1, string user2, string username, string emoji)
+    {
+        var key = DirectMessage.GetConversationKey(user1, user2);
+        if (!_directMessages.TryGetValue(key, out var messages))
+            return;
+
+        DirectMessage? message;
+        lock (_dmLock)
+        {
+            message = messages.FirstOrDefault(m => m.Id == messageId);
+        }
+
+        if (message == null)
+            return;
+
+        lock (message.Reactions)
+        {
+            if (!message.Reactions.ContainsKey(emoji))
+                message.Reactions[emoji] = new HashSet<string>();
+
+            if (message.Reactions[emoji].Contains(username))
+                message.Reactions[emoji].Remove(username);
+            else
+                message.Reactions[emoji].Add(username);
+
+            // Clean up empty reaction sets
+            if (message.Reactions[emoji].Count == 0)
+                message.Reactions.Remove(emoji);
+        }
+
+        if (OnDirectMessageReactionChanged != null)
+            await OnDirectMessageReactionChanged.Invoke(message);
     }
 
     /// <summary>
