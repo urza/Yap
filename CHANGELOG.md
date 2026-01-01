@@ -2,6 +2,44 @@
 
 All notable changes to Yap are documented in this file.
 
+## [2.5.0] - 2026-01-01
+
+### User Status & Sign Out
+
+#### New Features
+- **User status system** - Set your presence status with visual indicators
+  - Online (green dot) - Default active state
+  - Away (orange dot) - Manually set or for future auto-away
+  - Invisible (gray dot) - Appear offline but still connected
+- **Status dropdown** - Click username in header to open status selector
+  - Shows current status with checkmark
+  - Settings option (placeholder for future)
+  - Sign out option
+- **Sign out functionality** - Explicit sign out clears session and returns to login
+- **Status indicators in sidebar** - See everyone's status at a glance
+- **Unified Channel model** - Rooms and DMs now use same `Channel` class with factory methods
+- **Configurable message history** - `MaxMessagesPerChannel` setting in appsettings.json
+
+#### Technical Changes
+- Added `UserStatus` enum (Online, Away, Invisible)
+- Added `Status` property to `UserStateService` with `[PersistentState]`
+- Added `UserSession` record now includes `Status`
+- Added `OnUserStatusChanged` event to `ChatService`
+- Added `SetUserStatusAsync()` and `GetUserStatus()` methods
+- Added `GetAllUsersWithStatus()` for sidebar display
+- Renamed `CircuitId` to `SessionId` for clarity (it's not the Blazor circuit ID)
+- Replaced `Room` and `DirectMessage` models with unified `Channel` model
+- `Channel.CreateRoom()` and `Channel.CreateDM()` factory methods
+
+#### UI Changes
+- Username in header is now a button with dropdown menu
+- Status button shows current status color (green/orange/gray)
+- Dropdown includes status options, settings placeholder, and sign out
+- Sidebar users show colored status dots
+- Click-outside closes the dropdown
+
+---
+
 ## [2.4.0] - 2026-01-01
 
 ### Resilient Reconnection & Persistent State (.NET 10)
@@ -30,7 +68,7 @@ All notable changes to Yap are documented in this file.
 - **Max persisted states**: 5000 (default was 1000)
 
 #### Technical Changes
-- Added `[PersistentState]` attribute to `UserStateService.Username` and `UserStateService.CircuitId`
+- Added `[PersistentState]` attribute to `UserStateService.Username` and `UserStateService.SessionId`
 - Added `[PersistentState]` attribute to `ChatNavigationState` properties (Title, CurrentRoomId, CurrentDmUser, SidebarOpen)
 - Registered services with `RegisterPersistentService<T>(RenderMode.InteractiveServer)` in Program.cs
 - Configured `CircuitOptions.PersistedCircuitInMemoryRetentionPeriod` and related options

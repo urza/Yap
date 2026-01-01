@@ -17,6 +17,7 @@ Access at `http://localhost:5221` - it's up to you how to make this accessible f
 
 - **No registration required** - Just log in with username
 - **No database** - Messages live in memory and wipe out with app reset
+- **User status** - Online (green), Away (orange), Invisible (gray) with status selector
 - **Multiple rooms** - Create and switch between chat rooms (admin only)
 - **Direct messages** - Private conversations between users
 - **Image sharing** - Upload image(s) and see them in inline gallery
@@ -25,9 +26,9 @@ Access at `http://localhost:5221` - it's up to you how to make this accessible f
 - **Reactions** - React to messages with emojis
 - **Customizable labels in config** - Fun defaults
 - **Tab notifications** - Unread count in browser tab + audio notifications
-- **Chat history** - Last 100 messages per room
+- **Chat history** - Configurable messages per channel (default 100)
 - **Typing indicators** - See who's typing
-- **Online users** - See who's currently in the chat
+- **Online users** - See who's currently in the chat with status indicators
 - **Resilient reconnection** - Auto-reconnect with session restoration
 - **Dark theme** - Discord-inspired UI
 - **Mobile responsive** - Works great on all devices with collapsible sidebar
@@ -105,6 +106,7 @@ Edit `appsettings.json` to customize:
     "ProjectName": "Yap",
     "RoomName": "lobby",
     "ClearUploadsOnStart": true,
+    "MaxMessagesPerChannel": 100,
     "FunnyTexts": {
       "WelcomeMessages": ["welcome to {0}", "you ready?"],
       "JoinButtonTexts": ["lessgo", "slide in", "hop on"],

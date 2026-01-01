@@ -27,8 +27,8 @@ Yap/
 │   │   ├── ChatBase.cs                # Shared base class for chat pages
 │   │   ├── Error.razor
 │   │   └── NotFound.razor
-│   ├── ChatHeader.razor               # Header with username, mailbox, user count
-│   ├── ChatSidebar.razor              # Rooms list, users list, DM indicators
+│   ├── ChatHeader.razor               # Header with status dropdown, mailbox, user count
+│   ├── ChatSidebar.razor              # Rooms list, users list with status dots
 │   ├── MessageInput.razor             # Message input with typing, file upload
 │   ├── MessageItem.razor              # Individual message display
 │   ├── App.razor                      # Root component with Blazor.start() config
@@ -43,8 +43,8 @@ Yap/
 │   └── EmojiService.cs                # Twemoji rendering
 ├── Models/
 │   ├── ChatMessage.cs                 # Message record type
-│   ├── DirectMessage.cs               # DM record type
-│   └── Room.cs                        # Chat room model
+│   ├── Channel.cs                     # Unified room/DM channel model
+│   └── UserStatus.cs                  # User presence status enum
 ├── wwwroot/
 │   ├── js/chat.js                     # Tab notification helpers
 │   ├── uploads/                       # Image storage
@@ -77,13 +77,15 @@ No custom SignalR hub needed - Blazor's built-in circuit handles everything.
 ### Key Services
 
 **ChatService.cs** (Singleton)
-- Manages online users, messages, rooms, DMs, typing indicators, reactions
+- Manages online users, messages, channels (rooms/DMs), typing indicators, reactions
+- Tracks user status (Online, Away, Invisible)
 - First user to join becomes admin (can create/delete rooms)
 - Uses `ConcurrentDictionary` for thread-safe state
-- Exposes events: `OnMessageReceived`, `OnMessageUpdated`, `OnMessageDeleted`, `OnReactionChanged`, `OnUserChanged`, `OnUsersListChanged`, `OnTypingUsersChanged`, `OnAdminChanged`, `OnRoomCreated`, `OnRoomDeleted`, `OnDirectMessageReceived`
+- Configurable max messages per channel via `appsettings.json`
+- Exposes events: `OnMessageReceived`, `OnMessageUpdated`, `OnMessageDeleted`, `OnReactionChanged`, `OnUserChanged`, `OnUsersListChanged`, `OnUserStatusChanged`, `OnTypingUsersChanged`, `OnAdminChanged`, `OnChannelCreated`, `OnChannelDeleted`
 
 **UserStateService.cs** (Scoped + Persistent)
-- Holds current user's identity (Username, CircuitId)
+- Holds current user's identity (Username, SessionId, Status)
 - Properties marked with `[PersistentState]` survive circuit eviction
 
 **ChatNavigationState.cs** (Scoped + Persistent)
@@ -137,6 +139,7 @@ All settings in `appsettings.json`:
     "ProjectName": "Yap",
     "RoomName": "lobby",
     "ClearUploadsOnStart": true,
+    "MaxMessagesPerChannel": 100,
     "FunnyTexts": {
       "WelcomeMessages": [...],
       "JoinButtonTexts": [...],
@@ -169,6 +172,8 @@ docker run -p 8080:8080 -v ./uploads:/app/wwwroot/uploads yap
 - **Multiple rooms** - Create and switch between chat rooms (admin only)
 - **Admin system** - First user becomes admin, can manage rooms (🛡️ badge)
 - **Direct messages** - Private conversations with ephemeral notice
+- **User status** - Online (green), Away (orange), Invisible (gray) with dropdown selector
+- **Sign out** - Explicit sign out clears session and returns to login
 - **Mailbox indicator** - Unread DM count in header, visible even with sidebar closed
 - **Message actions** - Discord-style hover popup with reactions, edit, delete
 - **Reactions** - ❤️ 😂 🥹 reactions on any message, shown as pills with counts
@@ -177,8 +182,8 @@ docker run -p 8080:8080 -v ./uploads:/app/wwwroot/uploads yap
 - **Multiline input** - Discord-style auto-expanding textarea (Shift+Enter for newlines)
 - **Emoji support** - Twemoji rendering
 - **Tab notifications** - Unread count in title + audio
-- **Online users** - Live user list, sorted by recent DM activity
-- **Chat history** - Last 100 messages preserved per room
+- **Online users** - Live user list with status dots, sorted by recent DM activity
+- **Chat history** - Configurable max messages per channel (default 100)
 - **Typing indicators** - See who's typing
 - **Mobile responsive** - Collapsible sidebar
 - **Resilient reconnection** - Auto-reconnect with persistent state restoration

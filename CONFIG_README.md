@@ -18,6 +18,7 @@ All configuration is in `Yap/appsettings.json`.
     "ProjectName": "Yap",
     "RoomName": "lobby",
     "ClearUploadsOnStart": true,
+    "MaxMessagesPerChannel": 100,
     "FunnyTexts": {
       // Text variation collections
     }
@@ -30,6 +31,7 @@ All configuration is in `Yap/appsettings.json`.
 | `ProjectName` | string | "Yap" | App name shown in UI |
 | `RoomName` | string | "lobby" | Default chat room name |
 | `ClearUploadsOnStart` | bool | true | Delete all uploaded files when app starts |
+| `MaxMessagesPerChannel` | int | 100 | Maximum messages kept in memory per channel |
 
 ### Text Collections
 
