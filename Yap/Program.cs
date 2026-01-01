@@ -28,7 +28,8 @@ builder.Services.AddRazorComponents()
         // This allows seamless reconnection if user returns within 1 hour
         // (e.g., laptop sleep, switching apps on phone).
         // Tradeoff: Each retained circuit uses server memory.
-        options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromHours(4);
+        //options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromHours(4);
+        options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromSeconds(10);
 
         // Maximum number of disconnected circuits to retain (default: 100).
         // Increase this if you expect many concurrent users going idle.
