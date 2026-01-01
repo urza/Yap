@@ -1,12 +1,52 @@
 @inject ChatService ChatService
 @inject UserStateService UserState
 @inject ChatNavigationState NavState
+@inject NavigationManager Navigation
 @implements IDisposable
 
 <div class="chat-header">
     <h3>@NavState.Title</h3>
     <div class="header-controls">
-        <span class="connection-status connected">@UserState.Username</span>
+        <div class="status-dropdown-container">
+            <button class="status-button status-@UserState.Status.ToString().ToLower()" @onclick="ToggleDropdown" @onclick:stopPropagation="true">
+                <span class="status-indicator"></span>
+                <span class="status-username">@UserState.Username</span>
+                <svg class="dropdown-arrow" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M7 10l5 5 5-5z"/>
+                </svg>
+            </button>
+            @if (showDropdown)
+            {
+                <div class="dropdown-backdrop" @onclick="CloseDropdown"></div>
+                <div class="status-dropdown">
+                    <button class="dropdown-item @(UserState.Status == UserStatus.Online ? "active" : "")" @onclick="() => SetStatus(UserStatus.Online)">
+                        <span class="status-dot online"></span>
+                        <span>Online</span>
+                    </button>
+                    <button class="dropdown-item @(UserState.Status == UserStatus.Away ? "active" : "")" @onclick="() => SetStatus(UserStatus.Away)">
+                        <span class="status-dot away"></span>
+                        <span>Away</span>
+                    </button>
+                    <button class="dropdown-item @(UserState.Status == UserStatus.Invisible ? "active" : "")" @onclick="() => SetStatus(UserStatus.Invisible)">
+                        <span class="status-dot invisible"></span>
+                        <span>Invisible</span>
+                    </button>
+                    <div class="dropdown-divider"></div>
+                    <button class="dropdown-item" disabled>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+                        </svg>
+                        <span>Settings</span>
+                    </button>
+                    <button class="dropdown-item signout" @onclick="SignOut">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+                        </svg>
+                        <span>Sign Out</span>
+                    </button>
+                </div>
+            }
+        </div>
         <button class="mailbox-button @(unreadCount > 0 ? "has-unread" : "")"
                 @onclick="HandleMailboxClick"
                 title="@(unreadCount > 0 ? $"{unreadCount} unread messages" : "Messages")">
@@ -41,6 +81,7 @@
 @code {
     private int unreadCount = 0;
     private int onlineCount = 0;
+    private bool showDropdown = false;
 
     protected override void OnInitialized()
     {
@@ -52,6 +93,45 @@
         ChatService.OnMessageReceived += HandleMessageReceived;
         ChatService.OnUsersListChanged += HandleUsersListChanged;
         NavState.OnChange += HandleNavStateChanged;
+    }
+
+    private void ToggleDropdown()
+    {
+        showDropdown = !showDropdown;
+    }
+
+    private void CloseDropdown()
+    {
+        showDropdown = false;
+    }
+
+    private async Task SetStatus(UserStatus status)
+    {
+        UserState.Status = status;
+        if (UserState.SessionId != null)
+        {
+            await ChatService.SetUserStatusAsync(UserState.SessionId, status);
+        }
+        showDropdown = false;
+    }
+
+    private async Task SignOut()
+    {
+        showDropdown = false;
+
+        // Remove from chat service
+        if (UserState.SessionId != null)
+        {
+            await ChatService.RemoveUserAsync(UserState.SessionId);
+        }
+
+        // Clear user state
+        UserState.Username = null;
+        UserState.SessionId = null;
+        UserState.Status = UserStatus.Online;
+
+        // Navigate to login
+        Navigation.NavigateTo("/", forceLoad: true);
     }
 
     private void RefreshUnreadCount()

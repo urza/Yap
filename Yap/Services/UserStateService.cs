@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using Yap.Models;
 
 namespace Yap.Services;
 
@@ -36,6 +37,12 @@ public class UserStateService
     /// </summary>
     [PersistentState]
     public string? SessionId { get; set; }
+
+    /// <summary>
+    /// User's presence status (Online, Away, Invisible). Persisted across circuit evictions.
+    /// </summary>
+    [PersistentState]
+    public UserStatus Status { get; set; } = UserStatus.Online;
 
     /// <summary>
     /// True if the user has entered a username (logged in).

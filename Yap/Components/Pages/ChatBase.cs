@@ -57,7 +57,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
             if (!UserState.IsJoinedChat)
             {
                 UserState.SessionId = Guid.NewGuid().ToString();
-                await ChatService.AddUserAsync(UserState.SessionId, Username);
+                await ChatService.AddUserAsync(UserState.SessionId, Username, UserState.Status);
             }
 
             // Setup tab notifications

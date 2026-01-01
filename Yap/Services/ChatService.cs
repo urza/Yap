@@ -1,17 +1,25 @@
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Configuration;
 using Yap.Models;
 
 namespace Yap.Services;
 
+/// <summary>
+/// Singleton service that holds all chat state and broadcasts changes via events.
+/// Components subscribe to events and call StateHasChanged() to update their UI.
+/// All state is in-memory - lost on server restart.
+/// </summary>
 public class ChatService
 {
     private readonly ConcurrentDictionary<string, UserSession> _users = new();
-    private readonly int _maxMessages = 100;
+    private readonly int _maxMessagesPerChannel; // Each channel (room or DM) keeps only the last X messages in memory. Older ones are discarded.
 
     // Channels (rooms and DMs)
     private readonly ConcurrentDictionary<Guid, Channel> _channels = new();
     private readonly ConcurrentDictionary<Guid, List<ChatMessage>> _channelMessages = new();
     private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<string, DateTime>> _channelTypingUsers = new();
+    // Protects List<ChatMessage> operations (List is not thread-safe).
+    // Fine for small scale; for larger scale consider per-channel locking or ConcurrentBag.
     private readonly object _channelLock = new();
 
     // Admin
@@ -37,10 +45,15 @@ public class ChatService
     // Admin events
     public event Func<string?, Task>? OnAdminChanged;
 
-    public record UserSession(string Username, string SessionId);
+    // User status events
+    public event Func<string, UserStatus, Task>? OnUserStatusChanged; // username, newStatus
 
-    public ChatService()
+    public record UserSession(string Username, string SessionId, UserStatus Status = UserStatus.Online);
+
+    public ChatService(IConfiguration configuration)
     {
+        _maxMessagesPerChannel = configuration.GetValue("ChatSettings:MaxMessagesPerChannel", 100);
+
         // Create default lobby channel
         var lobby = Channel.CreateRoom("lobby", createdBy: null, isDefault: true);
         LobbyId = lobby.Id;
@@ -174,9 +187,9 @@ public class ChatService
 
     #region User Management
 
-    public async Task AddUserAsync(string circuitId, string username)
+    public async Task AddUserAsync(string sessionId, string username, UserStatus status = UserStatus.Online)
     {
-        _users[circuitId] = new UserSession(username, circuitId);
+        _users[sessionId] = new UserSession(username, sessionId, status);
 
         // First user becomes admin
         await TrySetFirstAdmin(username);
@@ -185,6 +198,27 @@ public class ChatService
             await OnUserChanged.Invoke(username, true);
         if (OnUsersListChanged != null)
             await OnUsersListChanged.Invoke();
+    }
+
+    public async Task SetUserStatusAsync(string sessionId, UserStatus status)
+    {
+        if (!_users.TryGetValue(sessionId, out var session))
+            return;
+
+        // Update with new status
+        _users[sessionId] = session with { Status = status };
+
+        if (OnUserStatusChanged != null)
+            await OnUserStatusChanged.Invoke(session.Username, status);
+        if (OnUsersListChanged != null)
+            await OnUsersListChanged.Invoke();
+    }
+
+    public UserStatus? GetUserStatus(string username)
+    {
+        var session = _users.Values.FirstOrDefault(u =>
+            u.Username.Equals(username, StringComparison.OrdinalIgnoreCase));
+        return session?.Status;
     }
 
     public async Task RemoveUserAsync(string circuitId)
@@ -225,8 +259,21 @@ public class ChatService
         }
     }
 
+    /// <summary>
+    /// Gets all connected users (including invisible). For internal use.
+    /// </summary>
     public List<string> GetOnlineUsers() =>
         _users.Values.Select(u => u.Username).Distinct().ToList();
+
+    /// <summary>
+    /// Gets all connected users with their status for UI display.
+    /// Invisible users appear with gray dot (like "appears offline").
+    /// </summary>
+    public List<(string Username, UserStatus Status)> GetAllUsersWithStatus() =>
+        _users.Values
+            .GroupBy(u => u.Username, StringComparer.OrdinalIgnoreCase)
+            .Select(g => (g.Key, g.First().Status))
+            .ToList();
 
     public bool IsUsernameTaken(string username) =>
         _users.Values.Any(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase));
@@ -250,7 +297,7 @@ public class ChatService
             messages.Add(message);
 
             // Remove old messages if we exceed the limit
-            while (messages.Count > _maxMessages)
+            while (messages.Count > _maxMessagesPerChannel)
             {
                 messages.RemoveAt(0);
             }

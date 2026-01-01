@@ -50,16 +50,18 @@
     <div class="sidebar-section">
         <h4>@onlineUsersHeader</h4>
         <div class="users-list">
-            @foreach (var user in GetSortedUsers())
+            @foreach (var (user, status) in GetSortedUsersWithStatus())
             {
                 var isCurrentUser = user.Equals(Username, StringComparison.OrdinalIgnoreCase);
                 var isUserAdmin = ChatService.IsAdmin(user);
                 var userUnreadCount = isCurrentUser ? 0 : GetUnreadDMCount(user);
                 var isActiveDM = NavState.CurrentDmUser != null && NavState.CurrentDmUser.Equals(user, StringComparison.OrdinalIgnoreCase);
+                var statusClass = status.ToString().ToLower();
 
                 <div class="user-item @(isCurrentUser ? "current-user" : "") @(isActiveDM ? "active-dm" : "")"
                      @onclick="() => OpenDM(user)"
                      title="@(isCurrentUser ? "You" : $"Message {user}")">
+                    <span class="user-status-dot @statusClass"></span>
                     <span class="user-name">@user</span>
                     @if (isUserAdmin)
                     {
@@ -80,7 +82,7 @@
 
     // Internal state
     private List<Channel> rooms = new();
-    private List<string> onlineUsers = new();
+    private List<(string Username, UserStatus Status)> onlineUsers = new();
     private Dictionary<string, int> dmUnreadCounts = new();
     private bool isAdmin = false;
     private string onlineUsersHeader = "";
@@ -93,7 +95,7 @@
     {
         // Get initial state
         rooms = ChatService.GetRooms();
-        onlineUsers = ChatService.GetOnlineUsers();
+        RefreshOnlineUsers();
         isAdmin = ChatService.IsAdmin(Username);
         UpdateOnlineUsersHeader();
         LoadUnreadCounts();
@@ -102,15 +104,22 @@
         ChatService.OnChannelCreated += HandleChannelCreated;
         ChatService.OnChannelDeleted += HandleChannelDeleted;
         ChatService.OnUsersListChanged += HandleUsersListChanged;
+        ChatService.OnUserStatusChanged += HandleUserStatusChanged;
         ChatService.OnMessageReceived += HandleMessageReceived;
         ChatService.OnAdminChanged += HandleAdminChanged;
         NavState.OnChange += StateHasChanged;
     }
 
+    private void RefreshOnlineUsers()
+    {
+        // Get all users with status - invisible users show with gray dot
+        onlineUsers = ChatService.GetAllUsersWithStatus();
+    }
+
     private void LoadUnreadCounts()
     {
         dmUnreadCounts.Clear();
-        foreach (var user in onlineUsers)
+        foreach (var (user, _) in onlineUsers)
         {
             if (!user.Equals(Username, StringComparison.OrdinalIgnoreCase))
             {
@@ -147,9 +156,18 @@
     {
         await InvokeAsync(() =>
         {
-            onlineUsers = ChatService.GetOnlineUsers();
+            RefreshOnlineUsers();
             UpdateOnlineUsersHeader();
             LoadUnreadCounts();
+            StateHasChanged();
+        });
+    }
+
+    private async Task HandleUserStatusChanged(string username, UserStatus status)
+    {
+        await InvokeAsync(() =>
+        {
+            RefreshOnlineUsers();
             StateHasChanged();
         });
     }
@@ -253,24 +271,27 @@
         return dmUnreadCounts.TryGetValue(key, out var count) ? count : 0;
     }
 
-    private IEnumerable<string> GetSortedUsers()
+    private IEnumerable<(string Username, UserStatus Status)> GetSortedUsersWithStatus()
     {
-        var currentUserList = onlineUsers.Where(u => u.Equals(Username, StringComparison.OrdinalIgnoreCase));
-        var otherUsers = onlineUsers.Where(u => !u.Equals(Username, StringComparison.OrdinalIgnoreCase)).ToList();
+        var currentUserEntry = onlineUsers
+            .Where(u => u.Username.Equals(Username, StringComparison.OrdinalIgnoreCase));
+        var otherUsers = onlineUsers
+            .Where(u => !u.Username.Equals(Username, StringComparison.OrdinalIgnoreCase))
+            .ToList();
 
         var sorted = otherUsers
             .Select(u => new
             {
-                User = u,
-                UnreadCount = GetUnreadDMCount(u),
-                LastDM = ChatService.GetLastDMTimestamp(Username, u)
+                Entry = u,
+                UnreadCount = GetUnreadDMCount(u.Username),
+                LastDM = ChatService.GetLastDMTimestamp(Username, u.Username)
             })
             .OrderByDescending(x => x.UnreadCount > 0)
             .ThenByDescending(x => x.LastDM ?? DateTime.MinValue)
-            .ThenBy(x => x.User)
-            .Select(x => x.User);
+            .ThenBy(x => x.Entry.Username)
+            .Select(x => x.Entry);
 
-        return currentUserList.Concat(sorted);
+        return currentUserEntry.Concat(sorted);
     }
 
     #endregion
@@ -289,6 +310,7 @@
         ChatService.OnChannelCreated -= HandleChannelCreated;
         ChatService.OnChannelDeleted -= HandleChannelDeleted;
         ChatService.OnUsersListChanged -= HandleUsersListChanged;
+        ChatService.OnUserStatusChanged -= HandleUserStatusChanged;
         ChatService.OnMessageReceived -= HandleMessageReceived;
         ChatService.OnAdminChanged -= HandleAdminChanged;
         NavState.OnChange -= StateHasChanged;
