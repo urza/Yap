@@ -11,4 +11,19 @@
     <Folder Include="wwwroot\uploads\" />
   </ItemGroup>
 
+  <!-- Generate BuildInfo.g.cs with build timestamp -->
+  <Target Name="GenerateBuildInfo" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <BuildTimestamp>$([System.DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm')) UTC</BuildTimestamp>
+      <BuildInfoContent>namespace Yap%3B public static class BuildInfo { public const string Time = "$(BuildTimestamp)"%3B }</BuildInfoContent>
+    </PropertyGroup>
+    <WriteLinesToFile
+      File="$(IntermediateOutputPath)BuildInfo.g.cs"
+      Lines="$(BuildInfoContent)"
+      Overwrite="true" />
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)BuildInfo.g.cs" />
+    </ItemGroup>
+  </Target>
+
 </Project>

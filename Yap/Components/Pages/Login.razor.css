@@ -104,3 +104,11 @@
     color: #ed4245;
     font-size: 0.75rem;
 }
+
+.build-info {
+    position: absolute;
+    bottom: 1rem;
+    color: #4f545c;
+    font-size: 0.7rem;
+    font-family: monospace;
+}
