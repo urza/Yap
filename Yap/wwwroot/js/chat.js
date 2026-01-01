@@ -137,6 +137,11 @@ window.isTouchDevice = () => {
 window.setAppBadge = async (count) => {
     if ('setAppBadge' in navigator) {
         try {
+            // iOS requires notification permission for badges
+            if ('Notification' in window && Notification.permission === 'default') {
+                await Notification.requestPermission();
+            }
+
             if (count > 0) {
                 await navigator.setAppBadge(count);
             } else {

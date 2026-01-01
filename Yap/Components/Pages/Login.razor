@@ -51,7 +51,14 @@
         // Note: This works because prerendering is disabled globally in App.razor
         if (UserState.IsLoggedIn)
         {
-            Navigation.NavigateTo("/lobby");
+            try
+            {
+                Navigation.NavigateTo("/lobby");
+            }
+            catch (TaskCanceledException)
+            {
+                // Circuit disconnected during navigation - ignore, reconnection will handle it
+            }
             return;
         }
 
@@ -125,7 +132,14 @@
         if (!IsValid) return Task.CompletedTask;
 
         UserState.Username = usernameInput.Trim();
-        Navigation.NavigateTo("/chat");
+        try
+        {
+            Navigation.NavigateTo("/lobby");
+        }
+        catch (TaskCanceledException)
+        {
+            // Circuit disconnected during navigation - ignore
+        }
         return Task.CompletedTask;
     }
 }
