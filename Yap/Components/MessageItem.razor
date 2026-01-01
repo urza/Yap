@@ -81,9 +81,12 @@
         <div class="message-actions">
             @if (ShowReactions)
             {
+                <button class="action-btn" @onclick="@(() => OnReaction.InvokeAsync("👍"))" title="Thumbs up">👍</button>
+                <button class="action-btn" @onclick="@(() => OnReaction.InvokeAsync("👎"))" title="Thumbs down">👎</button>
                 <button class="action-btn" @onclick="@(() => OnReaction.InvokeAsync("❤️"))" title="Love">❤️</button>
                 <button class="action-btn" @onclick="@(() => OnReaction.InvokeAsync("😂"))" title="Laugh">😂</button>
-                <button class="action-btn" @onclick="@(() => OnReaction.InvokeAsync("🥹"))" title="Touched">🥹</button>
+                <button class="action-btn" @onclick="@(() => OnReaction.InvokeAsync("😢"))" title="Sad">😢</button>
+                <button class="action-btn" @onclick="@(() => OnReaction.InvokeAsync("😭"))" title="Crying">😭</button>
             }
             @if (IsOwn && !HasImages)
             {
