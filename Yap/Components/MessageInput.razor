@@ -37,7 +37,20 @@
 </div>
 
 <div class="typing-indicator-container">
-    @if (!string.IsNullOrEmpty(typingIndicatorText))
+    @if (isUploading)
+    {
+        <div class="typing-indicator upload-indicator">
+            <span style="display: flex; align-items: center; gap: 0.5rem; color: #5865f2;">
+                <span class="typing-dots">
+                    <span class="dot upload-dot"></span>
+                    <span class="dot upload-dot"></span>
+                    <span class="dot upload-dot"></span>
+                </span>
+                <span>Uploading @uploadingCount image@(uploadingCount > 1 ? "s" : "")...</span>
+            </span>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(typingIndicatorText))
     {
         <div class="typing-indicator">
             <span style="display: flex; align-items: center; gap: 0.5rem; color: #72767d;">
@@ -69,6 +82,8 @@
     private string placeholder = "";
     private string typingIndicatorText = "";
     private bool isTyping = false;
+    private bool isUploading = false;
+    private int uploadingCount = 0;
     private System.Timers.Timer? typingTimer;
 
     // Unique IDs for this instance
@@ -280,6 +295,17 @@
         if (files.Count == 0) return;
 
         var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+        var validFiles = files.Where(f =>
+            allowedExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()) &&
+            f.Size <= 100 * 1024 * 1024).ToList();
+
+        if (validFiles.Count == 0) return;
+
+        // Show upload indicator
+        isUploading = true;
+        uploadingCount = validFiles.Count;
+        StateHasChanged();
+
         var imageUrls = new List<string>();
 
         try
@@ -287,12 +313,9 @@
             var uploadsFolder = Path.Combine(Environment.WebRootPath, "uploads");
             Directory.CreateDirectory(uploadsFolder);
 
-            foreach (var file in files)
+            foreach (var file in validFiles)
             {
                 var extension = Path.GetExtension(file.Name).ToLowerInvariant();
-                if (!allowedExtensions.Contains(extension)) continue;
-                if (file.Size > 100 * 1024 * 1024) continue;
-
                 var uniqueFileName = $"{Guid.NewGuid()}{extension}";
                 var filePath = Path.Combine(uploadsFolder, uniqueFileName);
 
@@ -317,6 +340,13 @@
         catch (Exception ex)
         {
             Console.WriteLine($"Error uploading files: {ex.Message}");
+        }
+        finally
+        {
+            // Hide upload indicator
+            isUploading = false;
+            uploadingCount = 0;
+            StateHasChanged();
         }
     }
 

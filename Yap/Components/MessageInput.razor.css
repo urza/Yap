@@ -144,6 +144,11 @@
     animation-delay: 0s;
 }
 
+/* Upload indicator - blue dots */
+.upload-indicator .upload-dot {
+    background-color: #5865f2;
+}
+
 @keyframes discordBounce {
     0%, 60%, 100% {
         transform: translateY(0);
