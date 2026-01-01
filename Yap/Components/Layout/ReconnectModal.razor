@@ -1,31 +1,71 @@
-﻿<script type="module" src="@Assets["Components/Layout/ReconnectModal.razor.js"]"></script>
+@*
+    =============================================================================
+    RECONNECTION BANNER (.NET 10)
+    =============================================================================
+    This component displays a Discord-style top banner when the WebSocket
+    connection to the server is lost. Unlike a modal, it's non-blocking -
+    users can still see the chat content behind it.
 
-<dialog id="components-reconnect-modal" data-nosnippet>
-    <div class="components-reconnect-container">
-        <div class="components-rejoining-animation" aria-hidden="true">
-            <div></div>
-            <div></div>
+    Connection States:
+    - show:     Connection lost, attempting first reconnection
+    - retrying: Subsequent reconnection attempts (shows countdown)
+    - failed:   All automatic retries exhausted (shouldn't happen with infinite retry)
+    - rejected: Server rejected the circuit (evicted) - triggers auto-resume
+    - hide:     Successfully reconnected - banner disappears
+
+    The JavaScript (ReconnectModal.razor.js) handles:
+    - Listening to state change events
+    - Auto-resuming when circuit is rejected (instead of showing "Resume" button)
+    - Infinite retries every 4 seconds
+    - Countdown display between retries
+    =============================================================================
+*@
+
+<script type="module" src="@Assets["Components/Layout/ReconnectModal.razor.js"]"></script>
+
+@*
+    We use a div with id="components-reconnect-modal" because Blazor's reconnection
+    system looks for this specific ID to dispatch events and apply CSS classes.
+
+    Even though it's called "modal", we're styling it as a top banner.
+*@
+<div id="components-reconnect-modal" data-nosnippet>
+    <div class="reconnect-banner-content">
+        @* Animated dots shown during reconnection attempts *@
+        <div class="reconnect-dots" aria-hidden="true">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
         </div>
-        <p class="components-reconnect-first-attempt-visible">
-            Rejoining the server...
-        </p>
-        <p class="components-reconnect-repeated-attempt-visible">
-            Rejoin failed... trying again in <span id="components-seconds-to-next-attempt"></span> seconds.
-        </p>
-        <p class="components-reconnect-failed-visible">
-            Failed to rejoin.<br />Please retry or reload the page.
-        </p>
-        <button id="components-reconnect-button" class="components-reconnect-failed-visible">
-            Retry
-        </button>
-        <p class="components-pause-visible">
-            The session has been paused by the server.
-        </p>
-        <button id="components-resume-button" class="components-pause-visible">
-            Resume
-        </button>
-        <p class="components-resume-failed-visible">
-            Failed to resume the session.<br />Please reload the page.
-        </p>
+
+        @* Message shown on first reconnection attempt *@
+        <span class="components-reconnect-first-attempt-visible">
+            Reconnecting to server...
+        </span>
+
+        @* Message shown on subsequent attempts with countdown *@
+        <span class="components-reconnect-repeated-attempt-visible">
+            Connection lost. Retrying in <span id="components-seconds-to-next-attempt">4</span>s...
+        </span>
+
+        @* Message shown if reconnection completely failed (shouldn't happen with infinite retry) *@
+        <span class="components-reconnect-failed-visible">
+            Connection failed.
+            <button id="components-reconnect-button">Retry Now</button>
+        </span>
+
+        @*
+            Message shown when circuit was paused by server.
+            With auto-resume enabled, this should rarely be visible.
+        *@
+        <span class="components-pause-visible">
+            Session paused. Resuming...
+        </span>
+
+        @* Message shown if resume failed - last resort *@
+        <span class="components-resume-failed-visible">
+            Failed to resume session.
+            <button id="components-reload-button">Reload Page</button>
+        </span>
     </div>
-</dialog>
+</div>

@@ -16,7 +16,40 @@
 <body>
     <Routes @rendermode="@(new InteractiveServerRenderMode(prerender: false))" />
     <ReconnectModal />
-    <script src="@Assets["_framework/blazor.web.js"]"></script>
+
+    @*
+        =============================================================================
+        BLAZOR STARTUP WITH CUSTOM RECONNECTION OPTIONS (.NET 10)
+        =============================================================================
+        We use autostart="false" to prevent Blazor from starting automatically.
+        This allows us to configure reconnection options before starting.
+
+        Key Configuration:
+        - retryIntervalMilliseconds: Function that returns retry delay in ms
+          - We return 4000 (4 seconds) for every attempt = infinite retries
+          - Returning null would stop retrying (we never do that)
+
+        Alternative configurations:
+        - Fixed array: [0, 1000, 2000, 5000] - retry immediately, then 1s, 2s, 5s, stop
+        - Exponential: (attempts) => Math.min(attempts * 1000, 30000) - increase delay up to 30s
+        =============================================================================
+    *@
+    <script src="@Assets["_framework/blazor.web.js"]" autostart="false"></script>
+    <script>
+        // Start Blazor with custom reconnection configuration
+        Blazor.start({
+            circuit: {
+                reconnectionOptions: {
+                    // Retry timing: immediate first attempt, then every 4 seconds.
+                    retryIntervalMilliseconds: function(previousAttempts, maxRetries) {
+                        console.log('[Blazor] Reconnection attempt ' + (previousAttempts + 1));
+                        // First attempt immediate, then 4 seconds between retries
+                        return previousAttempts === 0 ? 0 : 4000;
+                    }
+                }
+            }
+        });
+    </script>
     <script src="js/chat.js"></script>
 </body>
 
