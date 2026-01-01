@@ -192,32 +192,3 @@ async function retryWhenDocumentBecomesVisible() {
     }
 }
 
-// =============================================================================
-// BLAZOR STARTUP CONFIGURATION
-// =============================================================================
-// We need to configure Blazor's reconnection options BEFORE Blazor starts.
-// However, since the Blazor script loads after this module, we need to
-// configure it via the blazor.web.js script attributes or a startup script.
-//
-// The configuration below is applied via App.razor where we call Blazor.start()
-// with custom options. See the comment in App.razor for details.
-//
-// Key settings:
-// - retryIntervalMilliseconds: Function that returns 4000ms (4 seconds) always
-// - This creates infinite retries every 4 seconds until connection is restored
-// =============================================================================
-
-// Export configuration for use in App.razor if needed
-window.blazorReconnectConfig = {
-    circuit: {
-        reconnectionOptions: {
-            // Return 4000ms (4 seconds) for every retry attempt.
-            // Returning a number means "retry after this many milliseconds".
-            // Returning null would stop retrying (we never do that - infinite retries).
-            retryIntervalMilliseconds: (previousAttempts, maxRetries) => {
-                console.log(`[Reconnect] Retry attempt ${previousAttempts + 1}`);
-                return 4000; // Always retry after 4 seconds
-            }
-        }
-    }
-};

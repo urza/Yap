@@ -15,16 +15,20 @@ Access at `http://localhost:5221` - it's up to you how to make this accessible f
 
 ## Features
 
-- **No reqistration requiered** - Just log in with username
+- **No registration required** - Just log in with username
 - **No database** - Messages live in memory and wipe out with app reset
+- **Multiple rooms** - Create and switch between chat rooms (admin only)
+- **Direct messages** - Private conversations between users
 - **Image sharing** - Upload image(s) and see them in inline gallery
 - **Emoji support** - Beautiful Twemoji rendering
-- **Message actions** - Discord-style hover popup on messages
+- **Message actions** - Discord-style hover popup with reactions, edit, delete
+- **Reactions** - React to messages with emojis
 - **Customizable labels in config** - Fun defaults
 - **Tab notifications** - Unread count in browser tab + audio notifications
-- **Chat history** - Last 100 messages for newcomers
-- **Typing indicators** - Yes again stolen from Discrod
+- **Chat history** - Last 100 messages per room
+- **Typing indicators** - See who's typing
 - **Online users** - See who's currently in the chat
+- **Resilient reconnection** - Auto-reconnect with session restoration
 - **Dark theme** - Discord-inspired UI
 - **Mobile responsive** - Works great on all devices with collapsible sidebar
 
@@ -32,35 +36,52 @@ Access at `http://localhost:5221` - it's up to you how to make this accessible f
 
 ## Architecture
 
-Single-project Blazor Server application:
+Single-project Blazor Server application with .NET 10:
 
 ```
 Yap/
 ├── Components/
-│   ├── Pages/Chat.razor          # Main chat UI
-│   └── Layout/ReconnectModal.razor  # .NET 10 reconnection UI
+│   ├── Layout/
+│   │   ├── ChatLayout.razor         # Main chat layout
+│   │   └── ReconnectModal.razor     # Reconnection banner
+│   ├── Pages/
+│   │   ├── Home.razor               # Login screen
+│   │   ├── RoomChat.razor           # Room chat (/lobby, /room/{id})
+│   │   └── DmChat.razor             # Direct messages (/dm/{user})
+│   ├── ChatHeader.razor             # Header with mailbox indicator
+│   ├── ChatSidebar.razor            # Rooms and users list
+│   └── MessageInput.razor           # Message input with file upload
 ├── Services/
-│   ├── ChatService.cs            # Real-time chat logic
-│   ├── ChatConfigService.cs      # UI text configuration
-│   └── EmojiService.cs           # Emoji rendering
-├── Models/ChatMessage.cs
+│   ├── ChatService.cs               # Real-time chat logic
+│   ├── UserStateService.cs          # User identity (persistent)
+│   ├── ChatNavigationState.cs       # Navigation state (persistent)
+│   └── EmojiService.cs              # Emoji rendering
 ├── wwwroot/
-│   ├── js/chat.js                # Tab notifications
-│   ├── uploads/                  # Image storage
-│   └── notif.mp3                 # Notification sound
-└── appsettings.json              # Configuration
+│   ├── js/chat.js                   # Tab notifications
+│   ├── uploads/                     # Image storage
+│   └── notif.mp3                    # Notification sound
+└── appsettings.json                 # Configuration
 ```
 
 ### How Real-time Works
 
-Blazor Server maintains a persistent SignalR (web sockets) connection for UI updates. We use this same connection for chat:
+Blazor Server maintains a persistent SignalR (WebSocket) connection for UI updates. We use this same connection for chat:
 
 1. `ChatService` (singleton) holds chat state and raises events
-2. Each user's `Chat.razor` component subscribes to these events
+2. Components subscribe to these events
 3. When someone sends a message, all subscribers get notified
 4. Components call `StateHasChanged()` to push updates to browsers
 
 No custom SignalR hub needed - Blazor's built-in circuit handles everything.
+
+### Resilient Reconnection (.NET 10)
+
+When connection is lost (laptop sleep, network issues):
+- Discord-style banner appears with retry countdown
+- Infinite retries every 4 seconds
+- Circuit kept alive for 4 hours on server
+- If circuit expires, session auto-restores via persistent state
+- Username and current room preserved across reconnections
 
 
 ## Using the Chat
@@ -71,7 +92,8 @@ No custom SignalR hub needed - Blazor's built-in circuit handles everything.
 4. Click the image button to upload pictures (supports multiple selection)
 5. Drag and drop images directly onto the message input area
 6. Hover over messages to react, edit, or delete
-7. Toggle the sidebar on mobile to see online users
+7. Click on a user to start a direct message
+8. Toggle the sidebar on mobile to see online users
 
 ## Configuration - change the app labels in your instance
 
@@ -82,6 +104,7 @@ Edit `appsettings.json` to customize:
   "ChatSettings": {
     "ProjectName": "Yap",
     "RoomName": "lobby",
+    "ClearUploadsOnStart": true,
     "FunnyTexts": {
       "WelcomeMessages": ["welcome to {0}", "you ready?"],
       "JoinButtonTexts": ["lessgo", "slide in", "hop on"],
@@ -105,6 +128,7 @@ Edit `appsettings.json` to customize:
 
 - **Framework**: Blazor Server (.NET 10)
 - **Real-time**: Blazor circuit (built-in SignalR)
+- **State Persistence**: `[PersistentState]` for session restoration
 - **Styling**: Scoped CSS with Discord-inspired dark theme
 - **Emojis**: Twemoji v16
 

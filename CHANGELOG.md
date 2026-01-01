@@ -2,6 +2,51 @@
 
 All notable changes to Yap are documented in this file.
 
+## [2.4.0] - 2026-01-01
+
+### Resilient Reconnection & Persistent State (.NET 10)
+
+#### New Features
+- **Discord-style reconnection banner** - Non-blocking top banner instead of modal
+  - Appears immediately when connection lost
+  - Shows animated loading dots during reconnection
+  - Countdown timer between retry attempts
+  - No dots shown for terminal states (failed, resume failed)
+- **Infinite reconnection retries** - Never gives up trying to reconnect
+  - Immediate first attempt, then every 4 seconds
+  - Configurable via `Blazor.start()` in App.razor
+- **Auto-resume on circuit eviction** - When circuit expires, automatically restores session
+  - Uses `Blazor.resumeCircuit()` API
+  - No user action required (no "Resume" button click needed)
+- **Persistent state across disconnections** - User stays logged in even after long disconnections
+  - Username preserved via `[PersistentState]` on UserStateService
+  - Current room/DM preserved via `[PersistentState]` on ChatNavigationState
+  - State kept in memory for 48 hours after circuit eviction
+
+#### Configuration
+- **Circuit retention**: 4 hours (default was 3 minutes)
+- **Persisted state retention**: 48 hours (default was 2 hours)
+- **Max disconnected circuits**: 1000 (default was 100)
+- **Max persisted states**: 5000 (default was 1000)
+
+#### Technical Changes
+- Added `[PersistentState]` attribute to `UserStateService.Username` and `UserStateService.CircuitId`
+- Added `[PersistentState]` attribute to `ChatNavigationState` properties (Title, CurrentRoomId, CurrentDmUser, SidebarOpen)
+- Registered services with `RegisterPersistentService<T>(RenderMode.InteractiveServer)` in Program.cs
+- Configured `CircuitOptions.PersistedCircuitInMemoryRetentionPeriod` and related options
+- Rewrote `ReconnectModal.razor` as top banner (was dialog modal)
+- Rewrote `ReconnectModal.razor.js` with auto-resume logic and visibility control
+- Rewrote `ReconnectModal.razor.css` with banner styling and animated dots
+- Added custom `Blazor.start()` configuration in App.razor for retry timing
+
+#### Architecture Improvements
+- Components now inject services directly (self-sufficient)
+- Real Blazor layout (`ChatLayout.razor`) with header, sidebar, and `@Body`
+- Thin pages (`RoomChat.razor`, `DmChat.razor`) focused on message display
+- Reduced prop-drilling between components
+
+---
+
 ## [2.3.0] - 2025-12-30
 
 ### Rooms, Admin & DM Improvements

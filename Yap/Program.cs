@@ -24,8 +24,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents(options =>
     {
-        // Keep disconnected circuits alive for 1 hour instead of 3 minutes.
-        // This allows seamless reconnection if user returns within 1 hour
+        // Keep disconnected circuits alive for 4 hours instead of 3 minutes.
+        // This allows seamless reconnection if user returns within 4 hours
         // (e.g., laptop sleep, switching apps on phone).
         // Tradeoff: Each retained circuit uses server memory.
         options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromHours(4);
