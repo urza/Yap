@@ -9,7 +9,7 @@
                 title="Recent">
             @EmojiService.ConvertEmojisToTwemoji("🕐", forceSmall: true)
         </button>
-        @foreach (var category in EmojiData.Categories.Where(c => c.Key != "recent"))
+        @foreach (var category in EmojiData.Categories)
         {
             <button class="category-btn @(selectedCategory == category.Key ? "active" : "")"
                     @onclick="() => SelectCategory(category.Key)"

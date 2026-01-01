@@ -107,12 +107,4 @@
     .emoji-picker {
         width: 280px;
     }
-
-    .emoji-grid {
-        grid-template-columns: repeat(7, 1fr);
-    }
-
-    .emoji-btn {
-        font-size: 1.2rem;
-    }
 }

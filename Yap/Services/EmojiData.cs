@@ -4,7 +4,6 @@ public static class EmojiData
 {
     public static readonly Dictionary<string, (string Icon, string[] Emojis)> Categories = new()
     {
-        ["recent"] = ("🕐", Array.Empty<string>()), // Populated dynamically
         ["smileys"] = ("😀", new[]
         {
             "😀", "😃", "😄", "😁", "😅", "😂", "🤣", "😊", "😇", "🙂", "😉", "😌",
