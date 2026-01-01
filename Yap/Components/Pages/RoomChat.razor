@@ -78,7 +78,7 @@
         previousRoomId = currentRoomId;
 
         // Load messages
-        messages = ChatService.GetRoomMessages(currentRoomId).ToList();
+        messages = ChatService.GetMessages(currentRoomId).ToList();
 
         // Set navigation context
         var room = ChatService.GetRooms().FirstOrDefault(r => r.Id == currentRoomId);
@@ -93,13 +93,13 @@
         ChatService.OnMessageDeleted += HandleMessageDeleted;
         ChatService.OnReactionChanged += HandleReactionChanged;
         ChatService.OnUserChanged += HandleUserChanged;
-        ChatService.OnRoomDeleted += HandleRoomDeleted;
+        ChatService.OnChannelDeleted += HandleChannelDeleted;
     }
 
     private async Task SwitchRoomContentAsync(Guid newRoomId)
     {
         currentRoomId = newRoomId;
-        messages = ChatService.GetRoomMessages(currentRoomId).ToList();
+        messages = ChatService.GetMessages(currentRoomId).ToList();
 
         var room = ChatService.GetRooms().FirstOrDefault(r => r.Id == currentRoomId);
         currentContext = room?.Name ?? "lobby";
@@ -116,7 +116,7 @@
     {
         await InvokeAsync(async () =>
         {
-            if (message.RoomId == currentRoomId)
+            if (message.ChannelId == currentRoomId)
             {
                 messages.Add(message);
                 StateHasChanged();
@@ -134,7 +134,7 @@
     {
         await InvokeAsync(() =>
         {
-            if (message.RoomId == currentRoomId)
+            if (message.ChannelId == currentRoomId)
             {
                 var index = messages.FindIndex(m => m.Id == message.Id);
                 if (index >= 0) messages[index] = message;
@@ -143,11 +143,11 @@
         });
     }
 
-    private async Task HandleMessageDeleted(Guid messageId, Guid roomId)
+    private async Task HandleMessageDeleted(Guid messageId, Guid channelId)
     {
         await InvokeAsync(() =>
         {
-            if (roomId == currentRoomId)
+            if (channelId == currentRoomId)
             {
                 messages.RemoveAll(m => m.Id == messageId);
                 StateHasChanged();
@@ -159,7 +159,7 @@
     {
         await InvokeAsync(() =>
         {
-            if (message.RoomId == currentRoomId)
+            if (message.ChannelId == currentRoomId)
             {
                 var index = messages.FindIndex(m => m.Id == message.Id);
                 if (index >= 0) messages[index] = message;
@@ -186,11 +186,11 @@
         });
     }
 
-    private async Task HandleRoomDeleted(Guid roomId)
+    private async Task HandleChannelDeleted(Guid channelId)
     {
         await InvokeAsync(() =>
         {
-            if (currentRoomId == roomId)
+            if (currentRoomId == channelId)
             {
                 Navigation.NavigateTo("/lobby", replace: true);
             }
@@ -242,6 +242,6 @@
         ChatService.OnMessageDeleted -= HandleMessageDeleted;
         ChatService.OnReactionChanged -= HandleReactionChanged;
         ChatService.OnUserChanged -= HandleUserChanged;
-        ChatService.OnRoomDeleted -= HandleRoomDeleted;
+        ChatService.OnChannelDeleted -= HandleChannelDeleted;
     }
 }

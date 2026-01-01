@@ -74,6 +74,9 @@
     private bool IsRoomContext => RoomId.HasValue;
     private bool IsDmContext => !string.IsNullOrEmpty(DmUser);
 
+    // The channel ID for the current context
+    private Guid? channelId;
+
     // Internal state
     private ElementReference dropZoneElement;
     private bool isDraggingOver = false;
@@ -93,23 +96,18 @@
 
     protected override void OnInitialized()
     {
+        UpdateChannelId();
         UpdatePlaceholder();
 
-        // Subscribe to typing events
-        if (IsRoomContext)
-        {
-            ChatService.OnTypingUsersChanged += HandleTypingUsersChanged;
-        }
-        else if (IsDmContext)
-        {
-            ChatService.OnDMTypingUsersChanged += HandleDMTypingUsersChanged;
-        }
+        // Subscribe to typing events (unified for all channels)
+        ChatService.OnTypingUsersChanged += HandleTypingUsersChanged;
 
         UpdateTypingIndicator();
     }
 
     protected override void OnParametersSet()
     {
+        UpdateChannelId();
         UpdatePlaceholder();
         UpdateTypingIndicator();
     }
@@ -120,6 +118,23 @@
         {
             try { await JS.InvokeVoidAsync("setupDropZone", dropZoneElement, FileInputId); } catch { }
             try { isTouchDevice = await JS.InvokeAsync<bool>("isTouchDevice"); } catch { }
+        }
+    }
+
+    private void UpdateChannelId()
+    {
+        if (IsRoomContext)
+        {
+            channelId = RoomId;
+        }
+        else if (IsDmContext && !string.IsNullOrEmpty(DmUser))
+        {
+            var channel = ChatService.GetOrCreateDMChannel(Username, DmUser);
+            channelId = channel.Id;
+        }
+        else
+        {
+            channelId = null;
         }
     }
 
@@ -139,16 +154,21 @@
 
     private void UpdateTypingIndicator()
     {
-        if (IsRoomContext && RoomId.HasValue)
+        if (channelId.HasValue)
         {
-            var typingUsers = ChatService.GetTypingUsers(RoomId.Value);
-            typingIndicatorText = ChatConfig.GetRandomTypingIndicator(typingUsers, Username);
-        }
-        else if (IsDmContext && !string.IsNullOrEmpty(DmUser))
-        {
-            var typingUsers = ChatService.GetDMTypingUsers(Username, DmUser);
+            var typingUsers = ChatService.GetTypingUsers(channelId.Value);
             var others = typingUsers.Where(u => !u.Equals(Username, StringComparison.OrdinalIgnoreCase)).ToList();
-            typingIndicatorText = others.Count > 0 ? $"{string.Join(", ", others)} is typing..." : "";
+
+            if (IsDmContext)
+            {
+                // Simple DM typing indicator
+                typingIndicatorText = others.Count > 0 ? $"{string.Join(", ", others)} is typing..." : "";
+            }
+            else
+            {
+                // Room typing indicator with random messages
+                typingIndicatorText = ChatConfig.GetRandomTypingIndicator(others, Username);
+            }
         }
         else
         {
@@ -156,9 +176,9 @@
         }
     }
 
-    private async Task HandleTypingUsersChanged(Guid roomId)
+    private async Task HandleTypingUsersChanged(Guid changedChannelId)
     {
-        if (IsRoomContext && RoomId == roomId)
+        if (channelId.HasValue && channelId.Value == changedChannelId)
         {
             await InvokeAsync(() =>
             {
@@ -168,50 +188,18 @@
         }
     }
 
-    private async Task HandleDMTypingUsersChanged(string conversationKey)
-    {
-        if (IsDmContext && !string.IsNullOrEmpty(DmUser))
-        {
-            var key = DirectMessage.GetConversationKey(Username, DmUser);
-            if (key == conversationKey)
-            {
-                await InvokeAsync(() =>
-                {
-                    UpdateTypingIndicator();
-                    StateHasChanged();
-                });
-            }
-        }
-    }
-
     private async Task StartTypingAsync()
     {
-        if (isTyping) return;
+        if (isTyping || !channelId.HasValue) return;
         isTyping = true;
-
-        if (IsRoomContext && RoomId.HasValue)
-        {
-            await ChatService.StartTypingAsync(RoomId.Value, Username);
-        }
-        else if (IsDmContext && !string.IsNullOrEmpty(DmUser))
-        {
-            await ChatService.StartDMTypingAsync(Username, DmUser);
-        }
+        await ChatService.StartTypingAsync(channelId.Value, Username);
     }
 
     private async Task StopTypingAsync()
     {
-        if (!isTyping) return;
+        if (!isTyping || !channelId.HasValue) return;
         isTyping = false;
-
-        if (IsRoomContext && RoomId.HasValue)
-        {
-            await ChatService.StopTypingAsync(RoomId.Value, Username);
-        }
-        else if (IsDmContext && !string.IsNullOrEmpty(DmUser))
-        {
-            await ChatService.StopDMTypingAsync(Username, DmUser);
-        }
+        await ChatService.StopTypingAsync(channelId.Value, Username);
 
         typingTimer?.Stop();
         typingTimer?.Dispose();
@@ -265,7 +253,7 @@
 
     private async Task HandleSend()
     {
-        if (string.IsNullOrWhiteSpace(messageText)) return;
+        if (string.IsNullOrWhiteSpace(messageText) || !channelId.HasValue) return;
 
         var content = messageText;
         messageText = "";
@@ -273,15 +261,7 @@
         // Reset textarea height after clearing content
         try { await JS.InvokeVoidAsync("resetTextareaHeight", TextareaId); } catch { }
 
-        if (IsRoomContext && RoomId.HasValue)
-        {
-            await ChatService.SendMessageAsync(RoomId.Value, Username, content);
-        }
-        else if (IsDmContext && !string.IsNullOrEmpty(DmUser))
-        {
-            await ChatService.SendDirectMessageAsync(Username, DmUser, content);
-        }
-
+        await ChatService.SendMessageAsync(channelId.Value, Username, content);
         await StopTypingAsync();
     }
 
@@ -291,6 +271,8 @@
 
     private async Task HandleFileSelected(InputFileChangeEventArgs e)
     {
+        if (!channelId.HasValue) return;
+
         var files = e.GetMultipleFiles(10);
         if (files.Count == 0) return;
 
@@ -327,14 +309,7 @@
 
             if (imageUrls.Count > 0)
             {
-                if (IsRoomContext && RoomId.HasValue)
-                {
-                    await ChatService.SendMessageAsync(RoomId.Value, Username, "", imageUrls);
-                }
-                else if (IsDmContext && !string.IsNullOrEmpty(DmUser))
-                {
-                    await ChatService.SendDirectMessageAsync(Username, DmUser, "", imageUrls);
-                }
+                await ChatService.SendMessageAsync(channelId.Value, Username, "", imageUrls);
             }
         }
         catch (Exception ex)
@@ -368,7 +343,6 @@
 
         // Unsubscribe from events
         ChatService.OnTypingUsersChanged -= HandleTypingUsersChanged;
-        ChatService.OnDMTypingUsersChanged -= HandleDMTypingUsersChanged;
 
         // Stop typing if we were
         if (isTyping)

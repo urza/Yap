@@ -49,7 +49,7 @@
         onlineCount = ChatService.GetOnlineUsers().Count;
 
         // Subscribe to events
-        ChatService.OnDirectMessageReceived += HandleDirectMessageReceived;
+        ChatService.OnMessageReceived += HandleMessageReceived;
         ChatService.OnUsersListChanged += HandleUsersListChanged;
         NavState.OnChange += HandleNavStateChanged;
     }
@@ -69,20 +69,27 @@
         StateHasChanged();
     }
 
-    private async Task HandleDirectMessageReceived(DirectMessage message)
+    private async Task HandleMessageReceived(ChatMessage message)
     {
         await InvokeAsync(() =>
         {
-            // Only increment if this message is for us and we're NOT currently viewing that DM
-            if (message.ToUser.Equals(UserState.Username, StringComparison.OrdinalIgnoreCase))
+            // Check if this is a DM message for us
+            var channel = ChatService.GetChannel(message.ChannelId);
+            if (channel?.IsDirectMessage == true)
             {
-                var isViewingThisDm = NavState.CurrentDmUser != null &&
-                    NavState.CurrentDmUser.Equals(message.FromUser, StringComparison.OrdinalIgnoreCase);
+                var otherUser = channel.GetOtherParticipant(UserState.Username ?? "");
 
-                if (!isViewingThisDm)
+                // Only increment if message is not from us and we're NOT currently viewing that DM
+                if (!message.Username.Equals(UserState.Username, StringComparison.OrdinalIgnoreCase))
                 {
-                    unreadCount++;
-                    StateHasChanged();
+                    var isViewingThisDm = NavState.CurrentDmUser != null &&
+                        NavState.CurrentDmUser.Equals(otherUser, StringComparison.OrdinalIgnoreCase);
+
+                    if (!isViewingThisDm)
+                    {
+                        unreadCount++;
+                        StateHasChanged();
+                    }
                 }
             }
         });
@@ -104,7 +111,7 @@
 
     public void Dispose()
     {
-        ChatService.OnDirectMessageReceived -= HandleDirectMessageReceived;
+        ChatService.OnMessageReceived -= HandleMessageReceived;
         ChatService.OnUsersListChanged -= HandleUsersListChanged;
         NavState.OnChange -= HandleNavStateChanged;
     }

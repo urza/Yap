@@ -1,5 +1,9 @@
 # Yap - Blazor Server Chat Application
 
+## Claude Instructions
+- **Do NOT run `dotnet build` or `dotnet run`** - always ask the user to build/run and report results
+- The dev environment uses .NET 10 which may not be available in the CLI environment
+
 ## Overview
 A real-time chat application built with Blazor Server (.NET 10), featuring instant messaging, image sharing, and resilient reconnection with persistent state.
 

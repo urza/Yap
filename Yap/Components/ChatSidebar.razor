@@ -79,7 +79,7 @@
     private string Username => UserState.Username ?? "";
 
     // Internal state
-    private List<Room> rooms = new();
+    private List<Channel> rooms = new();
     private List<string> onlineUsers = new();
     private Dictionary<string, int> dmUnreadCounts = new();
     private bool isAdmin = false;
@@ -99,10 +99,10 @@
         LoadUnreadCounts();
 
         // Subscribe to events
-        ChatService.OnRoomCreated += HandleRoomCreated;
-        ChatService.OnRoomDeleted += HandleRoomDeleted;
+        ChatService.OnChannelCreated += HandleChannelCreated;
+        ChatService.OnChannelDeleted += HandleChannelDeleted;
         ChatService.OnUsersListChanged += HandleUsersListChanged;
-        ChatService.OnDirectMessageReceived += HandleDirectMessageReceived;
+        ChatService.OnMessageReceived += HandleMessageReceived;
         ChatService.OnAdminChanged += HandleAdminChanged;
         NavState.OnChange += StateHasChanged;
     }
@@ -122,16 +122,19 @@
 
     #region Event Handlers
 
-    private async Task HandleRoomCreated(Room room)
+    private async Task HandleChannelCreated(Channel channel)
     {
         await InvokeAsync(() =>
         {
-            rooms = ChatService.GetRooms();
-            StateHasChanged();
+            if (channel.Type == ChannelType.Room)
+            {
+                rooms = ChatService.GetRooms();
+                StateHasChanged();
+            }
         });
     }
 
-    private async Task HandleRoomDeleted(Guid roomId)
+    private async Task HandleChannelDeleted(Guid channelId)
     {
         await InvokeAsync(() =>
         {
@@ -151,20 +154,26 @@
         });
     }
 
-    private async Task HandleDirectMessageReceived(DirectMessage message)
+    private async Task HandleMessageReceived(ChatMessage message)
     {
         await InvokeAsync(() =>
         {
-            if (message.ToUser.Equals(Username, StringComparison.OrdinalIgnoreCase))
+            // Check if this is a DM message for us
+            var channel = ChatService.GetChannel(message.ChannelId);
+            if (channel?.IsDirectMessage == true)
             {
-                // Don't increment if we're viewing this DM
-                if (NavState.CurrentDmUser == null ||
-                    !NavState.CurrentDmUser.Equals(message.FromUser, StringComparison.OrdinalIgnoreCase))
+                var otherUser = channel.GetOtherParticipant(Username);
+                if (otherUser != null && !message.Username.Equals(Username, StringComparison.OrdinalIgnoreCase))
                 {
-                    var key = message.FromUser.ToLowerInvariant();
-                    if (!dmUnreadCounts.ContainsKey(key)) dmUnreadCounts[key] = 0;
-                    dmUnreadCounts[key]++;
-                    StateHasChanged();
+                    // Don't increment if we're viewing this DM
+                    if (NavState.CurrentDmUser == null ||
+                        !NavState.CurrentDmUser.Equals(otherUser, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var key = otherUser.ToLowerInvariant();
+                        if (!dmUnreadCounts.ContainsKey(key)) dmUnreadCounts[key] = 0;
+                        dmUnreadCounts[key]++;
+                        StateHasChanged();
+                    }
                 }
             }
         });
@@ -277,10 +286,10 @@
 
     public void Dispose()
     {
-        ChatService.OnRoomCreated -= HandleRoomCreated;
-        ChatService.OnRoomDeleted -= HandleRoomDeleted;
+        ChatService.OnChannelCreated -= HandleChannelCreated;
+        ChatService.OnChannelDeleted -= HandleChannelDeleted;
         ChatService.OnUsersListChanged -= HandleUsersListChanged;
-        ChatService.OnDirectMessageReceived -= HandleDirectMessageReceived;
+        ChatService.OnMessageReceived -= HandleMessageReceived;
         ChatService.OnAdminChanged -= HandleAdminChanged;
         NavState.OnChange -= StateHasChanged;
     }

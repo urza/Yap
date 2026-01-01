@@ -8,43 +8,31 @@ public class ChatService
     private readonly ConcurrentDictionary<string, UserSession> _users = new();
     private readonly int _maxMessages = 100;
 
-    // Rooms
-    private readonly ConcurrentDictionary<Guid, Room> _rooms = new();
-    private readonly ConcurrentDictionary<Guid, List<ChatMessage>> _roomMessages = new();
-    private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<string, DateTime>> _roomTypingUsers = new();
-    private readonly object _roomLock = new();
+    // Channels (rooms and DMs)
+    private readonly ConcurrentDictionary<Guid, Channel> _channels = new();
+    private readonly ConcurrentDictionary<Guid, List<ChatMessage>> _channelMessages = new();
+    private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<string, DateTime>> _channelTypingUsers = new();
+    private readonly object _channelLock = new();
 
     // Admin
     private string? _adminUser;
     private readonly object _adminLock = new();
 
-    // Direct Messages
-    private readonly ConcurrentDictionary<string, List<DirectMessage>> _directMessages = new();
-    private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, DateTime>> _dmTypingUsers = new();
-    private readonly object _dmLock = new();
-
-    // Default room
+    // Default lobby channel
     public Guid LobbyId { get; }
 
-    // Events for real-time updates
+    // Events for real-time updates (unified for all channel types)
     public event Func<ChatMessage, Task>? OnMessageReceived;
     public event Func<ChatMessage, Task>? OnMessageUpdated;
-    public event Func<Guid, Guid, Task>? OnMessageDeleted; // messageId, roomId
+    public event Func<Guid, Guid, Task>? OnMessageDeleted; // messageId, channelId
     public event Func<ChatMessage, Task>? OnReactionChanged;
     public event Func<string, bool, Task>? OnUserChanged;
     public event Func<Task>? OnUsersListChanged;
-    public event Func<Guid, Task>? OnTypingUsersChanged; // roomId
+    public event Func<Guid, Task>? OnTypingUsersChanged; // channelId
 
-    // Room events
-    public event Func<Room, Task>? OnRoomCreated;
-    public event Func<Guid, Task>? OnRoomDeleted;
-
-    // DM events
-    public event Func<DirectMessage, Task>? OnDirectMessageReceived;
-    public event Func<DirectMessage, Task>? OnDirectMessageUpdated;
-    public event Func<Guid, string, Task>? OnDirectMessageDeleted; // messageId, conversationKey
-    public event Func<DirectMessage, Task>? OnDirectMessageReactionChanged;
-    public event Func<string, Task>? OnDMTypingUsersChanged; // conversationKey
+    // Channel events
+    public event Func<Channel, Task>? OnChannelCreated;
+    public event Func<Guid, Task>? OnChannelDeleted;
 
     // Admin events
     public event Func<string?, Task>? OnAdminChanged;
@@ -53,12 +41,12 @@ public class ChatService
 
     public ChatService()
     {
-        // Create default lobby room
-        var lobby = new Room("lobby", null, isDefault: true);
+        // Create default lobby channel
+        var lobby = Channel.CreateRoom("lobby", createdBy: null, isDefault: true);
         LobbyId = lobby.Id;
-        _rooms[lobby.Id] = lobby;
-        _roomMessages[lobby.Id] = new List<ChatMessage>();
-        _roomTypingUsers[lobby.Id] = new ConcurrentDictionary<string, DateTime>();
+        _channels[lobby.Id] = lobby;
+        _channelMessages[lobby.Id] = new List<ChatMessage>();
+        _channelTypingUsers[lobby.Id] = new ConcurrentDictionary<string, DateTime>();
     }
 
     #region Admin
@@ -86,13 +74,19 @@ public class ChatService
 
     #endregion
 
-    #region Room Management
+    #region Channel Management
 
-    public List<Room> GetRooms() => _rooms.Values.OrderBy(r => r.IsDefault ? 0 : 1).ThenBy(r => r.CreatedAt).ToList();
+    public List<Channel> GetRooms() =>
+        _channels.Values
+            .Where(c => c.Type == ChannelType.Room)
+            .OrderBy(c => c.IsDefault ? 0 : 1)
+            .ThenBy(c => c.CreatedAt)
+            .ToList();
 
-    public Room? GetRoom(Guid roomId) => _rooms.TryGetValue(roomId, out var room) ? room : null;
+    public Channel? GetChannel(Guid channelId) =>
+        _channels.TryGetValue(channelId, out var channel) ? channel : null;
 
-    public async Task<Room?> CreateRoomAsync(string adminUsername, string roomName)
+    public async Task<Channel?> CreateRoomAsync(string adminUsername, string roomName)
     {
         if (!IsAdmin(adminUsername))
             return null;
@@ -103,41 +97,78 @@ public class ChatService
             return null;
 
         // Check if room already exists
-        if (_rooms.Values.Any(r => r.Name.Equals(roomName, StringComparison.OrdinalIgnoreCase)))
+        if (_channels.Values.Any(c => c.Type == ChannelType.Room &&
+            c.Name.Equals(roomName, StringComparison.OrdinalIgnoreCase)))
             return null;
 
-        var room = new Room(roomName, adminUsername);
-        _rooms[room.Id] = room;
-        _roomMessages[room.Id] = new List<ChatMessage>();
-        _roomTypingUsers[room.Id] = new ConcurrentDictionary<string, DateTime>();
+        var channel = Channel.CreateRoom(roomName, adminUsername);
+        _channels[channel.Id] = channel;
+        _channelMessages[channel.Id] = new List<ChatMessage>();
+        _channelTypingUsers[channel.Id] = new ConcurrentDictionary<string, DateTime>();
 
-        if (OnRoomCreated != null)
-            await OnRoomCreated.Invoke(room);
+        if (OnChannelCreated != null)
+            await OnChannelCreated.Invoke(channel);
 
-        return room;
+        return channel;
     }
 
-    public async Task<bool> DeleteRoomAsync(string adminUsername, Guid roomId)
+    public async Task<bool> DeleteRoomAsync(string adminUsername, Guid channelId)
     {
         if (!IsAdmin(adminUsername))
             return false;
 
-        if (!_rooms.TryGetValue(roomId, out var room))
+        if (!_channels.TryGetValue(channelId, out var channel))
             return false;
 
-        // Cannot delete default lobby
-        if (room.IsDefault)
+        // Cannot delete default lobby or DM channels
+        if (channel.IsDefault || channel.IsDirectMessage)
             return false;
 
-        _rooms.TryRemove(roomId, out _);
-        _roomMessages.TryRemove(roomId, out _);
-        _roomTypingUsers.TryRemove(roomId, out _);
+        _channels.TryRemove(channelId, out _);
+        _channelMessages.TryRemove(channelId, out _);
+        _channelTypingUsers.TryRemove(channelId, out _);
 
-        if (OnRoomDeleted != null)
-            await OnRoomDeleted.Invoke(roomId);
+        if (OnChannelDeleted != null)
+            await OnChannelDeleted.Invoke(channelId);
 
         return true;
     }
+
+    /// <summary>
+    /// Gets or creates a DM channel between two users
+    /// </summary>
+    public Channel GetOrCreateDMChannel(string user1, string user2)
+    {
+        // Check if DM channel already exists
+        var existing = _channels.Values.FirstOrDefault(c => c.IsDMBetween(user1, user2));
+        if (existing != null)
+            return existing;
+
+        // Create new DM channel
+        var channel = Channel.CreateDM(user1, user2);
+        _channels[channel.Id] = channel;
+        _channelMessages[channel.Id] = new List<ChatMessage>();
+        _channelTypingUsers[channel.Id] = new ConcurrentDictionary<string, DateTime>();
+
+        return channel;
+    }
+
+    /// <summary>
+    /// Gets all DM channels for a user
+    /// </summary>
+    public List<Channel> GetDMChannels(string username) =>
+        _channels.Values
+            .Where(c => c.IsDirectMessage && c.CanAccess(username))
+            .ToList();
+
+    /// <summary>
+    /// Gets all users that have DM history with the specified user
+    /// </summary>
+    public List<string> GetDMConversations(string username) =>
+        GetDMChannels(username)
+            .Select(c => c.GetOtherParticipant(username)!)
+            .Where(u => u != null)
+            .ToList();
 
     #endregion
 
@@ -160,20 +191,14 @@ public class ChatService
     {
         if (_users.TryRemove(circuitId, out var session))
         {
-            // Remove from all room typing indicators
-            foreach (var roomTyping in _roomTypingUsers.Values)
+            // Remove from all typing indicators
+            foreach (var typingUsers in _channelTypingUsers.Values)
             {
-                roomTyping.TryRemove(session.Username, out _);
+                typingUsers.TryRemove(session.Username, out _);
             }
 
-            // Remove from all DM typing indicators
-            foreach (var dmTyping in _dmTypingUsers.Values)
-            {
-                dmTyping.TryRemove(session.Username, out _);
-            }
-
-            // Clear all DMs involving this user (ephemeral DMs)
-            ClearUserDMs(session.Username);
+            // Clear all DM channels involving this user (ephemeral DMs)
+            ClearUserDMChannels(session.Username);
 
             if (OnUserChanged != null)
                 await OnUserChanged.Invoke(session.Username, false);
@@ -183,19 +208,20 @@ public class ChatService
     }
 
     /// <summary>
-    /// Clears all DM conversations involving a user (called when user leaves)
+    /// Clears all DM channels involving a user (called when user leaves)
     /// </summary>
-    private void ClearUserDMs(string username)
+    private void ClearUserDMChannels(string username)
     {
-        var userLower = username.ToLowerInvariant();
-        var keysToRemove = _directMessages.Keys
-            .Where(k => k.Split('|').Contains(userLower))
+        var dmChannels = _channels.Values
+            .Where(c => c.IsDirectMessage && c.CanAccess(username))
+            .Select(c => c.Id)
             .ToList();
 
-        foreach (var key in keysToRemove)
+        foreach (var channelId in dmChannels)
         {
-            _directMessages.TryRemove(key, out _);
-            _dmTypingUsers.TryRemove(key, out _);
+            _channels.TryRemove(channelId, out _);
+            _channelMessages.TryRemove(channelId, out _);
+            _channelTypingUsers.TryRemove(channelId, out _);
         }
     }
 
@@ -207,18 +233,18 @@ public class ChatService
 
     #endregion
 
-    #region Room Messaging
+    #region Messaging
 
-    public async Task SendMessageAsync(Guid roomId, string username, string content, List<string>? imageUrls = null)
+    public async Task SendMessageAsync(Guid channelId, string username, string content, List<string>? imageUrls = null)
     {
-        if (!_rooms.ContainsKey(roomId))
+        if (!_channels.ContainsKey(channelId))
             return;
 
-        var message = new ChatMessage(roomId, username, content, DateTime.UtcNow, imageUrls);
+        var message = new ChatMessage(channelId, username, content, DateTime.UtcNow, imageUrls);
 
-        lock (_roomLock)
+        lock (_channelLock)
         {
-            if (!_roomMessages.TryGetValue(roomId, out var messages))
+            if (!_channelMessages.TryGetValue(channelId, out var messages))
                 return;
 
             messages.Add(message);
@@ -231,31 +257,31 @@ public class ChatService
         }
 
         // Stop typing when message is sent
-        if (_roomTypingUsers.TryGetValue(roomId, out var typingUsers))
+        if (_channelTypingUsers.TryGetValue(channelId, out var typingUsers))
             typingUsers.TryRemove(username, out _);
 
         if (OnMessageReceived != null)
             await OnMessageReceived.Invoke(message);
     }
 
-    public List<ChatMessage> GetRoomMessages(Guid roomId, int count = 50)
+    public List<ChatMessage> GetMessages(Guid channelId, int count = 50)
     {
-        if (!_roomMessages.TryGetValue(roomId, out var messages))
+        if (!_channelMessages.TryGetValue(channelId, out var messages))
             return new List<ChatMessage>();
 
-        lock (_roomLock)
+        lock (_channelLock)
         {
             return messages.TakeLast(Math.Min(count, messages.Count)).ToList();
         }
     }
 
-    public async Task<bool> EditMessageAsync(Guid messageId, Guid roomId, string username, string newContent)
+    public async Task<bool> EditMessageAsync(Guid messageId, Guid channelId, string username, string newContent)
     {
-        if (!_roomMessages.TryGetValue(roomId, out var messages))
+        if (!_channelMessages.TryGetValue(channelId, out var messages))
             return false;
 
         ChatMessage? message;
-        lock (_roomLock)
+        lock (_channelLock)
         {
             message = messages.FirstOrDefault(m => m.Id == messageId);
         }
@@ -275,13 +301,13 @@ public class ChatService
         return true;
     }
 
-    public async Task<bool> DeleteMessageAsync(Guid messageId, Guid roomId, string username)
+    public async Task<bool> DeleteMessageAsync(Guid messageId, Guid channelId, string username)
     {
-        if (!_roomMessages.TryGetValue(roomId, out var messages))
+        if (!_channelMessages.TryGetValue(channelId, out var messages))
             return false;
 
         ChatMessage? message;
-        lock (_roomLock)
+        lock (_channelLock)
         {
             message = messages.FirstOrDefault(m => m.Id == messageId);
             if (message == null || message.Username != username)
@@ -291,18 +317,18 @@ public class ChatService
         }
 
         if (OnMessageDeleted != null)
-            await OnMessageDeleted.Invoke(messageId, roomId);
+            await OnMessageDeleted.Invoke(messageId, channelId);
 
         return true;
     }
 
-    public async Task ToggleReactionAsync(Guid messageId, Guid roomId, string username, string emoji)
+    public async Task ToggleReactionAsync(Guid messageId, Guid channelId, string username, string emoji)
     {
-        if (!_roomMessages.TryGetValue(roomId, out var messages))
+        if (!_channelMessages.TryGetValue(channelId, out var messages))
             return;
 
         ChatMessage? message;
-        lock (_roomLock)
+        lock (_channelLock)
         {
             message = messages.FirstOrDefault(m => m.Id == messageId);
         }
@@ -331,144 +357,38 @@ public class ChatService
 
     #endregion
 
-    #region Room Typing Indicators
-
-    public async Task StartTypingAsync(Guid roomId, string username)
-    {
-        if (_roomTypingUsers.TryGetValue(roomId, out var typingUsers))
-        {
-            typingUsers[username] = DateTime.UtcNow;
-            if (OnTypingUsersChanged != null)
-                await OnTypingUsersChanged.Invoke(roomId);
-        }
-    }
-
-    public async Task StopTypingAsync(Guid roomId, string username)
-    {
-        if (_roomTypingUsers.TryGetValue(roomId, out var typingUsers))
-        {
-            typingUsers.TryRemove(username, out _);
-            if (OnTypingUsersChanged != null)
-                await OnTypingUsersChanged.Invoke(roomId);
-        }
-    }
-
-    public List<string> GetTypingUsers(Guid roomId)
-    {
-        if (!_roomTypingUsers.TryGetValue(roomId, out var typingUsers))
-            return new List<string>();
-
-        // Clean up stale typing indicators (> 3 seconds)
-        var stale = typingUsers
-            .Where(kvp => (DateTime.UtcNow - kvp.Value).TotalSeconds > 3)
-            .Select(kvp => kvp.Key)
-            .ToList();
-
-        foreach (var user in stale)
-            typingUsers.TryRemove(user, out _);
-
-        return typingUsers.Keys.ToList();
-    }
-
-    #endregion
-
-    #region Direct Messages
-
-    public async Task SendDirectMessageAsync(string fromUser, string toUser, string content, List<string>? imageUrls = null)
-    {
-        var key = DirectMessage.GetConversationKey(fromUser, toUser);
-        var message = new DirectMessage(fromUser, toUser, content, DateTime.UtcNow, imageUrls);
-
-        lock (_dmLock)
-        {
-            if (!_directMessages.TryGetValue(key, out var messages))
-            {
-                messages = new List<DirectMessage>();
-                _directMessages[key] = messages;
-            }
-
-            messages.Add(message);
-
-            // Remove old messages if we exceed the limit
-            while (messages.Count > _maxMessages)
-            {
-                messages.RemoveAt(0);
-            }
-        }
-
-        // Stop typing when message is sent
-        if (_dmTypingUsers.TryGetValue(key, out var typingUsers))
-            typingUsers.TryRemove(fromUser, out _);
-
-        if (OnDirectMessageReceived != null)
-            await OnDirectMessageReceived.Invoke(message);
-    }
-
-    public List<DirectMessage> GetDirectMessages(string user1, string user2, int count = 50)
-    {
-        var key = DirectMessage.GetConversationKey(user1, user2);
-        if (!_directMessages.TryGetValue(key, out var messages))
-            return new List<DirectMessage>();
-
-        lock (_dmLock)
-        {
-            return messages.TakeLast(Math.Min(count, messages.Count)).ToList();
-        }
-    }
+    #region DM-specific helpers
 
     /// <summary>
-    /// Gets all users that have DM history with the specified user
-    /// </summary>
-    public List<string> GetDMConversations(string username)
-    {
-        var userLower = username.ToLowerInvariant();
-        var conversations = new List<string>();
-
-        foreach (var key in _directMessages.Keys)
-        {
-            var parts = key.Split('|');
-            if (parts.Length == 2)
-            {
-                if (parts[0] == userLower)
-                    conversations.Add(parts[1]);
-                else if (parts[1] == userLower)
-                    conversations.Add(parts[0]);
-            }
-        }
-
-        return conversations;
-    }
-
-    /// <summary>
-    /// Gets unread DM count for a user from a specific sender
+    /// Gets unread message count for a user in a DM channel
     /// </summary>
     public int GetUnreadDMCount(string forUser, string fromUser)
     {
-        var key = DirectMessage.GetConversationKey(forUser, fromUser);
-        if (!_directMessages.TryGetValue(key, out var messages))
+        var channel = _channels.Values.FirstOrDefault(c => c.IsDMBetween(forUser, fromUser));
+        if (channel == null || !_channelMessages.TryGetValue(channel.Id, out var messages))
             return 0;
 
-        lock (_dmLock)
+        lock (_channelLock)
         {
             return messages.Count(m =>
-                m.ToUser.Equals(forUser, StringComparison.OrdinalIgnoreCase) &&
+                !m.Username.Equals(forUser, StringComparison.OrdinalIgnoreCase) &&
                 !m.IsRead);
         }
     }
 
     /// <summary>
-    /// Marks all DMs in a conversation as read for a user
+    /// Marks all messages in a DM channel as read for a user
     /// </summary>
-    public void MarkDMsAsRead(string forUser, string fromUser)
+    public void MarkDMsAsRead(string forUser, string otherUser)
     {
-        var key = DirectMessage.GetConversationKey(forUser, fromUser);
-        if (!_directMessages.TryGetValue(key, out var messages))
+        var channel = _channels.Values.FirstOrDefault(c => c.IsDMBetween(forUser, otherUser));
+        if (channel == null || !_channelMessages.TryGetValue(channel.Id, out var messages))
             return;
 
-        lock (_dmLock)
+        lock (_channelLock)
         {
             foreach (var msg in messages.Where(m =>
-                m.ToUser.Equals(forUser, StringComparison.OrdinalIgnoreCase) &&
+                !m.Username.Equals(forUser, StringComparison.OrdinalIgnoreCase) &&
                 !m.IsRead))
             {
                 msg.IsRead = true;
@@ -476,121 +396,36 @@ public class ChatService
         }
     }
 
-    public async Task<bool> EditDirectMessageAsync(Guid messageId, string fromUser, string toUser, string newContent)
-    {
-        var key = DirectMessage.GetConversationKey(fromUser, toUser);
-        if (!_directMessages.TryGetValue(key, out var messages))
-            return false;
-
-        DirectMessage? message;
-        lock (_dmLock)
-        {
-            message = messages.FirstOrDefault(m => m.Id == messageId);
-        }
-
-        if (message == null || !message.FromUser.Equals(fromUser, StringComparison.OrdinalIgnoreCase))
-            return false;
-
-        if (message.HasImages)
-            return false;
-
-        message.Content = newContent;
-        message.IsEdited = true;
-
-        if (OnDirectMessageUpdated != null)
-            await OnDirectMessageUpdated.Invoke(message);
-
-        return true;
-    }
-
-    public async Task<bool> DeleteDirectMessageAsync(Guid messageId, string fromUser, string toUser)
-    {
-        var key = DirectMessage.GetConversationKey(fromUser, toUser);
-        if (!_directMessages.TryGetValue(key, out var messages))
-            return false;
-
-        DirectMessage? message;
-        lock (_dmLock)
-        {
-            message = messages.FirstOrDefault(m => m.Id == messageId);
-            if (message == null || !message.FromUser.Equals(fromUser, StringComparison.OrdinalIgnoreCase))
-                return false;
-
-            messages.Remove(message);
-        }
-
-        if (OnDirectMessageDeleted != null)
-            await OnDirectMessageDeleted.Invoke(messageId, key);
-
-        return true;
-    }
-
-    public async Task ToggleDirectMessageReactionAsync(Guid messageId, string user1, string user2, string username, string emoji)
-    {
-        var key = DirectMessage.GetConversationKey(user1, user2);
-        if (!_directMessages.TryGetValue(key, out var messages))
-            return;
-
-        DirectMessage? message;
-        lock (_dmLock)
-        {
-            message = messages.FirstOrDefault(m => m.Id == messageId);
-        }
-
-        if (message == null)
-            return;
-
-        lock (message.Reactions)
-        {
-            if (!message.Reactions.ContainsKey(emoji))
-                message.Reactions[emoji] = new HashSet<string>();
-
-            if (message.Reactions[emoji].Contains(username))
-                message.Reactions[emoji].Remove(username);
-            else
-                message.Reactions[emoji].Add(username);
-
-            // Clean up empty reaction sets
-            if (message.Reactions[emoji].Count == 0)
-                message.Reactions.Remove(emoji);
-        }
-
-        if (OnDirectMessageReactionChanged != null)
-            await OnDirectMessageReactionChanged.Invoke(message);
-    }
-
     /// <summary>
-    /// Gets the timestamp of the last DM in a conversation
+    /// Gets the timestamp of the last message in a DM channel
     /// </summary>
     public DateTime? GetLastDMTimestamp(string user1, string user2)
     {
-        var key = DirectMessage.GetConversationKey(user1, user2);
-        if (!_directMessages.TryGetValue(key, out var messages) || messages.Count == 0)
+        var channel = _channels.Values.FirstOrDefault(c => c.IsDMBetween(user1, user2));
+        if (channel == null || !_channelMessages.TryGetValue(channel.Id, out var messages) || messages.Count == 0)
             return null;
 
-        lock (_dmLock)
+        lock (_channelLock)
         {
             return messages.LastOrDefault()?.Timestamp;
         }
     }
 
     /// <summary>
-    /// Gets total unread DM count for a user across all conversations
+    /// Gets total unread DM count for a user across all DM channels
     /// </summary>
     public int GetTotalUnreadDMCount(string forUser)
     {
         var total = 0;
-        var userLower = forUser.ToLowerInvariant();
 
-        foreach (var kvp in _directMessages)
+        foreach (var channel in _channels.Values.Where(c => c.IsDirectMessage && c.CanAccess(forUser)))
         {
-            var parts = kvp.Key.Split('|');
-            if (parts.Length == 2 && (parts[0] == userLower || parts[1] == userLower))
+            if (_channelMessages.TryGetValue(channel.Id, out var messages))
             {
-                lock (_dmLock)
+                lock (_channelLock)
                 {
-                    total += kvp.Value.Count(m =>
-                        m.ToUser.Equals(forUser, StringComparison.OrdinalIgnoreCase) &&
+                    total += messages.Count(m =>
+                        !m.Username.Equals(forUser, StringComparison.OrdinalIgnoreCase) &&
                         !m.IsRead);
                 }
             }
@@ -601,40 +436,31 @@ public class ChatService
 
     #endregion
 
-    #region DM Typing Indicators
+    #region Typing Indicators
 
-    public async Task StartDMTypingAsync(string fromUser, string toUser)
+    public async Task StartTypingAsync(Guid channelId, string username)
     {
-        var key = DirectMessage.GetConversationKey(fromUser, toUser);
-
-        if (!_dmTypingUsers.TryGetValue(key, out var typingUsers))
+        if (_channelTypingUsers.TryGetValue(channelId, out var typingUsers))
         {
-            typingUsers = new ConcurrentDictionary<string, DateTime>();
-            _dmTypingUsers[key] = typingUsers;
-        }
-
-        typingUsers[fromUser] = DateTime.UtcNow;
-
-        if (OnDMTypingUsersChanged != null)
-            await OnDMTypingUsersChanged.Invoke(key);
-    }
-
-    public async Task StopDMTypingAsync(string fromUser, string toUser)
-    {
-        var key = DirectMessage.GetConversationKey(fromUser, toUser);
-
-        if (_dmTypingUsers.TryGetValue(key, out var typingUsers))
-        {
-            typingUsers.TryRemove(fromUser, out _);
-            if (OnDMTypingUsersChanged != null)
-                await OnDMTypingUsersChanged.Invoke(key);
+            typingUsers[username] = DateTime.UtcNow;
+            if (OnTypingUsersChanged != null)
+                await OnTypingUsersChanged.Invoke(channelId);
         }
     }
 
-    public List<string> GetDMTypingUsers(string user1, string user2)
+    public async Task StopTypingAsync(Guid channelId, string username)
     {
-        var key = DirectMessage.GetConversationKey(user1, user2);
-        if (!_dmTypingUsers.TryGetValue(key, out var typingUsers))
+        if (_channelTypingUsers.TryGetValue(channelId, out var typingUsers))
+        {
+            typingUsers.TryRemove(username, out _);
+            if (OnTypingUsersChanged != null)
+                await OnTypingUsersChanged.Invoke(channelId);
+        }
+    }
+
+    public List<string> GetTypingUsers(Guid channelId)
+    {
+        if (!_channelTypingUsers.TryGetValue(channelId, out var typingUsers))
             return new List<string>();
 
         // Clean up stale typing indicators (> 3 seconds)

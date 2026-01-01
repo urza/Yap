@@ -14,35 +14,35 @@
         </div>
     </div>
 
-    @for (int i = 0; i < dmMessages.Count; i++)
+    @for (int i = 0; i < messages.Count; i++)
     {
-        var message = dmMessages[i];
-        var showHeader = i == 0 || dmMessages[i - 1].FromUser != message.FromUser;
+        var message = messages[i];
+        var showHeader = i == 0 || messages[i - 1].Username != message.Username;
 
-        <MessageItem Username="@message.FromUser"
+        <MessageItem Username="@message.Username"
                      Content="@message.Content"
                      Timestamp="@message.Timestamp"
                      ShowHeader="@showHeader"
-                     IsOwn="@message.FromUser.Equals(Username, StringComparison.OrdinalIgnoreCase)"
+                     IsOwn="@message.Username.Equals(Username, StringComparison.OrdinalIgnoreCase)"
                      IsSystem="false"
                      IsEdited="@message.IsEdited"
-                     IsHovered="@(hoveredDMId == message.Id)"
-                     IsEditing="@(editingDMId == message.Id)"
+                     IsHovered="@(hoveredMessageId == message.Id)"
+                     IsEditing="@(editingMessageId == message.Id)"
                      HasImages="@message.HasImages"
                      ImageUrls="@message.ImageUrls"
                      Reactions="@message.Reactions"
                      ShowReactions="true"
                      CurrentUsername="@Username"
                      RecentEmojis="@recentEmojis"
-                     EditContent="@editDMContent"
-                     EditContentChanged="@(v => editDMContent = v)"
-                     OnMouseEnter="@(() => hoveredDMId = message.Id)"
-                     OnMouseLeave="@(() => hoveredDMId = null)"
-                     OnReaction="@(emoji => ToggleDMReaction(message.Id, emoji))"
-                     OnStartEdit="@(() => StartDMEdit(message))"
-                     OnSaveEdit="SaveDMEdit"
-                     OnCancelEdit="CancelDMEdit"
-                     OnDelete="@(() => DeleteDM(message.Id))"
+                     EditContent="@editContent"
+                     EditContentChanged="@(v => editContent = v)"
+                     OnMouseEnter="@(() => hoveredMessageId = message.Id)"
+                     OnMouseLeave="@(() => hoveredMessageId = null)"
+                     OnReaction="@(emoji => ToggleReaction(message.Id, emoji))"
+                     OnStartEdit="@(() => StartEdit(message))"
+                     OnSaveEdit="SaveEdit"
+                     OnCancelEdit="CancelEdit"
+                     OnDelete="@(() => DeleteMessage(message.Id))"
                      OnImageClick="@(args => ShowGallery(args.Images, args.Index))" />
     }
 </div>
@@ -58,10 +58,11 @@
     [Parameter] public string DmUser { get; set; } = "";
 
     // State
-    private List<DirectMessage> dmMessages = new();
-    private Guid? hoveredDMId = null;
-    private Guid? editingDMId = null;
-    private string editDMContent = "";
+    private Guid channelId;
+    private List<ChatMessage> messages = new();
+    private Guid? hoveredMessageId = null;
+    private Guid? editingMessageId = null;
+    private string editContent = "";
     private bool initialized = false;
     private string? previousDmUser = null;
 
@@ -79,8 +80,12 @@
     {
         previousDmUser = DmUser;
 
-        // Load DM messages
-        dmMessages = ChatService.GetDirectMessages(Username, DmUser).ToList();
+        // Get or create DM channel
+        var channel = ChatService.GetOrCreateDMChannel(Username, DmUser);
+        channelId = channel.Id;
+
+        // Load messages
+        messages = ChatService.GetMessages(channelId).ToList();
 
         // Mark messages as read
         ChatService.MarkDMsAsRead(Username, DmUser);
@@ -91,11 +96,11 @@
 
         await UpdatePageTitleAsync();
 
-        // Subscribe to events
-        ChatService.OnDirectMessageReceived += HandleDirectMessageReceived;
-        ChatService.OnDirectMessageUpdated += HandleDirectMessageUpdated;
-        ChatService.OnDirectMessageDeleted += HandleDirectMessageDeleted;
-        ChatService.OnDirectMessageReactionChanged += HandleDirectMessageReactionChanged;
+        // Subscribe to events (same events as room chat!)
+        ChatService.OnMessageReceived += HandleMessageReceived;
+        ChatService.OnMessageUpdated += HandleMessageUpdated;
+        ChatService.OnMessageDeleted += HandleMessageDeleted;
+        ChatService.OnReactionChanged += HandleReactionChanged;
         ChatService.OnUsersListChanged += HandleUsersListChanged;
 
         initialized = true;
@@ -103,8 +108,12 @@
 
     private async Task SwitchDmContentAsync()
     {
-        // Load new DM messages
-        dmMessages = ChatService.GetDirectMessages(Username, DmUser).ToList();
+        // Get or create new DM channel
+        var channel = ChatService.GetOrCreateDMChannel(Username, DmUser);
+        channelId = channel.Id;
+
+        // Load messages
+        messages = ChatService.GetMessages(channelId).ToList();
 
         // Mark as read
         ChatService.MarkDMsAsRead(Username, DmUser);
@@ -120,73 +129,58 @@
 
     #region Event Handlers
 
-    private async Task HandleDirectMessageReceived(DirectMessage message)
+    private async Task HandleMessageReceived(ChatMessage message)
     {
         await InvokeAsync(async () =>
         {
-            var isForThisConversation =
-                (message.FromUser.Equals(Username, StringComparison.OrdinalIgnoreCase) &&
-                 message.ToUser.Equals(DmUser, StringComparison.OrdinalIgnoreCase)) ||
-                (message.FromUser.Equals(DmUser, StringComparison.OrdinalIgnoreCase) &&
-                 message.ToUser.Equals(Username, StringComparison.OrdinalIgnoreCase));
-
-            if (isForThisConversation)
+            if (message.ChannelId == channelId)
             {
-                dmMessages.Add(message);
+                messages.Add(message);
                 ChatService.MarkDMsAsRead(Username, DmUser);
                 StateHasChanged();
                 await ScrollToBottomAsync();
             }
 
-            if (!message.FromUser.Equals(Username, StringComparison.OrdinalIgnoreCase))
+            if (!message.Username.Equals(Username, StringComparison.OrdinalIgnoreCase))
             {
-                await HandleNewMessageNotificationAsync(message.FromUser, isDM: true);
+                await HandleNewMessageNotificationAsync(message.Username, isDM: true);
             }
         });
     }
 
-    private async Task HandleDirectMessageUpdated(DirectMessage message)
+    private async Task HandleMessageUpdated(ChatMessage message)
     {
         await InvokeAsync(() =>
         {
-            var otherUser = message.FromUser.Equals(Username, StringComparison.OrdinalIgnoreCase)
-                ? message.ToUser
-                : message.FromUser;
-
-            if (DmUser.Equals(otherUser, StringComparison.OrdinalIgnoreCase))
+            if (message.ChannelId == channelId)
             {
-                var index = dmMessages.FindIndex(m => m.Id == message.Id);
-                if (index >= 0) dmMessages[index] = message;
+                var index = messages.FindIndex(m => m.Id == message.Id);
+                if (index >= 0) messages[index] = message;
                 StateHasChanged();
             }
         });
     }
 
-    private async Task HandleDirectMessageDeleted(Guid messageId, string conversationKey)
+    private async Task HandleMessageDeleted(Guid messageId, Guid deletedChannelId)
     {
         await InvokeAsync(() =>
         {
-            var key = DirectMessage.GetConversationKey(Username, DmUser);
-            if (key == conversationKey)
+            if (deletedChannelId == channelId)
             {
-                dmMessages.RemoveAll(m => m.Id == messageId);
+                messages.RemoveAll(m => m.Id == messageId);
                 StateHasChanged();
             }
         });
     }
 
-    private async Task HandleDirectMessageReactionChanged(DirectMessage message)
+    private async Task HandleReactionChanged(ChatMessage message)
     {
         await InvokeAsync(() =>
         {
-            var otherUser = message.FromUser.Equals(Username, StringComparison.OrdinalIgnoreCase)
-                ? message.ToUser
-                : message.FromUser;
-
-            if (DmUser.Equals(otherUser, StringComparison.OrdinalIgnoreCase))
+            if (message.ChannelId == channelId)
             {
-                var index = dmMessages.FindIndex(m => m.Id == message.Id);
-                if (index >= 0) dmMessages[index] = message;
+                var index = messages.FindIndex(m => m.Id == message.Id);
+                if (index >= 0) messages[index] = message;
                 StateHasChanged();
             }
         });
@@ -212,46 +206,46 @@
 
     #region Message Actions
 
-    private async Task ToggleDMReaction(Guid messageId, string emoji)
+    private async Task ToggleReaction(Guid messageId, string emoji)
     {
         await AddRecentEmojiAsync(emoji);
-        await ChatService.ToggleDirectMessageReactionAsync(messageId, Username, DmUser, Username, emoji);
+        await ChatService.ToggleReactionAsync(messageId, channelId, Username, emoji);
     }
 
-    private void StartDMEdit(DirectMessage message)
+    private void StartEdit(ChatMessage message)
     {
-        editingDMId = message.Id;
-        editDMContent = message.Content;
+        editingMessageId = message.Id;
+        editContent = message.Content;
     }
 
-    private async Task SaveDMEdit()
+    private async Task SaveEdit()
     {
-        if (editingDMId.HasValue && !string.IsNullOrWhiteSpace(editDMContent))
+        if (editingMessageId.HasValue && !string.IsNullOrWhiteSpace(editContent))
         {
-            await ChatService.EditDirectMessageAsync(editingDMId.Value, Username, DmUser, editDMContent);
+            await ChatService.EditMessageAsync(editingMessageId.Value, channelId, Username, editContent);
         }
-        CancelDMEdit();
+        CancelEdit();
     }
 
-    private void CancelDMEdit()
+    private void CancelEdit()
     {
-        editingDMId = null;
-        editDMContent = "";
+        editingMessageId = null;
+        editContent = "";
     }
 
-    private async Task DeleteDM(Guid messageId)
+    private async Task DeleteMessage(Guid messageId)
     {
-        await ChatService.DeleteDirectMessageAsync(messageId, Username, DmUser);
+        await ChatService.DeleteMessageAsync(messageId, channelId, Username);
     }
 
     #endregion
 
     public void Dispose()
     {
-        ChatService.OnDirectMessageReceived -= HandleDirectMessageReceived;
-        ChatService.OnDirectMessageUpdated -= HandleDirectMessageUpdated;
-        ChatService.OnDirectMessageDeleted -= HandleDirectMessageDeleted;
-        ChatService.OnDirectMessageReactionChanged -= HandleDirectMessageReactionChanged;
+        ChatService.OnMessageReceived -= HandleMessageReceived;
+        ChatService.OnMessageUpdated -= HandleMessageUpdated;
+        ChatService.OnMessageDeleted -= HandleMessageDeleted;
+        ChatService.OnReactionChanged -= HandleReactionChanged;
         ChatService.OnUsersListChanged -= HandleUsersListChanged;
     }
 }

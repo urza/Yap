@@ -147,12 +147,13 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     #region Recent Emojis
 
     private const int MaxRecentEmojis = 20;
+    private string RecentEmojisKey => $"recentEmojis_{Username}";
 
     protected async Task LoadRecentEmojisAsync()
     {
         try
         {
-            var json = await JS.InvokeAsync<string?>("localStorage.getItem", "recentEmojis");
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", RecentEmojisKey);
             if (!string.IsNullOrEmpty(json))
             {
                 recentEmojis = System.Text.Json.JsonSerializer.Deserialize<List<string>>(json) ?? new();
@@ -179,7 +180,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
         try
         {
             var json = System.Text.Json.JsonSerializer.Serialize(recentEmojis);
-            await JS.InvokeVoidAsync("localStorage.setItem", "recentEmojis", json);
+            await JS.InvokeVoidAsync("localStorage.setItem", RecentEmojisKey, json);
         }
         catch { }
     }
