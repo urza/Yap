@@ -48,6 +48,7 @@
     padding-left: 0;
     word-break: break-word;
     overflow-wrap: break-word;
+    white-space: pre-wrap; /* Preserve newlines from multiline input */
     margin: 0;
 }
 

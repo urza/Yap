@@ -240,7 +240,6 @@
         {
             shouldPreventDefault = true;
             await HandleSend();
-            try { await JS.InvokeVoidAsync("resetTextareaHeight", TextareaId); } catch { }
             shouldPreventDefault = false;
         }
     }
@@ -251,6 +250,9 @@
 
         var content = messageText;
         messageText = "";
+
+        // Reset textarea height after clearing content
+        try { await JS.InvokeVoidAsync("resetTextareaHeight", TextareaId); } catch { }
 
         if (IsRoomContext && RoomId.HasValue)
         {
