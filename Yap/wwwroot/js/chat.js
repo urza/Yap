@@ -127,3 +127,8 @@ window.resetTextareaHeight = (id) => {
         textarea.style.height = '44px'; // Reset to min-height, avoids scrollbar flash
     }
 };
+
+// Detect touch/mobile device - Enter should not send on these
+window.isTouchDevice = () => {
+    return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+};

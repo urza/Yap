@@ -1,9 +1,10 @@
 .chat-container {
     height: 100vh; /* fallback for older browsers */
-    height: 100dvh; /* dynamic viewport height - accounts for mobile browser UI */
+    height: 100svh; /* small viewport height - consistent on mobile */
     display: flex;
     flex-direction: column;
     background: #36393f;
+    overflow: hidden;
 }
 
 .chat-main {

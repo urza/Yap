@@ -74,6 +74,7 @@
     // Unique IDs for this instance
     private string TextareaId = $"messageTextarea_{Guid.NewGuid():N}";
     private string FileInputId = $"fileInput_{Guid.NewGuid():N}";
+    private bool isTouchDevice = false;
 
     protected override void OnInitialized()
     {
@@ -103,6 +104,7 @@
         if (firstRender)
         {
             try { await JS.InvokeVoidAsync("setupDropZone", dropZoneElement, FileInputId); } catch { }
+            try { isTouchDevice = await JS.InvokeAsync<bool>("isTouchDevice"); } catch { }
         }
     }
 
@@ -236,7 +238,9 @@
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter" && !e.ShiftKey)
+        // On touch devices, Enter creates newline (use send button to send)
+        // On desktop, Enter sends message (Shift+Enter for newline)
+        if (e.Key == "Enter" && !e.ShiftKey && !isTouchDevice)
         {
             shouldPreventDefault = true;
             await HandleSend();

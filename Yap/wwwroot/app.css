@@ -10,6 +10,7 @@ html, body {
     background: #36393f;
     color: #dcddde;
     height: 100%;
+    overflow: hidden;
 }
 
 h1:focus {
