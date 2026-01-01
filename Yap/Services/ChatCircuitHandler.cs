@@ -16,10 +16,10 @@ public class ChatCircuitHandler : CircuitHandler
     public override async Task OnCircuitClosedAsync(Circuit circuit, CancellationToken cancellationToken)
     {
         // Remove user from chat when their circuit disconnects
-        if (!string.IsNullOrEmpty(_userState.CircuitId))
+        if (!string.IsNullOrEmpty(_userState.SessionId))
         {
-            await _chatService.RemoveUserAsync(_userState.CircuitId);
-            _userState.CircuitId = null;
+            await _chatService.RemoveUserAsync(_userState.SessionId);
+            _userState.SessionId = null;
         }
 
         await base.OnCircuitClosedAsync(circuit, cancellationToken);

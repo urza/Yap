@@ -1,3 +1,4 @@
+@using Yap.Models
 @inject EmojiService EmojiService
 
 <div class="message-group @(IsSystem ? "system-message" : "") @(IsHovered ? "hovered" : "") @(showEmojiPicker ? "picker-open" : "")"
@@ -7,8 +8,8 @@
     @if (ShowHeader)
     {
         <div class="message-header">
-            <strong class="message-username">@Username</strong>
-            <span class="message-time">@Timestamp.ToLocalTime().ToString("HH:mm")</span>
+            <strong class="message-username">@Message.Username</strong>
+            <span class="message-time">@Message.Timestamp.ToLocalTime().ToString("HH:mm")</span>
         </div>
     }
 
@@ -24,22 +25,22 @@
                 </div>
             </div>
         }
-        else if (HasImages)
+        else if (Message.HasImages)
         {
             var maxPreview = 4;
-            var hasMore = ImageUrls.Count > maxPreview;
-            var previewCount = hasMore ? maxPreview : ImageUrls.Count;
-            var extraCount = ImageUrls.Count - maxPreview;
+            var hasMore = Message.ImageUrls.Count > maxPreview;
+            var previewCount = hasMore ? maxPreview : Message.ImageUrls.Count;
+            var extraCount = Message.ImageUrls.Count - maxPreview;
 
             <div class="image-gallery @GetGalleryClass(previewCount)">
                 @for (int imgIndex = 0; imgIndex < previewCount; imgIndex++)
                 {
                     var idx = imgIndex;
-                    var imageUrl = ImageUrls[idx];
+                    var imageUrl = Message.ImageUrls[idx];
                     var isLastPreview = hasMore && idx == maxPreview - 1;
 
                     <div class="gallery-item @(isLastPreview ? "has-more" : "")"
-                         @onclick="() => OnImageClick.InvokeAsync((ImageUrls, idx))">
+                         @onclick="() => OnImageClick.InvokeAsync((Message.ImageUrls, idx))">
                         <img src="@imageUrl" alt="Uploaded image" class="gallery-image" />
                         @if (isLastPreview)
                         {
@@ -51,8 +52,8 @@
         }
         else
         {
-            @EmojiService.ConvertEmojisToTwemoji(Content)
-            @if (IsEdited)
+            @EmojiService.ConvertEmojisToTwemoji(Message.Content)
+            @if (Message.IsEdited)
             {
                 <span class="edited-indicator">(edited)</span>
             }
@@ -60,10 +61,10 @@
     </div>
 
     @* Reactions display *@
-    @if (Reactions?.Count > 0)
+    @if (Message.Reactions?.Count > 0)
     {
         <div class="reactions-display">
-            @foreach (var reaction in Reactions)
+            @foreach (var reaction in Message.Reactions)
             {
                 var hasReacted = reaction.Value.Contains(CurrentUsername);
                 <button class="reaction-pill @(hasReacted ? "reacted" : "")"
@@ -79,21 +80,18 @@
     @if ((IsHovered || showEmojiPicker) && !IsSystem && !IsEditing)
     {
         <div class="message-actions">
-            @if (ShowReactions)
+            @foreach (var emoji in GetQuickReactions())
             {
-                @foreach (var emoji in GetQuickReactions())
-                {
-                    var e = emoji;
-                    <button class="action-btn" @onclick="@(() => HandleQuickReaction(e))" title="@e">@EmojiService.ConvertEmojisToTwemoji(e, forceSmall: true)</button>
-                }
-                <div class="action-divider"></div>
-                <button class="action-btn action-picker" @onclick="ToggleEmojiPicker" @onclick:stopPropagation="true" title="Add Reaction">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-6c.78 2.34 2.72 4 5 4s4.22-1.66 5-4H7zm8-4c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm-6 0c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1z"/>
-                    </svg>
-                </button>
+                var e = emoji;
+                <button class="action-btn" @onclick="@(() => HandleQuickReaction(e))" title="@e">@EmojiService.ConvertEmojisToTwemoji(e, forceSmall: true)</button>
             }
-            @if (IsOwn && !HasImages)
+            <div class="action-divider"></div>
+            <button class="action-btn action-picker" @onclick="ToggleEmojiPicker" @onclick:stopPropagation="true" title="Add Reaction">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-6c.78 2.34 2.72 4 5 4s4.22-1.66 5-4H7zm8-4c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm-6 0c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1z"/>
+                </svg>
+            </button>
+            @if (IsOwn && !Message.HasImages)
             {
                 <button class="action-btn action-edit" @onclick="() => OnStartEdit.InvokeAsync()" title="Edit">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -120,21 +118,16 @@
 </div>
 
 @code {
-    [Parameter] public string Username { get; set; } = "";
-    [Parameter] public string Content { get; set; } = "";
-    [Parameter] public DateTime Timestamp { get; set; }
+    [Parameter, EditorRequired] public ChatMessage Message { get; set; } = default!;
     [Parameter] public bool ShowHeader { get; set; }
-    [Parameter] public bool IsOwn { get; set; }
-    [Parameter] public bool IsSystem { get; set; }
-    [Parameter] public bool IsEdited { get; set; }
     [Parameter] public bool IsHovered { get; set; }
     [Parameter] public bool IsEditing { get; set; }
-    [Parameter] public bool HasImages { get; set; }
-    [Parameter] public List<string> ImageUrls { get; set; } = new();
-    [Parameter] public Dictionary<string, HashSet<string>>? Reactions { get; set; }
-    [Parameter] public bool ShowReactions { get; set; } = true;
     [Parameter] public string CurrentUsername { get; set; } = "";
     [Parameter] public List<string> RecentEmojis { get; set; } = new();
+
+    // Computed from Message
+    private bool IsOwn => Message.Username.Equals(CurrentUsername, StringComparison.OrdinalIgnoreCase);
+    private bool IsSystem => Message.Username == "System";
 
     // Edit state
     [Parameter] public string EditContent { get; set; } = "";

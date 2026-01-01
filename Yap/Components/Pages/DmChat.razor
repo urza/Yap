@@ -19,19 +19,10 @@
         var message = messages[i];
         var showHeader = i == 0 || messages[i - 1].Username != message.Username;
 
-        <MessageItem Username="@message.Username"
-                     Content="@message.Content"
-                     Timestamp="@message.Timestamp"
+        <MessageItem Message="@message"
                      ShowHeader="@showHeader"
-                     IsOwn="@message.Username.Equals(Username, StringComparison.OrdinalIgnoreCase)"
-                     IsSystem="false"
-                     IsEdited="@message.IsEdited"
                      IsHovered="@(hoveredMessageId == message.Id)"
                      IsEditing="@(editingMessageId == message.Id)"
-                     HasImages="@message.HasImages"
-                     ImageUrls="@message.ImageUrls"
-                     Reactions="@message.Reactions"
-                     ShowReactions="true"
                      CurrentUsername="@Username"
                      RecentEmojis="@recentEmojis"
                      EditContent="@editContent"
@@ -57,13 +48,9 @@
 @code {
     [Parameter] public string DmUser { get; set; } = "";
 
-    // State
-    private Guid channelId;
-    private List<ChatMessage> messages = new();
-    private Guid? hoveredMessageId = null;
-    private Guid? editingMessageId = null;
-    private string editContent = "";
     private bool initialized = false;
+    // Tracks previous DM user to detect navigation between DMs (e.g., /dm/alice -> /dm/bob)
+    // without component recreation - Blazor reuses the component and just updates parameters
     private string? previousDmUser = null;
 
     protected override async Task OnParametersSetAsync()
@@ -96,7 +83,7 @@
 
         await UpdatePageTitleAsync();
 
-        // Subscribe to events (same events as room chat!)
+        // Subscribe to events
         ChatService.OnMessageReceived += HandleMessageReceived;
         ChatService.OnMessageUpdated += HandleMessageUpdated;
         ChatService.OnMessageDeleted += HandleMessageDeleted;
@@ -127,7 +114,7 @@
         await ScrollToBottomAsync();
     }
 
-    #region Event Handlers
+    #region DM-Specific Event Handlers
 
     private async Task HandleMessageReceived(ChatMessage message)
     {
@@ -148,44 +135,6 @@
         });
     }
 
-    private async Task HandleMessageUpdated(ChatMessage message)
-    {
-        await InvokeAsync(() =>
-        {
-            if (message.ChannelId == channelId)
-            {
-                var index = messages.FindIndex(m => m.Id == message.Id);
-                if (index >= 0) messages[index] = message;
-                StateHasChanged();
-            }
-        });
-    }
-
-    private async Task HandleMessageDeleted(Guid messageId, Guid deletedChannelId)
-    {
-        await InvokeAsync(() =>
-        {
-            if (deletedChannelId == channelId)
-            {
-                messages.RemoveAll(m => m.Id == messageId);
-                StateHasChanged();
-            }
-        });
-    }
-
-    private async Task HandleReactionChanged(ChatMessage message)
-    {
-        await InvokeAsync(() =>
-        {
-            if (message.ChannelId == channelId)
-            {
-                var index = messages.FindIndex(m => m.Id == message.Id);
-                if (index >= 0) messages[index] = message;
-                StateHasChanged();
-            }
-        });
-    }
-
     private async Task HandleUsersListChanged()
     {
         await InvokeAsync(() =>
@@ -200,42 +149,6 @@
                 }
             }
         });
-    }
-
-    #endregion
-
-    #region Message Actions
-
-    private async Task ToggleReaction(Guid messageId, string emoji)
-    {
-        await AddRecentEmojiAsync(emoji);
-        await ChatService.ToggleReactionAsync(messageId, channelId, Username, emoji);
-    }
-
-    private void StartEdit(ChatMessage message)
-    {
-        editingMessageId = message.Id;
-        editContent = message.Content;
-    }
-
-    private async Task SaveEdit()
-    {
-        if (editingMessageId.HasValue && !string.IsNullOrWhiteSpace(editContent))
-        {
-            await ChatService.EditMessageAsync(editingMessageId.Value, channelId, Username, editContent);
-        }
-        CancelEdit();
-    }
-
-    private void CancelEdit()
-    {
-        editingMessageId = null;
-        editContent = "";
-    }
-
-    private async Task DeleteMessage(Guid messageId)
-    {
-        await ChatService.DeleteMessageAsync(messageId, channelId, Username);
     }
 
     #endregion

@@ -68,8 +68,8 @@
         if (string.IsNullOrWhiteSpace(usernameInput))
             return;
 
-        // Auto-convert to lowercase
-        var normalized = usernameInput.ToLowerInvariant();
+        // Auto-trim and convert to lowercase
+        var normalized = usernameInput.Trim().ToLowerInvariant();
         if (normalized != usernameInput)
         {
             usernameInput = normalized;

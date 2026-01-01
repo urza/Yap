@@ -37,7 +37,7 @@ public class ChatService
     // Admin events
     public event Func<string?, Task>? OnAdminChanged;
 
-    public record UserSession(string Username, string CircuitId);
+    public record UserSession(string Username, string SessionId);
 
     public ChatService()
     {

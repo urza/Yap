@@ -13,7 +13,7 @@ namespace Yap.Services;
 /// This means:
 /// - User closes laptop for 2 hours → circuit evicted
 /// - User opens laptop → Blazor.resumeCircuit() called
-/// - Username and CircuitId are automatically restored
+/// - Username and SessionId are automatically restored
 /// - User is still "logged in" without re-entering credentials
 ///
 /// Requirements:
@@ -30,11 +30,12 @@ public class UserStateService
     public string? Username { get; set; }
 
     /// <summary>
-    /// Unique identifier for this user's circuit. Used by ChatService to track
-    /// online users and clean up when user disconnects. Persisted across circuit evictions.
+    /// Unique session identifier. Used by ChatService to track online users
+    /// and clean up when user disconnects. Persisted across circuit evictions.
+    /// Note: This is NOT the Blazor circuit ID - it's a custom GUID we generate.
     /// </summary>
     [PersistentState]
-    public string? CircuitId { get; set; }
+    public string? SessionId { get; set; }
 
     /// <summary>
     /// True if the user has entered a username (logged in).
@@ -44,5 +45,5 @@ public class UserStateService
     /// <summary>
     /// True if the user has been added to the chat (joined).
     /// </summary>
-    public bool IsJoinedChat => !string.IsNullOrEmpty(CircuitId);
+    public bool IsJoinedChat => !string.IsNullOrEmpty(SessionId);
 }

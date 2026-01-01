@@ -14,19 +14,10 @@
         var isSystemMessage = message.Username == "System";
         var showHeader = !isSystemMessage && (i == 0 || messages[i - 1].Username != message.Username);
 
-        <MessageItem Username="@message.Username"
-                     Content="@message.Content"
-                     Timestamp="@message.Timestamp"
+        <MessageItem Message="@message"
                      ShowHeader="@showHeader"
-                     IsOwn="@(message.Username == Username)"
-                     IsSystem="@isSystemMessage"
-                     IsEdited="@message.IsEdited"
                      IsHovered="@(hoveredMessageId == message.Id)"
                      IsEditing="@(editingMessageId == message.Id)"
-                     HasImages="@message.HasImages"
-                     ImageUrls="@message.ImageUrls"
-                     Reactions="@message.Reactions"
-                     ShowReactions="true"
                      CurrentUsername="@Username"
                      RecentEmojis="@recentEmojis"
                      EditContent="@editContent"
@@ -42,7 +33,7 @@
     }
 </div>
 
-<MessageInput RoomId="@currentRoomId" />
+<MessageInput RoomId="@channelId" />
 
 <ImageGalleryModal Visible="@showImageModal"
                    Images="@modalGallery"
@@ -52,12 +43,8 @@
 @code {
     [Parameter] public Guid? RoomId { get; set; }
 
-    // State
-    private Guid currentRoomId;
-    private List<ChatMessage> messages = new();
-    private Guid? hoveredMessageId = null;
-    private Guid? editingMessageId = null;
-    private string editContent = "";
+    // Tracks previous room to detect navigation between rooms (e.g., /lobby -> /room/xyz)
+    // without component recreation - Blazor reuses the component and just updates parameters
     private Guid? previousRoomId = null;
 
     protected override async Task OnParametersSetAsync()
@@ -74,16 +61,16 @@
     protected override async Task OnInitializedChatAsync()
     {
         // Set current room
-        currentRoomId = RoomId ?? ChatService.LobbyId;
-        previousRoomId = currentRoomId;
+        channelId = RoomId ?? ChatService.LobbyId;
+        previousRoomId = channelId;
 
         // Load messages
-        messages = ChatService.GetMessages(currentRoomId).ToList();
+        messages = ChatService.GetMessages(channelId).ToList();
 
         // Set navigation context
-        var room = ChatService.GetRooms().FirstOrDefault(r => r.Id == currentRoomId);
+        var room = ChatService.GetRooms().FirstOrDefault(r => r.Id == channelId);
         currentContext = room?.Name ?? "lobby";
-        NavState.SetRoomContext(currentRoomId, currentContext);
+        NavState.SetRoomContext(channelId, currentContext);
 
         await UpdatePageTitleAsync();
 
@@ -98,25 +85,25 @@
 
     private async Task SwitchRoomContentAsync(Guid newRoomId)
     {
-        currentRoomId = newRoomId;
-        messages = ChatService.GetMessages(currentRoomId).ToList();
+        channelId = newRoomId;
+        messages = ChatService.GetMessages(channelId).ToList();
 
-        var room = ChatService.GetRooms().FirstOrDefault(r => r.Id == currentRoomId);
+        var room = ChatService.GetRooms().FirstOrDefault(r => r.Id == channelId);
         currentContext = room?.Name ?? "lobby";
-        NavState.SetRoomContext(currentRoomId, currentContext);
+        NavState.SetRoomContext(channelId, currentContext);
 
         await UpdatePageTitleAsync();
         await InvokeAsync(StateHasChanged);
         await ScrollToBottomAsync();
     }
 
-    #region Event Handlers
+    #region Room-Specific Event Handlers
 
     private async Task HandleMessageReceived(ChatMessage message)
     {
         await InvokeAsync(async () =>
         {
-            if (message.ChannelId == currentRoomId)
+            if (message.ChannelId == channelId)
             {
                 messages.Add(message);
                 StateHasChanged();
@@ -130,50 +117,12 @@
         });
     }
 
-    private async Task HandleMessageUpdated(ChatMessage message)
-    {
-        await InvokeAsync(() =>
-        {
-            if (message.ChannelId == currentRoomId)
-            {
-                var index = messages.FindIndex(m => m.Id == message.Id);
-                if (index >= 0) messages[index] = message;
-                StateHasChanged();
-            }
-        });
-    }
-
-    private async Task HandleMessageDeleted(Guid messageId, Guid channelId)
-    {
-        await InvokeAsync(() =>
-        {
-            if (channelId == currentRoomId)
-            {
-                messages.RemoveAll(m => m.Id == messageId);
-                StateHasChanged();
-            }
-        });
-    }
-
-    private async Task HandleReactionChanged(ChatMessage message)
-    {
-        await InvokeAsync(() =>
-        {
-            if (message.ChannelId == currentRoomId)
-            {
-                var index = messages.FindIndex(m => m.Id == message.Id);
-                if (index >= 0) messages[index] = message;
-                StateHasChanged();
-            }
-        });
-    }
-
     private async Task HandleUserChanged(string user, bool isJoining)
     {
         await InvokeAsync(() =>
         {
             // Add system message in lobby
-            if (currentRoomId == ChatService.LobbyId)
+            if (channelId == ChatService.LobbyId)
             {
                 messages.Add(new ChatMessage(
                     ChatService.LobbyId,
@@ -186,51 +135,15 @@
         });
     }
 
-    private async Task HandleChannelDeleted(Guid channelId)
+    private async Task HandleChannelDeleted(Guid deletedChannelId)
     {
         await InvokeAsync(() =>
         {
-            if (currentRoomId == channelId)
+            if (channelId == deletedChannelId)
             {
                 Navigation.NavigateTo("/lobby", replace: true);
             }
         });
-    }
-
-    #endregion
-
-    #region Message Actions
-
-    private async Task ToggleReaction(Guid messageId, string emoji)
-    {
-        await AddRecentEmojiAsync(emoji);
-        await ChatService.ToggleReactionAsync(messageId, currentRoomId, Username, emoji);
-    }
-
-    private void StartEdit(ChatMessage message)
-    {
-        editingMessageId = message.Id;
-        editContent = message.Content;
-    }
-
-    private async Task SaveEdit()
-    {
-        if (editingMessageId.HasValue && !string.IsNullOrWhiteSpace(editContent))
-        {
-            await ChatService.EditMessageAsync(editingMessageId.Value, currentRoomId, Username, editContent);
-        }
-        CancelEdit();
-    }
-
-    private void CancelEdit()
-    {
-        editingMessageId = null;
-        editContent = "";
-    }
-
-    private async Task DeleteMessage(Guid messageId)
-    {
-        await ChatService.DeleteMessageAsync(messageId, currentRoomId, Username);
     }
 
     #endregion
