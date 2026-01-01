@@ -132,3 +132,39 @@ window.resetTextareaHeight = (id) => {
 window.isTouchDevice = () => {
     return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 };
+
+// PWA Badge API for unread notifications
+window.setAppBadge = async (count) => {
+    if ('setAppBadge' in navigator) {
+        try {
+            if (count > 0) {
+                await navigator.setAppBadge(count);
+            } else {
+                await navigator.clearAppBadge();
+            }
+            return true;
+        } catch (e) {
+            console.warn('[PWA] Badge update failed:', e);
+            return false;
+        }
+    }
+    return false;
+};
+
+window.clearAppBadge = async () => {
+    if ('clearAppBadge' in navigator) {
+        try {
+            await navigator.clearAppBadge();
+            return true;
+        } catch (e) {
+            console.warn('[PWA] Badge clear failed:', e);
+            return false;
+        }
+    }
+    return false;
+};
+
+// Check if Badge API is supported
+window.isBadgeSupported = () => {
+    return 'setAppBadge' in navigator;
+};

@@ -32,6 +32,8 @@ Access at `http://localhost:5221` - it's up to you how to make this accessible f
 - **Resilient reconnection** - Auto-reconnect with session restoration
 - **Dark theme** - Discord-inspired UI
 - **Mobile responsive** - Works great on all devices with collapsible sidebar
+- **PWA installable** - Add to home screen on mobile, install as app on desktop
+- **Badge notifications** - App icon shows unread DM count (Chrome, Edge, Safari iOS)
 
 
 
@@ -58,9 +60,12 @@ Yap/
 │   ├── ChatNavigationState.cs       # Navigation state (persistent)
 │   └── EmojiService.cs              # Emoji rendering
 ├── wwwroot/
-│   ├── js/chat.js                   # Tab notifications
+│   ├── js/chat.js                   # Tab notifications, badge API
 │   ├── uploads/                     # Image storage
-│   └── notif.mp3                    # Notification sound
+│   ├── notif.mp3                    # Notification sound
+│   ├── manifest.webmanifest         # PWA manifest
+│   ├── service-worker.js            # PWA service worker
+│   └── icon.svg                     # App icon
 └── appsettings.json                 # Configuration
 ```
 

@@ -2,6 +2,39 @@
 
 All notable changes to Yap are documented in this file.
 
+## [2.6.0] - 2026-01-01
+
+### PWA Support & Badge Notifications
+
+#### New Features
+- **PWA installable** - App can be installed on desktop and mobile devices
+  - Add to home screen on iOS/Android
+  - Install as desktop app on Chrome/Edge
+- **Badge notifications** - App icon shows unread DM count
+  - Uses Badging API (`navigator.setAppBadge`)
+  - Supported on Chrome/Edge (Windows/macOS), Safari (iOS 16.4+)
+  - Badge updates in real-time as DMs arrive
+  - Clears when DMs are read
+
+#### Technical Changes
+- Added `manifest.webmanifest` with app metadata
+- Added `service-worker.js` (minimal, for installability)
+- Added `icon.svg` app icon
+- Added `setAppBadge()` and `clearAppBadge()` to chat.js
+- Updated `App.razor` with manifest link and service worker registration
+- Updated `ChatHeader.razor` to call badge API on unread count changes
+- Added apple-touch-icon and theme-color meta tags for iOS
+
+#### Browser Support for Badge
+| Platform | Support |
+|----------|---------|
+| Chrome/Edge (Windows/macOS) | ✅ Full |
+| Safari (iOS 16.4+) | ✅ Requires notification permission |
+| Android | ❌ Uses native notification badges instead |
+| Firefox | ❌ Not supported |
+
+---
+
 ## [2.5.0] - 2026-01-01
 
 ### User Status & Sign Out

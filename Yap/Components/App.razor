@@ -10,6 +10,11 @@
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["Yap.styles.css"]" />
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icon-192.png" />
+    <meta name="theme-color" content="#1a1a2e" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <ImportMap />
     <HeadOutlet @rendermode="@(new InteractiveServerRenderMode(prerender: false))" />
 </head>
@@ -52,6 +57,14 @@
         });
     </script>
     <script src="js/chat.js"></script>
+    <script>
+        // Register service worker for PWA support
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js')
+                .then(reg => console.log('[PWA] Service worker registered'))
+                .catch(err => console.warn('[PWA] Service worker registration failed:', err));
+        }
+    </script>
 </body>
 
 </html>

@@ -2,6 +2,7 @@
 @inject UserStateService UserState
 @inject ChatNavigationState NavState
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 @implements IDisposable
 
 <div class="chat-header">
@@ -83,10 +84,10 @@
     private int onlineCount = 0;
     private bool showDropdown = false;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         // Get initial state
-        RefreshUnreadCount();
+        await RefreshUnreadCountAsync();
         onlineCount = ChatService.GetOnlineUsers().Count;
 
         // Subscribe to events
@@ -134,24 +135,40 @@
         Navigation.NavigateTo("/", forceLoad: true);
     }
 
-    private void RefreshUnreadCount()
+    private async Task RefreshUnreadCountAsync()
     {
         if (UserState.Username != null)
         {
             unreadCount = ChatService.GetTotalUnreadDMCount(UserState.Username);
+            await UpdateBadgeAsync();
         }
     }
 
-    private void HandleNavStateChanged()
+    private async Task UpdateBadgeAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("setAppBadge", unreadCount);
+        }
+        catch
+        {
+            // Ignore badge errors (not supported, not installed as PWA, etc.)
+        }
+    }
+
+    private async void HandleNavStateChanged()
     {
         // Refresh unread count when navigation changes (e.g., opening a DM marks messages as read)
-        RefreshUnreadCount();
-        StateHasChanged();
+        await InvokeAsync(async () =>
+        {
+            await RefreshUnreadCountAsync();
+            StateHasChanged();
+        });
     }
 
     private async Task HandleMessageReceived(ChatMessage message)
     {
-        await InvokeAsync(() =>
+        await InvokeAsync(async () =>
         {
             // Check if this is a DM message for us
             var channel = ChatService.GetChannel(message.ChannelId);
@@ -168,6 +185,7 @@
                     if (!isViewingThisDm)
                     {
                         unreadCount++;
+                        await UpdateBadgeAsync();
                         StateHasChanged();
                     }
                 }

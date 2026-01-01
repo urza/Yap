@@ -46,10 +46,13 @@ Yap/
 │   ├── Channel.cs                     # Unified room/DM channel model
 │   └── UserStatus.cs                  # User presence status enum
 ├── wwwroot/
-│   ├── js/chat.js                     # Tab notification helpers
+│   ├── js/chat.js                     # Tab notifications, badge API helpers
 │   ├── uploads/                       # Image storage
 │   ├── app.css                        # Base styles
-│   └── notif.mp3                      # Notification sound
+│   ├── notif.mp3                      # Notification sound
+│   ├── manifest.webmanifest           # PWA manifest
+│   ├── service-worker.js              # PWA service worker
+│   └── icon.svg                       # App icon (SVG)
 ├── appsettings.json                   # Chat config + funny texts
 ├── Program.cs                         # Service registration, circuit config
 └── Yap.csproj
@@ -189,6 +192,7 @@ docker run -p 8080:8080 -v ./uploads:/app/wwwroot/uploads yap
 - **Resilient reconnection** - Auto-reconnect with persistent state restoration
 - **Dark theme** - Discord-inspired UI
 - **Auto-cleanup** - Configurable upload clearing on app start
+- **PWA support** - Installable as app, badge notifications for unread DMs
 
 ## Technical Details
 
@@ -215,6 +219,18 @@ Minimal JavaScript in `wwwroot/js/chat.js`:
 - `isPageVisible` - Checks current visibility state
 - `playNotificationSound` - Plays notification audio
 - `scrollToBottom` - Auto-scrolls message list
+
+### PWA (Progressive Web App)
+The app is installable on desktop and mobile:
+- `manifest.webmanifest` - App metadata (name, icons, theme color)
+- `service-worker.js` - Minimal SW for installability (no offline caching)
+- `icon.svg` - Vector app icon (PNG versions needed for full iOS support)
+
+**Badge API** for unread DM notifications:
+- `setAppBadge(count)` / `clearAppBadge()` in chat.js
+- Called from ChatHeader when unread count changes
+- Support: Chrome/Edge on Windows/macOS, Safari on iOS 16.4+
+- Badge only appears when app is installed as PWA
 
 ## Previous Architecture (Migrated From)
 
