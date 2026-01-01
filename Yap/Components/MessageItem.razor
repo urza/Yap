@@ -1,6 +1,6 @@
 @inject EmojiService EmojiService
 
-<div class="message-group @(IsSystem ? "system-message" : "") @(IsHovered ? "hovered" : "")"
+<div class="message-group @(IsSystem ? "system-message" : "") @(IsHovered ? "hovered" : "") @(showEmojiPicker ? "picker-open" : "")"
      @onmouseenter="() => OnMouseEnter.InvokeAsync()"
      @onmouseleave="() => OnMouseLeave.InvokeAsync()">
 
@@ -69,32 +69,51 @@
                 <button class="reaction-pill @(hasReacted ? "reacted" : "")"
                         @onclick="() => OnReaction.InvokeAsync(reaction.Key)"
                         title="@string.Join(", ", reaction.Value)">
-                    @reaction.Key <span class="reaction-count">@reaction.Value.Count</span>
+                    @EmojiService.ConvertEmojisToTwemoji(reaction.Key, forceSmall: true) <span class="reaction-count">@reaction.Value.Count</span>
                 </button>
             }
         </div>
     }
 
     @* Message actions popup *@
-    @if (IsHovered && !IsSystem && !IsEditing)
+    @if ((IsHovered || showEmojiPicker) && !IsSystem && !IsEditing)
     {
         <div class="message-actions">
             @if (ShowReactions)
             {
-                <button class="action-btn" @onclick="@(() => OnReaction.InvokeAsync("👍"))" title="Thumbs up">👍</button>
-                <button class="action-btn" @onclick="@(() => OnReaction.InvokeAsync("👎"))" title="Thumbs down">👎</button>
-                <button class="action-btn" @onclick="@(() => OnReaction.InvokeAsync("❤️"))" title="Love">❤️</button>
-                <button class="action-btn" @onclick="@(() => OnReaction.InvokeAsync("😂"))" title="Laugh">😂</button>
-                <button class="action-btn" @onclick="@(() => OnReaction.InvokeAsync("😢"))" title="Sad">😢</button>
-                <button class="action-btn" @onclick="@(() => OnReaction.InvokeAsync("😭"))" title="Crying">😭</button>
+                @foreach (var emoji in GetQuickReactions())
+                {
+                    var e = emoji;
+                    <button class="action-btn" @onclick="@(() => HandleQuickReaction(e))" title="@e">@EmojiService.ConvertEmojisToTwemoji(e, forceSmall: true)</button>
+                }
+                <div class="action-divider"></div>
+                <button class="action-btn action-picker" @onclick="ToggleEmojiPicker" @onclick:stopPropagation="true" title="Add Reaction">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-6c.78 2.34 2.72 4 5 4s4.22-1.66 5-4H7zm8-4c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm-6 0c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1z"/>
+                    </svg>
+                </button>
             }
             @if (IsOwn && !HasImages)
             {
-                <button class="action-btn action-edit" @onclick="() => OnStartEdit.InvokeAsync()" title="Edit">✏️</button>
+                <button class="action-btn action-edit" @onclick="() => OnStartEdit.InvokeAsync()" title="Edit">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                    </svg>
+                </button>
             }
             @if (IsOwn)
             {
-                <button class="action-btn action-delete" @onclick="() => OnDelete.InvokeAsync()" title="Delete">🗑️</button>
+                <button class="action-btn action-delete" @onclick="() => OnDelete.InvokeAsync()" title="Delete">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                    </svg>
+                </button>
+            }
+
+            @if (showEmojiPicker)
+            {
+                <EmojiPicker RecentEmojis="RecentEmojis"
+                             OnEmojiSelected="HandleEmojiSelected" />
             }
         </div>
     }
@@ -115,6 +134,7 @@
     [Parameter] public Dictionary<string, HashSet<string>>? Reactions { get; set; }
     [Parameter] public bool ShowReactions { get; set; } = true;
     [Parameter] public string CurrentUsername { get; set; } = "";
+    [Parameter] public List<string> RecentEmojis { get; set; } = new();
 
     // Edit state
     [Parameter] public string EditContent { get; set; } = "";
@@ -147,4 +167,47 @@
         2 => "gallery-double",
         _ => "gallery-grid"
     };
+
+    // Emoji picker state
+    private bool showEmojiPicker = false;
+    private static readonly string[] DefaultQuickEmojis = ["❤️", "😂", "👍"];
+
+    private IEnumerable<string> GetQuickReactions()
+    {
+        // Combine recent emojis with defaults, ensuring 3 unique emojis
+        var result = new List<string>();
+
+        // Add recent emojis first
+        foreach (var emoji in RecentEmojis.Take(3))
+        {
+            if (!result.Contains(emoji))
+                result.Add(emoji);
+        }
+
+        // Fill with defaults if needed
+        foreach (var emoji in DefaultQuickEmojis)
+        {
+            if (result.Count >= 3) break;
+            if (!result.Contains(emoji))
+                result.Add(emoji);
+        }
+
+        return result;
+    }
+
+    private void ToggleEmojiPicker()
+    {
+        showEmojiPicker = !showEmojiPicker;
+    }
+
+    private async Task HandleQuickReaction(string emoji)
+    {
+        await OnReaction.InvokeAsync(emoji);
+    }
+
+    private async Task HandleEmojiSelected(string emoji)
+    {
+        showEmojiPicker = false;
+        await OnReaction.InvokeAsync(emoji);
+    }
 }

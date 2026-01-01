@@ -1,0 +1,65 @@
+@using Yap.Services
+@inject EmojiService EmojiService
+
+<div class="emoji-picker">
+    <div class="emoji-categories">
+        @* Recent tab first *@
+        <button class="category-btn @(selectedCategory == RecentCategory ? "active" : "")"
+                @onclick="() => SelectCategory(RecentCategory)"
+                title="Recent">
+            @EmojiService.ConvertEmojisToTwemoji("🕐", forceSmall: true)
+        </button>
+        @foreach (var category in EmojiData.Categories.Where(c => c.Key != "recent"))
+        {
+            <button class="category-btn @(selectedCategory == category.Key ? "active" : "")"
+                    @onclick="() => SelectCategory(category.Key)"
+                    title="@category.Key">
+                @EmojiService.ConvertEmojisToTwemoji(category.Value.Icon, forceSmall: true)
+            </button>
+        }
+    </div>
+
+    <div class="emoji-grid">
+        @if (selectedCategory == RecentCategory)
+        {
+            @if (RecentEmojis.Count > 0)
+            {
+                @foreach (var emoji in RecentEmojis)
+                {
+                    var e = emoji;
+                    <button class="emoji-btn" @onclick="() => SelectEmoji(e)">@EmojiService.ConvertEmojisToTwemoji(e, forceSmall: true)</button>
+                }
+            }
+            else
+            {
+                <div class="emoji-empty">No recent emojis yet</div>
+            }
+        }
+        else
+        {
+            @foreach (var emoji in EmojiData.Categories[selectedCategory].Emojis)
+            {
+                var e = emoji;
+                <button class="emoji-btn" @onclick="() => SelectEmoji(e)">@EmojiService.ConvertEmojisToTwemoji(e, forceSmall: true)</button>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<string> RecentEmojis { get; set; } = new();
+    [Parameter] public EventCallback<string> OnEmojiSelected { get; set; }
+
+    private const string RecentCategory = "recent";
+    private string selectedCategory = "smileys";
+
+    private void SelectCategory(string category)
+    {
+        selectedCategory = category;
+    }
+
+    private async Task SelectEmoji(string emoji)
+    {
+        await OnEmojiSelected.InvokeAsync(emoji);
+    }
+}

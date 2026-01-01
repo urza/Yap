@@ -29,6 +29,9 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     protected List<string> modalGallery = new();
     protected int modalImageIndex = 0;
 
+    // Recent emojis for quick reactions
+    protected List<string> recentEmojis = new();
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -49,6 +52,9 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
             // Setup tab notifications
             await SetupTabNotifications();
+
+            // Load recent emojis from localStorage
+            await LoadRecentEmojisAsync();
 
             // Let derived class initialize
             await OnInitializedChatAsync();
@@ -134,6 +140,48 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
             : $"{ChatConfig.ProjectName} | {currentContext}";
 
         try { await JS.InvokeVoidAsync("setDocumentTitle", title); } catch { }
+    }
+
+    #endregion
+
+    #region Recent Emojis
+
+    private const int MaxRecentEmojis = 20;
+
+    protected async Task LoadRecentEmojisAsync()
+    {
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", "recentEmojis");
+            if (!string.IsNullOrEmpty(json))
+            {
+                recentEmojis = System.Text.Json.JsonSerializer.Deserialize<List<string>>(json) ?? new();
+            }
+        }
+        catch { }
+    }
+
+    protected async Task AddRecentEmojiAsync(string emoji)
+    {
+        // Remove if already exists (to move to front)
+        recentEmojis.Remove(emoji);
+
+        // Add to front
+        recentEmojis.Insert(0, emoji);
+
+        // Limit size
+        if (recentEmojis.Count > MaxRecentEmojis)
+        {
+            recentEmojis = recentEmojis.Take(MaxRecentEmojis).ToList();
+        }
+
+        // Save to localStorage
+        try
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(recentEmojis);
+            await JS.InvokeVoidAsync("localStorage.setItem", "recentEmojis", json);
+        }
+        catch { }
     }
 
     #endregion

@@ -28,6 +28,7 @@
                      Reactions="@message.Reactions"
                      ShowReactions="true"
                      CurrentUsername="@Username"
+                     RecentEmojis="@recentEmojis"
                      EditContent="@editContent"
                      EditContentChanged="@(v => editContent = v)"
                      OnMouseEnter="@(() => hoveredMessageId = message.Id)"
@@ -202,6 +203,7 @@
 
     private async Task ToggleReaction(Guid messageId, string emoji)
     {
+        await AddRecentEmojiAsync(emoji);
         await ChatService.ToggleReactionAsync(messageId, currentRoomId, Username, emoji);
     }
 
