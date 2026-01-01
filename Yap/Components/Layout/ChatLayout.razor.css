@@ -1,5 +1,6 @@
 .chat-container {
-    height: 100vh;
+    height: 100vh; /* fallback for older browsers */
+    height: 100dvh; /* dynamic viewport height - accounts for mobile browser UI */
     display: flex;
     flex-direction: column;
     background: #36393f;
