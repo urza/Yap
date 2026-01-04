@@ -11,6 +11,10 @@
     <Folder Include="wwwroot\uploads\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="WebPush" Version="1.0.14" />
+  </ItemGroup>
+
   <!-- Generate BuildInfo.g.cs with build timestamp -->
   <Target Name="GenerateBuildInfo" BeforeTargets="CoreCompile">
     <PropertyGroup>

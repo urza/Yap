@@ -227,6 +227,13 @@
     background: #747f8d;
 }
 
+/* Checkmark for active items */
+.checkmark {
+    margin-left: auto;
+    color: #3ba55c;
+    font-weight: 600;
+}
+
 @media (max-width: 600px) {
     .chat-header {
         padding: 0.75rem 1rem;

@@ -33,6 +33,18 @@
                         <span>Invisible</span>
                     </button>
                     <div class="dropdown-divider"></div>
+                    <button class="dropdown-item @(notificationsEnabled ? "active" : "")"
+                            @onclick="ToggleNotifications"
+                            disabled="@(!notificationsSupported)">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/>
+                        </svg>
+                        <span>@(notificationsEnabled ? "Notifications On" : (notificationsSupported ? "Notifications" : "Notifications (N/A)"))</span>
+                        @if (notificationsEnabled)
+                        {
+                            <span class="checkmark">✓</span>
+                        }
+                    </button>
                     <button class="dropdown-item" disabled>
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
@@ -83,6 +95,8 @@
     private int unreadCount = 0;
     private int onlineCount = 0;
     private bool showDropdown = false;
+    private bool notificationsEnabled = false;
+    private bool notificationsSupported = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -90,10 +104,31 @@
         await RefreshUnreadCountAsync();
         onlineCount = ChatService.GetOnlineUsers().Count;
 
+        // Check push notification status
+        await CheckNotificationStatusAsync();
+
         // Subscribe to events
         ChatService.OnMessageReceived += HandleMessageReceived;
         ChatService.OnUsersListChanged += HandleUsersListChanged;
         NavState.OnChange += HandleNavStateChanged;
+    }
+
+    private async Task CheckNotificationStatusAsync()
+    {
+        try
+        {
+            notificationsSupported = await JS.InvokeAsync<bool>("isPushSupported");
+            if (notificationsSupported)
+            {
+                // Check if already subscribed
+                var existingSub = await JS.InvokeAsync<string?>("getPushSubscription");
+                notificationsEnabled = existingSub != null;
+            }
+        }
+        catch
+        {
+            // Ignore errors during status check
+        }
     }
 
     private void ToggleDropdown()
@@ -105,6 +140,77 @@
     {
         showDropdown = false;
     }
+
+    private async Task ToggleNotifications()
+    {
+        if (!notificationsSupported) return;
+
+        try
+        {
+            if (notificationsEnabled)
+            {
+                // Unsubscribe
+                var existingSub = await JS.InvokeAsync<string?>("getPushSubscription");
+                if (existingSub != null)
+                {
+                    var subData = System.Text.Json.JsonSerializer.Deserialize<PushSubData>(existingSub);
+                    await JS.InvokeAsync<bool>("unsubscribeFromPush");
+
+                    // Notify server
+                    using var http = new HttpClient();
+                    await http.PostAsJsonAsync($"{Navigation.BaseUri}api/push/unsubscribe", new { endpoint = subData?.Endpoint });
+                }
+                notificationsEnabled = false;
+            }
+            else
+            {
+                // Request permission first
+                var permission = await JS.InvokeAsync<string>("requestNotificationPermission");
+                if (permission != "granted")
+                {
+                    return; // User denied
+                }
+
+                // Get VAPID public key from server
+                using var http = new HttpClient();
+                var response = await http.GetFromJsonAsync<VapidKeyResponse>($"{Navigation.BaseUri}api/push/vapid-public-key");
+                if (response?.PublicKey == null)
+                {
+                    return; // VAPID not configured
+                }
+
+                // Subscribe in browser
+                var subscriptionJson = await JS.InvokeAsync<string?>("subscribeToPush", response.PublicKey);
+                if (subscriptionJson == null)
+                {
+                    return; // Subscription failed
+                }
+
+                // Parse and send to server
+                var subData = System.Text.Json.JsonSerializer.Deserialize<PushSubData>(subscriptionJson);
+                if (subData != null && UserState.Username != null)
+                {
+                    await http.PostAsJsonAsync($"{Navigation.BaseUri}api/push/subscribe", new
+                    {
+                        username = UserState.Username,
+                        endpoint = subData.Endpoint,
+                        p256dh = subData.P256dh,
+                        auth = subData.Auth
+                    });
+                    notificationsEnabled = true;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Notification toggle error: {ex.Message}");
+        }
+
+        showDropdown = false;
+    }
+
+    private record VapidKeyResponse(string? PublicKey);
+    private record PushSubData(string? Endpoint, string? P256dh, string? Auth);
 
     private async Task SetStatus(UserStatus status)
     {

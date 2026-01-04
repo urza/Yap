@@ -66,6 +66,8 @@ builder.Services.Configure<CircuitOptions>(options =>
 });
 
 // Chat services
+builder.Services.AddSingleton<PushSubscriptionStore>();
+builder.Services.AddSingleton<PushNotificationService>();
 builder.Services.AddSingleton<ChatService>();
 builder.Services.AddScoped<ChatConfigService>();
 builder.Services.AddScoped<EmojiService>();
@@ -105,4 +107,45 @@ app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
+// =============================================================================
+// PUSH NOTIFICATION API ENDPOINTS
+// =============================================================================
+app.MapGet("/api/push/vapid-public-key", (PushNotificationService pushService) =>
+{
+    var publicKey = pushService.GetPublicKey();
+    return publicKey != null
+        ? Results.Ok(new { publicKey })
+        : Results.NotFound(new { error = "VAPID not configured" });
+});
+
+app.MapPost("/api/push/subscribe", async (HttpContext context, PushSubscriptionStore store) =>
+{
+    var body = await context.Request.ReadFromJsonAsync<PushSubscribeRequest>();
+    if (body == null || string.IsNullOrEmpty(body.Username) || string.IsNullOrEmpty(body.Endpoint))
+        return Results.BadRequest(new { error = "Invalid subscription" });
+
+    store.SaveSubscription(body.Username, new PushSubscriptionInfo
+    {
+        Endpoint = body.Endpoint,
+        P256dh = body.P256dh ?? "",
+        Auth = body.Auth ?? ""
+    });
+
+    return Results.Ok(new { success = true });
+});
+
+app.MapPost("/api/push/unsubscribe", async (HttpContext context, PushSubscriptionStore store) =>
+{
+    var body = await context.Request.ReadFromJsonAsync<PushUnsubscribeRequest>();
+    if (body == null || string.IsNullOrEmpty(body.Endpoint))
+        return Results.BadRequest(new { error = "Invalid request" });
+
+    store.RemoveSubscription(body.Endpoint);
+    return Results.Ok(new { success = true });
+});
+
 app.Run();
+
+// Request DTOs for push API
+record PushSubscribeRequest(string Username, string Endpoint, string? P256dh, string? Auth);
+record PushUnsubscribeRequest(string Endpoint);

@@ -13,6 +13,7 @@ public class ChatService
 {
     private readonly ConcurrentDictionary<string, UserSession> _users = new();
     private readonly int _maxMessagesPerChannel; // Each channel (room or DM) keeps only the last X messages in memory. Older ones are discarded.
+    private readonly PushNotificationService _pushService;
 
     // Channels (rooms and DMs)
     private readonly ConcurrentDictionary<Guid, Channel> _channels = new();
@@ -50,9 +51,10 @@ public class ChatService
 
     public record UserSession(string Username, string SessionId, UserStatus Status = UserStatus.Online);
 
-    public ChatService(IConfiguration configuration)
+    public ChatService(IConfiguration configuration, PushNotificationService pushService)
     {
         _maxMessagesPerChannel = configuration.GetValue("ChatSettings:MaxMessagesPerChannel", 100);
+        _pushService = pushService;
 
         // Create default lobby channel
         var lobby = Channel.CreateRoom("lobby", createdBy: null, isDefault: true);
@@ -284,7 +286,7 @@ public class ChatService
 
     public async Task SendMessageAsync(Guid channelId, string username, string content, List<string>? imageUrls = null)
     {
-        if (!_channels.ContainsKey(channelId))
+        if (!_channels.TryGetValue(channelId, out var channel))
             return;
 
         var message = new ChatMessage(channelId, username, content, DateTime.UtcNow, imageUrls);
@@ -309,6 +311,18 @@ public class ChatService
 
         if (OnMessageReceived != null)
             await OnMessageReceived.Invoke(message);
+
+        // Send push notification for DMs
+        if (channel.IsDirectMessage)
+        {
+            var recipient = channel.GetOtherParticipant(username);
+            if (recipient != null)
+            {
+                var unreadCount = GetTotalUnreadDMCount(recipient);
+                var preview = imageUrls?.Count > 0 ? "[Image]" : content;
+                _ = _pushService.SendDmNotificationAsync(recipient, username, preview, unreadCount);
+            }
+        }
     }
 
     public List<ChatMessage> GetMessages(Guid channelId, int count = 50)
