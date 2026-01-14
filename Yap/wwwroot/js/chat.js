@@ -5,36 +5,57 @@ let notificationAudio = null;
 // ==========================================
 // Login Persistence (localStorage)
 // ==========================================
-const STORAGE_KEY = 'yap_username';
+const USERNAME_KEY = 'yap_username';
+const SESSION_KEY = 'yap_session';
 
-window.saveUsername = (username) => {
+window.saveLogin = (username, sessionId) => {
     try {
-        localStorage.setItem(STORAGE_KEY, username);
+        localStorage.setItem(USERNAME_KEY, username);
+        localStorage.setItem(SESSION_KEY, sessionId);
         return true;
     } catch (e) {
-        console.warn('[Storage] Failed to save username:', e);
+        console.warn('[Storage] Failed to save login:', e);
         return false;
     }
 };
 
-window.getStoredUsername = () => {
+window.getStoredLogin = () => {
     try {
-        return localStorage.getItem(STORAGE_KEY);
+        const username = localStorage.getItem(USERNAME_KEY);
+        const sessionId = localStorage.getItem(SESSION_KEY);
+        if (username) {
+            return JSON.stringify({ username, sessionId });
+        }
+        return null;
     } catch (e) {
-        console.warn('[Storage] Failed to get username:', e);
+        console.warn('[Storage] Failed to get login:', e);
         return null;
     }
 };
 
-window.clearStoredUsername = () => {
+window.clearStoredLogin = () => {
     try {
-        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(USERNAME_KEY);
+        localStorage.removeItem(SESSION_KEY);
         return true;
     } catch (e) {
-        console.warn('[Storage] Failed to clear username:', e);
+        console.warn('[Storage] Failed to clear login:', e);
         return false;
     }
 };
+
+// Legacy support - keep for compatibility
+window.saveUsername = (username) => window.saveLogin(username, null);
+window.getStoredUsername = () => {
+    const login = window.getStoredLogin();
+    if (login) {
+        try {
+            return JSON.parse(login).username;
+        } catch { return null; }
+    }
+    return null;
+};
+window.clearStoredUsername = () => window.clearStoredLogin();
 
 // Pre-load audio on first user interaction
 function ensureAudioLoaded() {

@@ -76,25 +76,35 @@
     {
         try
         {
-            var storedUsername = await JS.InvokeAsync<string?>("getStoredUsername");
-            if (string.IsNullOrWhiteSpace(storedUsername))
+            var storedLoginJson = await JS.InvokeAsync<string?>("getStoredLogin");
+            if (string.IsNullOrWhiteSpace(storedLoginJson))
                 return;
 
-            // Check if username is taken by someone else
-            if (ChatService.IsUsernameTaken(storedUsername))
+            var storedLogin = System.Text.Json.JsonSerializer.Deserialize<StoredLogin>(storedLoginJson);
+            if (storedLogin == null || string.IsNullOrWhiteSpace(storedLogin.Username))
+                return;
+
+            // Remove old session if exists (handles page refresh case)
+            if (!string.IsNullOrEmpty(storedLogin.SessionId))
             {
-                // Username taken - clear storage and show error
-                await JS.InvokeVoidAsync("clearStoredUsername");
+                await ChatService.RemoveUserAsync(storedLogin.SessionId);
+            }
+
+            // Check if username is STILL taken by someone else (different session)
+            if (ChatService.IsUsernameTaken(storedLogin.Username))
+            {
+                // Username taken by another user - clear storage and show error
+                await JS.InvokeVoidAsync("clearStoredLogin");
                 hasError = true;
                 hasBlurred = true;
-                errorMessage = $"Username '{storedUsername}' is already in use";
-                usernameInput = storedUsername;
+                errorMessage = $"Username '{storedLogin.Username}' is already in use";
+                usernameInput = storedLogin.Username;
                 return;
             }
 
             // Auto-login with stored username
             isAutoLoggingIn = true;
-            UserState.Username = storedUsername;
+            UserState.Username = storedLogin.Username;
             Navigation.NavigateTo("/lobby");
         }
         catch (TaskCanceledException)
@@ -106,6 +116,8 @@
             Console.WriteLine($"[Login] Auto-login failed: {ex.Message}");
         }
     }
+
+    private record StoredLogin(string? Username, string? SessionId);
 
     private void ValidateUsername()
     {

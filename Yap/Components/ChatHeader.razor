@@ -248,7 +248,7 @@
         }
 
         // Clear localStorage (persistent login)
-        await JS.InvokeVoidAsync("clearStoredUsername");
+        await JS.InvokeVoidAsync("clearStoredLogin");
 
         // Clear user state
         UserState.Username = null;

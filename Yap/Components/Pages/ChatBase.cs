@@ -58,6 +58,9 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
             {
                 UserState.SessionId = Guid.NewGuid().ToString();
                 await ChatService.AddUserAsync(UserState.SessionId, Username, UserState.Status);
+
+                // Save session ID to localStorage for persistent login
+                try { await JS.InvokeVoidAsync("saveLogin", Username, UserState.SessionId); } catch { }
             }
 
             // Setup tab notifications
