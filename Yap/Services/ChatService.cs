@@ -88,15 +88,9 @@ public class ChatService
             _channelTypingUsers[channel.Id] = new ConcurrentDictionary<string, DateTime>();
         }
 
-        // Ensure lobby exists
+        // Ensure lobby exists (use GetLobbyId() to get the actual lobby ID)
         var existingLobby = _channels.Values.FirstOrDefault(c => c.Type == ChannelType.Room && c.IsDefault);
-        if (existingLobby != null)
-        {
-            // Update LobbyId to match existing lobby
-            // Note: LobbyId is read-only, but we set it in constructor. Since we're loading from DB,
-            // we need to find the lobby dynamically
-        }
-        else
+        if (existingLobby == null)
         {
             // Create lobby if it doesn't exist in DB
             var lobby = Channel.CreateRoom("lobby", createdBy: null, isDefault: true);
@@ -206,28 +200,6 @@ public class ChatService
 
     /// <summary>
     /// Gets or creates a DM channel between two users
-    /// </summary>
-    public async Task<Channel> GetOrCreateDMChannelAsync(string user1, string user2)
-    {
-        // Check if DM channel already exists
-        var existing = _channels.Values.FirstOrDefault(c => c.IsDMBetween(user1, user2));
-        if (existing != null)
-            return existing;
-
-        // Create new DM channel
-        var channel = Channel.CreateDM(user1, user2);
-        _channels[channel.Id] = channel;
-        _channelMessages[channel.Id] = new List<ChatMessage>();
-        _channelTypingUsers[channel.Id] = new ConcurrentDictionary<string, DateTime>();
-
-        // Persist to database (DMs now persist permanently)
-        await _persistence.PersistChannelAsync(channel);
-
-        return channel;
-    }
-
-    /// <summary>
-    /// Gets or creates a DM channel between two users (sync version for compatibility)
     /// </summary>
     public Channel GetOrCreateDMChannel(string user1, string user2)
     {

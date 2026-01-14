@@ -83,24 +83,6 @@ public class ChatPersistenceService
         }
     }
 
-    public async Task DeleteDMChannelsForUserAsync(string username)
-    {
-        if (!IsEnabled) return;
-
-        try
-        {
-            await using var db = await _dbFactory!.CreateDbContextAsync();
-            await db.Channels
-                .Where(c => c.Type == ChannelType.DirectMessage &&
-                           (c.Participant1 == username || c.Participant2 == username))
-                .ExecuteDeleteAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to delete DM channels for user {Username}", username);
-        }
-    }
-
     #endregion
 
     #region Message Operations
@@ -300,25 +282,6 @@ public class ChatPersistenceService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to remove push subscriptions for user {Username}", username);
-        }
-    }
-
-    public async Task<List<PushSubscription>> GetPushSubscriptionsAsync(string username)
-    {
-        if (!IsEnabled) return new List<PushSubscription>();
-
-        try
-        {
-            await using var db = await _dbFactory!.CreateDbContextAsync();
-            return await db.PushSubscriptions
-                .Where(p => p.Username == username)
-                .AsNoTracking()
-                .ToListAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get push subscriptions for user {Username}", username);
-            return new List<PushSubscription>();
         }
     }
 
