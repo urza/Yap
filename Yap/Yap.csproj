@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -12,7 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="WebPush" Version="1.0.14" />
+    <PackageReference Include="WebPush" Version="1.0.12" />
   </ItemGroup>
 
   <!-- Generate BuildInfo.g.cs with build timestamp -->
@@ -21,10 +21,7 @@
       <BuildTimestamp>$([System.DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm')) UTC</BuildTimestamp>
       <BuildInfoContent>namespace Yap%3B public static class BuildInfo { public const string Time = "$(BuildTimestamp)"%3B }</BuildInfoContent>
     </PropertyGroup>
-    <WriteLinesToFile
-      File="$(IntermediateOutputPath)BuildInfo.g.cs"
-      Lines="$(BuildInfoContent)"
-      Overwrite="true" />
+    <WriteLinesToFile File="$(IntermediateOutputPath)BuildInfo.g.cs" Lines="$(BuildInfoContent)" Overwrite="true" />
     <ItemGroup>
       <Compile Include="$(IntermediateOutputPath)BuildInfo.g.cs" />
     </ItemGroup>
