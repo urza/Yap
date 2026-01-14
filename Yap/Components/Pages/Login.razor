@@ -80,7 +80,8 @@
             if (string.IsNullOrWhiteSpace(storedLoginJson))
                 return;
 
-            var storedLogin = System.Text.Json.JsonSerializer.Deserialize<StoredLogin>(storedLoginJson);
+            var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var storedLogin = System.Text.Json.JsonSerializer.Deserialize<StoredLogin>(storedLoginJson, jsonOptions);
             if (storedLogin == null || string.IsNullOrWhiteSpace(storedLogin.Username))
                 return;
 
