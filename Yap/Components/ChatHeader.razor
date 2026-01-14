@@ -110,6 +110,7 @@
         // Subscribe to events
         ChatService.OnMessageReceived += HandleMessageReceived;
         ChatService.OnUsersListChanged += HandleUsersListChanged;
+        ChatService.OnUserStatusChanged += HandleUserStatusChanged;
         NavState.OnChange += HandleNavStateChanged;
     }
 
@@ -326,6 +327,19 @@
         });
     }
 
+    private async Task HandleUserStatusChanged(string username, UserStatus status)
+    {
+        // Update header if it's our status that changed (e.g., auto-away)
+        if (username.Equals(UserState.Username, StringComparison.OrdinalIgnoreCase))
+        {
+            await InvokeAsync(() =>
+            {
+                UserState.Status = status;
+                StateHasChanged();
+            });
+        }
+    }
+
     private void HandleMailboxClick()
     {
         NavState.OpenSidebar();
@@ -335,6 +349,7 @@
     {
         ChatService.OnMessageReceived -= HandleMessageReceived;
         ChatService.OnUsersListChanged -= HandleUsersListChanged;
+        ChatService.OnUserStatusChanged -= HandleUserStatusChanged;
         NavState.OnChange -= HandleNavStateChanged;
     }
 }

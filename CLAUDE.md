@@ -48,7 +48,7 @@ Yap/
 │   ├── ChatConfigService.cs           # UI text configuration
 │   ├── ChatNavigationState.cs         # Navigation state with [PersistentState]
 │   ├── UserStateService.cs            # User identity with [PersistentState]
-│   ├── ChatCircuitHandler.cs          # Circuit lifecycle handling
+│   ├── ChatCircuitHandler.cs          # Circuit lifecycle + auto-away detection
 │   ├── PushSubscriptionStore.cs       # Push notification subscriptions
 │   ├── PushNotificationService.cs     # Web push notifications
 │   └── EmojiService.cs                # Twemoji rendering
@@ -206,6 +206,7 @@ docker run -p 8080:8080 -v ./uploads:/app/wwwroot/uploads yap
 - **Admin system** - First user becomes admin, can manage rooms (🛡️ badge)
 - **Direct messages** - Private conversations (persist permanently when DB enabled)
 - **User status** - Online (green), Away (orange), Invisible (gray) with dropdown selector
+- **Auto-away** - Automatically sets status to Away after 5 minutes idle
 - **Sign out** - Explicit sign out clears session and returns to login
 - **Mailbox indicator** - Unread DM count in header, visible even with sidebar closed
 - **Message actions** - Discord-style hover popup with reactions, edit, delete
@@ -285,6 +286,33 @@ If no migrations exist, the app uses `EnsureCreatedAsync()` to create tables dir
 - `ReconnectModal` component (customized as top banner)
 - `ResourcePreloader` for optimized asset loading
 - `MapStaticAssets()` for fingerprinted static files
+- `CreateInboundActivityHandler` for circuit activity tracking (auto-away)
+
+### Auto-Away Detection
+Uses `CircuitHandler.CreateInboundActivityHandler()` to detect user activity:
+
+```csharp
+public override Func<CircuitInboundActivityContext, Task> CreateInboundActivityHandler(
+    Func<CircuitInboundActivityContext, Task> next)
+{
+    return async context =>
+    {
+        _idleTimer.Stop();   // Reset timer on ANY activity
+        _idleTimer.Start();
+
+        if (_isAutoAway) { /* restore previous status */ }
+
+        await next(context);
+    };
+}
+```
+
+**How it works:**
+- `CreateInboundActivityHandler` intercepts ALL inbound circuit traffic (UI events, JS interop)
+- A timer resets on every activity; if it expires (5 min), user is set to Away
+- User must manually set status back to Online via the status dropdown
+- Invisible users are never auto-changed (explicit preference)
+- No JavaScript needed - purely server-side detection
 
 ### EF Core Packages
 ```xml
