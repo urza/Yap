@@ -3,6 +3,7 @@
 @inject ChatService ChatService
 @inject UserStateService UserState
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <PageTitle>@ChatConfig.ProjectName</PageTitle>
 
@@ -35,6 +36,7 @@
     private bool hasError = false;
     private bool isLengthError = false;
     private bool hasBlurred = false;
+    private bool isAutoLoggingIn = false;
 
     // Discord username rules: 2-32 chars, lowercase a-z, 0-9, underscore, period, no consecutive periods
     private static readonly System.Text.RegularExpressions.Regex ValidUsernameRegex =
@@ -45,7 +47,7 @@
     // Only show length errors after user has blurred the input (finished typing)
     private bool showError => hasError && (!isLengthError || hasBlurred);
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         // If already logged in, redirect to chat
         // Note: This works because prerendering is disabled globally in App.razor
@@ -65,6 +67,44 @@
         welcomeMessage = ChatConfig.GetRandomWelcomeMessage();
         joinButtonText = ChatConfig.GetRandomJoinButtonText();
         usernamePlaceholder = ChatConfig.GetRandomUsernamePlaceholder();
+
+        // Check localStorage for stored username
+        await TryAutoLoginAsync();
+    }
+
+    private async Task TryAutoLoginAsync()
+    {
+        try
+        {
+            var storedUsername = await JS.InvokeAsync<string?>("getStoredUsername");
+            if (string.IsNullOrWhiteSpace(storedUsername))
+                return;
+
+            // Check if username is taken by someone else
+            if (ChatService.IsUsernameTaken(storedUsername))
+            {
+                // Username taken - clear storage and show error
+                await JS.InvokeVoidAsync("clearStoredUsername");
+                hasError = true;
+                hasBlurred = true;
+                errorMessage = $"Username '{storedUsername}' is already in use";
+                usernameInput = storedUsername;
+                return;
+            }
+
+            // Auto-login with stored username
+            isAutoLoggingIn = true;
+            UserState.Username = storedUsername;
+            Navigation.NavigateTo("/lobby");
+        }
+        catch (TaskCanceledException)
+        {
+            // Circuit disconnected - ignore
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Login] Auto-login failed: {ex.Message}");
+        }
     }
 
     private void ValidateUsername()
@@ -127,11 +167,16 @@
         hasBlurred = true;
     }
 
-    private Task JoinChat()
+    private async Task JoinChat()
     {
-        if (!IsValid) return Task.CompletedTask;
+        if (!IsValid) return;
 
-        UserState.Username = usernameInput.Trim();
+        var username = usernameInput.Trim();
+        UserState.Username = username;
+
+        // Save to localStorage for persistent login
+        await JS.InvokeVoidAsync("saveUsername", username);
+
         try
         {
             Navigation.NavigateTo("/lobby");
@@ -140,6 +185,5 @@
         {
             // Circuit disconnected during navigation - ignore
         }
-        return Task.CompletedTask;
     }
 }

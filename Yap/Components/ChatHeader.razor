@@ -113,6 +113,21 @@
         NavState.OnChange += HandleNavStateChanged;
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Small delay to catch users added during initialization (ChatBase adds user in OnAfterRenderAsync)
+            await Task.Delay(100);
+            var currentCount = ChatService.GetOnlineUsers().Count;
+            if (currentCount != onlineCount)
+            {
+                onlineCount = currentCount;
+                StateHasChanged();
+            }
+        }
+    }
+
     private async Task CheckNotificationStatusAsync()
     {
         try
@@ -231,6 +246,9 @@
         {
             await ChatService.RemoveUserAsync(UserState.SessionId);
         }
+
+        // Clear localStorage (persistent login)
+        await JS.InvokeVoidAsync("clearStoredUsername");
 
         // Clear user state
         UserState.Username = null;

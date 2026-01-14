@@ -2,6 +2,40 @@
 let dotNetRef = null;
 let notificationAudio = null;
 
+// ==========================================
+// Login Persistence (localStorage)
+// ==========================================
+const STORAGE_KEY = 'yap_username';
+
+window.saveUsername = (username) => {
+    try {
+        localStorage.setItem(STORAGE_KEY, username);
+        return true;
+    } catch (e) {
+        console.warn('[Storage] Failed to save username:', e);
+        return false;
+    }
+};
+
+window.getStoredUsername = () => {
+    try {
+        return localStorage.getItem(STORAGE_KEY);
+    } catch (e) {
+        console.warn('[Storage] Failed to get username:', e);
+        return null;
+    }
+};
+
+window.clearStoredUsername = () => {
+    try {
+        localStorage.removeItem(STORAGE_KEY);
+        return true;
+    } catch (e) {
+        console.warn('[Storage] Failed to clear username:', e);
+        return false;
+    }
+};
+
 // Pre-load audio on first user interaction
 function ensureAudioLoaded() {
     if (!notificationAudio) {
