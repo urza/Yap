@@ -64,13 +64,15 @@
     @if (Message.Reactions?.Count > 0)
     {
         <div class="reactions-display">
-            @foreach (var reaction in Message.Reactions)
+            @foreach (var reactionGroup in Message.Reactions.GroupByEmoji())
             {
-                var hasReacted = reaction.Value.Contains(CurrentUsername);
+                var emoji = reactionGroup.Key;
+                var users = reactionGroup.Value;
+                var hasReacted = users.Any(u => u.Equals(CurrentUsername, StringComparison.OrdinalIgnoreCase));
                 <button class="reaction-pill @(hasReacted ? "reacted" : "")"
-                        @onclick="() => OnReaction.InvokeAsync(reaction.Key)"
-                        title="@string.Join(", ", reaction.Value)">
-                    @EmojiService.ConvertEmojisToTwemoji(reaction.Key, forceSmall: true) <span class="reaction-count">@reaction.Value.Count</span>
+                        @onclick="() => OnReaction.InvokeAsync(emoji)"
+                        title="@string.Join(", ", users)">
+                    @EmojiService.ConvertEmojisToTwemoji(emoji, forceSmall: true) <span class="reaction-count">@users.Count</span>
                 </button>
             }
         </div>

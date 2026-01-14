@@ -50,7 +50,7 @@
     protected override async Task OnParametersSetAsync()
     {
         // Detect room parameter changes (navigating between rooms)
-        var newRoomId = RoomId ?? ChatService.LobbyId;
+        var newRoomId = RoomId ?? ChatService.GetLobbyId();
         if (previousRoomId.HasValue && previousRoomId.Value != newRoomId)
         {
             await SwitchRoomContentAsync(newRoomId);
@@ -61,7 +61,7 @@
     protected override async Task OnInitializedChatAsync()
     {
         // Set current room
-        channelId = RoomId ?? ChatService.LobbyId;
+        channelId = RoomId ?? ChatService.GetLobbyId();
         previousRoomId = channelId;
 
         // Load messages
@@ -122,10 +122,11 @@
         await InvokeAsync(() =>
         {
             // Add system message in lobby
-            if (channelId == ChatService.LobbyId)
+            var lobbyId = ChatService.GetLobbyId();
+            if (channelId == lobbyId)
             {
                 messages.Add(new ChatMessage(
-                    ChatService.LobbyId,
+                    lobbyId,
                     "System",
                     ChatConfig.GetRandomSystemMessage(user, isJoining),
                     DateTime.UtcNow

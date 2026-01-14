@@ -212,7 +212,7 @@
 
     private void SwitchToRoom(Guid roomId)
     {
-        var url = roomId == ChatService.LobbyId ? "/lobby" : $"/room/{roomId}";
+        var url = roomId == ChatService.GetLobbyId() ? "/lobby" : $"/room/{roomId}";
         Navigation.NavigateTo(url);
     }
 

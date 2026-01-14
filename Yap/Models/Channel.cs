@@ -2,16 +2,19 @@ namespace Yap.Models;
 
 public class Channel
 {
-    public Guid Id { get; init; } = Guid.NewGuid();
-    public ChannelType Type { get; init; }
-    public string Name { get; init; } = "";
-    public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
-    public string? CreatedBy { get; init; }
-    public bool IsDefault { get; init; }
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public ChannelType Type { get; set; }
+    public string Name { get; set; } = "";
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public string? CreatedBy { get; set; }
+    public bool IsDefault { get; set; }
 
     // DM-specific: the two participants
-    public string? Participant1 { get; init; }
-    public string? Participant2 { get; init; }
+    public string? Participant1 { get; set; }
+    public string? Participant2 { get; set; }
+
+    // Navigation property (not loaded by default)
+    public List<ChatMessage> Messages { get; set; } = new();
 
     public bool IsDirectMessage => Type == ChannelType.DirectMessage;
 

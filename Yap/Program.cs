@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.Components.Web;
 using Yap.Components;
+using Yap.Extensions;
 using Yap.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -65,6 +66,9 @@ builder.Services.Configure<CircuitOptions>(options =>
     options.PersistedCircuitInMemoryMaxRetained = 5000;
 });
 
+// Persistence (optional database support)
+builder.Services.AddChatPersistence(builder.Configuration);
+
 // Chat services
 builder.Services.AddSingleton<PushSubscriptionStore>();
 builder.Services.AddSingleton<PushNotificationService>();
@@ -76,6 +80,9 @@ builder.Services.AddScoped<ChatNavigationState>();
 builder.Services.AddScoped<CircuitHandler, ChatCircuitHandler>();
 
 var app = builder.Build();
+
+// Initialize persistence (migrations + load data) if enabled
+await app.Services.InitializePersistenceAsync();
 
 // Clear uploads folder on start if configured
 if (builder.Configuration.GetValue<bool>("ChatSettings:ClearUploadsOnStart", true))
