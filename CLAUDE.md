@@ -310,8 +310,10 @@ public override Func<CircuitInboundActivityContext, Task> CreateInboundActivityH
 **How it works:**
 - `CreateInboundActivityHandler` intercepts ALL inbound circuit traffic (UI events, JS interop)
 - A timer resets on every activity; if it expires (5 min), user is set to Away
-- User must manually set status back to Online via the status dropdown
-- Invisible users are never auto-changed (explicit preference)
+- Any activity restores user from Away back to Online automatically
+- Disconnected users (tab closed) are marked Invisible (grey) and stay in user list
+- When user reconnects, their previous status is restored
+- Invisible users are never auto-changed to Away (explicit preference)
 - No JavaScript needed - purely server-side detection
 
 ### EF Core Packages

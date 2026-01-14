@@ -15,4 +15,9 @@ RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "Yap.dll"]
+# Keep a copy of default config for first-run
+COPY --from=publish /app/publish/appsettings.json ./appsettings.default.json
+# Copy and set up entrypoint
+COPY docker-entrypoint.sh .
+RUN chmod +x docker-entrypoint.sh
+ENTRYPOINT ["./docker-entrypoint.sh"]

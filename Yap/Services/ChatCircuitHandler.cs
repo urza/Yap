@@ -10,7 +10,7 @@ namespace Yap.Services;
 /// </summary>
 public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
 {
-    private static readonly TimeSpan IdleTimeout = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan IdleTimeout = TimeSpan.FromMinutes(5);
 
     private readonly ChatService _chatService;
     private readonly UserStateService _userState;
@@ -40,7 +40,7 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
 
     public override Task OnCircuitOpenedAsync(Circuit circuit, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Circuit opened, starting idle timer ({Timeout})", IdleTimeout);
+        _logger.LogDebug("Circuit opened, starting idle timer ({Timeout})", IdleTimeout);
         _idleTimer.Start();
         return base.OnCircuitOpenedAsync(circuit, cancellationToken);
     }
@@ -50,7 +50,7 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
         // User reconnected - restore their previous status
         if (!string.IsNullOrEmpty(_userState.SessionId) && _statusBeforeDisconnect.HasValue)
         {
-            _logger.LogInformation("Connection restored for {Username}, restoring status to {Status}",
+            _logger.LogDebug("Connection restored for {Username}, restoring status to {Status}",
                 _userState.Username, _statusBeforeDisconnect.Value);
 
             await _chatService.SetUserStatusAsync(_userState.SessionId, _statusBeforeDisconnect.Value);
@@ -73,7 +73,7 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
             if (currentStatus.HasValue && currentStatus != UserStatus.Invisible)
             {
                 _statusBeforeDisconnect = currentStatus;
-                _logger.LogInformation("Connection lost for {Username}, marking as Invisible", _userState.Username);
+                _logger.LogDebug("Connection lost for {Username}, marking as Invisible", _userState.Username);
                 await _chatService.SetUserStatusAsync(_userState.SessionId, UserStatus.Invisible);
             }
         }
@@ -92,7 +92,7 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
             var currentStatus = _chatService.GetUserStatus(_userState.Username!);
             if (currentStatus.HasValue && currentStatus != UserStatus.Invisible)
             {
-                _logger.LogInformation("Circuit closed for {Username}, marking as Invisible", _userState.Username);
+                _logger.LogDebug("Circuit closed for {Username}, marking as Invisible", _userState.Username);
                 await _chatService.SetUserStatusAsync(_userState.SessionId, UserStatus.Invisible);
             }
         }
@@ -120,7 +120,7 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
                 var restoreTo = _statusBeforeAway.Value;
                 _statusBeforeAway = null;
 
-                _logger.LogInformation("Auto-away: {Username} is back, restoring to {Status}",
+                _logger.LogDebug("Auto-away: {Username} is back, restoring to {Status}",
                     _userState.Username, restoreTo);
 
                 await _chatService.SetUserStatusAsync(_userState.SessionId, restoreTo);
@@ -144,7 +144,7 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
         _statusBeforeAway = currentStatus;
         _isAutoAway = true;
 
-        _logger.LogInformation("Auto-away: {Username} idle, setting to Away", _userState.Username);
+        _logger.LogDebug("Auto-away: {Username} idle, setting to Away", _userState.Username);
 
         await _chatService.SetUserStatusAsync(_userState.SessionId, UserStatus.Away);
         _userState.Status = UserStatus.Away;

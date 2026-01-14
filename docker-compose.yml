@@ -9,4 +9,5 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
     volumes:
       - ./uploads:/app/wwwroot/uploads
+      - ./data:/app/Data
     restart: unless-stopped

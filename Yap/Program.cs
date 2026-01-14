@@ -7,6 +7,13 @@ using Yap.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Load config from Data folder if exists (for Docker deployment)
+var dataConfigPath = Path.Combine(builder.Environment.ContentRootPath, "Data", "appsettings.json");
+if (File.Exists(dataConfigPath))
+{
+    builder.Configuration.AddJsonFile(dataConfigPath, optional: false, reloadOnChange: true);
+}
+
 // =============================================================================
 // BLAZOR SERVER CIRCUIT CONFIGURATION (.NET 10)
 // =============================================================================
