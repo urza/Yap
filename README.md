@@ -11,6 +11,10 @@ Super minimalistic self hosted chat inspired by Discord aesthetics
 docker run -d --name yap -p 5221:8080 -v ./uploads:/app/wwwroot/uploads -v ./config:/app/Data ghcr.io/urza/yap:latest
 ```
 
+There are two volumes:
+- "uploads" which holds uploaded media
+- "data" which contains configuration (appconfig.json) and SQLite db (if you opt for using db)
+
 Access at `http://localhost:5221` - it's up to you how to make this accessible for others. For example use some reverse proxy like nginx proxy manager - https://nginxproxymanager.com/
 
 ## Features
