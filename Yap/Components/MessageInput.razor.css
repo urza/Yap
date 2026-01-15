@@ -1,7 +1,8 @@
 .message-input-container {
-    display: flex;
-    flex-wrap: nowrap;
+    display: grid;
+    grid-template-columns: 1fr auto auto;
     align-items: flex-end;
+    gap: 0.5rem;
     width: 100%;
     padding: 0.5rem;
     background: #36393f;
@@ -27,16 +28,13 @@
 }
 
 .message-input {
-    flex: 1 1 auto;
     min-width: 0;
-    max-width: calc(100% - 100px);
     padding: 0.6875rem 1rem;
     border: none;
     border-radius: 8px;
     font-size: 1rem;
     background: #40444b;
     color: #dcddde;
-    margin-right: 0.5rem;
     word-break: break-word;
     overflow-wrap: break-word;
     resize: none;
@@ -66,7 +64,6 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
     width: 44px;
     height: 44px;
     background: #5865f2;
@@ -75,7 +72,6 @@
     border-radius: 50%;
     cursor: pointer;
     transition: background-color 0.2s, opacity 0.2s;
-    margin-left: 0.5rem;
 }
 
 .send-button:hover:not(:disabled) {
@@ -93,7 +89,6 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
     width: 44px;
     height: 44px;
     background: transparent;
