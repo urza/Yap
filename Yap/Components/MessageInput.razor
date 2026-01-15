@@ -35,6 +35,7 @@
 </div>
 
 <div class="message-input-container @(isDraggingOver ? "drag-over" : "")"
+     @ref="dropZoneElement"
      @ondragenter="HandleDragEnter"
      @ondragover="HandleDragOver"
      @ondragover:preventDefault
