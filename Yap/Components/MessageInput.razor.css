@@ -29,7 +29,8 @@
 
 .message-input {
     flex: 1 1 0%;
-    min-width: 0;
+    min-width: 0 !important;
+    width: 0;
     padding: 0.6875rem 1rem;
     border: none;
     border-radius: 8px;
