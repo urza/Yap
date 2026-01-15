@@ -327,7 +327,10 @@
 @media (max-width: 600px) {
     .message-actions {
         right: 8px;
+        left: 8px;
         top: -12px;
+        width: auto;
+        justify-content: flex-end;
     }
 
     .action-btn {

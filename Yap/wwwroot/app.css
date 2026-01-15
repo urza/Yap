@@ -26,3 +26,22 @@ h1:focus {
 .blazor-error-boundary::after {
     content: "An error has occurred."
 }
+
+/* Global fallback for message input buttons on iOS */
+.message-input-container {
+    display: grid !important;
+    grid-template-columns: 1fr 44px 44px !important;
+}
+
+@media (max-width: 600px) {
+    .message-input-container {
+        grid-template-columns: 1fr 40px 40px !important;
+    }
+}
+
+.image-upload-button,
+.send-button {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
