@@ -179,6 +179,7 @@
 @media (max-width: 600px) {
     .message-input-container {
         padding: 0.5rem;
+        padding-bottom: 1rem;
     }
 
     .typing-indicator-container {
