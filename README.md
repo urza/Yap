@@ -1,6 +1,6 @@
 # Yap
 
-Super minimalistic self hosted chat inspired by Discord aesthetics
+Self hosted chat inspired by Discord aesthetics
 
 ![Screenshot](screenshot.png)
 
