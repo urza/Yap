@@ -74,6 +74,7 @@
 }
 
 /* Image gallery styles */
+/* Desktop: all galleries constrained to same max-width, left-aligned */
 .image-gallery {
     display: flex;
     flex-wrap: nowrap;
@@ -81,7 +82,7 @@
     margin-top: 0.25rem;
     border-radius: 8px;
     overflow: hidden;
-    max-width: 100%;
+    max-width: 400px; /* Consistent width for all image content */
 }
 
 .gallery-item {
@@ -90,6 +91,7 @@
     flex-shrink: 0;
 }
 
+/* Multi-image thumbnails - fixed size on desktop */
 .gallery-image {
     height: 80px;
     width: 80px;
@@ -103,11 +105,12 @@
     flex-shrink: 1;
 }
 
+/* Single image fills the container width */
 .gallery-single .gallery-image {
     height: auto;
     width: auto;
     max-height: 300px;
-    max-width: min(400px, 100%);
+    max-width: 100%; /* Fill container (which is max 400px) */
     object-fit: contain;
     background: #2f3136;
 }
@@ -342,5 +345,41 @@
 
     .message-group {
         padding: 0.125rem 0.5rem;
+    }
+
+    /* Mobile: full-width images and galleries */
+    .image-gallery {
+        max-width: 100%;
+    }
+
+    /* Multi-image thumbnails grow to fill width on mobile */
+    .gallery-item {
+        flex: 1 1 0%;
+    }
+
+    .gallery-image {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1; /* Keep square */
+    }
+
+    .gallery-double .gallery-image,
+    .gallery-grid .gallery-image {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1;
+    }
+
+    /* Single images don't stretch, just fill available width */
+    .gallery-single .gallery-item {
+        flex: 0 1 auto;
+    }
+
+    .gallery-single .gallery-image {
+        width: auto;
+        height: auto;
+        max-width: 100%;
+        max-height: 300px;
+        aspect-ratio: auto;
     }
 }
