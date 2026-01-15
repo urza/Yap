@@ -5,6 +5,18 @@
 @inject IWebHostEnvironment Environment
 @implements IAsyncDisposable
 
+@if (!string.IsNullOrEmpty(warningTitle))
+{
+    <div class="warning-modal-backdrop" @onclick="DismissWarning">
+        <div class="warning-modal" @onclick:stopPropagation="true">
+            <button class="warning-modal-close" @onclick="DismissWarning">✕</button>
+            <h3 class="warning-modal-title">@warningTitle</h3>
+            <p class="warning-modal-message">@warningMessage</p>
+            <button class="warning-modal-button" @onclick="DismissWarning">Got It</button>
+        </div>
+    </div>
+}
+
 <div class="typing-indicator-container">
     @if (isUploading)
     {
@@ -84,6 +96,8 @@
     private string messageText = "";
     private string placeholder = "";
     private string typingIndicatorText = "";
+    private string warningTitle = "";
+    private string warningMessage = "";
     private bool isTyping = false;
     private bool isUploading = false;
     private int uploadingCount = 0;
@@ -273,7 +287,17 @@
     {
         if (!channelId.HasValue) return;
 
-        var files = e.GetMultipleFiles(10);
+        IReadOnlyList<IBrowserFile> files;
+        try
+        {
+            files = e.GetMultipleFiles(10);
+        }
+        catch (InvalidOperationException)
+        {
+            ShowWarning("Too many uploads!", "You can only upload 10 files at a time!");
+            return;
+        }
+
         if (files.Count == 0) return;
 
         var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
@@ -281,7 +305,11 @@
             allowedExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()) &&
             f.Size <= 100 * 1024 * 1024).ToList();
 
-        if (validFiles.Count == 0) return;
+        if (validFiles.Count == 0)
+        {
+            ShowWarning("Invalid files", "Only image files (jpg, png, gif, webp) up to 100MB allowed");
+            return;
+        }
 
         // Show upload indicator
         isUploading = true;
@@ -315,6 +343,7 @@
         catch (Exception ex)
         {
             Console.WriteLine($"Error uploading files: {ex.Message}");
+            ShowWarning("Upload failed", "Something went wrong while uploading your images");
         }
         finally
         {
@@ -323,6 +352,18 @@
             uploadingCount = 0;
             StateHasChanged();
         }
+    }
+
+    private void ShowWarning(string title, string message)
+    {
+        warningTitle = title;
+        warningMessage = message;
+    }
+
+    private void DismissWarning()
+    {
+        warningTitle = "";
+        warningMessage = "";
     }
 
     #endregion

@@ -27,26 +27,33 @@
         }
         else if (Message.HasImages)
         {
-            var maxPreview = 4;
-            var hasMore = Message.ImageUrls.Count > maxPreview;
-            var previewCount = hasMore ? maxPreview : Message.ImageUrls.Count;
-            var extraCount = Message.ImageUrls.Count - maxPreview;
+            var imageCount = Message.ImageUrls.Count;
+            var isSingle = imageCount == 1;
 
-            <div class="image-gallery @GetGalleryClass(previewCount)">
-                @for (int imgIndex = 0; imgIndex < previewCount; imgIndex++)
+            <div class="image-gallery @(isSingle ? "gallery-single" : "")">
+                @if (isSingle)
                 {
-                    var idx = imgIndex;
-                    var imageUrl = Message.ImageUrls[idx];
-                    var isLastPreview = hasMore && idx == maxPreview - 1;
-
-                    <div class="gallery-item @(isLastPreview ? "has-more" : "")"
-                         @onclick="() => OnImageClick.InvokeAsync((Message.ImageUrls, idx))">
-                        <img src="@imageUrl" alt="Uploaded image" class="gallery-image" />
-                        @if (isLastPreview)
-                        {
-                            <div class="gallery-more-overlay">+@extraCount</div>
-                        }
+                    <div class="gallery-item"
+                         @onclick="() => OnImageClick.InvokeAsync((Message.ImageUrls, 0))">
+                        <img src="@Message.ImageUrls[0]" alt="Uploaded image" class="gallery-image" />
                     </div>
+                }
+                else
+                {
+                    @* Multi-image: rows of max 3 *@
+                    @foreach (var row in GetImageRows())
+                    {
+                        <div class="gallery-row">
+                            @foreach (var (imageUrl, globalIndex) in row)
+                            {
+                                var idx = globalIndex;
+                                <div class="gallery-item"
+                                     @onclick="() => OnImageClick.InvokeAsync((Message.ImageUrls, idx))">
+                                    <img src="@imageUrl" alt="Uploaded image" class="gallery-image" />
+                                </div>
+                            }
+                        </div>
+                    }
                 }
             </div>
         }
@@ -156,12 +163,39 @@
         else if (e.Key == "Escape") await OnCancelEdit.InvokeAsync();
     }
 
-    private static string GetGalleryClass(int imageCount) => imageCount switch
+    /// <summary>
+    /// Groups images into rows of 2 or 3, avoiding single-image rows.
+    /// </summary>
+    private List<List<(string Url, int Index)>> GetImageRows()
     {
-        1 => "gallery-single",
-        2 => "gallery-double",
-        _ => "gallery-grid"
-    };
+        var images = Message.ImageUrls;
+
+        int[] rowSizes = images.Count switch
+        {
+            2 => [2],
+            3 => [3],
+            4 => [2, 2],
+            5 => [2, 3],
+            6 => [3, 3],
+            7 => [2, 2, 3],
+            8 => [2, 3, 3],
+            9 => [3, 3, 3],
+            10 => [2, 2, 3, 3],
+            _ => []
+        };
+
+        var rows = new List<List<(string, int)>>();
+        var index = 0;
+        foreach (var size in rowSizes)
+        {
+            var row = new List<(string, int)>();
+            for (int i = 0; i < size; i++)
+                row.Add((images[index], index++));
+            rows.Add(row);
+        }
+
+        return rows;
+    }
 
     // Emoji picker state
     private bool showEmojiPicker = false;

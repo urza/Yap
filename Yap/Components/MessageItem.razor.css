@@ -74,10 +74,10 @@
 }
 
 /* Image gallery styles */
-/* Desktop: all galleries constrained to same max-width, left-aligned */
+/* Discord-style: rows of max 3, each row fills same width */
 .image-gallery {
     display: flex;
-    flex-wrap: nowrap;
+    flex-direction: column;
     gap: 4px;
     margin-top: 0.25rem;
     border-radius: 8px;
@@ -85,65 +85,48 @@
     max-width: 400px; /* Consistent width for all image content */
 }
 
+/* Each row of images */
+.gallery-row {
+    display: flex;
+    gap: 4px;
+}
+
+/* Items in a row stretch equally */
+.gallery-row .gallery-item {
+    flex: 1 1 0%;
+    min-width: 0;
+}
+
 .gallery-item {
     position: relative;
     cursor: pointer;
-    flex-shrink: 0;
 }
 
-/* Multi-image thumbnails - fixed size on desktop */
-.gallery-image {
-    height: 80px;
-    width: 80px;
+/* Multi-image: square thumbnails that fill their container */
+.gallery-row .gallery-image {
+    width: 100%;
+    aspect-ratio: 1;
     object-fit: cover;
     border-radius: 4px;
     transition: opacity 0.15s;
     display: block;
 }
 
-.gallery-single .gallery-item {
-    flex-shrink: 1;
-}
-
-/* Single image fills the container width */
+/* Single image: preserve aspect ratio, constrain size */
 .gallery-single .gallery-image {
     height: auto;
     width: auto;
     max-height: 300px;
-    max-width: 100%; /* Fill container (which is max 400px) */
+    max-width: 100%;
     object-fit: contain;
     background: #2f3136;
-}
-
-.gallery-double .gallery-image {
-    height: 100px;
-    width: 100px;
-}
-
-.gallery-grid .gallery-image {
-    height: 80px;
-    width: 80px;
+    border-radius: 4px;
+    transition: opacity 0.15s;
+    display: block;
 }
 
 .gallery-item:hover .gallery-image {
     opacity: 0.85;
-}
-
-.gallery-more-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.6);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.25rem;
-    font-weight: 600;
-    border-radius: 4px;
-    pointer-events: none;
 }
 
 /* Message actions popup */
@@ -347,39 +330,8 @@
         padding: 0.125rem 0.5rem;
     }
 
-    /* Mobile: full-width images and galleries */
+    /* Mobile: full-width galleries */
     .image-gallery {
         max-width: 100%;
-    }
-
-    /* Multi-image thumbnails grow to fill width on mobile */
-    .gallery-item {
-        flex: 1 1 0%;
-    }
-
-    .gallery-image {
-        width: 100%;
-        height: auto;
-        aspect-ratio: 1; /* Keep square */
-    }
-
-    .gallery-double .gallery-image,
-    .gallery-grid .gallery-image {
-        width: 100%;
-        height: auto;
-        aspect-ratio: 1;
-    }
-
-    /* Single images don't stretch, just fill available width */
-    .gallery-single .gallery-item {
-        flex: 0 1 auto;
-    }
-
-    .gallery-single .gallery-image {
-        width: auto;
-        height: auto;
-        max-width: 100%;
-        max-height: 300px;
-        aspect-ratio: auto;
     }
 }
