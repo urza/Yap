@@ -77,6 +77,7 @@
     margin-top: 0.25rem;
     border-radius: 8px;
     overflow: hidden;
+    max-width: 100%;
 }
 
 .gallery-item {
@@ -102,7 +103,7 @@
     height: auto;
     width: auto;
     max-height: 300px;
-    max-width: 400px;
+    max-width: min(400px, 100%);
     object-fit: contain;
     background: #2f3136;
 }
