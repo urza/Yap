@@ -35,7 +35,6 @@
 </div>
 
 <div class="message-input-container @(isDraggingOver ? "drag-over" : "")"
-     @ref="dropZoneElement"
      @ondragenter="HandleDragEnter"
      @ondragover="HandleDragOver"
      @ondragover:preventDefault
@@ -46,7 +45,7 @@
               placeholder="@placeholder" class="message-input"
               @onkeydown="HandleKeyDown" @onkeydown:preventDefault="shouldPreventDefault"
               rows="1" id="@TextareaId"></textarea>
-    <label class="image-upload-button" title="Upload images" style="display: flex !important; width: 44px; height: 44px;">
+    <label class="image-upload-button" title="Upload images">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
              stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
@@ -58,8 +57,7 @@
     <button class="send-button @(string.IsNullOrWhiteSpace(messageText) ? "disabled" : "")"
             @onclick="HandleSend"
             disabled="@string.IsNullOrWhiteSpace(messageText)"
-            title="Send message"
-            style="display: flex !important; width: 44px; height: 44px;">
+            title="Send message">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
             <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
         </svg>

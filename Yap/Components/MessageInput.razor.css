@@ -1,6 +1,6 @@
 .message-input-container {
-    display: grid;
-    grid-template-columns: 1fr 44px 44px;
+    display: flex;
+    flex-direction: row;
     align-items: flex-end;
     gap: 0.5rem;
     width: 100%;
@@ -28,6 +28,7 @@
 }
 
 .message-input {
+    flex: 1 1 0%;
     min-width: 0;
     padding: 0.6875rem 1rem;
     border: none;
@@ -61,6 +62,7 @@
 }
 
 .send-button {
+    flex: 0 0 44px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -86,6 +88,7 @@
 }
 
 .image-upload-button {
+    flex: 0 0 44px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -174,7 +177,6 @@
 /* Mobile adjustments */
 @media (max-width: 600px) {
     .message-input-container {
-        grid-template-columns: 1fr 40px 40px;
         padding: 0.5rem;
     }
 
@@ -192,11 +194,13 @@
     }
 
     .image-upload-button {
+        flex: 0 0 40px;
         width: 40px;
         height: 40px;
     }
 
     .send-button {
+        flex: 0 0 40px;
         width: 40px;
         height: 40px;
     }
