@@ -2,6 +2,8 @@
 .message-group {
     padding: 0.125rem 1rem;
     position: relative;
+    min-width: 0; /* Allow content to shrink */
+    max-width: 100%;
 }
 
 .message-group:hover:not(.system-message) {
