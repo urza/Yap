@@ -5,6 +5,35 @@
 @inject IWebHostEnvironment Environment
 @implements IAsyncDisposable
 
+<div class="typing-indicator-container">
+    @if (isUploading)
+    {
+        <div class="typing-indicator upload-indicator">
+            <span style="display: flex; align-items: center; gap: 0.5rem; color: #5865f2;">
+                <span class="typing-dots">
+                    <span class="dot upload-dot"></span>
+                    <span class="dot upload-dot"></span>
+                    <span class="dot upload-dot"></span>
+                </span>
+                <span>Uploading @uploadingCount image@(uploadingCount > 1 ? "s" : "")...</span>
+            </span>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(typingIndicatorText))
+    {
+        <div class="typing-indicator">
+            <span style="display: flex; align-items: center; gap: 0.5rem; color: #72767d;">
+                <span class="typing-dots">
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                </span>
+                <span>@typingIndicatorText</span>
+            </span>
+        </div>
+    }
+</div>
+
 <div class="message-input-container @(isDraggingOver ? "drag-over" : "")"
      @ref="dropZoneElement"
      @ondragenter="HandleDragEnter"
@@ -34,35 +63,6 @@
             <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
         </svg>
     </button>
-</div>
-
-<div class="typing-indicator-container">
-    @if (isUploading)
-    {
-        <div class="typing-indicator upload-indicator">
-            <span style="display: flex; align-items: center; gap: 0.5rem; color: #5865f2;">
-                <span class="typing-dots">
-                    <span class="dot upload-dot"></span>
-                    <span class="dot upload-dot"></span>
-                    <span class="dot upload-dot"></span>
-                </span>
-                <span>Uploading @uploadingCount image@(uploadingCount > 1 ? "s" : "")...</span>
-            </span>
-        </div>
-    }
-    else if (!string.IsNullOrEmpty(typingIndicatorText))
-    {
-        <div class="typing-indicator">
-            <span style="display: flex; align-items: center; gap: 0.5rem; color: #72767d;">
-                <span class="typing-dots">
-                    <span class="dot"></span>
-                    <span class="dot"></span>
-                    <span class="dot"></span>
-                </span>
-                <span>@typingIndicatorText</span>
-            </span>
-        </div>
-    }
 </div>
 
 @code {
