@@ -161,12 +161,13 @@ app.MapPost("/api/push/unsubscribe", async (HttpContext context, PushSubscriptio
 
 // =============================================================================
 // ONE-TIME MIGRATION: Generate thumbnails for existing images
+// Runs in background to avoid timeout - check console for progress
 // =============================================================================
-app.MapGet("/api/admin/generate-thumbnails", async (ImageService imageService, IWebHostEnvironment env) =>
+app.MapGet("/api/admin/generate-thumbnails", (ImageService imageService, IWebHostEnvironment env) =>
 {
     var uploadsPath = Path.Combine(env.WebRootPath, "uploads");
     if (!Directory.Exists(uploadsPath))
-        return Results.Ok(new { processed = 0, message = "No uploads folder" });
+        return Results.Ok(new { message = "No uploads folder" });
 
     var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
 
@@ -177,20 +178,31 @@ app.MapGet("/api/admin/generate-thumbnails", async (ImageService imageService, I
         .Where(f => !Path.GetFileNameWithoutExtension(f).EndsWith("_1600px"))
         .ToList();
 
-    var processed = 0;
-    foreach (var imagePath in originalImages)
+    var toProcess = originalImages
+        .Where(f => !File.Exists(Path.Combine(uploadsPath, $"{Path.GetFileNameWithoutExtension(f)}_800px.webp")))
+        .ToList();
+
+    // Run in background to avoid timeout
+    _ = Task.Run(async () =>
     {
-        var filename = Path.GetFileNameWithoutExtension(imagePath);
+        var processed = 0;
+        foreach (var imagePath in toProcess)
+        {
+            try
+            {
+                await imageService.GenerateThumbnailsAsync(imagePath);
+                processed++;
+                Console.WriteLine($"[Thumbnails] {processed}/{toProcess.Count}: {Path.GetFileName(imagePath)}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Thumbnails] Failed: {Path.GetFileName(imagePath)} - {ex.Message}");
+            }
+        }
+        Console.WriteLine($"[Thumbnails] Complete: {processed}/{toProcess.Count} processed");
+    });
 
-        // Check if WebP thumbnails already exist
-        var thumb800 = Path.Combine(uploadsPath, $"{filename}_800px.webp");
-        if (File.Exists(thumb800)) continue; // Already has thumbnails
-
-        await imageService.GenerateThumbnailsAsync(imagePath);
-        processed++;
-    }
-
-    return Results.Ok(new { processed, total = originalImages.Count });
+    return Results.Ok(new { message = "Processing started in background", toProcess = toProcess.Count, total = originalImages.Count });
 });
 
 app.Run();

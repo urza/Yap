@@ -32,6 +32,7 @@
             var isSingle = imageCount == 1;
 
             <div class="image-gallery @(isSingle ? "gallery-single" : "")">
+                @* Lazy load with dimensions for proper space reservation before image loads *@
                 @if (isSingle)
                 {
                     <div class="gallery-item"
