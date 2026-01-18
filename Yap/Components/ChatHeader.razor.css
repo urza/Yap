@@ -12,12 +12,17 @@
     margin: 0;
     font-size: 1rem;
     font-weight: 600;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .header-controls {
     display: flex;
     align-items: center;
     gap: 0.75rem;
+    flex-shrink: 0;
 }
 
 /* Mailbox button */
@@ -133,6 +138,13 @@
     background: currentColor;
 }
 
+.status-username {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .dropdown-arrow {
     opacity: 0.8;
     margin-left: -0.25rem;
@@ -241,5 +253,9 @@
 
     .chat-header h3 {
         font-size: 1.25rem;
+    }
+
+    .status-username {
+        max-width: 80px;
     }
 }

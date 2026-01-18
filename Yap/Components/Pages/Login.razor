@@ -13,7 +13,7 @@
         <div class="input-wrapper">
             <input type="text" @bind="usernameInput" @bind:event="oninput" @bind:after="ValidateUsername"
                    placeholder="@usernamePlaceholder" class="username-input @(showError ? "invalid" : "")"
-                   @onkeypress="HandleUsernameKeyPress" @onblur="OnInputBlur" maxlength="32" />
+                   @onkeypress="HandleUsernameKeyPress" @onblur="OnInputBlur" maxlength="23" />
             @if (showError)
             {
                 <span class="validation-error">@errorMessage</span>
@@ -38,7 +38,7 @@
     private bool hasBlurred = false;
     private bool isAutoLoggingIn = false;
 
-    // Discord username rules: 2-32 chars, lowercase a-z, 0-9, underscore, period, no consecutive periods
+    // Username rules: 2-23 chars, lowercase a-z, 0-9, underscore, period, no consecutive periods
     private static readonly System.Text.RegularExpressions.Regex ValidUsernameRegex =
         new(@"^[a-z0-9._]+$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
