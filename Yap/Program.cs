@@ -182,24 +182,29 @@ app.MapGet("/api/admin/generate-thumbnails", (ImageService imageService, IWebHos
         .Where(f => !File.Exists(Path.Combine(uploadsPath, $"{Path.GetFileNameWithoutExtension(f)}_800px.webp")))
         .ToList();
 
-    // Run in background to avoid timeout
+    // Run in background with parallel processing to avoid timeout
     _ = Task.Run(async () =>
     {
         var processed = 0;
-        foreach (var imagePath in toProcess)
-        {
-            try
+        var failed = 0;
+
+        await Parallel.ForEachAsync(toProcess, new ParallelOptions { MaxDegreeOfParallelism = 12 },
+            async (imagePath, _) =>
             {
-                await imageService.GenerateThumbnailsAsync(imagePath);
-                processed++;
-                Console.WriteLine($"[Thumbnails] {processed}/{toProcess.Count}: {Path.GetFileName(imagePath)}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Thumbnails] Failed: {Path.GetFileName(imagePath)} - {ex.Message}");
-            }
-        }
-        Console.WriteLine($"[Thumbnails] Complete: {processed}/{toProcess.Count} processed");
+                try
+                {
+                    await imageService.GenerateThumbnailsAsync(imagePath);
+                    var count = Interlocked.Increment(ref processed);
+                    Console.WriteLine($"[Thumbnails] {count}/{toProcess.Count}: {Path.GetFileName(imagePath)}");
+                }
+                catch (Exception ex)
+                {
+                    Interlocked.Increment(ref failed);
+                    Console.WriteLine($"[Thumbnails] Failed: {Path.GetFileName(imagePath)} - {ex.Message}");
+                }
+            });
+
+        Console.WriteLine($"[Thumbnails] Complete: {processed} processed, {failed} failed");
     });
 
     return Results.Ok(new { message = "Processing started in background", toProcess = toProcess.Count, total = originalImages.Count });
