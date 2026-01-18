@@ -34,6 +34,11 @@
     min-width: 0; /* Allow flex item to shrink below content size */
 }
 
+/* Spacer pushes messages to bottom when few messages */
+::deep .messages-spacer {
+    flex: 1 1 auto;
+}
+
 /* Scrollbar styling */
 ::deep .messages::-webkit-scrollbar {
     width: 16px;
