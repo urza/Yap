@@ -1,4 +1,7 @@
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Formats.Png;
+using SixLabors.ImageSharp.Formats.Webp;
 using SixLabors.ImageSharp.Processing;
 
 namespace Yap.Services;
@@ -12,6 +15,11 @@ public class ImageService
 
     private static readonly int[] AllSizes = [SizeSmall, SizeMedium, SizeLarge];
 
+    // High quality encoders
+    private static readonly JpegEncoder JpegEncoder = new() { Quality = 90 };
+    private static readonly WebpEncoder WebpEncoder = new() { Quality = 90 };
+    private static readonly PngEncoder PngEncoder = new() { CompressionLevel = PngCompressionLevel.BestCompression };
+
     /// <summary>
     /// Generates all thumbnail sizes for the given image file.
     /// If original is smaller than a target size, copies original to that size filename.
@@ -22,7 +30,7 @@ public class ImageService
         {
             var directory = Path.GetDirectoryName(originalPath)!;
             var filename = Path.GetFileNameWithoutExtension(originalPath);
-            var extension = Path.GetExtension(originalPath);
+            var extension = Path.GetExtension(originalPath).ToLowerInvariant();
 
             using var image = await Image.LoadAsync(originalPath);
             var originalWidth = image.Width;
@@ -38,14 +46,34 @@ public class ImageService
                 }
                 else
                 {
-                    // Resize to target size
+                    // Use different resamplers based on format:
+                    // - Lanczos3 for photos (jpg/webp) - smooth gradients
+                    // - Box for screenshots/graphics (png/gif) - preserves sharp edges
+                    var sampler = extension is ".png" or ".gif"
+                        ? KnownResamplers.Box
+                        : KnownResamplers.Lanczos3;
+
                     var resized = image.Clone(x => x.Resize(new ResizeOptions
                     {
                         Size = new Size(size, 0), // 0 = maintain aspect ratio
-                        Mode = ResizeMode.Max
+                        Mode = ResizeMode.Max,
+                        Sampler = sampler
                     }));
 
-                    await resized.SaveAsync(thumbPath);
+                    // Use high quality encoders per format
+                    var encoder = extension switch
+                    {
+                        ".jpg" or ".jpeg" => (SixLabors.ImageSharp.Formats.IImageEncoder)JpegEncoder,
+                        ".webp" => WebpEncoder,
+                        ".png" => PngEncoder,
+                        _ => null
+                    };
+
+                    if (encoder != null)
+                        await resized.SaveAsync(thumbPath, encoder);
+                    else
+                        await resized.SaveAsync(thumbPath);
+
                     resized.Dispose();
                 }
             }

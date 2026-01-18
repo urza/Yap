@@ -159,6 +159,41 @@ app.MapPost("/api/push/unsubscribe", async (HttpContext context, PushSubscriptio
     return Results.Ok(new { success = true });
 });
 
+// =============================================================================
+// ONE-TIME MIGRATION: Generate thumbnails for existing images
+// =============================================================================
+app.MapGet("/api/admin/generate-thumbnails", async (ImageService imageService, IWebHostEnvironment env) =>
+{
+    var uploadsPath = Path.Combine(env.WebRootPath, "uploads");
+    if (!Directory.Exists(uploadsPath))
+        return Results.Ok(new { processed = 0, message = "No uploads folder" });
+
+    var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+    var sizePatterns = new[] { "_200px", "_400px", "_1600px" };
+
+    // Find original images (exclude existing thumbnails)
+    var originalImages = Directory.GetFiles(uploadsPath)
+        .Where(f => allowedExtensions.Contains(Path.GetExtension(f).ToLowerInvariant()))
+        .Where(f => !sizePatterns.Any(p => Path.GetFileNameWithoutExtension(f).EndsWith(p)))
+        .ToList();
+
+    var processed = 0;
+    foreach (var imagePath in originalImages)
+    {
+        var filename = Path.GetFileNameWithoutExtension(imagePath);
+        var extension = Path.GetExtension(imagePath);
+
+        // Check if thumbnails already exist
+        var thumb200 = Path.Combine(uploadsPath, $"{filename}_200px{extension}");
+        if (File.Exists(thumb200)) continue; // Already has thumbnails
+
+        await imageService.GenerateThumbnailsAsync(imagePath);
+        processed++;
+    }
+
+    return Results.Ok(new { processed, total = originalImages.Count });
+});
+
 app.Run();
 
 // Request DTOs for push API
