@@ -173,10 +173,8 @@ Two breakpoints used:
 - Mobile responsive with clear breakpoints
 
 **What Could Be Better:**
-- No CSS variables for colors (hardcoded everywhere)
 - Some duplication (typing dots defined in both MessageInput and ReconnectModal)
-- The `min-width: 0` hack scattered around to fix flexbox overflow issues
-- Gallery CSS is fragile (the multi-image layout issue)
+- The `min-width: 0` hack scattered around to fix flexbox overflow issue
 
 **Recommendation:**
 The architecture is fine and maintainable. The main issue is **content overflow breaking layout** - always ensure flex containers have `min-width: 0` and images have `max-width: 100%`. Consider adding CSS variables for the color palette if you want to clean things up.
