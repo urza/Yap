@@ -1,4 +1,5 @@
 @using Yap.Models
+@using Yap.Services
 @inject EmojiService EmojiService
 
 <div class="message-group @(IsSystem ? "system-message" : "") @(IsHovered ? "hovered" : "") @(showEmojiPicker ? "picker-open" : "")"
@@ -35,7 +36,7 @@
                 {
                     <div class="gallery-item"
                          @onclick="() => OnImageClick.InvokeAsync((Message.ImageUrls, 0))">
-                        <img src="@Message.ImageUrls[0]" alt="Uploaded image" class="gallery-image"
+                        <img src="@ImageService.GetMediumUrl(Message.ImageUrls[0])" alt="Uploaded image" class="gallery-image"
                              loading="lazy" width="400" height="300" />
                     </div>
                 }
@@ -50,7 +51,7 @@
                                 var idx = globalIndex;
                                 <div class="gallery-item"
                                      @onclick="() => OnImageClick.InvokeAsync((Message.ImageUrls, idx))">
-                                    <img src="@imageUrl" alt="Uploaded image" class="gallery-image"
+                                    <img src="@ImageService.GetSmallUrl(imageUrl)" alt="Uploaded image" class="gallery-image"
                                          loading="lazy" width="200" height="200" />
                                 </div>
                             }

@@ -1,3 +1,4 @@
+@using Yap.Services
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
@@ -8,7 +9,7 @@
         {
             <button class="modal-nav prev" @onclick="PrevImage" @onclick:stopPropagation="true" title="Previous">‹</button>
         }
-        <img src="@Images[currentIndex]" alt="Full size image" @onclick:stopPropagation="true" />
+        <img src="@ImageService.GetLargeUrl(Images[currentIndex])" alt="Full size image" @onclick:stopPropagation="true" />
         @if (Images.Count > 1)
         {
             <button class="modal-nav next" @onclick="NextImage" @onclick:stopPropagation="true" title="Next">›</button>

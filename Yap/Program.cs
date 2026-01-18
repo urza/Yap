@@ -77,6 +77,7 @@ builder.Services.Configure<CircuitOptions>(options =>
 builder.Services.AddChatPersistence(builder.Configuration);
 
 // Chat services
+builder.Services.AddSingleton<ImageService>();
 builder.Services.AddSingleton<PushSubscriptionStore>();
 builder.Services.AddSingleton<PushNotificationService>();
 builder.Services.AddSingleton<ChatService>();
