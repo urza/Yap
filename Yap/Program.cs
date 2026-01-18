@@ -169,23 +169,22 @@ app.MapGet("/api/admin/generate-thumbnails", async (ImageService imageService, I
         return Results.Ok(new { processed = 0, message = "No uploads folder" });
 
     var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
-    var sizePatterns = new[] { "_200px", "_400px", "_1600px" };
 
-    // Find original images (exclude existing thumbnails)
+    // Find original images (exclude WebP thumbnails)
     var originalImages = Directory.GetFiles(uploadsPath)
         .Where(f => allowedExtensions.Contains(Path.GetExtension(f).ToLowerInvariant()))
-        .Where(f => !sizePatterns.Any(p => Path.GetFileNameWithoutExtension(f).EndsWith(p)))
+        .Where(f => !Path.GetFileNameWithoutExtension(f).EndsWith("_800px"))
+        .Where(f => !Path.GetFileNameWithoutExtension(f).EndsWith("_1600px"))
         .ToList();
 
     var processed = 0;
     foreach (var imagePath in originalImages)
     {
         var filename = Path.GetFileNameWithoutExtension(imagePath);
-        var extension = Path.GetExtension(imagePath);
 
-        // Check if thumbnails already exist
-        var thumb200 = Path.Combine(uploadsPath, $"{filename}_200px{extension}");
-        if (File.Exists(thumb200)) continue; // Already has thumbnails
+        // Check if WebP thumbnails already exist
+        var thumb800 = Path.Combine(uploadsPath, $"{filename}_800px.webp");
+        if (File.Exists(thumb800)) continue; // Already has thumbnails
 
         await imageService.GenerateThumbnailsAsync(imagePath);
         processed++;
