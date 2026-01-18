@@ -101,6 +101,27 @@ window.scrollToBottom = () => {
         const element = document.querySelector('.messages');
         if (element) {
             element.scrollTop = element.scrollHeight;
+
+            // Re-scroll after images load (they change content height)
+            const images = element.querySelectorAll('img:not([data-scroll-handled])');
+            if (images.length > 0) {
+                let pending = 0;
+                images.forEach(img => {
+                    img.setAttribute('data-scroll-handled', 'true');
+                    if (!img.complete) {
+                        pending++;
+                        img.addEventListener('load', () => {
+                            pending--;
+                            if (pending === 0) {
+                                element.scrollTop = element.scrollHeight;
+                            }
+                        }, { once: true });
+                        img.addEventListener('error', () => {
+                            pending--;
+                        }, { once: true });
+                    }
+                });
+            }
         }
     });
 };
