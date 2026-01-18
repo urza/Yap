@@ -1,4 +1,11 @@
 /* Base styles for Discord-style dark theme */
+:root {
+    /* Status colors */
+    --status-online: #3ba55c;
+    --status-away: #faa61a;
+    --status-invisible: #747f8d;
+}
+
 * {
     box-sizing: border-box;
 }

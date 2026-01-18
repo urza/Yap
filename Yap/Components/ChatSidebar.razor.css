@@ -237,15 +237,15 @@
 }
 
 .user-status-dot.online {
-    background: #3ba55c;
+    background: var(--status-online);
 }
 
 .user-status-dot.away {
-    background: #faa61a;
+    background: var(--status-away);
 }
 
 .user-status-dot.invisible {
-    background: #747f8d;
+    background: var(--status-invisible);
 }
 
 /* Admin badge */

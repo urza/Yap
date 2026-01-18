@@ -100,7 +100,7 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    background: #3ba55c;
+    background: var(--status-online);
     border: none;
     color: #fff;
     font-size: 0.875rem;
@@ -115,15 +115,15 @@
 }
 
 .status-button.status-online {
-    background: #3ba55c;
+    background: var(--status-online);
 }
 
 .status-button.status-away {
-    background: #faa61a;
+    background: var(--status-away);
 }
 
 .status-button.status-invisible {
-    background: #747f8d;
+    background: var(--status-invisible);
 }
 
 .status-indicator {
@@ -216,21 +216,21 @@
 }
 
 .status-dot.online {
-    background: #3ba55c;
+    background: var(--status-online);
 }
 
 .status-dot.away {
-    background: #faa61a;
+    background: var(--status-away);
 }
 
 .status-dot.invisible {
-    background: #747f8d;
+    background: var(--status-invisible);
 }
 
 /* Checkmark for active items */
 .checkmark {
     margin-left: auto;
-    color: #3ba55c;
+    color: var(--status-online);
     font-weight: 600;
 }
 

@@ -63,30 +63,19 @@ public class ChatConfigService
 
     public string GetRandomTypingIndicator(List<string> typingUsers, string currentUser)
     {
-        var otherTypingUsers = typingUsers.Where(u => u != currentUser).ToList();
-        if (otherTypingUsers.Count == 0) return "";
+        var others = typingUsers.Where(u => u != currentUser).ToList();
+        if (others.Count == 0) return "";
 
-        if (otherTypingUsers.Count == 1)
+        var (configKey, defaultMsg, formatArgs) = others.Count switch
         {
-            var messages = _configuration.GetSection("ChatSettings:FunnyTexts:TypingIndicators:Single").Get<string[]>()
-                ?? ["{0} is typing.."];
-            var message = messages[_random.Next(messages.Length)];
-            return string.Format(message, otherTypingUsers[0]);
-        }
-        else if (otherTypingUsers.Count == 2)
-        {
-            var messages = _configuration.GetSection("ChatSettings:FunnyTexts:TypingIndicators:Double").Get<string[]>()
-                ?? ["{0} and {1} are typing.."];
-            var message = messages[_random.Next(messages.Length)];
-            return string.Format(message, otherTypingUsers[0], otherTypingUsers[1]);
-        }
-        else
-        {
-            var messages = _configuration.GetSection("ChatSettings:FunnyTexts:TypingIndicators:Multiple").Get<string[]>()
-                ?? ["{0} and {1} others are typing.."];
-            var message = messages[_random.Next(messages.Length)];
-            return string.Format(message, otherTypingUsers[0], otherTypingUsers.Count - 1);
-        }
+            1 => ("Single", "{0} is typing..", new object[] { others[0] }),
+            2 => ("Double", "{0} and {1} are typing..", new object[] { others[0], others[1] }),
+            _ => ("Multiple", "{0} and {1} others are typing..", new object[] { others[0], others.Count - 1 })
+        };
+
+        var messages = _configuration.GetSection($"ChatSettings:FunnyTexts:TypingIndicators:{configKey}").Get<string[]>()
+            ?? [defaultMsg];
+        return string.Format(messages[_random.Next(messages.Length)], formatArgs);
     }
 
     public string GetRandomOnlineUsersHeader(int count)
