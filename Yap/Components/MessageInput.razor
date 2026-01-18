@@ -324,6 +324,8 @@
             var uploadsFolder = Path.Combine(Environment.WebRootPath, "uploads");
             Directory.CreateDirectory(uploadsFolder);
 
+            // Step 1: Upload all files to disk
+            var filePaths = new List<string>();
             foreach (var file in validFiles)
             {
                 var extension = Path.GetExtension(file.Name).ToLowerInvariant();
@@ -335,16 +337,26 @@
                     await file.OpenReadStream(maxAllowedSize: 100 * 1024 * 1024).CopyToAsync(stream);
                 }
 
-                // Generate all thumbnail sizes
-                await ImageService.GenerateThumbnailsAsync(filePath);
-
+                filePaths.Add(filePath);
                 imageUrls.Add($"/uploads/{uniqueFileName}");
             }
 
+            // Step 2: Generate 800px thumbnails in parallel (needed for gallery display)
+            await Parallel.ForEachAsync(filePaths, new ParallelOptions { MaxDegreeOfParallelism = 4 },
+                async (filePath, _) => await ImageService.GenerateMediumThumbnailAsync(filePath));
+
+            // Step 3: Send message immediately (gallery will show 800px thumbnails)
             if (imageUrls.Count > 0)
             {
                 await ChatService.SendMessageAsync(channelId.Value, Username, "", imageUrls);
             }
+
+            // Step 4: Generate 1600px thumbnails in background (for lightbox)
+            _ = Task.Run(async () =>
+            {
+                await Parallel.ForEachAsync(filePaths, new ParallelOptions { MaxDegreeOfParallelism = 4 },
+                    async (filePath, _) => await ImageService.GenerateLargeThumbnailAsync(filePath));
+            });
         }
         catch (Exception ex)
         {

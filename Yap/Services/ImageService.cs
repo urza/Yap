@@ -92,4 +92,66 @@ public class ImageService
     // Convenience methods for common sizes
     public static string GetMediumUrl(string originalUrl) => GetSizedUrl(originalUrl, SizeMedium);
     public static string GetLargeUrl(string originalUrl) => GetSizedUrl(originalUrl, SizeLarge);
+
+    /// <summary>
+    /// Generates only the medium (800px) thumbnail for fast initial display.
+    /// </summary>
+    public async Task GenerateMediumThumbnailAsync(string originalPath)
+    {
+        await GenerateSingleThumbnailAsync(originalPath, SizeMedium);
+    }
+
+    /// <summary>
+    /// Generates only the large (1600px) thumbnail for lightbox.
+    /// </summary>
+    public async Task GenerateLargeThumbnailAsync(string originalPath)
+    {
+        await GenerateSingleThumbnailAsync(originalPath, SizeLarge);
+    }
+
+    private async Task GenerateSingleThumbnailAsync(string originalPath, int size)
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(originalPath)!;
+            var filename = Path.GetFileNameWithoutExtension(originalPath);
+            var originalExtension = Path.GetExtension(originalPath).ToLowerInvariant();
+            var fileSize = new FileInfo(originalPath).Length;
+            var thumbPath = Path.Combine(directory, $"{filename}_{size}px.webp");
+
+            // Skip if already exists
+            if (File.Exists(thumbPath)) return;
+
+            var skipResizing = fileSize < SmallFileThreshold;
+
+            using var image = await Image.LoadAsync(originalPath);
+            image.Mutate(x => x.AutoOrient());
+
+            var originalWidth = image.Width;
+
+            if (skipResizing || originalWidth <= size)
+            {
+                await image.SaveAsync(thumbPath, WebpEncoder);
+            }
+            else
+            {
+                var sampler = originalExtension is ".png" or ".gif"
+                    ? KnownResamplers.Box
+                    : KnownResamplers.Lanczos3;
+
+                using var resized = image.Clone(x => x.Resize(new ResizeOptions
+                {
+                    Size = new Size(size, 0),
+                    Mode = ResizeMode.Max,
+                    Sampler = sampler
+                }));
+
+                await resized.SaveAsync(thumbPath, WebpEncoder);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to generate {size}px thumbnail for {originalPath}: {ex.Message}");
+        }
+    }
 }
