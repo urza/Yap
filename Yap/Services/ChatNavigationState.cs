@@ -23,7 +23,7 @@ namespace Yap.Services;
 public class ChatNavigationState
 {
     /// <summary>
-    /// Display title for the current view (e.g., "# lobby" or "DM with Alice").
+    /// Display title for the current view (e.g., "# lobby" or "@alice").
     /// Persisted so the header shows correct title after reconnection.
     /// Note: Setter must be public for [PersistentState] to work.
     /// </summary>
@@ -59,11 +59,11 @@ public class ChatNavigationState
     /// </summary>
     public event Action? OnChange;
 
-    public void SetRoomContext(Guid roomId, string roomName)
+    public void SetRoomContext(Guid roomId, string roomName, string headerTitle)
     {
         CurrentRoomId = roomId;
         CurrentDmUser = null;
-        Title = $"# {roomName}";
+        Title = headerTitle;
         NotifyStateChanged();
     }
 
@@ -71,7 +71,7 @@ public class ChatNavigationState
     {
         CurrentRoomId = null;
         CurrentDmUser = dmUser;
-        Title = $"DM with {dmUser}";
+        Title = $"@{dmUser}";
         NotifyStateChanged();
     }
 

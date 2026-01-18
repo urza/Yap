@@ -88,9 +88,14 @@ public class ChatConfigService
 
     public string GetRandomRoomHeader()
     {
+        return GetRandomRoomHeader(RoomName);
+    }
+
+    public string GetRandomRoomHeader(string roomName)
+    {
         var headers = _configuration.GetSection("ChatSettings:FunnyTexts:RoomHeaders").Get<string[]>()
             ?? ["# {0}"];
         var header = headers[_random.Next(headers.Length)];
-        return string.Format(header, RoomName);
+        return string.Format(header, roomName);
     }
 }

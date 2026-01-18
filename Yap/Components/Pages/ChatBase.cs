@@ -198,7 +198,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
             if (!isVisible)
             {
                 unreadCount++;
-                var title = $"({unreadCount}) {ChatConfig.ProjectName} | {currentContext}";
+                var title = BuildPageTitle(isDM);
 
                 if (isDM)
                 {
@@ -226,11 +226,16 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
     protected async Task UpdatePageTitleAsync()
     {
-        var title = unreadCount > 0
-            ? $"({unreadCount}) {ChatConfig.ProjectName} | {currentContext}"
-            : $"{ChatConfig.ProjectName} | {currentContext}";
-
+        var title = BuildPageTitle(NavState.CurrentDmUser != null);
         try { await JS.InvokeVoidAsync("setDocumentTitle", title); } catch { }
+    }
+
+    private string BuildPageTitle(bool isDM)
+    {
+        var prefix = isDM ? "@" : "#";
+        return unreadCount > 0
+            ? $"({unreadCount}) {ChatConfig.ProjectName} | {prefix}{currentContext}"
+            : $"{ChatConfig.ProjectName} | {prefix}{currentContext}";
     }
 
     #endregion

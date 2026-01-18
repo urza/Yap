@@ -70,8 +70,8 @@
 
         // Set navigation context
         var room = ChatService.GetRooms().FirstOrDefault(r => r.Id == channelId);
-        currentContext = "#" + (room?.Name ?? "lobby");
-        NavState.SetRoomContext(channelId, currentContext);
+        currentContext = room?.Name ?? "lobby";
+        NavState.SetRoomContext(channelId, currentContext, ChatConfig.GetRandomRoomHeader(currentContext));
 
         await UpdatePageTitleAsync();
 
@@ -90,8 +90,8 @@
         messages = ChatService.GetMessages(channelId).ToList();
 
         var room = ChatService.GetRooms().FirstOrDefault(r => r.Id == channelId);
-        currentContext = "#" + (room?.Name ?? "lobby");
-        NavState.SetRoomContext(channelId, currentContext);
+        currentContext = room?.Name ?? "lobby";
+        NavState.SetRoomContext(channelId, currentContext, ChatConfig.GetRandomRoomHeader(currentContext));
 
         await UpdatePageTitleAsync();
         await InvokeAsync(StateHasChanged);

@@ -78,7 +78,7 @@
         ChatService.MarkDMsAsRead(Username, DmUser);
 
         // Set navigation context
-        currentContext = "@" + DmUser;
+        currentContext = DmUser;
         NavState.SetDmContext(DmUser);
 
         await UpdatePageTitleAsync();
@@ -106,7 +106,7 @@
         ChatService.MarkDMsAsRead(Username, DmUser);
 
         // Update context
-        currentContext = "@" + DmUser;
+        currentContext = DmUser;
         NavState.SetDmContext(DmUser);
 
         await UpdatePageTitleAsync();

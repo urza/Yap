@@ -26,49 +26,15 @@ public class ImageService
     {
         try
         {
-            var directory = Path.GetDirectoryName(originalPath)!;
-            var filename = Path.GetFileNameWithoutExtension(originalPath);
-            var originalExtension = Path.GetExtension(originalPath).ToLowerInvariant();
-            var fileSize = new FileInfo(originalPath).Length;
-
-            // For small files, convert to WebP without resizing
-            var skipResizing = fileSize < SmallFileThreshold;
+            var (directory, filename, originalExtension, skipResizing) = GetFileInfo(originalPath);
 
             using var image = await Image.LoadAsync(originalPath);
-
-            // Apply EXIF orientation (rotate photos from cameras/phones correctly)
             image.Mutate(x => x.AutoOrient());
-
-            var originalWidth = image.Width;
 
             foreach (var size in AllSizes)
             {
-                // All thumbnails are WebP
                 var thumbPath = Path.Combine(directory, $"{filename}_{size}px.webp");
-
-                if (skipResizing || originalWidth <= size)
-                {
-                    // Just convert to WebP without resizing
-                    await image.SaveAsync(thumbPath, WebpEncoder);
-                }
-                else
-                {
-                    // Use different resamplers based on original format:
-                    // - Lanczos3 for photos (jpg/webp) - smooth gradients
-                    // - Box for screenshots/graphics (png/gif) - preserves sharp edges
-                    var sampler = originalExtension is ".png" or ".gif"
-                        ? KnownResamplers.Box
-                        : KnownResamplers.Lanczos3;
-
-                    using var resized = image.Clone(x => x.Resize(new ResizeOptions
-                    {
-                        Size = new Size(size, 0), // 0 = maintain aspect ratio
-                        Mode = ResizeMode.Max,
-                        Sampler = sampler
-                    }));
-
-                    await resized.SaveAsync(thumbPath, WebpEncoder);
-                }
+                await SaveThumbnailAsync(image, thumbPath, size, originalExtension, skipResizing);
             }
         }
         catch (Exception ex)
@@ -76,22 +42,6 @@ public class ImageService
             Console.WriteLine($"Failed to generate thumbnails for {originalPath}: {ex.Message}");
         }
     }
-
-    /// <summary>
-    /// Gets the URL for a specific size variant (always WebP).
-    /// Convention: /uploads/image.jpg -> /uploads/image_800px.webp
-    /// </summary>
-    public static string GetSizedUrl(string originalUrl, int size)
-    {
-        var lastDot = originalUrl.LastIndexOf('.');
-        if (lastDot < 0) return originalUrl;
-
-        return $"{originalUrl[..lastDot]}_{size}px.webp";
-    }
-
-    // Convenience methods for common sizes
-    public static string GetMediumUrl(string originalUrl) => GetSizedUrl(originalUrl, SizeMedium);
-    public static string GetLargeUrl(string originalUrl) => GetSizedUrl(originalUrl, SizeLarge);
 
     /// <summary>
     /// Generates only the medium (800px) thumbnail for fast initial display.
@@ -113,45 +63,71 @@ public class ImageService
     {
         try
         {
-            var directory = Path.GetDirectoryName(originalPath)!;
-            var filename = Path.GetFileNameWithoutExtension(originalPath);
-            var originalExtension = Path.GetExtension(originalPath).ToLowerInvariant();
-            var fileSize = new FileInfo(originalPath).Length;
+            var (directory, filename, originalExtension, skipResizing) = GetFileInfo(originalPath);
             var thumbPath = Path.Combine(directory, $"{filename}_{size}px.webp");
 
-            // Skip if already exists
             if (File.Exists(thumbPath)) return;
-
-            var skipResizing = fileSize < SmallFileThreshold;
 
             using var image = await Image.LoadAsync(originalPath);
             image.Mutate(x => x.AutoOrient());
 
-            var originalWidth = image.Width;
-
-            if (skipResizing || originalWidth <= size)
-            {
-                await image.SaveAsync(thumbPath, WebpEncoder);
-            }
-            else
-            {
-                var sampler = originalExtension is ".png" or ".gif"
-                    ? KnownResamplers.Box
-                    : KnownResamplers.Lanczos3;
-
-                using var resized = image.Clone(x => x.Resize(new ResizeOptions
-                {
-                    Size = new Size(size, 0),
-                    Mode = ResizeMode.Max,
-                    Sampler = sampler
-                }));
-
-                await resized.SaveAsync(thumbPath, WebpEncoder);
-            }
+            await SaveThumbnailAsync(image, thumbPath, size, originalExtension, skipResizing);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to generate {size}px thumbnail for {originalPath}: {ex.Message}");
         }
     }
+
+    private static (string Directory, string Filename, string Extension, bool SkipResizing) GetFileInfo(string originalPath)
+    {
+        var directory = Path.GetDirectoryName(originalPath)!;
+        var filename = Path.GetFileNameWithoutExtension(originalPath);
+        var extension = Path.GetExtension(originalPath).ToLowerInvariant();
+        var skipResizing = new FileInfo(originalPath).Length < SmallFileThreshold;
+        return (directory, filename, extension, skipResizing);
+    }
+
+    private static async Task SaveThumbnailAsync(Image image, string thumbPath, int size, string originalExtension, bool skipResizing)
+    {
+        if (skipResizing || image.Width <= size)
+        {
+            // Just convert to WebP without resizing
+            await image.SaveAsync(thumbPath, WebpEncoder);
+        }
+        else
+        {
+            // Use different resamplers based on original format:
+            // - Lanczos3 for photos (jpg/webp) - smooth gradients
+            // - Box for screenshots/graphics (png/gif) - preserves sharp edges
+            var sampler = originalExtension is ".png" or ".gif"
+                ? KnownResamplers.Box
+                : KnownResamplers.Lanczos3;
+
+            using var resized = image.Clone(x => x.Resize(new ResizeOptions
+            {
+                Size = new Size(size, 0), // 0 = maintain aspect ratio
+                Mode = ResizeMode.Max,
+                Sampler = sampler
+            }));
+
+            await resized.SaveAsync(thumbPath, WebpEncoder);
+        }
+    }
+
+    /// <summary>
+    /// Gets the URL for a specific size variant (always WebP).
+    /// Convention: /uploads/image.jpg -> /uploads/image_800px.webp
+    /// </summary>
+    public static string GetSizedUrl(string originalUrl, int size)
+    {
+        var lastDot = originalUrl.LastIndexOf('.');
+        if (lastDot < 0) return originalUrl;
+
+        return $"{originalUrl[..lastDot]}_{size}px.webp";
+    }
+
+    // Convenience methods for common sizes
+    public static string GetMediumUrl(string originalUrl) => GetSizedUrl(originalUrl, SizeMedium);
+    public static string GetLargeUrl(string originalUrl) => GetSizedUrl(originalUrl, SizeLarge);
 }
