@@ -366,3 +366,71 @@ if ('serviceWorker' in navigator) {
         }
     });
 }
+
+// ==========================================
+// Infinite Scroll Support
+// ==========================================
+
+let infiniteScrollRef = null;
+let scrollHandler = null;
+const SCROLL_THRESHOLD = 100; // pixels from top to trigger load
+
+// Get current scroll height for position restoration
+window.getScrollHeight = () => {
+    const el = document.querySelector('.messages');
+    return el ? el.scrollHeight : 0;
+};
+
+// Restore scroll position after prepending content
+window.restoreScrollPosition = (previousScrollHeight) => {
+    requestAnimationFrame(() => {
+        const el = document.querySelector('.messages');
+        if (!el) return;
+
+        // New content was added at top, so scrollHeight increased
+        // Adjust scrollTop by the difference to maintain visual position
+        const heightDiff = el.scrollHeight - previousScrollHeight;
+        el.scrollTop += heightDiff;
+    });
+};
+
+// Setup infinite scroll detection
+window.setupInfiniteScroll = (dotNetRef) => {
+    infiniteScrollRef = dotNetRef;
+    const messagesElement = document.querySelector('.messages');
+
+    if (!messagesElement) return;
+
+    // Debounce to avoid too many calls
+    let debounceTimer = null;
+    let isLoading = false;
+
+    scrollHandler = () => {
+        if (isLoading) return;
+
+        // Check if scrolled near top
+        if (messagesElement.scrollTop <= SCROLL_THRESHOLD) {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                isLoading = true;
+                infiniteScrollRef.invokeMethodAsync('OnScrollNearTop')
+                    .finally(() => {
+                        // Small delay before allowing next load
+                        setTimeout(() => { isLoading = false; }, 200);
+                    });
+            }, 150);
+        }
+    };
+
+    messagesElement.addEventListener('scroll', scrollHandler, { passive: true });
+};
+
+// Cleanup infinite scroll
+window.cleanupInfiniteScroll = () => {
+    const messagesElement = document.querySelector('.messages');
+    if (messagesElement && scrollHandler) {
+        messagesElement.removeEventListener('scroll', scrollHandler);
+    }
+    scrollHandler = null;
+    infiniteScrollRef = null;
+};

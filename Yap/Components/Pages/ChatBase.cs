@@ -34,6 +34,11 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     protected int unreadCount = 0;
     protected string currentContext = "";
 
+    // Infinite scroll state
+    protected bool isLoadingMore = false;
+    protected bool hasMoreMessages = true;
+    protected const int PageSize = 50;
+
     // Image modal state
     protected bool showImageModal = false;
     protected List<string> modalGallery = new();
@@ -74,6 +79,9 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
             await InvokeAsync(StateHasChanged);
             await ScrollToBottomAsync();
+
+            // Setup infinite scroll after initial render
+            await SetupInfiniteScrollAsync();
         }
     }
 
@@ -101,6 +109,105 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
         showImageModal = false;
         modalGallery = new();
         modalImageIndex = 0;
+    }
+
+    #endregion
+
+    #region Infinite Scroll
+
+    private DotNetObjectReference<ChatBase>? _scrollRef;
+
+    /// <summary>
+    /// Loads initial messages (most recent page).
+    /// </summary>
+    protected void LoadInitialMessages()
+    {
+        var (msgs, hasMore) = ChatService.GetMessagesPaginated(channelId, PageSize);
+        messages = msgs;
+        hasMoreMessages = hasMore;
+    }
+
+    /// <summary>
+    /// Resets pagination state for channel switching.
+    /// </summary>
+    protected void ResetPaginationState()
+    {
+        hasMoreMessages = true;
+        isLoadingMore = false;
+    }
+
+    private async Task SetupInfiniteScrollAsync()
+    {
+        try
+        {
+            _scrollRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("setupInfiniteScroll", _scrollRef);
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// Called from JS when user scrolls near top of messages.
+    /// </summary>
+    [JSInvokable]
+    public async Task OnScrollNearTop()
+    {
+        if (isLoadingMore || !hasMoreMessages || messages.Count == 0)
+            return;
+
+        isLoadingMore = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            // TODO: Remove this artificial delay - just for testing loading indicator
+            await Task.Delay(1000);
+
+            // Get current scroll info before prepending
+            var previousScrollHeight = await JS.InvokeAsync<double>("getScrollHeight");
+
+            // Get messages older than our oldest
+            var oldestTimestamp = messages.First().Timestamp;
+            var (olderMessages, hasMore) = ChatService.GetMessagesPaginated(
+                channelId, PageSize, beforeTimestamp: oldestTimestamp);
+
+            if (olderMessages.Count > 0)
+            {
+                // Prepend to message list
+                messages.InsertRange(0, olderMessages);
+                hasMoreMessages = hasMore;
+
+                // Render update
+                await InvokeAsync(StateHasChanged);
+
+                // Wait for DOM update then restore scroll position
+                await Task.Delay(10); // Small delay for Blazor to update DOM
+                await JS.InvokeVoidAsync("restoreScrollPosition", previousScrollHeight);
+            }
+            else
+            {
+                hasMoreMessages = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading more messages: {ex.Message}");
+        }
+
+        isLoadingMore = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CleanupInfiniteScrollAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("cleanupInfiniteScroll");
+        }
+        catch { }
+
+        _scrollRef?.Dispose();
+        _scrollRef = null;
     }
 
     #endregion
@@ -283,5 +390,8 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
     #endregion
 
-    public virtual ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public virtual async ValueTask DisposeAsync()
+    {
+        await CleanupInfiniteScrollAsync();
+    }
 }

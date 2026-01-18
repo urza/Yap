@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using Microsoft.Extensions.Configuration;
 using Yap.Models;
 
 namespace Yap.Services;
@@ -13,7 +12,6 @@ namespace Yap.Services;
 public class ChatService
 {
     private readonly ConcurrentDictionary<string, UserSession> _users = new();
-    private readonly int _maxMessagesPerChannel;
     private readonly PushNotificationService _pushService;
     private readonly ChatPersistenceService _persistence;
 
@@ -51,9 +49,8 @@ public class ChatService
 
     public record UserSession(string Username, string SessionId, UserStatus Status = UserStatus.Online);
 
-    public ChatService(IConfiguration configuration, PushNotificationService pushService, ChatPersistenceService persistence)
+    public ChatService(PushNotificationService pushService, ChatPersistenceService persistence)
     {
-        _maxMessagesPerChannel = configuration.GetValue("ChatSettings:MaxMessagesPerChannel", 100);
         _pushService = pushService;
         _persistence = persistence;
 
@@ -331,17 +328,10 @@ public class ChatService
                 return;
 
             messages.Add(message);
-
-            // Remove old messages if we exceed the limit
-            while (messages.Count > _maxMessagesPerChannel)
-            {
-                messages.RemoveAt(0);
-            }
         }
 
-        // Persist message and trim old ones in database
+        // Persist message
         await _persistence.PersistMessageAsync(message);
-        await _persistence.TrimMessagesAsync(channelId, _maxMessagesPerChannel);
 
         // Stop typing when message is sent
         if (_channelTypingUsers.TryGetValue(channelId, out var typingUsers))
@@ -370,6 +360,46 @@ public class ChatService
         lock (_channelLock)
         {
             return messages.TakeLast(Math.Min(count, messages.Count)).ToList();
+        }
+    }
+
+    /// <summary>
+    /// Gets messages with pagination support for infinite scroll.
+    /// Returns messages in chronological order (oldest first).
+    /// </summary>
+    /// <param name="channelId">The channel ID</param>
+    /// <param name="count">Number of messages to return</param>
+    /// <param name="beforeTimestamp">Return messages older than this timestamp. Null = most recent.</param>
+    /// <returns>Messages and whether there are more older messages available</returns>
+    public (List<ChatMessage> Messages, bool HasMore) GetMessagesPaginated(
+        Guid channelId,
+        int count = 20,
+        DateTime? beforeTimestamp = null)
+    {
+        if (!_channelMessages.TryGetValue(channelId, out var messages))
+            return (new List<ChatMessage>(), false);
+
+        lock (_channelLock)
+        {
+            IEnumerable<ChatMessage> filtered = messages;
+
+            if (beforeTimestamp.HasValue)
+            {
+                filtered = messages.Where(m => m.Timestamp < beforeTimestamp.Value);
+            }
+
+            var result = filtered
+                .OrderByDescending(m => m.Timestamp)
+                .Take(count)
+                .OrderBy(m => m.Timestamp)
+                .ToList();
+
+            // Check if there are older messages
+            var oldestReturned = result.FirstOrDefault()?.Timestamp;
+            var hasMore = oldestReturned.HasValue &&
+                          messages.Any(m => m.Timestamp < oldestReturned.Value);
+
+            return (result, hasMore);
         }
     }
 

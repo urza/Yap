@@ -76,6 +76,39 @@
     line-height: 1.4;
 }
 
+/* Loading indicator for infinite scroll */
+::deep .loading-more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    color: #a3a6aa;
+    font-size: 0.875rem;
+}
+
+::deep .loading-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #4f545c;
+    border-top-color: #dcddde;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* History start message */
+::deep .history-start {
+    text-align: center;
+    padding: 1rem;
+    color: #72767d;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
 /* Backdrop for mobile sidebar */
 .sidebar-backdrop {
     display: none;

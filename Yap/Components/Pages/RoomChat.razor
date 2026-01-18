@@ -8,6 +8,20 @@
 <PageTitle>@ChatConfig.ProjectName | #@currentContext</PageTitle>
 
 <div class="messages">
+    @if (isLoadingMore)
+    {
+        <div class="loading-more">
+            <div class="loading-spinner"></div>
+            <span>Loading older messages...</span>
+        </div>
+    }
+    else if (!hasMoreMessages && messages.Count > 0)
+    {
+        <div class="history-start">
+            This is the beginning of #@currentContext
+        </div>
+    }
+
     <div class="messages-spacer"></div>
     @for (int i = 0; i < messages.Count; i++)
     {
@@ -65,8 +79,8 @@
         channelId = RoomId ?? ChatService.GetLobbyId();
         previousRoomId = channelId;
 
-        // Load messages
-        messages = ChatService.GetMessages(channelId).ToList();
+        // Load initial messages (most recent page)
+        LoadInitialMessages();
 
         // Set navigation context
         var room = ChatService.GetRooms().FirstOrDefault(r => r.Id == channelId);
@@ -87,7 +101,10 @@
     private async Task SwitchRoomContentAsync(Guid newRoomId)
     {
         channelId = newRoomId;
-        messages = ChatService.GetMessages(channelId).ToList();
+
+        // Reset pagination state and load fresh
+        ResetPaginationState();
+        LoadInitialMessages();
 
         var room = ChatService.GetRooms().FirstOrDefault(r => r.Id == channelId);
         currentContext = room?.Name ?? "lobby";

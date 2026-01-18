@@ -6,14 +6,24 @@
 <PageTitle>@ChatConfig.ProjectName | @@@DmUser</PageTitle>
 
 <div class="messages">
-    <div class="messages-spacer"></div>
-    @* DM system notice *@
-    <div class="system-message">
-        <div class="message-content">
-            This is the beginning of your direct message history with <strong>@DmUser</strong>.
+    @if (isLoadingMore)
+    {
+        <div class="loading-more">
+            <div class="loading-spinner"></div>
+            <span>Loading older messages...</span>
         </div>
-    </div>
+    }
+    else if (!hasMoreMessages)
+    {
+        @* DM system notice - only show when no more history *@
+        <div class="system-message">
+            <div class="message-content">
+                This is the beginning of your direct message history with <strong>@DmUser</strong>.
+            </div>
+        </div>
+    }
 
+    <div class="messages-spacer"></div>
     @for (int i = 0; i < messages.Count; i++)
     {
         var message = messages[i];
@@ -71,8 +81,8 @@
         var channel = ChatService.GetOrCreateDMChannel(Username, DmUser);
         channelId = channel.Id;
 
-        // Load messages
-        messages = ChatService.GetMessages(channelId).ToList();
+        // Load initial messages (most recent page)
+        LoadInitialMessages();
 
         // Mark messages as read
         ChatService.MarkDMsAsRead(Username, DmUser);
@@ -99,8 +109,9 @@
         var channel = ChatService.GetOrCreateDMChannel(Username, DmUser);
         channelId = channel.Id;
 
-        // Load messages
-        messages = ChatService.GetMessages(channelId).ToList();
+        // Reset pagination state and load fresh
+        ResetPaginationState();
+        LoadInitialMessages();
 
         // Mark as read
         ChatService.MarkDMsAsRead(Username, DmUser);

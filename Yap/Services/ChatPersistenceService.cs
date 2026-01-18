@@ -143,34 +143,6 @@ public class ChatPersistenceService
         }
     }
 
-    public async Task TrimMessagesAsync(Guid channelId, int maxCount)
-    {
-        if (!IsEnabled) return;
-
-        try
-        {
-            await using var db = await _dbFactory!.CreateDbContextAsync();
-
-            // Get IDs of messages to delete (oldest ones beyond maxCount)
-            var toDelete = await db.Messages
-                .Where(m => m.ChannelId == channelId)
-                .OrderByDescending(m => m.Timestamp)
-                .Skip(maxCount)
-                .Select(m => m.Id)
-                .ToListAsync();
-
-            if (toDelete.Count > 0)
-            {
-                await db.Messages.Where(m => toDelete.Contains(m.Id)).ExecuteDeleteAsync();
-                _logger.LogDebug("Trimmed {Count} old messages from channel {ChannelId}", toDelete.Count, channelId);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to trim messages for channel {ChannelId}", channelId);
-        }
-    }
-
     #endregion
 
     #region Reaction Operations
