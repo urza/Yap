@@ -401,8 +401,6 @@ window.setupInfiniteScroll = (dotNetRef) => {
 
     if (!messagesElement) return;
 
-    // Debounce to avoid too many calls
-    let debounceTimer = null;
     let isLoading = false;
 
     scrollHandler = () => {
@@ -410,16 +408,17 @@ window.setupInfiniteScroll = (dotNetRef) => {
 
         // Check if scrolled near top
         if (messagesElement.scrollTop <= SCROLL_THRESHOLD) {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                isLoading = true;
-                infiniteScrollRef.invokeMethodAsync('OnScrollNearTop')
-                    .finally(() => {
-                        // Small delay before allowing next load
-                        setTimeout(() => { isLoading = false; }, 200);
-                    });
-            }, 150);
+            isLoading = true;
+            infiniteScrollRef.invokeMethodAsync('OnScrollNearTop')
+                .finally(() => {
+                    // Small delay before allowing next load
+                    setTimeout(() => { isLoading = false; }, 200);
+                });
         }
+
+        // Debounce version (if needed):
+        // clearTimeout(debounceTimer);
+        // debounceTimer = setTimeout(() => { ... }, 50);
     };
 
     messagesElement.addEventListener('scroll', scrollHandler, { passive: true });
