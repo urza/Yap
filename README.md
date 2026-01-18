@@ -1,6 +1,6 @@
 # Yap
 
-Self hosted chat inspired by Discord aesthetics
+Self hosted community chat inspired by Discord aesthetics
 
 ![Screenshot](screenshot.png)
 
