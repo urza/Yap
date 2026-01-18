@@ -5,7 +5,7 @@
 @inherits ChatBase
 @implements IDisposable
 
-<PageTitle>@ChatConfig.ProjectName | @currentContext</PageTitle>
+<PageTitle>@ChatConfig.ProjectName | #@currentContext</PageTitle>
 
 <div class="messages">
     <div class="messages-spacer"></div>
@@ -70,7 +70,7 @@
 
         // Set navigation context
         var room = ChatService.GetRooms().FirstOrDefault(r => r.Id == channelId);
-        currentContext = room?.Name ?? "lobby";
+        currentContext = "#" + (room?.Name ?? "lobby");
         NavState.SetRoomContext(channelId, currentContext);
 
         await UpdatePageTitleAsync();
@@ -90,7 +90,7 @@
         messages = ChatService.GetMessages(channelId).ToList();
 
         var room = ChatService.GetRooms().FirstOrDefault(r => r.Id == channelId);
-        currentContext = room?.Name ?? "lobby";
+        currentContext = "#" + (room?.Name ?? "lobby");
         NavState.SetRoomContext(channelId, currentContext);
 
         await UpdatePageTitleAsync();

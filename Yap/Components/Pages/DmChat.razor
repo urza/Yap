@@ -3,7 +3,7 @@
 @inherits ChatBase
 @implements IDisposable
 
-<PageTitle>@ChatConfig.ProjectName | @DmUser</PageTitle>
+<PageTitle>@ChatConfig.ProjectName | @@@DmUser</PageTitle>
 
 <div class="messages">
     <div class="messages-spacer"></div>
@@ -78,7 +78,7 @@
         ChatService.MarkDMsAsRead(Username, DmUser);
 
         // Set navigation context
-        currentContext = DmUser;
+        currentContext = "@" + DmUser;
         NavState.SetDmContext(DmUser);
 
         await UpdatePageTitleAsync();
@@ -106,7 +106,7 @@
         ChatService.MarkDMsAsRead(Username, DmUser);
 
         // Update context
-        currentContext = DmUser;
+        currentContext = "@" + DmUser;
         NavState.SetDmContext(DmUser);
 
         await UpdatePageTitleAsync();
