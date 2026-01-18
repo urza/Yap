@@ -118,6 +118,7 @@
     width: auto;
     max-height: 300px;
     max-width: 100%;
+    aspect-ratio: auto 4 / 3; /* Fallback ratio until image loads, then use intrinsic */
     object-fit: contain;
     background: #2f3136;
     border-radius: 4px;
