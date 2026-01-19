@@ -51,7 +51,8 @@ Yap/
 │   ├── ChatCircuitHandler.cs          # Circuit lifecycle + auto-away detection
 │   ├── PushSubscriptionStore.cs       # Push notification subscriptions
 │   ├── PushNotificationService.cs     # Web push notifications
-│   └── EmojiService.cs                # Twemoji rendering
+│   ├── EmojiService.cs                # Twemoji rendering
+│   └── ImageService.cs                # Thumbnail generation (WebP)
 ├── Models/
 │   ├── ChatMessage.cs                 # Message model (EF entity)
 │   ├── Channel.cs                     # Unified room/DM channel model (EF entity)
@@ -99,8 +100,8 @@ No custom SignalR hub needed - Blazor's built-in circuit handles everything.
 - Tracks user status (Online, Away, Invisible)
 - First user to join becomes admin (can create/delete rooms)
 - Uses `ConcurrentDictionary` for thread-safe state
-- Configurable max messages per channel via `appsettings.json`
 - Integrates with `ChatPersistenceService` for database persistence
+- Supports paginated message loading for infinite scroll
 - Exposes events: `OnMessageReceived`, `OnMessageUpdated`, `OnMessageDeleted`, `OnReactionChanged`, `OnUserChanged`, `OnUsersListChanged`, `OnUserStatusChanged`, `OnTypingUsersChanged`, `OnAdminChanged`, `OnChannelCreated`, `OnChannelDeleted`
 
 **ChatPersistenceService.cs** (Singleton)
@@ -116,6 +117,13 @@ No custom SignalR hub needed - Blazor's built-in circuit handles everything.
 **ChatNavigationState.cs** (Scoped + Persistent)
 - Tracks current room/DM context
 - Properties marked with `[PersistentState]` for session restoration
+
+**ImageService.cs** (Singleton)
+- Generates WebP thumbnails at two sizes: 800px (gallery) and 1600px (lightbox)
+- Uses SixLabors.ImageSharp for cross-platform image processing
+- Smart resampling: Lanczos3 for photos, Box for screenshots/graphics
+- Skips resizing for small files (<500KB), just converts to WebP
+- Auto-orients images based on EXIF data
 
 ## .NET 10 Circuit & Reconnection Features
 
@@ -163,8 +171,7 @@ All settings in `appsettings.json`:
   "ChatSettings": {
     "ProjectName": "Yap",
     "RoomName": "lobby",
-    "ClearUploadsOnStart": true,
-    "MaxMessagesPerChannel": 100,
+    "ClearUploadsOnStart": false,
     "Persistence": {
       "Enabled": true,
       "Provider": "SQLite",
@@ -203,7 +210,7 @@ docker run -p 8080:8080 -v ./uploads:/app/wwwroot/uploads yap
 
 - **Real-time messaging** - Instant delivery via Blazor circuit
 - **Multiple rooms** - Create and switch between chat rooms (admin only)
-- **Admin system** - First user becomes admin, can manage rooms (🛡️ badge)
+- **Admin system** - First user becomes admin, can manage rooms (👑 badge)
 - **Direct messages** - Private conversations (persist permanently when DB enabled)
 - **User status** - Online (green), Away (orange), Invisible (gray) with dropdown selector
 - **Auto-away** - Automatically sets status to Away after 5 minutes idle
@@ -212,12 +219,12 @@ docker run -p 8080:8080 -v ./uploads:/app/wwwroot/uploads yap
 - **Message actions** - Discord-style hover popup with reactions, edit, delete
 - **Reactions** - ❤️ 😂 🥹 reactions on any message, shown as pills with counts
 - **Edit/Delete** - Edit or delete your own messages (shows "edited" indicator)
-- **Image sharing** - Direct file upload, up to 100MB, drag & drop support
+- **Image sharing** - Direct file upload, up to 100MB, drag & drop support, WebP thumbnails
 - **Multiline input** - Discord-style auto-expanding textarea (Shift+Enter for newlines)
 - **Emoji support** - Twemoji rendering
 - **Tab notifications** - Unread count in title + audio
 - **Online users** - Live user list with status dots, sorted by recent DM activity
-- **Chat history** - Configurable max messages per channel (default 100)
+- **Infinite scroll** - Load older messages on scroll, Discord-style
 - **Typing indicators** - See who's typing
 - **Mobile responsive** - Collapsible sidebar
 - **Resilient reconnection** - Auto-reconnect with persistent state restoration
@@ -237,7 +244,7 @@ Optional persistence layer using EF Core. When enabled, all chat data survives a
 
 ### What's Persisted
 - **Channels** (rooms and DMs)
-- **Messages** (with trimming to `MaxMessagesPerChannel`)
+- **Messages** (full history, loaded via infinite scroll)
 - **Reactions** (stored in separate table, grouped by emoji for display)
 - **Push subscriptions** (moved from JSON file to database)
 
@@ -324,13 +331,19 @@ public override Func<CircuitInboundActivityContext, Task> CreateInboundActivityH
 <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0-*" />
 ```
 
-### File Upload
+### File Upload & Thumbnails
 Images are uploaded directly in the component using `InputFile`:
 ```csharp
 await file.OpenReadStream(maxAllowedSize: 100 * 1024 * 1024).CopyToAsync(stream);
 ```
 
 No HTTP multipart, no API endpoint - just direct file I/O.
+
+**Thumbnail generation:**
+- Medium (800px) generated immediately for fast gallery display
+- Large (1600px) generated in background for lightbox
+- All thumbnails are WebP for optimal compression
+- Uses parallel processing when generating for multiple images
 
 ### Tab Notifications
 Minimal JavaScript in `wwwroot/js/chat.js`:
