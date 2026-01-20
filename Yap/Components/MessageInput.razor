@@ -312,15 +312,14 @@
             return;
         }
 
-        // Show upload indicator
-        isUploading = true;
-        uploadingCount = validFiles.Count;
-        StateHasChanged();
-
         var imageUrls = new List<string>();
 
         try
         {
+            // Show upload indicator
+            isUploading = true;
+            uploadingCount = validFiles.Count;
+            StateHasChanged();
             var uploadsFolder = Path.Combine(Environment.WebRootPath, "uploads");
             Directory.CreateDirectory(uploadsFolder);
 
