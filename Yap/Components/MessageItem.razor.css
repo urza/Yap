@@ -7,7 +7,7 @@
 }
 
 .message-group:hover:not(.system-message) {
-    background: #32353b;
+    background: var(--bg-hover);
 }
 
 .message-group:has(.message-header) {
@@ -19,7 +19,7 @@
 }
 
 .message-group.hovered {
-    background: #32353b;
+    background: var(--bg-hover);
 }
 
 /* Message header */
@@ -30,21 +30,21 @@
 }
 
 .message-username {
-    color: #fff;
+    color: var(--text-white);
     font-size: 1rem;
     font-weight: 500;
     margin-right: 0.5rem;
 }
 
 .message-time {
-    color: #a3a6aa;
+    color: var(--text-muted);
     font-size: 0.75rem;
     font-weight: 400;
 }
 
 /* Message content */
 .message-content {
-    color: #dcddde;
+    color: var(--text-primary);
     font-size: 1rem;
     line-height: 1.375;
     padding-left: 0;
@@ -65,7 +65,7 @@
 
 .system-message .message-content {
     display: inline-block;
-    color: #a3a6aa;
+    color: var(--text-muted);
     font-style: italic;
     font-size: 0.8125rem;
     padding: 0;
@@ -121,7 +121,7 @@
     max-width: 100%;
     aspect-ratio: auto 4 / 3; /* Fallback ratio until image loads, then use intrinsic */
     object-fit: contain;
-    background: #2f3136;
+    background: var(--bg-sidebar);
     border-radius: 4px;
     transition: opacity 0.15s;
     display: block;
@@ -138,7 +138,7 @@
     right: 16px;
     display: flex;
     gap: 2px;
-    background: #2f3136;
+    background: var(--bg-sidebar);
     border-radius: 4px;
     padding: 2px;
     box-shadow: 0 0 0 1px rgba(4,4,5,0.15), 0 4px 4px rgba(0,0,0,0.1);
@@ -163,14 +163,14 @@
 }
 
 .action-btn:hover {
-    background: #36393f;
+    background: var(--bg-primary);
 }
 
 /* Divider between reactions and actions */
 .action-divider {
     width: 1px;
     height: 24px;
-    background: #4f545c;
+    background: var(--bg-muted);
     margin: 0 4px;
     align-self: center;
 }
@@ -182,27 +182,27 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #b9bbbe;
+    color: var(--text-secondary);
 }
 
 .action-picker:hover {
-    background: #36393f;
-    color: #dcddde;
+    background: var(--bg-primary);
+    color: var(--text-primary);
 }
 
 .action-edit:hover {
-    background: #36393f;
-    color: #dcddde;
+    background: var(--bg-primary);
+    color: var(--text-primary);
 }
 
 .action-delete:hover {
-    background: #36393f;
-    color: #ed4245;
+    background: var(--bg-primary);
+    color: var(--color-danger);
 }
 
 /* Keep hover state when picker is open */
 .message-group.picker-open {
-    background: #32353b;
+    background: var(--bg-hover);
 }
 
 /* Emoji picker inside message-actions */
@@ -225,7 +225,7 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    background: #2f3136;
+    background: var(--bg-sidebar);
     border: 1px solid transparent;
     border-radius: 8px;
     padding: 2px 8px;
@@ -235,22 +235,22 @@
 }
 
 .reaction-pill:hover {
-    background: #36393f;
-    border-color: #4f545c;
+    background: var(--bg-primary);
+    border-color: var(--bg-muted);
 }
 
 .reaction-pill.reacted {
     background: rgba(88, 101, 242, 0.3);
-    border-color: #5865f2;
+    border-color: var(--accent-primary);
 }
 
 .reaction-count {
-    color: #b9bbbe;
+    color: var(--text-secondary);
     font-size: 0.75rem;
 }
 
 .reaction-pill.reacted .reaction-count {
-    color: #dee0fc;
+    color: var(--accent-light);
 }
 
 /* Edit mode */
@@ -263,17 +263,17 @@
 .edit-input {
     width: 100%;
     padding: 8px 12px;
-    background: #40444b;
-    border: 1px solid #202225;
+    background: var(--bg-input);
+    border: 1px solid var(--border-dark);
     border-radius: 4px;
-    color: #dcddde;
+    color: var(--text-primary);
     font-size: 1rem;
     font-family: inherit;
 }
 
 .edit-input:focus {
     outline: none;
-    border-color: #5865f2;
+    border-color: var(--accent-primary);
 }
 
 .edit-actions {
@@ -292,17 +292,17 @@
 }
 
 .edit-save {
-    background: #3ba55c;
+    background: var(--color-success);
     color: white;
 }
 
 .edit-save:hover {
-    background: #2d7d46;
+    background: var(--status-online-hover);
 }
 
 .edit-cancel {
-    background: #4f545c;
-    color: #dcddde;
+    background: var(--bg-muted);
+    color: var(--text-primary);
 }
 
 .edit-cancel:hover {
@@ -311,7 +311,7 @@
 
 /* Edited indicator */
 .edited-indicator {
-    color: #72767d;
+    color: var(--text-placeholder);
     font-size: 0.625rem;
     margin-left: 4px;
 }

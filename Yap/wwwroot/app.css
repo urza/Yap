@@ -1,9 +1,44 @@
 /* Base styles for Discord-style dark theme */
 :root {
+    /* Backgrounds (darkest to lightest) */
+    --bg-darkest: #18191c;
+    --bg-header: #202225;
+    --bg-sidebar: #2f3136;
+    --bg-hover: #32353b;
+    --bg-primary: #36393f;
+    --bg-secondary: #393c43;
+    --bg-input: #40444b;
+    --bg-muted: #4f545c;
+
+    /* Text colors (brightest to dimmest) */
+    --text-white: #fff;
+    --text-primary: #dcddde;
+    --text-secondary: #b9bbbe;
+    --text-muted: #a3a6aa;
+    --text-tertiary: #96989d;
+    --text-placeholder: #72767d;
+
+    /* Accent colors (Discord blurple) */
+    --accent-primary: #5865f2;
+    --accent-hover: #4752c4;
+    --accent-light: #dee0fc;
+    --accent-focus: #00aff4;
+
     /* Status colors */
     --status-online: #3ba55c;
+    --status-online-hover: #2d7d46;
     --status-away: #faa61a;
+    --status-away-hover: #fcc24f;
     --status-invisible: #747f8d;
+
+    /* Semantic colors */
+    --color-success: #3ba55c;
+    --color-warning: #faa61a;
+    --color-danger: #ed4245;
+
+    /* Borders */
+    --border-dark: #202225;
+    --border-subtle: #040405;
 }
 
 * {
@@ -14,8 +49,8 @@ html, body {
     margin: 0;
     padding: 0;
     font-family: Whitney, "Helvetica Neue", Helvetica, Arial, sans-serif;
-    background: #36393f;
-    color: #dcddde;
+    background: var(--bg-primary);
+    color: var(--text-primary);
     height: 100%;
     overflow: hidden;
 }

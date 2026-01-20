@@ -2,7 +2,7 @@
     display: flex;
     width: 320px;
     max-height: 350px;
-    background: #2f3136;
+    background: var(--bg-sidebar);
     border-radius: 8px;
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
     overflow: hidden;
@@ -14,8 +14,8 @@
     display: flex;
     padding: 8px;
     gap: 4px;
-    background: #202225;
-    border-bottom: 1px solid #40444b;
+    background: var(--bg-header);
+    border-bottom: 1px solid var(--bg-input);
     overflow-x: auto;
     scrollbar-width: none;
     -ms-overflow-style: none;
@@ -43,12 +43,12 @@
 
 .category-btn:hover {
     opacity: 1;
-    background: #40444b;
+    background: var(--bg-input);
 }
 
 .category-btn.active {
     opacity: 1;
-    background: #40444b;
+    background: var(--bg-input);
 }
 
 .emoji-grid {
@@ -71,7 +71,7 @@
 }
 
 .emoji-grid::-webkit-scrollbar-thumb {
-    background: #202225;
+    background: var(--bg-header);
     border-radius: 4px;
 }
 
@@ -90,14 +90,14 @@
 }
 
 .emoji-btn:hover {
-    background: #40444b;
+    background: var(--bg-input);
     transform: scale(1.1);
 }
 
 .emoji-empty {
     grid-column: 1 / -1;
     text-align: center;
-    color: #72767d;
+    color: var(--text-placeholder);
     padding: 2rem;
     font-size: 0.875rem;
 }

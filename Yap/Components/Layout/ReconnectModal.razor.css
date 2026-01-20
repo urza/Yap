@@ -103,8 +103,8 @@
     justify-content: center;
     gap: 0.5rem;
     padding: 0.5rem 1rem;
-    /* Discord-style warning yellow/orange */
-    background: linear-gradient(135deg, #faa61a 0%, #f57731 100%);
+    /* Discord-style warning yellow/orange - uses status-away color */
+    background: linear-gradient(135deg, var(--status-away) 0%, #f57731 100%);
     color: white;
     font-size: 0.875rem;
     font-weight: 500;
