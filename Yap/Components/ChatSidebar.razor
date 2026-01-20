@@ -178,9 +178,9 @@
     {
         await InvokeAsync(() =>
         {
-            // Check if this is a DM message for us
+            // Check if this is a DM message for us (we must be a participant)
             var channel = ChatService.GetChannel(message.ChannelId);
-            if (channel?.IsDirectMessage == true)
+            if (channel?.IsDirectMessage == true && channel.CanAccess(Username))
             {
                 var otherUser = channel.GetOtherParticipant(Username);
                 if (otherUser != null && !message.Username.Equals(Username, StringComparison.OrdinalIgnoreCase))

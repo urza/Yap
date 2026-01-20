@@ -139,7 +139,11 @@
                 await ScrollToBottomAsync();
             }
 
-            if (!message.Username.Equals(Username, StringComparison.OrdinalIgnoreCase))
+            // Only notify if: message is not from us AND we're a participant in this DM
+            var messageChannel = ChatService.GetChannel(message.ChannelId);
+            if (!message.Username.Equals(Username, StringComparison.OrdinalIgnoreCase) &&
+                messageChannel?.IsDirectMessage == true &&
+                messageChannel.CanAccess(Username))
             {
                 await HandleNewMessageNotificationAsync(message.Username, isDM: true);
             }
