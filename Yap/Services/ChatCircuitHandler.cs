@@ -14,20 +14,24 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
 
     private readonly ChatService _chatService;
     private readonly UserStateService _userState;
+    private readonly CircuitTracker _circuitTracker;
     private readonly ILogger<ChatCircuitHandler> _logger;
 
     private readonly Timer _idleTimer;
     private UserStatus? _statusBeforeDisconnect;
     private bool _isAutoAway;
     private UserStatus? _statusBeforeAway;
+    private string? _circuitId;
 
     public ChatCircuitHandler(
         ChatService chatService,
         UserStateService userState,
+        CircuitTracker circuitTracker,
         ILogger<ChatCircuitHandler> logger)
     {
         _chatService = chatService;
         _userState = userState;
+        _circuitTracker = circuitTracker;
         _logger = logger;
 
         _idleTimer = new Timer
@@ -40,13 +44,17 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
 
     public override Task OnCircuitOpenedAsync(Circuit circuit, CancellationToken cancellationToken)
     {
-        _logger.LogDebug("Circuit opened, starting idle timer ({Timeout})", IdleTimeout);
+        _circuitId = circuit.Id;
+        _circuitTracker.OnCircuitOpened(circuit.Id);
+        _logger.LogDebug("Circuit {CircuitId} opened, starting idle timer ({Timeout})", circuit.Id, IdleTimeout);
         _idleTimer.Start();
         return base.OnCircuitOpenedAsync(circuit, cancellationToken);
     }
 
     public override async Task OnConnectionUpAsync(Circuit circuit, CancellationToken cancellationToken)
     {
+        _circuitTracker.OnConnectionUp(circuit.Id);
+
         // User reconnected - restore their previous status
         if (!string.IsNullOrEmpty(_userState.SessionId) && _statusBeforeDisconnect.HasValue)
         {
@@ -64,6 +72,7 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
 
     public override async Task OnConnectionDownAsync(Circuit circuit, CancellationToken cancellationToken)
     {
+        _circuitTracker.OnConnectionDown(circuit.Id);
         _idleTimer.Stop();
 
         // Mark user as Invisible (grey) when connection drops
@@ -83,6 +92,7 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
 
     public override async Task OnCircuitClosedAsync(Circuit circuit, CancellationToken cancellationToken)
     {
+        _circuitTracker.OnCircuitClosed(circuit.Id);
         _idleTimer.Stop();
 
         // Circuit fully closed - mark as Invisible (same as disconnect)

@@ -37,6 +37,7 @@
     private bool isLengthError = false;
     private bool hasBlurred = false;
     private bool isAutoLoggingIn = false;
+    private bool _shouldRedirect = false;
 
     // Username rules: 2-23 chars, lowercase a-z, 0-9, underscore, period, no consecutive periods
     private static readonly System.Text.RegularExpressions.Regex ValidUsernameRegex =
@@ -47,28 +48,33 @@
     // Only show length errors after user has blurred the input (finished typing)
     private bool showError => hasError && (!isLengthError || hasBlurred);
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
-        // If already logged in, redirect to chat
-        // Note: This works because prerendering is disabled globally in App.razor
+        // If already logged in (persisted state), mark for redirect after render
+        // Don't navigate here - it causes "insertBefore" errors during initial render
         if (UserState.IsLoggedIn)
         {
-            try
-            {
-                Navigation.NavigateTo("/lobby");
-            }
-            catch (TaskCanceledException)
-            {
-                // Circuit disconnected during navigation - ignore, reconnection will handle it
-            }
+            _shouldRedirect = true;
             return;
         }
 
         welcomeMessage = ChatConfig.GetRandomWelcomeMessage();
         joinButtonText = ChatConfig.GetRandomJoinButtonText();
         usernamePlaceholder = ChatConfig.GetRandomUsernamePlaceholder();
+    }
 
-        // Check localStorage for stored username
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // Safe to navigate after first render is complete
+        if (_shouldRedirect)
+        {
+            NavigateToLobby();
+            return;
+        }
+
+        // Check localStorage for stored username (requires JS interop, so must be in OnAfterRender)
         await TryAutoLoginAsync();
     }
 
@@ -100,13 +106,14 @@
                 hasBlurred = true;
                 errorMessage = $"Username '{storedLogin.Username}' is already in use";
                 usernameInput = storedLogin.Username;
+                StateHasChanged();
                 return;
             }
 
             // Auto-login with stored username
             isAutoLoggingIn = true;
             UserState.Username = storedLogin.Username;
-            Navigation.NavigateTo("/lobby");
+            NavigateToLobby();
         }
         catch (TaskCanceledException)
         {
@@ -115,6 +122,18 @@
         catch (Exception ex)
         {
             Console.WriteLine($"[Login] Auto-login failed: {ex.Message}");
+        }
+    }
+
+    private void NavigateToLobby()
+    {
+        try
+        {
+            Navigation.NavigateTo("/lobby");
+        }
+        catch (TaskCanceledException)
+        {
+            // Circuit disconnected during navigation - ignore
         }
     }
 

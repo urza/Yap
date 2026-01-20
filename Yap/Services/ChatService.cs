@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Yap.Models;
 
 namespace Yap.Services;
@@ -14,6 +15,7 @@ public class ChatService
     private readonly ConcurrentDictionary<string, UserSession> _users = new();
     private readonly PushNotificationService _pushService;
     private readonly ChatPersistenceService _persistence;
+    private readonly ILogger<ChatService> _logger;
 
     // Channels (rooms and DMs)
     private readonly ConcurrentDictionary<Guid, Channel> _channels = new();
@@ -49,10 +51,11 @@ public class ChatService
 
     public record UserSession(string Username, string SessionId, UserStatus Status = UserStatus.Online);
 
-    public ChatService(PushNotificationService pushService, ChatPersistenceService persistence)
+    public ChatService(PushNotificationService pushService, ChatPersistenceService persistence, ILogger<ChatService> logger)
     {
         _pushService = pushService;
         _persistence = persistence;
+        _logger = logger;
 
         // Create default lobby channel (will be replaced if loading from DB)
         var lobby = Channel.CreateRoom("lobby", createdBy: null, isDefault: true);
@@ -61,6 +64,149 @@ public class ChatService
         _channelMessages[lobby.Id] = new List<ChatMessage>();
         _channelTypingUsers[lobby.Id] = new ConcurrentDictionary<string, DateTime>();
     }
+
+    #region Parallel Event Invocation
+
+    /// <summary>
+    /// Invokes all event handlers in parallel instead of sequentially.
+    /// This dramatically improves performance when there are multiple subscribers (circuits).
+    /// </summary>
+    private async Task InvokeParallelAsync<T>(Func<T, Task>? eventDelegate, T arg, [System.Runtime.CompilerServices.CallerMemberName] string? caller = null)
+    {
+        if (eventDelegate == null) return;
+
+        var handlers = eventDelegate.GetInvocationList().Cast<Func<T, Task>>().ToList();
+        if (handlers.Count == 0) return;
+
+        var sw = Stopwatch.StartNew();
+
+        var tasks = handlers.Select(async handler =>
+        {
+            try
+            {
+                await handler(arg);
+            }
+            catch (Exception ex)
+            {
+                // Log but don't rethrow - one handler failing shouldn't break others
+                _logger.LogWarning(ex, "Event handler failed in {Caller}", caller);
+            }
+        });
+
+        await Task.WhenAll(tasks);
+
+        sw.Stop();
+        if (sw.ElapsedMilliseconds > 100)
+        {
+            _logger.LogWarning("Slow event dispatch: {Caller} took {ElapsedMs}ms for {HandlerCount} handlers",
+                caller, sw.ElapsedMilliseconds, handlers.Count);
+        }
+    }
+
+    /// <summary>
+    /// Invokes all event handlers (no arguments) in parallel.
+    /// </summary>
+    private async Task InvokeParallelAsync(Func<Task>? eventDelegate, [System.Runtime.CompilerServices.CallerMemberName] string? caller = null)
+    {
+        if (eventDelegate == null) return;
+
+        var handlers = eventDelegate.GetInvocationList().Cast<Func<Task>>().ToList();
+        if (handlers.Count == 0) return;
+
+        var sw = Stopwatch.StartNew();
+
+        var tasks = handlers.Select(async handler =>
+        {
+            try
+            {
+                await handler();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Event handler failed in {Caller}", caller);
+            }
+        });
+
+        await Task.WhenAll(tasks);
+
+        sw.Stop();
+        if (sw.ElapsedMilliseconds > 100)
+        {
+            _logger.LogWarning("Slow event dispatch: {Caller} took {ElapsedMs}ms for {HandlerCount} handlers",
+                caller, sw.ElapsedMilliseconds, handlers.Count);
+        }
+    }
+
+    /// <summary>
+    /// Invokes all event handlers (two arguments) in parallel.
+    /// </summary>
+    private async Task InvokeParallelAsync<T1, T2>(Func<T1, T2, Task>? eventDelegate, T1 arg1, T2 arg2, [System.Runtime.CompilerServices.CallerMemberName] string? caller = null)
+    {
+        if (eventDelegate == null) return;
+
+        var handlers = eventDelegate.GetInvocationList().Cast<Func<T1, T2, Task>>().ToList();
+        if (handlers.Count == 0) return;
+
+        var sw = Stopwatch.StartNew();
+
+        var tasks = handlers.Select(async handler =>
+        {
+            try
+            {
+                await handler(arg1, arg2);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Event handler failed in {Caller}", caller);
+            }
+        });
+
+        await Task.WhenAll(tasks);
+
+        sw.Stop();
+        if (sw.ElapsedMilliseconds > 100)
+        {
+            _logger.LogWarning("Slow event dispatch: {Caller} took {ElapsedMs}ms for {HandlerCount} handlers",
+                caller, sw.ElapsedMilliseconds, handlers.Count);
+        }
+    }
+
+    #endregion
+
+    #region Diagnostics
+
+    /// <summary>
+    /// Gets diagnostic information about event subscribers and system state.
+    /// </summary>
+    public ChatDiagnostics GetDiagnostics()
+    {
+        return new ChatDiagnostics
+        {
+            UserSessions = _users.Count,
+            UniqueUsers = _users.Values.Select(u => u.Username).Distinct().Count(),
+            Channels = _channels.Count,
+            RoomChannels = _channels.Values.Count(c => c.Type == ChannelType.Room),
+            DmChannels = _channels.Values.Count(c => c.Type == ChannelType.DirectMessage),
+            TotalMessages = _channelMessages.Values.Sum(m => m.Count),
+            EventSubscribers = new Dictionary<string, int>
+            {
+                ["OnMessageReceived"] = OnMessageReceived?.GetInvocationList().Length ?? 0,
+                ["OnMessageUpdated"] = OnMessageUpdated?.GetInvocationList().Length ?? 0,
+                ["OnMessageDeleted"] = OnMessageDeleted?.GetInvocationList().Length ?? 0,
+                ["OnReactionChanged"] = OnReactionChanged?.GetInvocationList().Length ?? 0,
+                ["OnUserChanged"] = OnUserChanged?.GetInvocationList().Length ?? 0,
+                ["OnUsersListChanged"] = OnUsersListChanged?.GetInvocationList().Length ?? 0,
+                ["OnTypingUsersChanged"] = OnTypingUsersChanged?.GetInvocationList().Length ?? 0,
+                ["OnChannelCreated"] = OnChannelCreated?.GetInvocationList().Length ?? 0,
+                ["OnChannelDeleted"] = OnChannelDeleted?.GetInvocationList().Length ?? 0,
+                ["OnAdminChanged"] = OnAdminChanged?.GetInvocationList().Length ?? 0,
+                ["OnUserStatusChanged"] = OnUserStatusChanged?.GetInvocationList().Length ?? 0
+            },
+            AdminUser = _adminUser
+        };
+    }
+
+    #endregion
 
     /// <summary>
     /// Initializes chat data from the database if persistence is enabled.
@@ -123,8 +269,8 @@ public class ChatService
             }
         }
 
-        if (becameAdmin && OnAdminChanged != null)
-            await OnAdminChanged.Invoke(_adminUser);
+        if (becameAdmin)
+            await InvokeParallelAsync(OnAdminChanged, _adminUser);
     }
 
     #endregion
@@ -164,8 +310,7 @@ public class ChatService
         // Persist to database
         await _persistence.PersistChannelAsync(channel);
 
-        if (OnChannelCreated != null)
-            await OnChannelCreated.Invoke(channel);
+        await InvokeParallelAsync(OnChannelCreated, channel);
 
         return channel;
     }
@@ -189,8 +334,7 @@ public class ChatService
         // Delete from database
         await _persistence.DeleteChannelAsync(channelId);
 
-        if (OnChannelDeleted != null)
-            await OnChannelDeleted.Invoke(channelId);
+        await InvokeParallelAsync(OnChannelDeleted, channelId);
 
         return true;
     }
@@ -245,10 +389,8 @@ public class ChatService
         // First user becomes admin
         await TrySetFirstAdmin(username);
 
-        if (OnUserChanged != null)
-            await OnUserChanged.Invoke(username, true);
-        if (OnUsersListChanged != null)
-            await OnUsersListChanged.Invoke();
+        await InvokeParallelAsync(OnUserChanged, username, true);
+        await InvokeParallelAsync(OnUsersListChanged);
     }
 
     public async Task SetUserStatusAsync(string sessionId, UserStatus status)
@@ -259,10 +401,8 @@ public class ChatService
         // Update with new status
         _users[sessionId] = session with { Status = status };
 
-        if (OnUserStatusChanged != null)
-            await OnUserStatusChanged.Invoke(session.Username, status);
-        if (OnUsersListChanged != null)
-            await OnUsersListChanged.Invoke();
+        await InvokeParallelAsync(OnUserStatusChanged, session.Username, status);
+        await InvokeParallelAsync(OnUsersListChanged);
     }
 
     public UserStatus? GetUserStatus(string username)
@@ -285,10 +425,8 @@ public class ChatService
             // Note: DM channels now persist permanently (like Discord)
             // They are NOT deleted when user disconnects
 
-            if (OnUserChanged != null)
-                await OnUserChanged.Invoke(session.Username, false);
-            if (OnUsersListChanged != null)
-                await OnUsersListChanged.Invoke();
+            await InvokeParallelAsync(OnUserChanged, session.Username, false);
+            await InvokeParallelAsync(OnUsersListChanged);
         }
     }
 
@@ -337,8 +475,7 @@ public class ChatService
         if (_channelTypingUsers.TryGetValue(channelId, out var typingUsers))
             typingUsers.TryRemove(username, out _);
 
-        if (OnMessageReceived != null)
-            await OnMessageReceived.Invoke(message);
+        await InvokeParallelAsync(OnMessageReceived, message);
 
         // Send push notification for DMs
         if (channel.IsDirectMessage)
@@ -426,8 +563,7 @@ public class ChatService
         // Persist the edit
         await _persistence.PersistMessageAsync(message);
 
-        if (OnMessageUpdated != null)
-            await OnMessageUpdated.Invoke(message);
+        await InvokeParallelAsync(OnMessageUpdated, message);
 
         return true;
     }
@@ -450,8 +586,7 @@ public class ChatService
         // Delete from database
         await _persistence.DeleteMessageAsync(messageId);
 
-        if (OnMessageDeleted != null)
-            await OnMessageDeleted.Invoke(messageId, channelId);
+        await InvokeParallelAsync(OnMessageDeleted, messageId, channelId);
 
         return true;
     }
@@ -499,8 +634,7 @@ public class ChatService
         else
             await _persistence.RemoveReactionAsync(messageId, emoji, username);
 
-        if (OnReactionChanged != null)
-            await OnReactionChanged.Invoke(message);
+        await InvokeParallelAsync(OnReactionChanged, message);
     }
 
     #endregion
@@ -553,8 +687,7 @@ public class ChatService
         if (_channelTypingUsers.TryGetValue(channelId, out var typingUsers))
         {
             typingUsers[username] = DateTime.UtcNow;
-            if (OnTypingUsersChanged != null)
-                await OnTypingUsersChanged.Invoke(channelId);
+            await InvokeParallelAsync(OnTypingUsersChanged, channelId);
         }
     }
 
@@ -563,8 +696,7 @@ public class ChatService
         if (_channelTypingUsers.TryGetValue(channelId, out var typingUsers))
         {
             typingUsers.TryRemove(username, out _);
-            if (OnTypingUsersChanged != null)
-                await OnTypingUsersChanged.Invoke(channelId);
+            await InvokeParallelAsync(OnTypingUsersChanged, channelId);
         }
     }
 
