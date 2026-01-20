@@ -333,8 +333,12 @@
         padding: 0.125rem 0.5rem;
     }
 
-    /* Mobile: full-width galleries */
+    /* Mobile: full-width galleries with taller single images */
     .image-gallery {
         max-width: 100%;
+    }
+
+    .gallery-single .gallery-image {
+        max-height: 450px;
     }
 }
