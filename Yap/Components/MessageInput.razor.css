@@ -119,7 +119,7 @@
     padding: 0 1rem;
     display: flex;
     align-items: flex-end;
-    font-size: 10px;
+    font-size: 12px;
     animation: fadeIn 0.2s ease;
 }
 
@@ -186,7 +186,7 @@
     }
 
     .typing-indicator {
-        font-size: 10px;
+        font-size: 12px;
         padding: 0 0.5rem;
     }
 
