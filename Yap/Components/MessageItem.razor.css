@@ -114,10 +114,11 @@
 }
 
 /* Single image: preserve aspect ratio, constrain size */
+/* Discord uses ~350px height for vertical images, ~400px width for horizontal */
 .gallery-single .gallery-image {
     height: auto;
     width: auto;
-    max-height: 300px;
+    max-height: 350px;
     max-width: 100%;
     aspect-ratio: auto 4 / 3; /* Fallback ratio until image loads, then use intrinsic */
     object-fit: contain;
