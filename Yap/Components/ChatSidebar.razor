@@ -30,7 +30,7 @@
                     <div class="new-room-input">
                         <input type="text" @bind="newRoomName" @bind:event="oninput"
                                placeholder="room name" class="room-name-input"
-                               @onkeypress="HandleNewRoomKeyPress" />
+                               @onkeydown="HandleNewRoomKeyPress" @ref="newRoomInputRef" />
                         <button class="room-create-btn" @onclick="CreateRoom" title="Create">✓</button>
                         <button class="room-cancel-btn" @onclick="CancelNewRoom" title="Cancel">✕</button>
                     </div>
@@ -90,6 +90,8 @@
     // Room creation UI
     private bool showNewRoomInput = false;
     private string newRoomName = "";
+    private ElementReference newRoomInputRef;
+    private bool shouldFocusNewRoomInput = false;
 
     protected override void OnInitialized()
     {
@@ -233,6 +235,16 @@
     {
         showNewRoomInput = true;
         newRoomName = "";
+        shouldFocusNewRoomInput = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (shouldFocusNewRoomInput)
+        {
+            shouldFocusNewRoomInput = false;
+            await newRoomInputRef.FocusAsync();
+        }
     }
 
     private void CancelNewRoom()
