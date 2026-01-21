@@ -163,8 +163,9 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
         try
         {
-            // TODO: Remove this artificial delay - just for testing loading indicator
-            await Task.Delay(1000);
+            // Brief delay for better UX - gives users time to notice the loading indicator
+            // and mentally prepare for older messages appearing above
+            await Task.Delay(500);
 
             // Get current scroll info before prepending
             var previousScrollHeight = await JS.InvokeAsync<double>("getScrollHeight");
