@@ -21,7 +21,7 @@ public class ChatService
     private readonly ConcurrentDictionary<Guid, Channel> _channels = new();
     private readonly ConcurrentDictionary<Guid, List<ChatMessage>> _channelMessages = new();
     private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<string, DateTime>> _channelTypingUsers = new();
-    private readonly object _channelLock = new();
+    private readonly ConcurrentDictionary<Guid, object> _channelLocks = new();
 
     // Admin
     private string? _adminUser;
@@ -282,6 +282,13 @@ public class ChatService
 
     #region Channel Management
 
+    /// <summary>
+    /// Gets or creates a lock object for a specific channel.
+    /// This allows concurrent operations on different channels.
+    /// </summary>
+    private object GetChannelLock(Guid channelId) =>
+        _channelLocks.GetOrAdd(channelId, _ => new object());
+
     public List<Channel> GetRooms() =>
         _channels.Values
             .Where(c => c.Type == ChannelType.Room)
@@ -335,6 +342,7 @@ public class ChatService
         _channels.TryRemove(channelId, out _);
         _channelMessages.TryRemove(channelId, out _);
         _channelTypingUsers.TryRemove(channelId, out _);
+        _channelLocks.TryRemove(channelId, out _);
 
         // Delete from database
         await _persistence.DeleteChannelAsync(channelId);
@@ -465,7 +473,7 @@ public class ChatService
 
         var message = new ChatMessage(channelId, username, content, DateTime.UtcNow, imageUrls);
 
-        lock (_channelLock)
+        lock (GetChannelLock(channelId))
         {
             if (!_channelMessages.TryGetValue(channelId, out var messages))
                 return;
@@ -499,7 +507,7 @@ public class ChatService
         if (!_channelMessages.TryGetValue(channelId, out var messages))
             return new List<ChatMessage>();
 
-        lock (_channelLock)
+        lock (GetChannelLock(channelId))
         {
             return messages.TakeLast(Math.Min(count, messages.Count)).ToList();
         }
@@ -521,7 +529,7 @@ public class ChatService
         if (!_channelMessages.TryGetValue(channelId, out var messages))
             return (new List<ChatMessage>(), false);
 
-        lock (_channelLock)
+        lock (GetChannelLock(channelId))
         {
             IEnumerable<ChatMessage> filtered = messages;
 
@@ -551,7 +559,7 @@ public class ChatService
             return false;
 
         ChatMessage? message;
-        lock (_channelLock)
+        lock (GetChannelLock(channelId))
         {
             message = messages.FirstOrDefault(m => m.Id == messageId);
         }
@@ -579,7 +587,7 @@ public class ChatService
             return false;
 
         ChatMessage? message;
-        lock (_channelLock)
+        lock (GetChannelLock(channelId))
         {
             message = messages.FirstOrDefault(m => m.Id == messageId);
             if (message == null || message.Username != username)
@@ -602,7 +610,7 @@ public class ChatService
             return;
 
         ChatMessage? message;
-        lock (_channelLock)
+        lock (GetChannelLock(channelId))
         {
             message = messages.FirstOrDefault(m => m.Id == messageId);
         }
@@ -671,7 +679,7 @@ public class ChatService
         if (channel == null || !_channelMessages.TryGetValue(channel.Id, out var messages) || messages.Count == 0)
             return null;
 
-        lock (_channelLock)
+        lock (GetChannelLock(channel.Id))
         {
             return messages.LastOrDefault()?.Timestamp;
         }

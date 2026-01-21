@@ -39,6 +39,9 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     protected bool hasMoreMessages = true;
     protected const int PageSize = 50;
 
+    // Disposable references
+    private DotNetObjectReference<ChatBase>? _visibilityRef;
+
     // Image modal state
     protected bool showImageModal = false;
     protected List<string> modalGallery = new();
@@ -294,7 +297,12 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
     private async Task SetupTabNotifications()
     {
-        try { await JS.InvokeVoidAsync("setupVisibilityListener", DotNetObjectReference.Create(this)); } catch { }
+        try
+        {
+            _visibilityRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("setupVisibilityListener", _visibilityRef);
+        }
+        catch { }
     }
 
     protected async Task HandleNewMessageNotificationAsync(string messageUser, bool isDM)
@@ -393,5 +401,6 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     public virtual async ValueTask DisposeAsync()
     {
         await CleanupInfiniteScrollAsync();
+        _visibilityRef?.Dispose();
     }
 }

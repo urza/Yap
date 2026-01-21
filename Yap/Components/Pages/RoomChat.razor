@@ -3,7 +3,6 @@
 @page "/room/{RoomId:guid}"
 @layout ChatLayout
 @inherits ChatBase
-@implements IDisposable
 
 <PageTitle>@ChatConfig.ProjectName | #@currentContext</PageTitle>
 
@@ -167,7 +166,7 @@
 
     #endregion
 
-    public void Dispose()
+    public override async ValueTask DisposeAsync()
     {
         ChatService.OnMessageReceived -= HandleMessageReceived;
         ChatService.OnMessageUpdated -= HandleMessageUpdated;
@@ -175,5 +174,7 @@
         ChatService.OnReactionChanged -= HandleReactionChanged;
         ChatService.OnUserChanged -= HandleUserChanged;
         ChatService.OnChannelDeleted -= HandleChannelDeleted;
+
+        await base.DisposeAsync();
     }
 }

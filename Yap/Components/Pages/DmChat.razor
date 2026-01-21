@@ -1,7 +1,6 @@
 @page "/dm/{DmUser}"
 @layout ChatLayout
 @inherits ChatBase
-@implements IDisposable
 
 <PageTitle>@ChatConfig.ProjectName | @@@DmUser</PageTitle>
 
@@ -168,12 +167,14 @@
 
     #endregion
 
-    public void Dispose()
+    public override async ValueTask DisposeAsync()
     {
         ChatService.OnMessageReceived -= HandleMessageReceived;
         ChatService.OnMessageUpdated -= HandleMessageUpdated;
         ChatService.OnMessageDeleted -= HandleMessageDeleted;
         ChatService.OnReactionChanged -= HandleReactionChanged;
         ChatService.OnUsersListChanged -= HandleUsersListChanged;
+
+        await base.DisposeAsync();
     }
 }
