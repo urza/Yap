@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Components.Server.Circuits;
 using Yap.Models;
-using Timer = System.Timers.Timer;
 
 namespace Yap.Services;
 
@@ -17,7 +16,11 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
     private readonly CircuitTracker _circuitTracker;
     private readonly ILogger<ChatCircuitHandler> _logger;
 
-    private readonly Timer _idleTimer;
+    // Idle timeout uses CancellationTokenSource + Task.Delay pattern:
+    // - On any user activity, we cancel the current delay and start a new one
+    // - If no activity for IdleTimeout, the delay completes and sets user to Away
+    // - This avoids threading issues with System.Timers.Timer (which fires on ThreadPool)
+    private CancellationTokenSource? _idleCts;
     private UserStatus? _statusBeforeDisconnect;
     private bool _isAutoAway;
     private UserStatus? _statusBeforeAway;
@@ -33,13 +36,6 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
         _userState = userState;
         _circuitTracker = circuitTracker;
         _logger = logger;
-
-        _idleTimer = new Timer
-        {
-            Interval = IdleTimeout.TotalMilliseconds,
-            AutoReset = false
-        };
-        _idleTimer.Elapsed += OnIdleTimeout;
     }
 
     public override Task OnCircuitOpenedAsync(Circuit circuit, CancellationToken cancellationToken)
@@ -47,7 +43,7 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
         _circuitId = circuit.Id;
         _circuitTracker.OnCircuitOpened(circuit.Id);
         _logger.LogDebug("Circuit {CircuitId} opened, starting idle timer ({Timeout})", circuit.Id, IdleTimeout);
-        _idleTimer.Start();
+        StartIdleTimer();
         return base.OnCircuitOpenedAsync(circuit, cancellationToken);
     }
 
@@ -66,14 +62,14 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
             _statusBeforeDisconnect = null;
         }
 
-        _idleTimer.Start();
+        StartIdleTimer();
         await base.OnConnectionUpAsync(circuit, cancellationToken);
     }
 
     public override async Task OnConnectionDownAsync(Circuit circuit, CancellationToken cancellationToken)
     {
         _circuitTracker.OnConnectionDown(circuit.Id);
-        _idleTimer.Stop();
+        StopIdleTimer();
 
         // Mark user as Invisible (grey) when connection drops
         if (!string.IsNullOrEmpty(_userState.SessionId))
@@ -93,7 +89,7 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
     public override async Task OnCircuitClosedAsync(Circuit circuit, CancellationToken cancellationToken)
     {
         _circuitTracker.OnCircuitClosed(circuit.Id);
-        _idleTimer.Stop();
+        StopIdleTimer();
 
         // Circuit fully closed - mark as Invisible (same as disconnect)
         // Don't remove user - they stay grey in the list
@@ -119,9 +115,8 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
     {
         return async context =>
         {
-            // Reset idle timer on any activity (prevents going Away while active)
-            _idleTimer.Stop();
-            _idleTimer.Start();
+            // Reset idle timer on any activity (cancels current delay, starts fresh)
+            StartIdleTimer();
 
             // Restore from auto-away if user becomes active again
             if (_isAutoAway && _statusBeforeAway.HasValue && !string.IsNullOrEmpty(_userState.SessionId))
@@ -141,7 +136,46 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
         };
     }
 
-    private async void OnIdleTimeout(object? sender, System.Timers.ElapsedEventArgs e)
+    /// <summary>
+    /// Cancels any pending idle timeout and starts a fresh one.
+    /// Called on circuit open, connection up, and any user activity.
+    /// </summary>
+    private void StartIdleTimer()
+    {
+        _idleCts?.Cancel();
+        _idleCts?.Dispose();
+        _idleCts = new CancellationTokenSource();
+        _ = IdleTimeoutAsync(_idleCts.Token);
+    }
+
+    /// <summary>
+    /// Cancels any pending idle timeout without starting a new one.
+    /// Called on connection down and circuit close.
+    /// </summary>
+    private void StopIdleTimer()
+    {
+        _idleCts?.Cancel();
+        _idleCts?.Dispose();
+        _idleCts = null;
+    }
+
+    /// <summary>
+    /// Waits for the idle timeout, then sets user to Away if not cancelled.
+    /// </summary>
+    private async Task IdleTimeoutAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(IdleTimeout, token);
+            await SetAutoAwayAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // Timer was reset or stopped, ignore
+        }
+    }
+
+    private async Task SetAutoAwayAsync()
     {
         if (string.IsNullOrEmpty(_userState.SessionId) || string.IsNullOrEmpty(_userState.Username))
             return;
@@ -162,6 +196,7 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
 
     public void Dispose()
     {
-        _idleTimer.Dispose();
+        _idleCts?.Cancel();
+        _idleCts?.Dispose();
     }
 }

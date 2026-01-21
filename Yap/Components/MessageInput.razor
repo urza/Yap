@@ -101,7 +101,11 @@
     private bool isTyping = false;
     private bool isUploading = false;
     private int uploadingCount = 0;
-    private System.Timers.Timer? typingTimer;
+    // Typing timeout uses CancellationTokenSource + Task.Delay pattern:
+    // - On each keystroke, cancel current delay and start new 3s delay
+    // - If user stops typing for 3s, delay completes and calls StopTypingAsync
+    // - This avoids threading issues with System.Timers.Timer
+    private CancellationTokenSource? typingCts;
 
     // Unique IDs for this instance
     private string TextareaId = $"messageTextarea_{Guid.NewGuid():N}";
@@ -219,9 +223,9 @@
         isTyping = false;
         await ChatService.StopTypingAsync(channelId.Value, Username);
 
-        typingTimer?.Stop();
-        typingTimer?.Dispose();
-        typingTimer = null;
+        typingCts?.Cancel();
+        typingCts?.Dispose();
+        typingCts = null;
     }
 
     #endregion
@@ -242,18 +246,27 @@
             await StopTypingAsync();
         }
 
-        // Reset typing timer
-        typingTimer?.Stop();
-        typingTimer?.Dispose();
+        // Reset typing timeout - cancel previous and start new
+        typingCts?.Cancel();
+        typingCts?.Dispose();
 
         if (!string.IsNullOrWhiteSpace(messageText))
         {
-            typingTimer = new System.Timers.Timer(3000);
-            typingTimer.Elapsed += async (s, e) =>
-            {
-                await InvokeAsync(StopTypingAsync);
-            };
-            typingTimer.Start();
+            typingCts = new CancellationTokenSource();
+            _ = StopTypingAfterDelayAsync(typingCts.Token);
+        }
+    }
+
+    private async Task StopTypingAfterDelayAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(3000, token);
+            await StopTypingAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // Timer was reset or cancelled, ignore
         }
     }
 
@@ -406,8 +419,8 @@
 
     public async ValueTask DisposeAsync()
     {
-        typingTimer?.Stop();
-        typingTimer?.Dispose();
+        typingCts?.Cancel();
+        typingCts?.Dispose();
 
         // Unsubscribe from events
         ChatService.OnTypingUsersChanged -= HandleTypingUsersChanged;
