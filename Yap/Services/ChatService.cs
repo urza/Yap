@@ -27,8 +27,8 @@ public class ChatService
     private string? _adminUser;
     private readonly object _adminLock = new();
 
-    // Default lobby channel
-    public Guid LobbyId { get; }
+    // Default lobby channel ID (updated in InitializeAsync if loaded from DB)
+    private Guid _lobbyId;
 
     // Events for real-time updates (unified for all channel types)
     public event Func<ChatMessage, Task>? OnMessageReceived;
@@ -59,7 +59,7 @@ public class ChatService
 
         // Create default lobby channel (will be replaced if loading from DB)
         var lobby = Channel.CreateRoom("lobby", createdBy: null, isDefault: true);
-        LobbyId = lobby.Id;
+        _lobbyId = lobby.Id;
         _channels[lobby.Id] = lobby;
         _channelMessages[lobby.Id] = new List<ChatMessage>();
         _channelTypingUsers[lobby.Id] = new ConcurrentDictionary<string, DateTime>();
@@ -231,12 +231,18 @@ public class ChatService
             _channelTypingUsers[channel.Id] = new ConcurrentDictionary<string, DateTime>();
         }
 
-        // Ensure lobby exists (use GetLobbyId() to get the actual lobby ID)
+        // Ensure lobby exists and update _lobbyId
         var existingLobby = _channels.Values.FirstOrDefault(c => c.Type == ChannelType.Room && c.IsDefault);
-        if (existingLobby == null)
+        if (existingLobby != null)
+        {
+            // Use lobby from database
+            _lobbyId = existingLobby.Id;
+        }
+        else
         {
             // Create lobby if it doesn't exist in DB
             var lobby = Channel.CreateRoom("lobby", createdBy: null, isDefault: true);
+            _lobbyId = lobby.Id;
             _channels[lobby.Id] = lobby;
             _channelMessages[lobby.Id] = new List<ChatMessage>();
             _channelTypingUsers[lobby.Id] = new ConcurrentDictionary<string, DateTime>();
@@ -245,10 +251,9 @@ public class ChatService
     }
 
     /// <summary>
-    /// Gets the lobby channel ID. May change after InitializeAsync if loaded from DB.
+    /// Gets the lobby channel ID.
     /// </summary>
-    public Guid GetLobbyId() =>
-        _channels.Values.FirstOrDefault(c => c.Type == ChannelType.Room && c.IsDefault)?.Id ?? LobbyId;
+    public Guid GetLobbyId() => _lobbyId;
 
     #region Admin
 
