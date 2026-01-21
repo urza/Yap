@@ -43,12 +43,14 @@
     {
         dotNetRef?.Dispose();
         dotNetRef = DotNetObjectReference.Create(this);
-        try { await JS.InvokeVoidAsync("setupModalKeyboard", dotNetRef); } catch { }
+        try { await JS.InvokeVoidAsync("setupModalKeyboard", dotNetRef); }
+        catch (Exception ex) { Console.WriteLine($"[ImageGalleryModal] Failed to setup keyboard: {ex.Message}"); }
     }
 
     private async Task RemoveKeyboard()
     {
-        try { await JS.InvokeVoidAsync("removeModalKeyboard"); } catch { }
+        try { await JS.InvokeVoidAsync("removeModalKeyboard"); }
+        catch (Exception ex) { Console.WriteLine($"[ImageGalleryModal] Failed to remove keyboard: {ex.Message}"); }
         dotNetRef?.Dispose();
         dotNetRef = null;
     }

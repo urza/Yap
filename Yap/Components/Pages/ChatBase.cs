@@ -68,7 +68,8 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
                 await ChatService.AddUserAsync(UserState.SessionId, Username, UserState.Status);
 
                 // Save session ID to localStorage for persistent login
-                try { await JS.InvokeVoidAsync("saveLogin", Username, UserState.SessionId); } catch { }
+                try { await JS.InvokeVoidAsync("saveLogin", Username, UserState.SessionId); }
+                catch (Exception ex) { Console.WriteLine($"[ChatBase] Failed to save login: {ex.Message}"); }
             }
 
             // Setup tab notifications
@@ -97,7 +98,8 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
     protected async Task ScrollToBottomAsync()
     {
-        try { await JS.InvokeVoidAsync("scrollToBottom"); } catch { }
+        try { await JS.InvokeVoidAsync("scrollToBottom"); }
+        catch (Exception ex) { Console.WriteLine($"[ChatBase] Failed to scroll: {ex.Message}"); }
     }
 
     protected void ShowGallery(List<string> gallery, int startIndex)
@@ -146,7 +148,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
             _scrollRef = DotNetObjectReference.Create(this);
             await JS.InvokeVoidAsync("setupInfiniteScroll", _scrollRef);
         }
-        catch { }
+        catch (Exception ex) { Console.WriteLine($"[ChatBase] Failed to setup infinite scroll: {ex.Message}"); }
     }
 
     /// <summary>
@@ -208,7 +210,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
         {
             await JS.InvokeVoidAsync("cleanupInfiniteScroll");
         }
-        catch { }
+        catch (Exception ex) { Console.WriteLine($"[ChatBase] Failed to cleanup infinite scroll: {ex.Message}"); }
 
         _scrollRef?.Dispose();
         _scrollRef = null;
@@ -303,7 +305,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
             _visibilityRef = DotNetObjectReference.Create(this);
             await JS.InvokeVoidAsync("setupVisibilityListener", _visibilityRef);
         }
-        catch { }
+        catch (Exception ex) { Console.WriteLine($"[ChatBase] Failed to setup tab notifications: {ex.Message}"); }
     }
 
     protected async Task HandleNewMessageNotificationAsync(string messageUser, bool isDM)
@@ -326,7 +328,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
                 }
             }
         }
-        catch { }
+        catch (Exception ex) { Console.WriteLine($"[ChatBase] Failed to handle notification: {ex.Message}"); }
     }
 
     [JSInvokable]
@@ -343,7 +345,8 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     protected async Task UpdatePageTitleAsync()
     {
         var title = BuildPageTitle(NavState.CurrentDmUser != null);
-        try { await JS.InvokeVoidAsync("setDocumentTitle", title); } catch { }
+        try { await JS.InvokeVoidAsync("setDocumentTitle", title); }
+        catch (Exception ex) { Console.WriteLine($"[ChatBase] Failed to update page title: {ex.Message}"); }
     }
 
     private string BuildPageTitle(bool isDM)
@@ -371,7 +374,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
                 recentEmojis = System.Text.Json.JsonSerializer.Deserialize<List<string>>(json) ?? new();
             }
         }
-        catch { }
+        catch (Exception ex) { Console.WriteLine($"[ChatBase] Failed to load recent emojis: {ex.Message}"); }
     }
 
     protected async Task AddRecentEmojiAsync(string emoji)
@@ -394,7 +397,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
             var json = System.Text.Json.JsonSerializer.Serialize(recentEmojis);
             await JS.InvokeVoidAsync("localStorage.setItem", RecentEmojisKey, json);
         }
-        catch { }
+        catch (Exception ex) { Console.WriteLine($"[ChatBase] Failed to save recent emojis: {ex.Message}"); }
     }
 
     #endregion

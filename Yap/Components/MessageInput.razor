@@ -131,8 +131,10 @@
     {
         if (firstRender)
         {
-            try { await JS.InvokeVoidAsync("setupDropZone", dropZoneElement, FileInputId); } catch { }
-            try { isTouchDevice = await JS.InvokeAsync<bool>("isTouchDevice"); } catch { }
+            try { await JS.InvokeVoidAsync("setupDropZone", dropZoneElement, FileInputId); }
+            catch (Exception ex) { Console.WriteLine($"[MessageInput] Failed to setup drop zone: {ex.Message}"); }
+            try { isTouchDevice = await JS.InvokeAsync<bool>("isTouchDevice"); }
+            catch (Exception ex) { Console.WriteLine($"[MessageInput] Failed to detect touch device: {ex.Message}"); }
         }
     }
 
@@ -274,7 +276,8 @@
         messageText = "";
 
         // Reset textarea height after clearing content
-        try { await JS.InvokeVoidAsync("resetTextareaHeight", TextareaId); } catch { }
+        try { await JS.InvokeVoidAsync("resetTextareaHeight", TextareaId); }
+        catch (Exception ex) { Console.WriteLine($"[MessageInput] Failed to reset textarea height: {ex.Message}"); }
 
         await ChatService.SendMessageAsync(channelId.Value, Username, content);
         await StopTypingAsync();
