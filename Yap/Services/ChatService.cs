@@ -49,7 +49,7 @@ public class ChatService
     // User status events
     public event Func<string, UserStatus, Task>? OnUserStatusChanged; // username, newStatus
 
-    public record UserSession(string Username, string SessionId, UserStatus Status = UserStatus.Online);
+    public record UserSession(string Username, string SessionId, UserStatus Status = UserStatus.Online, bool? IsMobile = null);
 
     public ChatService(PushNotificationService pushService, ChatPersistenceService persistence, ILogger<ChatService> logger)
     {
@@ -395,9 +395,9 @@ public class ChatService
 
     #region User Management
 
-    public async Task AddUserAsync(string sessionId, string username, UserStatus status = UserStatus.Online)
+    public async Task AddUserAsync(string sessionId, string username, UserStatus status = UserStatus.Online, bool? isMobile = null)
     {
-        _users[sessionId] = new UserSession(username, sessionId, status);
+        _users[sessionId] = new UserSession(username, sessionId, status, isMobile);
 
         // First user becomes admin
         await TrySetFirstAdmin(username);
@@ -453,10 +453,10 @@ public class ChatService
     /// Gets all connected users with their status for UI display.
     /// Invisible users appear with gray dot (like "appears offline").
     /// </summary>
-    public List<(string Username, UserStatus Status)> GetAllUsersWithStatus() =>
+    public List<(string Username, UserStatus Status, bool? IsMobile)> GetAllUsersWithStatus() =>
         _users.Values
             .GroupBy(u => u.Username, StringComparer.OrdinalIgnoreCase)
-            .Select(g => (g.Key, g.First().Status))
+            .Select(g => (g.Key, g.First().Status, g.First().IsMobile))
             .ToList();
 
     public bool IsUsernameTaken(string username) =>

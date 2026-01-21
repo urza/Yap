@@ -263,8 +263,14 @@
         if (e.Key == "Enter" && !e.ShiftKey && !isTouchDevice)
         {
             shouldPreventDefault = true;
-            await HandleSend();
-            shouldPreventDefault = false;
+            try
+            {
+                await HandleSend();
+            }
+            finally
+            {
+                shouldPreventDefault = false;
+            }
         }
     }
 
@@ -279,8 +285,15 @@
         try { await JS.InvokeVoidAsync("resetTextareaHeight", TextareaId); }
         catch (Exception ex) { Console.WriteLine($"[MessageInput] Failed to reset textarea height: {ex.Message}"); }
 
-        await ChatService.SendMessageAsync(channelId.Value, Username, content);
-        await StopTypingAsync();
+        try
+        {
+            await ChatService.SendMessageAsync(channelId.Value, Username, content);
+            await StopTypingAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[MessageInput] Failed to send message: {ex.Message}");
+        }
     }
 
     #endregion

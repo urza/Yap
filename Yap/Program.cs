@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.Components.Web;
 using Yap.Components;
 using Yap.Extensions;
+using Yap.Middleware;
 using Yap.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -88,6 +89,13 @@ builder.Services.AddScoped<UserStateService>();
 builder.Services.AddScoped<ChatNavigationState>();
 builder.Services.AddScoped<CircuitHandler, ChatCircuitHandler>();
 
+// HTTP context accessor (for device detection in Blazor components)
+builder.Services.AddHttpContextAccessor();
+
+// Request logging
+builder.Services.AddSingleton<RequestLogQueue>();
+builder.Services.AddHostedService<RequestLogWriter>();
+
 var app = builder.Build();
 
 // Initialize persistence (migrations + load data) if enabled
@@ -115,10 +123,14 @@ if (!app.Environment.IsDevelopment())
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
-
 app.UseAntiforgery();
 
 app.UseStaticFiles(); // Serve uploaded images from wwwroot/uploads
+
+// Custom middlewares - positioned after UseStaticFiles() to skip static file requests
+app.UseMiddleware<DeviceDetectionMiddleware>();
+app.UseMiddleware<RequestLoggingMiddleware>();
+
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

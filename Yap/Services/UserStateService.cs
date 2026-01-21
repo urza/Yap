@@ -45,6 +45,13 @@ public class UserStateService
     public UserStatus Status { get; set; } = UserStatus.Online;
 
     /// <summary>
+    /// Whether the user is on a mobile device (detected from User-Agent).
+    /// Set once during initial HTTP request, then persisted for the session.
+    /// </summary>
+    [PersistentState]
+    public bool? IsMobile { get; set; }
+
+    /// <summary>
     /// True if the user has entered a username (logged in).
     /// </summary>
     public bool IsLoggedIn => !string.IsNullOrEmpty(Username);

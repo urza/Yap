@@ -236,6 +236,14 @@
     background: var(--status-invisible);
 }
 
+/* Device badge */
+.device-badge {
+    font-size: 0.7rem;
+    margin-left: 0.25rem;
+    filter: grayscale(100%);
+    opacity: 0.5;
+}
+
 /* Admin badge */
 .admin-badge {
     font-size: 0.75rem;

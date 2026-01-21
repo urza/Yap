@@ -17,6 +17,8 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     [Inject] protected ChatNavigationState NavState { get; set; } = default!;
     [Inject] protected NavigationManager Navigation { get; set; } = default!;
     [Inject] protected IJSRuntime JS { get; set; } = default!;
+    [Inject] private IHttpContextAccessor HttpContextAccessor { get; set; } = default!;
+
 
     // Common accessors
     protected string Username => UserState.Username ?? "";
@@ -54,6 +56,16 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     {
         if (firstRender)
         {
+            // Capture device type from middleware (only available during initial HTTP request)
+            if (UserState.IsMobile == null)
+            {
+                var httpContext = HttpContextAccessor.HttpContext;
+                if (httpContext?.Items.TryGetValue("IsMobile", out var isMobileObj) == true && isMobileObj is bool isMobile)
+                {
+                    UserState.IsMobile = isMobile;
+                }
+            }
+
             // Auth guard - layout also checks, but this is a fallback
             if (!UserState.IsLoggedIn)
             {
@@ -65,7 +77,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
             if (!UserState.IsJoinedChat)
             {
                 UserState.SessionId = Guid.NewGuid().ToString();
-                await ChatService.AddUserAsync(UserState.SessionId, Username, UserState.Status);
+                await ChatService.AddUserAsync(UserState.SessionId, Username, UserState.Status, UserState.IsMobile);
 
                 // Save session ID to localStorage for persistent login
                 try { await JS.InvokeVoidAsync("saveLogin", Username, UserState.SessionId); }

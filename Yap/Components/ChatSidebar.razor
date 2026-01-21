@@ -50,7 +50,7 @@
     <div class="sidebar-section">
         <h4>@onlineUsersHeader</h4>
         <div class="users-list">
-            @foreach (var (user, status) in GetSortedUsersWithStatus())
+            @foreach (var (user, status, isMobile) in GetSortedUsersWithStatus())
             {
                 var isCurrentUser = user.Equals(Username, StringComparison.OrdinalIgnoreCase);
                 var isUserAdmin = ChatService.IsAdmin(user);
@@ -63,6 +63,12 @@
                      title="@(isCurrentUser ? "You" : $"Message {user}")">
                     <span class="user-status-dot @statusClass"></span>
                     <span class="user-name">@user</span>
+                    @if (isMobile.HasValue)
+                    {
+                        <span class="device-badge" title="@(isMobile.Value ? "Mobile" : "Desktop")">
+                            @(isMobile.Value ? "📱" : "🖥️")
+                        </span>
+                    }
                     @if (isUserAdmin)
                     {
                         <span class="admin-badge" title="Admin">👑</span>
@@ -82,7 +88,7 @@
 
     // Internal state
     private List<Channel> rooms = new();
-    private List<(string Username, UserStatus Status)> onlineUsers = new();
+    private List<(string Username, UserStatus Status, bool? IsMobile)> onlineUsers = new();
     private Dictionary<string, int> dmUnreadCounts = new();
     private bool isAdmin = false;
     private string onlineUsersHeader = "";
@@ -121,7 +127,7 @@
     private void LoadUnreadCounts()
     {
         dmUnreadCounts.Clear();
-        foreach (var (user, _) in onlineUsers)
+        foreach (var (user, _, _) in onlineUsers)
         {
             if (!user.Equals(Username, StringComparison.OrdinalIgnoreCase))
             {
@@ -283,7 +289,7 @@
         return dmUnreadCounts.TryGetValue(key, out var count) ? count : 0;
     }
 
-    private IEnumerable<(string Username, UserStatus Status)> GetSortedUsersWithStatus()
+    private IEnumerable<(string Username, UserStatus Status, bool? IsMobile)> GetSortedUsersWithStatus()
     {
         var currentUserEntry = onlineUsers
             .Where(u => u.Username.Equals(Username, StringComparison.OrdinalIgnoreCase));

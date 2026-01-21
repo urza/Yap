@@ -369,3 +369,4 @@ uploads/
 /Yap/Data/yap.db
 /Yap/Data/yap.db-shm
 /Yap/Data/yap.db-wal
+/Yap/Data/RequestLogs/*
