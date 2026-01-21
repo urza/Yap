@@ -251,7 +251,7 @@
             typingTimer = new System.Timers.Timer(3000);
             typingTimer.Elapsed += async (s, e) =>
             {
-                await StopTypingAsync();
+                await InvokeAsync(StopTypingAsync);
             };
             typingTimer.Start();
         }
