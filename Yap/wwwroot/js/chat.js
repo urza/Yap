@@ -195,6 +195,30 @@ window.isTouchDevice = () => {
     return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 };
 
+// Prevent Enter from inserting newline (handled server-side for sending)
+// This runs client-side to avoid race conditions with server-side preventDefault
+window.setupEnterKeyHandler = (textareaId) => {
+    const textarea = document.getElementById(textareaId);
+    if (!textarea) return;
+
+    // Remove any existing handler to avoid duplicates
+    if (textarea._enterKeyHandler) {
+        textarea.removeEventListener('keydown', textarea._enterKeyHandler);
+    }
+
+    const isTouch = window.isTouchDevice();
+
+    textarea._enterKeyHandler = (e) => {
+        // On touch devices, Enter creates newline (use send button)
+        // On desktop, Enter sends message (prevent newline), Shift+Enter for newline
+        if (e.key === 'Enter' && !e.shiftKey && !isTouch) {
+            e.preventDefault();
+        }
+    };
+
+    textarea.addEventListener('keydown', textarea._enterKeyHandler);
+};
+
 // PWA Badge API for unread notifications
 window.setAppBadge = async (count) => {
     if ('setAppBadge' in navigator) {

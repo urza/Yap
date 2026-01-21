@@ -57,7 +57,7 @@
      @ondrop:preventDefault>
     <textarea @bind="messageText" @bind:event="oninput" @bind:after="OnInputChangedInternal"
               placeholder="@placeholder" class="message-input"
-              @onkeydown="HandleKeyDown" @onkeydown:preventDefault="shouldPreventDefault"
+              @onkeydown="HandleKeyDown"
               rows="1" id="@TextareaId"></textarea>
     <label class="image-upload-button" title="Upload images">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
@@ -93,7 +93,6 @@
     // Internal state
     private ElementReference dropZoneElement;
     private bool isDraggingOver = false;
-    private bool shouldPreventDefault = false;
     private string messageText = "";
     private string placeholder = "";
     private string typingIndicatorText = "";
@@ -135,6 +134,8 @@
             catch (Exception ex) { Console.WriteLine($"[MessageInput] Failed to setup drop zone: {ex.Message}"); }
             try { isTouchDevice = await JS.InvokeAsync<bool>("isTouchDevice"); }
             catch (Exception ex) { Console.WriteLine($"[MessageInput] Failed to detect touch device: {ex.Message}"); }
+            try { await JS.InvokeVoidAsync("setupEnterKeyHandler", TextareaId); }
+            catch (Exception ex) { Console.WriteLine($"[MessageInput] Failed to setup enter key handler: {ex.Message}"); }
         }
     }
 
@@ -260,17 +261,10 @@
     {
         // On touch devices, Enter creates newline (use send button to send)
         // On desktop, Enter sends message (Shift+Enter for newline)
+        // Note: preventDefault is handled client-side via JS to avoid race conditions
         if (e.Key == "Enter" && !e.ShiftKey && !isTouchDevice)
         {
-            shouldPreventDefault = true;
-            try
-            {
-                await HandleSend();
-            }
-            finally
-            {
-                shouldPreventDefault = false;
-            }
+            await HandleSend();
         }
     }
 
