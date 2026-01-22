@@ -387,10 +387,14 @@
         }
         finally
         {
-            // Hide upload indicator
-            isUploading = false;
+            // Hide upload indicator - must use InvokeAsync because Parallel.ForEachAsync
+            // may leave us on a thread pool thread instead of the Blazor sync context
             uploadingCount = 0;
-            StateHasChanged();
+            await InvokeAsync(() =>
+                {
+                    isUploading = false;
+                    StateHasChanged();
+                });
         }
     }
 
