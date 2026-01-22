@@ -3,6 +3,7 @@
 ## Claude Instructions
 - **Do NOT run `dotnet build` or `dotnet run`** - always ask the user to build/run and report results
 - The dev environment uses .NET 10 which may not be available in the CLI environment
+- **Avoid server-evaluated `@onkeydown:preventDefault` in Blazor Server** - the latency inherent in Blazor Server's SignalR circuit makes server-side property toggling too slow to reliably intercept browser-native events like key presses. Use client-side JavaScript for timing-critical DOM behavior instead.
 
 ## Overview
 A real-time chat application built with Blazor Server (.NET 10), featuring instant messaging, image sharing, and resilient reconnection with persistent state.
