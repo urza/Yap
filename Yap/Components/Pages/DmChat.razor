@@ -149,20 +149,10 @@
         });
     }
 
-    private async Task HandleUsersListChanged()
+    private Task HandleUsersListChanged()
     {
-        await InvokeAsync(() =>
-        {
-            // If the DM user left, go back to lobby (only after initialization)
-            if (initialized)
-            {
-                var onlineUsers = ChatService.GetOnlineUsers();
-                if (!onlineUsers.Any(u => u.Equals(DmUser, StringComparison.OrdinalIgnoreCase)))
-                {
-                    Navigation.NavigateTo("/lobby");
-                }
-            }
-        });
+        // No action needed - DMs persist, offline users will see messages when they return
+        return Task.CompletedTask;
     }
 
     #endregion
