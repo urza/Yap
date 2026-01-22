@@ -4,6 +4,7 @@
 @inject ImageService ImageService
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Environment
+@inject ILogger<MessageInput> Logger
 @implements IAsyncDisposable
 
 @if (!string.IsNullOrEmpty(warningTitle))
@@ -135,11 +136,11 @@
         if (firstRender)
         {
             try { await JS.InvokeVoidAsync("setupDropZone", dropZoneElement, FileInputId); }
-            catch (Exception ex) { Console.WriteLine($"[MessageInput] Failed to setup drop zone: {ex.Message}"); }
+            catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup drop zone"); }
             try { isTouchDevice = await JS.InvokeAsync<bool>("isTouchDevice"); }
-            catch (Exception ex) { Console.WriteLine($"[MessageInput] Failed to detect touch device: {ex.Message}"); }
+            catch (Exception ex) { Logger.LogWarning(ex, "Failed to detect touch device"); }
             try { await JS.InvokeVoidAsync("setupEnterKeyHandler", TextareaId); }
-            catch (Exception ex) { Console.WriteLine($"[MessageInput] Failed to setup enter key handler: {ex.Message}"); }
+            catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup enter key handler"); }
         }
     }
 
@@ -290,7 +291,7 @@
 
         // Reset textarea height after clearing content
         try { await JS.InvokeVoidAsync("resetTextareaHeight", TextareaId); }
-        catch (Exception ex) { Console.WriteLine($"[MessageInput] Failed to reset textarea height: {ex.Message}"); }
+        catch (Exception ex) { Logger.LogWarning(ex, "Failed to reset textarea height"); }
 
         try
         {
@@ -299,7 +300,7 @@
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[MessageInput] Failed to send message: {ex.Message}");
+            Logger.LogError(ex, "Failed to send message");
         }
     }
 
@@ -343,6 +344,9 @@
             isUploading = true;
             uploadingCount = validFiles.Count;
             StateHasChanged();
+
+            Logger.LogInformation("Upload started: {Count} file(s)", validFiles.Count);
+
             var uploadsFolder = Path.Combine(Environment.WebRootPath, "uploads");
             Directory.CreateDirectory(uploadsFolder);
 
@@ -361,28 +365,47 @@
 
                 filePaths.Add(filePath);
                 imageUrls.Add($"/uploads/{uniqueFileName}");
+                Logger.LogDebug("File saved: {FileName}", uniqueFileName);
             }
 
             // Step 2: Generate 800px thumbnails in parallel (needed for gallery display)
             await Parallel.ForEachAsync(filePaths, new ParallelOptions { MaxDegreeOfParallelism = 4 },
-                async (filePath, _) => await ImageService.GenerateMediumThumbnailAsync(filePath));
+                async (filePath, _) =>
+                {
+                    await ImageService.GenerateMediumThumbnailAsync(filePath);
+                    Logger.LogDebug("Medium thumbnail generated: {FileName}", Path.GetFileName(filePath));
+                });
 
             // Step 3: Send message immediately (gallery will show 800px thumbnails)
             if (imageUrls.Count > 0)
             {
                 await ChatService.SendMessageAsync(channelId.Value, Username, "", imageUrls);
+                Logger.LogInformation("Message posted with {Count} image(s)", imageUrls.Count);
             }
 
             // Step 4: Generate 1600px thumbnails in background (for lightbox)
+            var logger = Logger; // Capture for background task
             _ = Task.Run(async () =>
             {
-                await Parallel.ForEachAsync(filePaths, new ParallelOptions { MaxDegreeOfParallelism = 4 },
-                    async (filePath, _) => await ImageService.GenerateLargeThumbnailAsync(filePath));
+                try
+                {
+                    await Parallel.ForEachAsync(filePaths, new ParallelOptions { MaxDegreeOfParallelism = 4 },
+                        async (filePath, _) =>
+                        {
+                            await ImageService.GenerateLargeThumbnailAsync(filePath);
+                            logger.LogDebug("Large thumbnail generated: {FileName}", Path.GetFileName(filePath));
+                        });
+                    logger.LogInformation("Upload completed: all large thumbnails generated");
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error generating large thumbnails");
+                }
             });
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error uploading files: {ex.Message}");
+            Logger.LogError(ex, "Upload failed");
             ShowWarning("Upload failed", "Something went wrong while uploading your images");
         }
         finally
