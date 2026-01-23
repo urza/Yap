@@ -213,10 +213,8 @@
 
     // Emoji picker state
     private bool showEmojiPicker = false;
-    private static readonly string[] DefaultQuickEmojis = ["❤️", "😂", "👍"];
 
-    private IEnumerable<string> GetQuickReactions() =>
-        QuickReactions.Count > 0 ? QuickReactions : DefaultQuickEmojis;
+    private IEnumerable<string> GetQuickReactions() => QuickReactions;
 
     private void ToggleEmojiPicker()
     {

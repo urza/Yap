@@ -20,7 +20,6 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     [Inject] protected IJSRuntime JS { get; set; } = default!;
     [Inject] private IHttpContextAccessor HttpContextAccessor { get; set; } = default!;
 
-
     // Common accessors
     protected Guid UserId => UserState.UserId ?? Guid.Empty;
     protected string Username => UserState.Username ?? "";
@@ -277,7 +276,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
         {
             await JS.InvokeVoidAsync("cleanupScrollDismiss");
         }
-        catch { /* ignore */ }
+        catch (Exception ex) { Console.WriteLine($"[ChatBase] Failed to cleanup scroll dismiss: {ex.Message}"); }
     }
 
     #endregion
