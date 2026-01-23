@@ -455,6 +455,61 @@ window.checkEmojiPickerPosition = (element) => {
 };
 
 // ==========================================
+// Scroll-to-Dismiss (Mobile message actions)
+// ==========================================
+
+let scrollDismissRef = null;
+let scrollWatchActive = false;
+let scrollStartTop = 0;
+let scrollDismissHandler = null;
+const SCROLL_DISMISS_THRESHOLD = 50; // pixels
+
+window.setupScrollDismiss = (dotNetRef) => {
+    scrollDismissRef = dotNetRef;
+    const messagesEl = document.querySelector('.messages');
+    if (!messagesEl) return;
+
+    // Remove existing handler if any
+    if (scrollDismissHandler) {
+        messagesEl.removeEventListener('scroll', scrollDismissHandler);
+    }
+
+    scrollDismissHandler = () => {
+        if (!scrollWatchActive || !scrollDismissRef) return;
+
+        const delta = Math.abs(messagesEl.scrollTop - scrollStartTop);
+        if (delta > SCROLL_DISMISS_THRESHOLD) {
+            scrollWatchActive = false;
+            scrollDismissRef.invokeMethodAsync('DismissHoveredMessage');
+        }
+    };
+
+    messagesEl.addEventListener('scroll', scrollDismissHandler, { passive: true });
+};
+
+window.activateScrollWatch = () => {
+    const messagesEl = document.querySelector('.messages');
+    if (messagesEl) {
+        scrollStartTop = messagesEl.scrollTop;
+        scrollWatchActive = true;
+    }
+};
+
+window.deactivateScrollWatch = () => {
+    scrollWatchActive = false;
+};
+
+window.cleanupScrollDismiss = () => {
+    const messagesEl = document.querySelector('.messages');
+    if (messagesEl && scrollDismissHandler) {
+        messagesEl.removeEventListener('scroll', scrollDismissHandler);
+    }
+    scrollDismissHandler = null;
+    scrollDismissRef = null;
+    scrollWatchActive = false;
+};
+
+// ==========================================
 // Infinite Scroll Support
 // ==========================================
 

@@ -45,6 +45,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
     // Disposable references
     private DotNetObjectReference<ChatBase>? _visibilityRef;
+    private DotNetObjectReference<ChatBase>? _scrollDismissRef;
 
     // Image modal state
     protected bool showImageModal = false;
@@ -116,6 +117,9 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
             // Setup infinite scroll after initial render
             await SetupInfiniteScrollAsync();
+
+            // Setup scroll-to-dismiss for mobile message actions
+            await SetupScrollDismissAsync();
         }
     }
 
@@ -244,6 +248,71 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
         _scrollRef?.Dispose();
         _scrollRef = null;
+    }
+
+    #endregion
+
+    #region Scroll-to-Dismiss (Mobile)
+
+    private async Task SetupScrollDismissAsync()
+    {
+        try
+        {
+            _scrollDismissRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("setupScrollDismiss", _scrollDismissRef);
+        }
+        catch (Exception ex) { Console.WriteLine($"[ChatBase] Failed to setup scroll dismiss: {ex.Message}"); }
+    }
+
+    /// <summary>
+    /// Sets the hovered message. On mobile, also activates scroll watching for dismiss.
+    /// </summary>
+    protected void SetHoveredMessage(Guid? messageId)
+    {
+        hoveredMessageId = messageId;
+
+        // Only do scroll watch on mobile (fire-and-forget to avoid blocking UI)
+        if (UserState.IsMobile == true)
+        {
+            _ = ActivateScrollWatchAsync(messageId.HasValue);
+        }
+    }
+
+    private async Task ActivateScrollWatchAsync(bool activate)
+    {
+        try
+        {
+            if (activate)
+                await JS.InvokeVoidAsync("activateScrollWatch");
+            else
+                await JS.InvokeVoidAsync("deactivateScrollWatch");
+        }
+        catch { /* ignore */ }
+    }
+
+    /// <summary>
+    /// Called from JS when user scrolls past threshold - dismisses message actions popup.
+    /// </summary>
+    [JSInvokable]
+    public async Task DismissHoveredMessage()
+    {
+        await InvokeAsync(() =>
+        {
+            hoveredMessageId = null;
+            StateHasChanged();
+        });
+    }
+
+    private async Task CleanupScrollDismissAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("cleanupScrollDismiss");
+        }
+        catch { /* ignore */ }
+
+        _scrollDismissRef?.Dispose();
+        _scrollDismissRef = null;
     }
 
     #endregion
@@ -492,6 +561,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     public virtual async ValueTask DisposeAsync()
     {
         await CleanupInfiniteScrollAsync();
+        await CleanupScrollDismissAsync();
         _visibilityRef?.Dispose();
     }
 }
