@@ -791,6 +791,18 @@ public class ChatService
         return GetUnreadCount(userId, channelId) > 0;
     }
 
+    /// <summary>
+    /// Clears all read states for a user (used when user is deleted).
+    /// </summary>
+    public void ClearReadStatesForUser(Guid userId)
+    {
+        var keysToRemove = _readStates.Keys.Where(k => k.UserId == userId).ToList();
+        foreach (var key in keysToRemove)
+        {
+            _readStates.TryRemove(key, out _);
+        }
+    }
+
     #endregion
 
     #region DM-specific helpers

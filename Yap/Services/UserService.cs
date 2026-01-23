@@ -258,6 +258,47 @@ public class UserService
     }
 
     /// <summary>
+    /// Deletes a user (used when signing out).
+    /// </summary>
+    public async Task DeleteUserAsync(Guid userId)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        // Remove from in-memory cache
+        _users.TryRemove(userId, out _);
+        _usernameToId.TryRemove(user.Username, out _);
+        _tokenToId.TryRemove(user.Token, out _);
+
+        // If this was the admin, clear admin status
+        lock (_adminLock)
+        {
+            if (_adminUserId == userId)
+            {
+                _adminUserId = null;
+            }
+        }
+
+        // Delete from database (including related read states)
+        if (_persistenceEnabled)
+        {
+            try
+            {
+                await using var db = await _dbFactory!.CreateDbContextAsync();
+                // Delete read states first (foreign key constraint)
+                await db.ChannelReadStates.Where(r => r.UserId == userId).ExecuteDeleteAsync();
+                // Delete user
+                await db.Users.Where(u => u.Id == userId).ExecuteDeleteAsync();
+                _logger.LogInformation("Deleted user: {Username}", user.Username);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to delete user {UserId}", userId);
+            }
+        }
+    }
+
+    /// <summary>
     /// Generates a secure random token.
     /// </summary>
     private static string GenerateToken()

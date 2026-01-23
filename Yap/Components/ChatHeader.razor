@@ -249,6 +249,13 @@
             await ChatService.RemoveUserAsync(UserState.SessionId);
         }
 
+        // Delete user and their data (allows re-registration with same username)
+        if (UserState.UserId.HasValue)
+        {
+            ChatService.ClearReadStatesForUser(UserState.UserId.Value);
+            await UserService.DeleteUserAsync(UserState.UserId.Value);
+        }
+
         // Clear localStorage (persistent login and token)
         await JS.InvokeVoidAsync("clearStoredLogin");
         await JS.InvokeVoidAsync("clearStoredToken");
