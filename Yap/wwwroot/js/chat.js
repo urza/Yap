@@ -446,8 +446,12 @@ window.checkEmojiPickerPosition = (element) => {
     const pickerHeight = 350; // Approximate height of emoji picker
     const viewportHeight = window.innerHeight;
 
-    // If the bottom of the picker would go below viewport, flip it
-    return (rect.bottom + pickerHeight) > viewportHeight;
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    // Only flip if: not enough space below AND more space above than below
+    // This prevents always-flipped on mobile where neither direction has full space
+    return spaceBelow < pickerHeight && spaceAbove > spaceBelow;
 };
 
 // ==========================================
