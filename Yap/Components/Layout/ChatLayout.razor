@@ -9,7 +9,19 @@
 
     <div class="chat-main">
         <div class="messages-container">
-            @Body
+            <ErrorBoundary @ref="errorBoundary">
+                <ChildContent>
+                    @Body
+                </ChildContent>
+                <ErrorContent Context="ex">
+                    <div class="error-content">
+                        <h3>Something went wrong</h3>
+                        <p>@ex.Message</p>
+                        <button class="error-retry-button" @onclick="Recover">Try Again</button>
+                        <button class="error-reload-button" onclick="location.reload()">Reload Page</button>
+                    </div>
+                </ErrorContent>
+            </ErrorBoundary>
         </div>
 
         <ChatSidebar />
@@ -19,6 +31,8 @@
 </div>
 
 @code {
+    private ErrorBoundary? errorBoundary;
+
     protected override void OnInitialized()
     {
         NavState.OnChange += StateHasChanged;
@@ -30,6 +44,11 @@
         {
             Navigation.NavigateTo("/");
         }
+    }
+
+    private void Recover()
+    {
+        errorBoundary?.Recover();
     }
 
     public void Dispose()
