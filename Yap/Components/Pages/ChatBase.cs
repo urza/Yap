@@ -30,7 +30,6 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     protected List<ChatMessage> messages = new();
 
     // UI state
-    protected Guid? hoveredMessageId = null;
     protected Guid? editingMessageId = null;
     protected string editContent = "";
 
@@ -45,7 +44,6 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
     // Disposable references
     private DotNetObjectReference<ChatBase>? _visibilityRef;
-    private DotNetObjectReference<ChatBase>? _scrollDismissRef;
 
     // Image modal state
     protected bool showImageModal = false;
@@ -256,51 +254,21 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
     private async Task SetupScrollDismissAsync()
     {
+        // Pure JS/CSS solution - no Blazor callbacks needed
         try
         {
-            _scrollDismissRef = DotNetObjectReference.Create(this);
-            await JS.InvokeVoidAsync("setupScrollDismiss", _scrollDismissRef);
+            await JS.InvokeVoidAsync("setupScrollDismiss");
         }
         catch (Exception ex) { Console.WriteLine($"[ChatBase] Failed to setup scroll dismiss: {ex.Message}"); }
     }
 
     /// <summary>
-    /// Sets the hovered message. On mobile, also activates scroll watching for dismiss.
+    /// Called on touch start to activate scroll watching (for mobile dismiss).
     /// </summary>
-    protected void SetHoveredMessage(Guid? messageId)
+    protected void ActivateScrollWatch()
     {
-        hoveredMessageId = messageId;
-
-        // Only do scroll watch on mobile (fire-and-forget to avoid blocking UI)
-        if (UserState.IsMobile == true)
-        {
-            _ = ActivateScrollWatchAsync(messageId.HasValue);
-        }
-    }
-
-    private async Task ActivateScrollWatchAsync(bool activate)
-    {
-        try
-        {
-            if (activate)
-                await JS.InvokeVoidAsync("activateScrollWatch");
-            else
-                await JS.InvokeVoidAsync("deactivateScrollWatch");
-        }
-        catch { /* ignore */ }
-    }
-
-    /// <summary>
-    /// Called from JS when user scrolls past threshold - dismisses message actions popup.
-    /// </summary>
-    [JSInvokable]
-    public async Task DismissHoveredMessage()
-    {
-        await InvokeAsync(() =>
-        {
-            hoveredMessageId = null;
-            StateHasChanged();
-        });
+        // Fire-and-forget JS call
+        _ = JS.InvokeVoidAsync("activateScrollWatch");
     }
 
     private async Task CleanupScrollDismissAsync()
@@ -310,9 +278,6 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
             await JS.InvokeVoidAsync("cleanupScrollDismiss");
         }
         catch { /* ignore */ }
-
-        _scrollDismissRef?.Dispose();
-        _scrollDismissRef = null;
     }
 
     #endregion

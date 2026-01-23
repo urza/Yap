@@ -18,9 +18,6 @@
     margin-top: 0;
 }
 
-.message-group.hovered {
-    background: var(--bg-hover);
-}
 
 /* Message header */
 .message-header {
@@ -132,7 +129,7 @@
     opacity: 0.85;
 }
 
-/* Message actions popup */
+/* Message actions popup - hidden by default, shown via CSS :hover */
 .message-actions {
     position: absolute;
     top: -16px;
@@ -144,13 +141,19 @@
     padding: 2px;
     box-shadow: 0 0 0 1px rgba(4,4,5,0.15), 0 4px 4px rgba(0,0,0,0.1);
     z-index: 100;
-    animation: fadeIn 0.1s ease;
+    /* Hidden by default, smooth transition */
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.1s ease;
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
+/* Show on hover or when picker is open - pure CSS, no server round-trip */
+.message-group:hover:not(.system-message) .message-actions,
+.message-group.picker-open .message-actions {
+    opacity: 1;
+    pointer-events: auto;
 }
+
 
 .action-btn {
     background: transparent;

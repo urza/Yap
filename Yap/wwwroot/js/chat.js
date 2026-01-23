@@ -456,16 +456,15 @@ window.checkEmojiPickerPosition = (element) => {
 
 // ==========================================
 // Scroll-to-Dismiss (Mobile message actions)
+// Uses pure CSS class toggling - no Blazor callbacks needed
 // ==========================================
 
-let scrollDismissRef = null;
 let scrollWatchActive = false;
 let scrollStartTop = 0;
 let scrollDismissHandler = null;
 const SCROLL_DISMISS_THRESHOLD = 50; // pixels
 
-window.setupScrollDismiss = (dotNetRef) => {
-    scrollDismissRef = dotNetRef;
+window.setupScrollDismiss = () => {
     const messagesEl = document.querySelector('.messages');
     if (!messagesEl) return;
 
@@ -475,12 +474,13 @@ window.setupScrollDismiss = (dotNetRef) => {
     }
 
     scrollDismissHandler = () => {
-        if (!scrollWatchActive || !scrollDismissRef) return;
+        if (!scrollWatchActive) return;
 
         const delta = Math.abs(messagesEl.scrollTop - scrollStartTop);
         if (delta > SCROLL_DISMISS_THRESHOLD) {
             scrollWatchActive = false;
-            scrollDismissRef.invokeMethodAsync('DismissHoveredMessage');
+            // Add class to hide all message action popups via CSS
+            messagesEl.classList.add('scroll-dismissing');
         }
     };
 
@@ -490,22 +490,20 @@ window.setupScrollDismiss = (dotNetRef) => {
 window.activateScrollWatch = () => {
     const messagesEl = document.querySelector('.messages');
     if (messagesEl) {
+        // Remove dismiss class when user taps a message
+        messagesEl.classList.remove('scroll-dismissing');
         scrollStartTop = messagesEl.scrollTop;
         scrollWatchActive = true;
     }
-};
-
-window.deactivateScrollWatch = () => {
-    scrollWatchActive = false;
 };
 
 window.cleanupScrollDismiss = () => {
     const messagesEl = document.querySelector('.messages');
     if (messagesEl && scrollDismissHandler) {
         messagesEl.removeEventListener('scroll', scrollDismissHandler);
+        messagesEl.classList.remove('scroll-dismissing');
     }
     scrollDismissHandler = null;
-    scrollDismissRef = null;
     scrollWatchActive = false;
 };
 

@@ -34,6 +34,12 @@
     min-width: 0; /* Allow flex item to shrink below content size */
 }
 
+/* Hide message action popups when scroll-dismissing on mobile */
+::deep .messages.scroll-dismissing .message-actions {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
 /* Spacer pushes messages to bottom when few messages */
 ::deep .messages-spacer {
     flex: 1 1 auto;

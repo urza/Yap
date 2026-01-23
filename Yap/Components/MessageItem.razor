@@ -2,9 +2,9 @@
 @using Yap.Services
 @inject EmojiService EmojiService
 
-<div class="message-group @(IsSystem ? "system-message" : "") @(IsHovered ? "hovered" : "") @(showEmojiPicker ? "picker-open" : "")"
-     @onmouseenter="() => OnMouseEnter.InvokeAsync()"
-     @onmouseleave="() => OnMouseLeave.InvokeAsync()">
+<div class="message-group @(IsSystem ? "system-message" : "") @(showEmojiPicker ? "picker-open" : "")"
+     @ontouchstart="HandleTouchStart"
+     @ontouchstart:stopPropagation>
 
     @if (ShowHeader)
     {
@@ -95,8 +95,8 @@
         <div class="emoji-picker-backdrop" @onclick="CloseEmojiPicker"></div>
     }
 
-    @* Message actions popup *@
-    @if ((IsHovered || showEmojiPicker) && !IsSystem && !IsEditing)
+    @* Message actions popup - always rendered, visibility controlled by CSS :hover *@
+    @if (!IsSystem && !IsEditing)
     {
         <div class="message-actions">
             @foreach (var emoji in GetQuickReactions())
@@ -139,7 +139,6 @@
 @code {
     [Parameter, EditorRequired] public ChatMessage Message { get; set; } = default!;
     [Parameter] public bool ShowHeader { get; set; }
-    [Parameter] public bool IsHovered { get; set; }
     [Parameter] public bool IsEditing { get; set; }
     [Parameter] public string CurrentUsername { get; set; } = "";
     [Parameter] public List<string> RecentEmojis { get; set; } = new();  // For full emoji drawer
@@ -154,14 +153,18 @@
     [Parameter] public EventCallback<string> EditContentChanged { get; set; }
 
     // Callbacks
-    [Parameter] public EventCallback OnMouseEnter { get; set; }
-    [Parameter] public EventCallback OnMouseLeave { get; set; }
+    [Parameter] public EventCallback OnTouchStart { get; set; }  // For mobile scroll-dismiss
     [Parameter] public EventCallback<string> OnReaction { get; set; }
     [Parameter] public EventCallback OnStartEdit { get; set; }
     [Parameter] public EventCallback OnSaveEdit { get; set; }
     [Parameter] public EventCallback OnCancelEdit { get; set; }
     [Parameter] public EventCallback OnDelete { get; set; }
     [Parameter] public EventCallback<(List<string> Images, int Index)> OnImageClick { get; set; }
+
+    private async Task HandleTouchStart()
+    {
+        await OnTouchStart.InvokeAsync();
+    }
 
     private async Task OnEditInput(ChangeEventArgs e)
     {
