@@ -206,12 +206,30 @@
     background: var(--bg-hover);
 }
 
+/* Invisible backdrop to catch clicks outside emoji picker */
+.emoji-picker-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 99;
+}
+
 /* Emoji picker inside message-actions */
 ::deep .emoji-picker {
     position: absolute;
     top: 100%;
     right: 0;
     margin-top: 4px;
+}
+
+/* Flipped position when near bottom of viewport */
+::deep .emoji-picker.flipped {
+    top: auto;
+    bottom: 100%;
+    margin-top: 0;
+    margin-bottom: 4px;
 }
 
 /* Reactions display */

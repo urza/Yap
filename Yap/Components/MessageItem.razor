@@ -89,6 +89,12 @@
         </div>
     }
 
+    @* Backdrop to close emoji picker when clicking outside *@
+    @if (showEmojiPicker)
+    {
+        <div class="emoji-picker-backdrop" @onclick="CloseEmojiPicker"></div>
+    }
+
     @* Message actions popup *@
     @if ((IsHovered || showEmojiPicker) && !IsSystem && !IsEditing)
     {
@@ -212,6 +218,11 @@
     private void ToggleEmojiPicker()
     {
         showEmojiPicker = !showEmojiPicker;
+    }
+
+    private void CloseEmojiPicker()
+    {
+        showEmojiPicker = false;
     }
 
     private async Task HandleQuickReaction(string emoji)

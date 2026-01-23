@@ -435,6 +435,22 @@ if ('serviceWorker' in navigator) {
 }
 
 // ==========================================
+// Emoji Picker Positioning
+// ==========================================
+
+// Check if emoji picker would overflow viewport bottom and should flip upward
+window.checkEmojiPickerPosition = (element) => {
+    if (!element) return false;
+
+    const rect = element.getBoundingClientRect();
+    const pickerHeight = 350; // Approximate height of emoji picker
+    const viewportHeight = window.innerHeight;
+
+    // If the bottom of the picker would go below viewport, flip it
+    return (rect.bottom + pickerHeight) > viewportHeight;
+};
+
+// ==========================================
 // Infinite Scroll Support
 // ==========================================
 
