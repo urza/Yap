@@ -97,7 +97,6 @@
         ChatService.OnMessageUpdated += HandleMessageUpdated;
         ChatService.OnMessageDeleted += HandleMessageDeleted;
         ChatService.OnReactionChanged += HandleReactionChanged;
-        ChatService.OnUsersListChanged += HandleUsersListChanged;
 
         initialized = true;
     }
@@ -149,12 +148,6 @@
         });
     }
 
-    private Task HandleUsersListChanged()
-    {
-        // No action needed - DMs persist, offline users will see messages when they return
-        return Task.CompletedTask;
-    }
-
     #endregion
 
     public override async ValueTask DisposeAsync()
@@ -163,7 +156,6 @@
         ChatService.OnMessageUpdated -= HandleMessageUpdated;
         ChatService.OnMessageDeleted -= HandleMessageDeleted;
         ChatService.OnReactionChanged -= HandleReactionChanged;
-        ChatService.OnUsersListChanged -= HandleUsersListChanged;
 
         await base.DisposeAsync();
     }

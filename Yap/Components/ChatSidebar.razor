@@ -291,10 +291,12 @@
 
     private IEnumerable<(string Username, UserStatus Status, bool? IsMobile)> GetSortedUsersWithStatus()
     {
+        var adminEntry = onlineUsers
+            .Where(u => ChatService.IsAdmin(u.Username));
         var currentUserEntry = onlineUsers
-            .Where(u => u.Username.Equals(Username, StringComparison.OrdinalIgnoreCase));
+            .Where(u => u.Username.Equals(Username, StringComparison.OrdinalIgnoreCase) && !ChatService.IsAdmin(u.Username));
         var otherUsers = onlineUsers
-            .Where(u => !u.Username.Equals(Username, StringComparison.OrdinalIgnoreCase))
+            .Where(u => !u.Username.Equals(Username, StringComparison.OrdinalIgnoreCase) && !ChatService.IsAdmin(u.Username))
             .ToList();
 
         var sorted = otherUsers
@@ -302,14 +304,16 @@
             {
                 Entry = u,
                 UnreadCount = GetUnreadDMCount(u.Username),
-                LastDM = ChatService.GetLastDMTimestamp(Username, u.Username)
+                LastDM = ChatService.GetLastDMTimestamp(Username, u.Username),
+                IsOnline = u.Status != UserStatus.Invisible
             })
             .OrderByDescending(x => x.UnreadCount > 0)
+            .ThenByDescending(x => x.IsOnline)
             .ThenByDescending(x => x.LastDM ?? DateTime.MinValue)
             .ThenBy(x => x.Entry.Username)
             .Select(x => x.Entry);
 
-        return currentUserEntry.Concat(sorted);
+        return adminEntry.Concat(currentUserEntry).Concat(sorted);
     }
 
     #endregion
