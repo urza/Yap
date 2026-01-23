@@ -34,6 +34,7 @@
                      IsEditing="@(editingMessageId == message.Id)"
                      CurrentUsername="@Username"
                      RecentEmojis="@recentEmojis"
+                     QuickReactions="@quickReactions"
                      EditContent="@editContent"
                      EditContentChanged="@(v => editContent = v)"
                      OnMouseEnter="@(() => hoveredMessageId = message.Id)"

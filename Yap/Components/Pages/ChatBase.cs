@@ -51,8 +51,12 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     protected List<string> modalGallery = new();
     protected int modalImageIndex = 0;
 
-    // Recent emojis for quick reactions
+    // Recent emojis for full emoji drawer
     protected List<string> recentEmojis = new();
+
+    // Emoji usage counts for quick reactions (loaded once per session)
+    private Dictionary<string, int> emojiCounts = new();
+    protected List<string> quickReactions = new();
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -75,18 +79,34 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
                 return;
             }
 
-            // Join chat if not already joined
-            if (!UserState.IsJoinedChat && UserState.UserId.HasValue)
+            // Join chat - always create fresh session on page load
+            // Old session may be stale (e.g., marked Invisible by circuit close during refresh)
+            if (UserState.UserId.HasValue)
             {
-                UserState.SessionId = Guid.NewGuid().ToString();
-                await ChatService.AddUserAsync(UserState.SessionId, UserState.UserId.Value, Username, UserState.Status, UserState.IsMobile);
+                // Check if we need to rejoin (no session, or session doesn't exist in ChatService)
+                var needsRejoin = string.IsNullOrEmpty(UserState.SessionId)
+                    || !ChatService.HasSession(UserState.SessionId);
+
+                if (needsRejoin)
+                {
+                    UserState.SessionId = Guid.NewGuid().ToString();
+                    await ChatService.AddUserAsync(UserState.SessionId, UserState.UserId.Value, Username, UserState.Status, UserState.IsMobile);
+                }
+                else
+                {
+                    // Session exists - ensure status is correct (might have been set to Invisible during reconnect)
+                    await ChatService.SetUserStatusAsync(UserState.SessionId, UserState.Status);
+                }
             }
 
             // Setup tab notifications
             await SetupTabNotifications();
 
-            // Load recent emojis from localStorage
+            // Load recent emojis from localStorage (for full drawer)
             await LoadRecentEmojisAsync();
+
+            // Load emoji counts and compute quick reactions (cached for session)
+            await LoadEmojiCountsAsync();
 
             // Let derived class initialize
             await OnInitializedChatAsync();
@@ -275,6 +295,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     protected async Task ToggleReaction(Guid messageId, string emoji)
     {
         await AddRecentEmojiAsync(emoji);
+        await IncrementEmojiCountAsync(emoji);
         await ChatService.ToggleReactionAsync(messageId, channelId, UserId, Username, emoji);
     }
 
@@ -408,6 +429,62 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
             await JS.InvokeVoidAsync("localStorage.setItem", RecentEmojisKey, json);
         }
         catch (Exception ex) { Console.WriteLine($"[ChatBase] Failed to save recent emojis: {ex.Message}"); }
+    }
+
+    #endregion
+
+    #region Emoji Counts (Quick Reactions)
+
+    private static readonly string[] DefaultQuickEmojis = ["❤️", "😂", "👍"];
+    private string EmojiCountsKey => $"emojiCounts_{Username}";
+
+    private async Task LoadEmojiCountsAsync()
+    {
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", EmojiCountsKey);
+            if (!string.IsNullOrEmpty(json))
+            {
+                emojiCounts = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(json) ?? new();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ChatBase] Failed to load emoji counts: {ex.Message}");
+            emojiCounts = new();
+        }
+
+        // Compute quick reactions once (cached for session)
+        quickReactions = emojiCounts
+            .OrderByDescending(x => x.Value)
+            .Take(3)
+            .Select(x => x.Key)
+            .ToList();
+
+        // Fill with defaults if needed
+        foreach (var emoji in DefaultQuickEmojis)
+        {
+            if (quickReactions.Count >= 3) break;
+            if (!quickReactions.Contains(emoji))
+                quickReactions.Add(emoji);
+        }
+    }
+
+    private async Task IncrementEmojiCountAsync(string emoji)
+    {
+        // Update count in memory
+        emojiCounts.TryGetValue(emoji, out var count);
+        emojiCounts[emoji] = count + 1;
+
+        // Note: quickReactions is NOT updated here - it stays cached for the session
+
+        // Save to localStorage
+        try
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(emojiCounts);
+            await JS.InvokeVoidAsync("localStorage.setItem", EmojiCountsKey, json);
+        }
+        catch (Exception ex) { Console.WriteLine($"[ChatBase] Failed to save emoji counts: {ex.Message}"); }
     }
 
     #endregion

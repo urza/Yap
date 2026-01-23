@@ -407,6 +407,17 @@ public class ChatService
 
     public async Task AddUserAsync(string sessionId, Guid userId, string username, UserStatus status = UserStatus.Online, bool? isMobile = null)
     {
+        // Remove any existing sessions for this username (stale circuits from page refresh, etc.)
+        var staleSessionIds = _users
+            .Where(kvp => kvp.Value.Username.Equals(username, StringComparison.OrdinalIgnoreCase))
+            .Select(kvp => kvp.Key)
+            .ToList();
+
+        foreach (var staleId in staleSessionIds)
+        {
+            _users.TryRemove(staleId, out _);
+        }
+
         _users[sessionId] = new UserSession(userId, username, sessionId, status, isMobile);
 
         await InvokeParallelAsync(OnUserChanged, username, true);
@@ -468,6 +479,12 @@ public class ChatService
 
     public bool IsUsernameTaken(string username) =>
         _users.Values.Any(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Checks if a session ID exists in the active users list.
+    /// </summary>
+    public bool HasSession(string sessionId) =>
+        _users.ContainsKey(sessionId);
 
     #endregion
 

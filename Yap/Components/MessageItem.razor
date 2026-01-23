@@ -136,7 +136,8 @@
     [Parameter] public bool IsHovered { get; set; }
     [Parameter] public bool IsEditing { get; set; }
     [Parameter] public string CurrentUsername { get; set; } = "";
-    [Parameter] public List<string> RecentEmojis { get; set; } = new();
+    [Parameter] public List<string> RecentEmojis { get; set; } = new();  // For full emoji drawer
+    [Parameter] public List<string> QuickReactions { get; set; } = new(); // Cached quick reactions
 
     // Computed from Message
     private bool IsOwn => Message.Username.Equals(CurrentUsername, StringComparison.OrdinalIgnoreCase);
@@ -206,7 +207,7 @@
     private static readonly string[] DefaultQuickEmojis = ["❤️", "😂", "👍"];
 
     private IEnumerable<string> GetQuickReactions() =>
-        RecentEmojis.Concat(DefaultQuickEmojis).Distinct().Take(3);
+        QuickReactions.Count > 0 ? QuickReactions : DefaultQuickEmojis;
 
     private void ToggleEmojiPicker()
     {
