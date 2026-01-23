@@ -44,6 +44,9 @@ builder.Services.AddRazorComponents()
         // Maximum number of disconnected circuits to retain (default: 100).
         // Increase this if you expect many concurrent users going idle.
         options.DisconnectedCircuitMaxRetained = 1000;
+
+        // Show detailed errors in browser console (useful for debugging)
+        options.DetailedErrors = builder.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("DetailedErrors");
     })
     // =============================================================================
     // PERSISTENT SERVICES (.NET 10)
@@ -261,6 +264,12 @@ app.MapGet("/api/diagnostics/circuits", (CircuitTracker circuitTracker) =>
             disconnected = circuits.Count(c => !c.IsConnected)
         }
     });
+});
+
+// Test exception endpoint
+app.MapGet("/api/test-exception", () =>
+{
+    throw new InvalidOperationException("This is a test exception to verify error handling!");
 });
 
 app.Run();
