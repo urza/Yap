@@ -25,9 +25,28 @@
 
     @* Built-in Blazor error UI - shown automatically when unhandled exceptions occur *@
     <div id="blazor-error-ui" data-nosnippet>
-        An error has occurred.
-        <a href="" class="reload">Reload</a>
-        <a class="dismiss">🗙</a>
+        <div class="error-modal-content">
+            <div class="error-illustration">
+                <pre class="error-ascii">
+    ,--./,-.
+   / #      \
+  |  O    O  |
+  \    __   /
+   '-.__.-'
+  /`-.__.-'\
+ / /  | |  \ \
+( (   | |   ) )
+ \ \  | |  / /
+  '._\|_|/_.'
+    </pre>
+            </div>
+            <h2 class="error-title">Oops! The gremlins got us</h2>
+            <p class="error-message">Something went terribly wrong. Our best engineers (who are also gremlins) are looking into it.</p>
+            <div class="error-actions">
+                <a href="" class="reload">Reload &amp; Try Again</a>
+            </div>
+            <p class="error-hint">If this keeps happening, try clearing your browser cache or yelling at your computer.</p>
+        </div>
     </div>
 
     @*
