@@ -6,15 +6,33 @@ public class Channel
     public ChannelType Type { get; set; }
     public string Name { get; set; } = "";
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// User who created this channel (for rooms).
+    /// </summary>
+    public Guid? CreatedById { get; set; }
+
+    /// <summary>
+    /// Denormalized username of creator (for display).
+    /// </summary>
     public string? CreatedBy { get; set; }
+
     public bool IsDefault { get; set; }
 
-    // DM-specific: the two participants
+    // DM-specific: the two participants (by UserId)
+    public Guid? Participant1Id { get; set; }
+    public Guid? Participant2Id { get; set; }
+
+    // Denormalized usernames for display and URL routing
     public string? Participant1 { get; set; }
     public string? Participant2 { get; set; }
 
-    // Navigation property (not loaded by default)
+    // Navigation properties
     public List<ChatMessage> Messages { get; set; } = new();
+    public User? Creator { get; set; }
+    public User? Participant1User { get; set; }
+    public User? Participant2User { get; set; }
+    public List<ChannelReadState> ReadStates { get; set; } = new();
 
     public bool IsDirectMessage => Type == ChannelType.DirectMessage;
 
@@ -26,11 +44,12 @@ public class Channel
     /// <summary>
     /// Factory method to create a room channel
     /// </summary>
-    public static Channel CreateRoom(string name, string? createdBy = null, bool isDefault = false)
+    public static Channel CreateRoom(string name, Guid? createdById = null, string? createdBy = null, bool isDefault = false)
         => new Channel
         {
             Type = ChannelType.Room,
             Name = name,
+            CreatedById = createdById,
             CreatedBy = createdBy,
             IsDefault = isDefault
         };
@@ -38,17 +57,19 @@ public class Channel
     /// <summary>
     /// Factory method to create a DM channel between two users
     /// </summary>
-    public static Channel CreateDM(string participant1, string participant2)
+    public static Channel CreateDM(Guid participant1Id, string participant1, Guid participant2Id, string participant2)
         => new Channel
         {
             Type = ChannelType.DirectMessage,
+            Participant1Id = participant1Id,
             Participant1 = participant1,
+            Participant2Id = participant2Id,
             Participant2 = participant2,
             Name = ""
         };
 
     /// <summary>
-    /// Checks if a user can access this channel
+    /// Checks if a user can access this channel (by username for compatibility)
     /// </summary>
     public bool CanAccess(string username) =>
         Type == ChannelType.Room ||
@@ -56,7 +77,15 @@ public class Channel
         Participant2?.Equals(username, StringComparison.OrdinalIgnoreCase) == true;
 
     /// <summary>
-    /// For DMs: get the other participant
+    /// Checks if a user can access this channel (by UserId)
+    /// </summary>
+    public bool CanAccess(Guid userId) =>
+        Type == ChannelType.Room ||
+        Participant1Id == userId ||
+        Participant2Id == userId;
+
+    /// <summary>
+    /// For DMs: get the other participant's username
     /// </summary>
     public string? GetOtherParticipant(string username) =>
         Participant1?.Equals(username, StringComparison.OrdinalIgnoreCase) == true
@@ -64,7 +93,13 @@ public class Channel
             : Participant1;
 
     /// <summary>
-    /// For DMs: check if this channel is between these two users
+    /// For DMs: get the other participant's UserId
+    /// </summary>
+    public Guid? GetOtherParticipantId(Guid userId) =>
+        Participant1Id == userId ? Participant2Id : Participant1Id;
+
+    /// <summary>
+    /// For DMs: check if this channel is between these two users (by username)
     /// </summary>
     public bool IsDMBetween(string user1, string user2) =>
         Type == ChannelType.DirectMessage &&
@@ -72,4 +107,12 @@ public class Channel
           Participant2?.Equals(user2, StringComparison.OrdinalIgnoreCase) == true) ||
          (Participant1?.Equals(user2, StringComparison.OrdinalIgnoreCase) == true &&
           Participant2?.Equals(user1, StringComparison.OrdinalIgnoreCase) == true));
+
+    /// <summary>
+    /// For DMs: check if this channel is between these two users (by UserId)
+    /// </summary>
+    public bool IsDMBetween(Guid userId1, Guid userId2) =>
+        Type == ChannelType.DirectMessage &&
+        ((Participant1Id == userId1 && Participant2Id == userId2) ||
+         (Participant1Id == userId2 && Participant2Id == userId1));
 }

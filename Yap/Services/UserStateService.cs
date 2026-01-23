@@ -25,10 +25,22 @@ namespace Yap.Services;
 public class UserStateService
 {
     /// <summary>
-    /// The user's chosen display name. Persisted across circuit evictions.
+    /// The user's unique ID (primary identifier). Persisted across circuit evictions.
+    /// </summary>
+    [PersistentState]
+    public Guid? UserId { get; set; }
+
+    /// <summary>
+    /// The user's username (URL-safe, unique). Persisted across circuit evictions.
     /// </summary>
     [PersistentState]
     public string? Username { get; set; }
+
+    /// <summary>
+    /// Optional display name with relaxed rules. Persisted across circuit evictions.
+    /// </summary>
+    [PersistentState]
+    public string? DisplayName { get; set; }
 
     /// <summary>
     /// Unique session identifier. Used by ChatService to track online users
@@ -52,9 +64,15 @@ public class UserStateService
     public bool? IsMobile { get; set; }
 
     /// <summary>
-    /// True if the user has entered a username (logged in).
+    /// Gets the name to display in the UI.
+    /// Returns DisplayName if set, otherwise Username.
     /// </summary>
-    public bool IsLoggedIn => !string.IsNullOrEmpty(Username);
+    public string EffectiveDisplayName => DisplayName ?? Username ?? "";
+
+    /// <summary>
+    /// True if the user has a valid UserId (logged in).
+    /// </summary>
+    public bool IsLoggedIn => UserId.HasValue;
 
     /// <summary>
     /// True if the user has been added to the chat (joined).

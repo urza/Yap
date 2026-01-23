@@ -1,5 +1,6 @@
 @inject ChatService ChatService
 @inject UserStateService UserState
+@inject UserService UserService
 @inject ChatNavigationState NavState
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
@@ -11,7 +12,7 @@
         <div class="status-dropdown-container">
             <button class="status-button status-@UserState.Status.ToString().ToLower()" @onclick="ToggleDropdown" @onclick:stopPropagation="true">
                 <span class="status-indicator"></span>
-                <span class="status-username">@UserState.Username</span>
+                <span class="status-username">@UserState.EffectiveDisplayName</span>
                 <svg class="dropdown-arrow" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M7 10l5 5 5-5z"/>
                 </svg>
@@ -108,7 +109,7 @@
         await CheckNotificationStatusAsync();
 
         // Subscribe to events
-        ChatService.OnMessageReceived += HandleMessageReceived;
+        ChatService.OnUnreadChanged += HandleUnreadChanged;
         ChatService.OnUsersListChanged += HandleUsersListChanged;
         ChatService.OnUserStatusChanged += HandleUserStatusChanged;
         NavState.OnChange += HandleNavStateChanged;
@@ -248,11 +249,14 @@
             await ChatService.RemoveUserAsync(UserState.SessionId);
         }
 
-        // Clear localStorage (persistent login)
+        // Clear localStorage (persistent login and token)
         await JS.InvokeVoidAsync("clearStoredLogin");
+        await JS.InvokeVoidAsync("clearStoredToken");
 
         // Clear user state
+        UserState.UserId = null;
         UserState.Username = null;
+        UserState.DisplayName = null;
         UserState.SessionId = null;
         UserState.Status = UserStatus.Online;
 
@@ -262,9 +266,21 @@
 
     private async Task RefreshUnreadCountAsync()
     {
-        if (UserState.Username != null)
+        if (UserState.UserId.HasValue)
         {
-            unreadCount = ChatService.GetTotalUnreadDMCount(UserState.Username);
+            // Exclude currently viewed DM channel from unread count
+            Guid? excludeChannelId = null;
+            if (NavState.CurrentDmUser != null)
+            {
+                var otherUser = UserService.GetByUsername(NavState.CurrentDmUser);
+                if (otherUser != null)
+                {
+                    var channel = ChatService.GetOrCreateDMChannelByUsername(UserState.Username ?? "", NavState.CurrentDmUser);
+                    excludeChannelId = channel?.Id;
+                }
+            }
+
+            unreadCount = ChatService.GetTotalUnreadDMCount(UserState.UserId.Value, excludeChannelId);
             await UpdateBadgeAsync();
         }
     }
@@ -291,31 +307,17 @@
         });
     }
 
-    private async Task HandleMessageReceived(ChatMessage message)
+    private async Task HandleUnreadChanged(Guid userId, Guid channelId)
     {
-        await InvokeAsync(async () =>
+        // Only refresh if the unread change is for the current user
+        if (userId == UserState.UserId)
         {
-            // Check if this is a DM message for us (we must be a participant)
-            var channel = ChatService.GetChannel(message.ChannelId);
-            if (channel?.IsDirectMessage == true && channel.CanAccess(UserState.Username ?? ""))
+            await InvokeAsync(async () =>
             {
-                var otherUser = channel.GetOtherParticipant(UserState.Username ?? "");
-
-                // Only increment if message is not from us and we're NOT currently viewing that DM
-                if (!message.Username.Equals(UserState.Username, StringComparison.OrdinalIgnoreCase))
-                {
-                    var isViewingThisDm = NavState.CurrentDmUser != null &&
-                        NavState.CurrentDmUser.Equals(otherUser, StringComparison.OrdinalIgnoreCase);
-
-                    if (!isViewingThisDm)
-                    {
-                        unreadCount++;
-                        await UpdateBadgeAsync();
-                        StateHasChanged();
-                    }
-                }
-            }
-        });
+                await RefreshUnreadCountAsync();
+                StateHasChanged();
+            });
+        }
     }
 
     private async Task HandleUsersListChanged()
@@ -347,7 +349,7 @@
 
     public void Dispose()
     {
-        ChatService.OnMessageReceived -= HandleMessageReceived;
+        ChatService.OnUnreadChanged -= HandleUnreadChanged;
         ChatService.OnUsersListChanged -= HandleUsersListChanged;
         ChatService.OnUserStatusChanged -= HandleUserStatusChanged;
         NavState.OnChange -= HandleNavStateChanged;

@@ -81,6 +81,9 @@
         // Load initial messages (most recent page)
         LoadInitialMessages();
 
+        // Mark channel as read
+        await ChatService.MarkChannelAsReadAsync(UserId, channelId);
+
         // Set navigation context
         var room = ChatService.GetRooms().FirstOrDefault(r => r.Id == channelId);
         currentContext = room?.Name ?? "lobby";
@@ -105,6 +108,9 @@
         ResetPaginationState();
         LoadInitialMessages();
 
+        // Mark channel as read
+        await ChatService.MarkChannelAsReadAsync(UserId, channelId);
+
         var room = ChatService.GetRooms().FirstOrDefault(r => r.Id == channelId);
         currentContext = room?.Name ?? "lobby";
         NavState.SetRoomContext(channelId, currentContext, ChatConfig.GetRandomRoomHeader(currentContext));
@@ -123,6 +129,8 @@
             if (message.ChannelId == channelId)
             {
                 messages.Add(message);
+                // Mark as read since we're viewing this channel
+                await ChatService.MarkChannelAsReadAsync(UserId, channelId);
                 StateHasChanged();
                 await ScrollToBottomAsync();
             }
@@ -144,6 +152,7 @@
             {
                 messages.Add(new ChatMessage(
                     lobbyId,
+                    Guid.Empty, // System messages don't have a real user
                     "System",
                     ChatConfig.GetRandomSystemMessage(user, isJoining),
                     DateTime.UtcNow
@@ -174,6 +183,12 @@
         ChatService.OnReactionChanged -= HandleReactionChanged;
         ChatService.OnUserChanged -= HandleUserChanged;
         ChatService.OnChannelDeleted -= HandleChannelDeleted;
+
+        // Mark channel as read when leaving to ensure no stale unread counts
+        if (channelId != Guid.Empty && UserId != Guid.Empty)
+        {
+            await ChatService.MarkChannelAsReadAsync(UserId, channelId);
+        }
 
         await base.DisposeAsync();
     }

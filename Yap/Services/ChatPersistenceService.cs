@@ -107,6 +107,7 @@ public class ChatPersistenceService
                 // Create a detached copy to avoid navigation property issues
                 var newMessage = new ChatMessage(
                     message.ChannelId,
+                    message.UserId,
                     message.Username,
                     message.Content,
                     message.Timestamp,
@@ -147,7 +148,7 @@ public class ChatPersistenceService
 
     #region Reaction Operations
 
-    public async Task AddReactionAsync(Guid messageId, string emoji, string username)
+    public async Task AddReactionAsync(Guid messageId, Guid userId, string username, string emoji)
     {
         if (!IsEnabled) return;
 
@@ -159,15 +160,16 @@ public class ChatPersistenceService
             var exists = await db.Reactions.AnyAsync(r =>
                 r.MessageId == messageId &&
                 r.Emoji == emoji &&
-                r.Username == username);
+                r.UserId == userId);
 
             if (!exists)
             {
                 db.Reactions.Add(new Reaction
                 {
                     MessageId = messageId,
-                    Emoji = emoji,
-                    Username = username
+                    UserId = userId,
+                    Username = username,
+                    Emoji = emoji
                 });
                 await db.SaveChangesAsync();
             }
@@ -178,7 +180,7 @@ public class ChatPersistenceService
         }
     }
 
-    public async Task RemoveReactionAsync(Guid messageId, string emoji, string username)
+    public async Task RemoveReactionAsync(Guid messageId, Guid userId, string emoji)
     {
         if (!IsEnabled) return;
 
@@ -186,12 +188,50 @@ public class ChatPersistenceService
         {
             await using var db = await _dbFactory!.CreateDbContextAsync();
             await db.Reactions
-                .Where(r => r.MessageId == messageId && r.Emoji == emoji && r.Username == username)
+                .Where(r => r.MessageId == messageId && r.Emoji == emoji && r.UserId == userId)
                 .ExecuteDeleteAsync();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to remove reaction from message {MessageId}", messageId);
+        }
+    }
+
+    #endregion
+
+    #region Read State Operations
+
+    public async Task PersistReadStateAsync(ChannelReadState readState)
+    {
+        if (!IsEnabled) return;
+
+        try
+        {
+            await using var db = await _dbFactory!.CreateDbContextAsync();
+
+            var existing = await db.ChannelReadStates.FindAsync(readState.UserId, readState.ChannelId);
+            if (existing != null)
+            {
+                existing.LastReadAt = readState.LastReadAt;
+                existing.UnreadCount = readState.UnreadCount;
+            }
+            else
+            {
+                db.ChannelReadStates.Add(new ChannelReadState
+                {
+                    UserId = readState.UserId,
+                    ChannelId = readState.ChannelId,
+                    LastReadAt = readState.LastReadAt,
+                    UnreadCount = readState.UnreadCount
+                });
+            }
+
+            await db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to persist read state for user {UserId} channel {ChannelId}",
+                readState.UserId, readState.ChannelId);
         }
     }
 
@@ -278,7 +318,7 @@ public class ChatPersistenceService
     #region Snapshot Loading
 
     /// <summary>
-    /// Loads all channels and messages from the database.
+    /// Loads all channels, messages, and read states from the database.
     /// Returns null if persistence is disabled.
     /// </summary>
     public async Task<ChatSnapshot?> LoadSnapshotAsync()
@@ -298,6 +338,10 @@ public class ChatPersistenceService
                 .AsNoTracking()
                 .ToListAsync();
 
+            var readStates = await db.ChannelReadStates
+                .AsNoTracking()
+                .ToListAsync();
+
             var messagesByChannel = messages
                 .GroupBy(m => m.ChannelId)
                 .ToDictionary(
@@ -306,10 +350,10 @@ public class ChatPersistenceService
                 );
 
             _logger.LogInformation(
-                "Loaded {ChannelCount} channels and {MessageCount} messages from database",
-                channels.Count, messages.Count);
+                "Loaded {ChannelCount} channels, {MessageCount} messages, {ReadStateCount} read states from database",
+                channels.Count, messages.Count, readStates.Count);
 
-            return new ChatSnapshot(channels, messagesByChannel);
+            return new ChatSnapshot(channels, messagesByChannel, readStates);
         }
         catch (Exception ex)
         {
@@ -326,5 +370,6 @@ public class ChatPersistenceService
 /// </summary>
 public record ChatSnapshot(
     List<Channel> Channels,
-    Dictionary<Guid, List<ChatMessage>> MessagesByChannel
+    Dictionary<Guid, List<ChatMessage>> MessagesByChannel,
+    List<ChannelReadState> ReadStates
 );

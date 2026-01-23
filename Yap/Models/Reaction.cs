@@ -4,11 +4,22 @@ public class Reaction
 {
     public int Id { get; set; }
     public Guid MessageId { get; set; }
-    public string Emoji { get; set; } = "";
+
+    /// <summary>
+    /// The user who added this reaction (foreign key to User).
+    /// </summary>
+    public Guid UserId { get; set; }
+
+    /// <summary>
+    /// Denormalized username for display (avoids joins for common reads).
+    /// </summary>
     public string Username { get; set; } = "";
 
-    // Navigation property
+    public string Emoji { get; set; } = "";
+
+    // Navigation properties
     public ChatMessage Message { get; set; } = null!;
+    public User User { get; set; } = null!;
 }
 
 public static class ReactionExtensions

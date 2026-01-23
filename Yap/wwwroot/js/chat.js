@@ -3,7 +3,41 @@ let dotNetRef = null;
 let notificationAudio = null;
 
 // ==========================================
-// Login Persistence (localStorage)
+// Token-based Authentication (localStorage)
+// ==========================================
+const TOKEN_KEY = 'yap_token';
+
+window.saveToken = (token) => {
+    try {
+        localStorage.setItem(TOKEN_KEY, token);
+        return true;
+    } catch (e) {
+        console.warn('[Storage] Failed to save token:', e);
+        return false;
+    }
+};
+
+window.getStoredToken = () => {
+    try {
+        return localStorage.getItem(TOKEN_KEY);
+    } catch (e) {
+        console.warn('[Storage] Failed to get token:', e);
+        return null;
+    }
+};
+
+window.clearStoredToken = () => {
+    try {
+        localStorage.removeItem(TOKEN_KEY);
+        return true;
+    } catch (e) {
+        console.warn('[Storage] Failed to clear token:', e);
+        return false;
+    }
+};
+
+// ==========================================
+// Login Persistence (localStorage) - Legacy
 // ==========================================
 const USERNAME_KEY = 'yap_username';
 const SESSION_KEY = 'yap_session';
@@ -37,6 +71,8 @@ window.clearStoredLogin = () => {
     try {
         localStorage.removeItem(USERNAME_KEY);
         localStorage.removeItem(SESSION_KEY);
+        // Also clear token when clearing login
+        localStorage.removeItem(TOKEN_KEY);
         return true;
     } catch (e) {
         console.warn('[Storage] Failed to clear login:', e);

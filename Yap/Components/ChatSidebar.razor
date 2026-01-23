@@ -1,5 +1,6 @@
 @inject ChatService ChatService
 @inject UserStateService UserState
+@inject UserService UserService
 @inject ChatConfigService ChatConfig
 @inject ChatNavigationState NavState
 @inject NavigationManager Navigation
@@ -13,9 +14,14 @@
             @foreach (var room in rooms)
             {
                 var isActive = NavState.CurrentDmUser == null && NavState.CurrentRoomId == room.Id;
-                <div class="room-item @(isActive ? "active" : "")" @onclick="() => SwitchToRoom(room.Id)">
+                var hasUnread = !isActive && HasUnreadInRoom(room.Id);
+                <div class="room-item @(isActive ? "active" : "") @(hasUnread ? "has-unread" : "")" @onclick="() => SwitchToRoom(room.Id)">
                     <span class="room-icon">#</span>
                     <span class="room-name">@room.Name</span>
+                    @if (hasUnread)
+                    {
+                        <span class="room-unread-dot"></span>
+                    }
                     @if (isAdmin && !room.IsDefault)
                     {
                         <button class="room-delete" @onclick="() => DeleteRoom(room.Id)"
@@ -84,12 +90,12 @@
 </div>
 
 @code {
+    private Guid UserId => UserState.UserId ?? Guid.Empty;
     private string Username => UserState.Username ?? "";
 
     // Internal state
     private List<Channel> rooms = new();
     private List<(string Username, UserStatus Status, bool? IsMobile)> onlineUsers = new();
-    private Dictionary<string, int> dmUnreadCounts = new();
     private bool isAdmin = false;
     private string onlineUsersHeader = "";
 
@@ -104,9 +110,8 @@
         // Get initial state
         rooms = ChatService.GetRooms();
         RefreshOnlineUsers();
-        isAdmin = ChatService.IsAdmin(Username);
+        isAdmin = ChatService.IsAdmin(UserId);
         UpdateOnlineUsersHeader();
-        LoadUnreadCounts();
 
         // Subscribe to events
         ChatService.OnChannelCreated += HandleChannelCreated;
@@ -114,6 +119,7 @@
         ChatService.OnUsersListChanged += HandleUsersListChanged;
         ChatService.OnUserStatusChanged += HandleUserStatusChanged;
         ChatService.OnMessageReceived += HandleMessageReceived;
+        ChatService.OnUnreadChanged += HandleUnreadChanged;
         ChatService.OnAdminChanged += HandleAdminChanged;
         NavState.OnChange += StateHasChanged;
     }
@@ -124,17 +130,26 @@
         onlineUsers = ChatService.GetAllUsersWithStatus();
     }
 
-    private void LoadUnreadCounts()
+    private bool HasUnreadInRoom(Guid roomId)
     {
-        dmUnreadCounts.Clear();
-        foreach (var (user, _, _) in onlineUsers)
-        {
-            if (!user.Equals(Username, StringComparison.OrdinalIgnoreCase))
-            {
-                var count = ChatService.GetUnreadDMCount(Username, user);
-                if (count > 0) dmUnreadCounts[user.ToLowerInvariant()] = count;
-            }
-        }
+        return ChatService.HasUnreadInRoom(UserId, roomId);
+    }
+
+    private int GetUnreadDMCountForUser(string otherUsername)
+    {
+        // If we're currently viewing this DM, don't show unread
+        if (NavState.CurrentDmUser?.Equals(otherUsername, StringComparison.OrdinalIgnoreCase) == true)
+            return 0;
+
+        var otherUser = UserService.GetByUsername(otherUsername);
+        if (otherUser == null) return 0;
+
+        // Find the DM channel between current user and other user
+        var channels = ChatService.GetDMChannels(Username);
+        var dmChannel = channels.FirstOrDefault(c => c.IsDMBetween(Username, otherUsername));
+        if (dmChannel == null) return 0;
+
+        return ChatService.GetUnreadCount(UserId, dmChannel.Id);
     }
 
     #region Event Handlers
@@ -166,7 +181,6 @@
         {
             RefreshOnlineUsers();
             UpdateOnlineUsersHeader();
-            LoadUnreadCounts();
             StateHasChanged();
         });
     }
@@ -184,32 +198,26 @@
     {
         await InvokeAsync(() =>
         {
-            // Check if this is a DM message for us (we must be a participant)
-            var channel = ChatService.GetChannel(message.ChannelId);
-            if (channel?.IsDirectMessage == true && channel.CanAccess(Username))
-            {
-                var otherUser = channel.GetOtherParticipant(Username);
-                if (otherUser != null && !message.Username.Equals(Username, StringComparison.OrdinalIgnoreCase))
-                {
-                    // Don't increment if we're viewing this DM
-                    if (NavState.CurrentDmUser == null ||
-                        !NavState.CurrentDmUser.Equals(otherUser, StringComparison.OrdinalIgnoreCase))
-                    {
-                        var key = otherUser.ToLowerInvariant();
-                        if (!dmUnreadCounts.ContainsKey(key)) dmUnreadCounts[key] = 0;
-                        dmUnreadCounts[key]++;
-                        StateHasChanged();
-                    }
-                }
-            }
+            // Re-render to update unread indicators
+            // The unread counts are now managed by ChatService
+            StateHasChanged();
         });
+    }
+
+    private async Task HandleUnreadChanged(Guid userId, Guid channelId)
+    {
+        // Only refresh if the unread change is for the current user
+        if (userId == UserId)
+        {
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task HandleAdminChanged(string? adminUser)
     {
         await InvokeAsync(() =>
         {
-            isAdmin = ChatService.IsAdmin(Username);
+            isAdmin = ChatService.IsAdmin(UserId);
             StateHasChanged();
         });
     }
@@ -227,14 +235,14 @@
     private async Task CreateRoom()
     {
         if (string.IsNullOrWhiteSpace(newRoomName)) return;
-        await ChatService.CreateRoomAsync(Username, newRoomName);
+        await ChatService.CreateRoomAsync(UserId, Username, newRoomName);
         showNewRoomInput = false;
         newRoomName = "";
     }
 
     private async Task DeleteRoom(Guid roomId)
     {
-        await ChatService.DeleteRoomAsync(Username, roomId);
+        await ChatService.DeleteRoomAsync(UserId, roomId);
     }
 
     private void ShowNewRoomInput()
@@ -273,20 +281,12 @@
     {
         if (targetUser.Equals(Username, StringComparison.OrdinalIgnoreCase)) return;
 
-        // Clear unread count when opening DM
-        var key = targetUser.ToLowerInvariant();
-        if (dmUnreadCounts.ContainsKey(key))
-        {
-            dmUnreadCounts[key] = 0;
-        }
-
         Navigation.NavigateTo($"/dm/{Uri.EscapeDataString(targetUser)}");
     }
 
     private int GetUnreadDMCount(string fromUser)
     {
-        var key = fromUser.ToLowerInvariant();
-        return dmUnreadCounts.TryGetValue(key, out var count) ? count : 0;
+        return GetUnreadDMCountForUser(fromUser);
     }
 
     private IEnumerable<(string Username, UserStatus Status, bool? IsMobile)> GetSortedUsersWithStatus()
@@ -334,6 +334,7 @@
         ChatService.OnUsersListChanged -= HandleUsersListChanged;
         ChatService.OnUserStatusChanged -= HandleUserStatusChanged;
         ChatService.OnMessageReceived -= HandleMessageReceived;
+        ChatService.OnUnreadChanged -= HandleUnreadChanged;
         ChatService.OnAdminChanged -= HandleAdminChanged;
         NavState.OnChange -= StateHasChanged;
     }

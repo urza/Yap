@@ -76,15 +76,24 @@
     {
         previousDmUser = DmUser;
 
+        // Lookup the other user by username
+        var otherUser = UserService.GetByUsername(DmUser);
+        if (otherUser == null)
+        {
+            // User doesn't exist - redirect to lobby
+            Navigation.NavigateTo("/lobby");
+            return;
+        }
+
         // Get or create DM channel
-        var channel = ChatService.GetOrCreateDMChannel(Username, DmUser);
+        var channel = ChatService.GetOrCreateDMChannel(UserId, Username, otherUser.Id, otherUser.Username);
         channelId = channel.Id;
 
         // Load initial messages (most recent page)
         LoadInitialMessages();
 
-        // Mark messages as read
-        ChatService.MarkDMsAsRead(Username, DmUser);
+        // Mark channel as read
+        await ChatService.MarkChannelAsReadAsync(UserId, channelId);
 
         // Set navigation context
         currentContext = DmUser;
@@ -103,16 +112,25 @@
 
     private async Task SwitchDmContentAsync()
     {
+        // Lookup the other user by username
+        var otherUser = UserService.GetByUsername(DmUser);
+        if (otherUser == null)
+        {
+            // User doesn't exist - redirect to lobby
+            Navigation.NavigateTo("/lobby");
+            return;
+        }
+
         // Get or create new DM channel
-        var channel = ChatService.GetOrCreateDMChannel(Username, DmUser);
+        var channel = ChatService.GetOrCreateDMChannel(UserId, Username, otherUser.Id, otherUser.Username);
         channelId = channel.Id;
 
         // Reset pagination state and load fresh
         ResetPaginationState();
         LoadInitialMessages();
 
-        // Mark as read
-        ChatService.MarkDMsAsRead(Username, DmUser);
+        // Mark channel as read
+        await ChatService.MarkChannelAsReadAsync(UserId, channelId);
 
         // Update context
         currentContext = DmUser;
@@ -132,7 +150,7 @@
             if (message.ChannelId == channelId)
             {
                 messages.Add(message);
-                ChatService.MarkDMsAsRead(Username, DmUser);
+                await ChatService.MarkChannelAsReadAsync(UserId, channelId);
                 StateHasChanged();
                 await ScrollToBottomAsync();
             }
@@ -156,6 +174,12 @@
         ChatService.OnMessageUpdated -= HandleMessageUpdated;
         ChatService.OnMessageDeleted -= HandleMessageDeleted;
         ChatService.OnReactionChanged -= HandleReactionChanged;
+
+        // Mark channel as read when leaving to ensure no stale unread counts
+        if (channelId != Guid.Empty && UserId != Guid.Empty)
+        {
+            await ChatService.MarkChannelAsReadAsync(UserId, channelId);
+        }
 
         await base.DisposeAsync();
     }

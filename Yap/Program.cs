@@ -82,6 +82,7 @@ builder.Services.AddSingleton<ImageService>();
 builder.Services.AddSingleton<PushSubscriptionStore>();
 builder.Services.AddSingleton<PushNotificationService>();
 builder.Services.AddSingleton<CircuitTracker>();  // Circuit diagnostics
+builder.Services.AddSingleton<UserService>();     // User management with token auth
 builder.Services.AddSingleton<ChatService>();
 builder.Services.AddScoped<ChatConfigService>();
 builder.Services.AddScoped<EmojiService>();
@@ -100,6 +101,9 @@ var app = builder.Build();
 
 // Initialize persistence (migrations + load data) if enabled
 await app.Services.InitializePersistenceAsync();
+
+// Initialize users from database (must be before ChatService.InitializeAsync)
+await app.Services.GetRequiredService<UserService>().LoadUsersAsync();
 
 // Clear uploads folder on start if configured
 if (builder.Configuration.GetValue<bool>("ChatSettings:ClearUploadsOnStart", true))

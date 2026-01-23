@@ -1,6 +1,7 @@
 @inject ChatService ChatService
 @inject ChatConfigService ChatConfig
 @inject UserStateService UserState
+@inject UserService UserService
 @inject ImageService ImageService
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Environment
@@ -84,6 +85,7 @@
     [Parameter] public Guid? RoomId { get; set; }
     [Parameter] public string? DmUser { get; set; }
 
+    private Guid UserId => UserState.UserId ?? Guid.Empty;
     private string Username => UserState.Username ?? "";
     private bool IsRoomContext => RoomId.HasValue;
     private bool IsDmContext => !string.IsNullOrEmpty(DmUser);
@@ -152,8 +154,16 @@
         }
         else if (IsDmContext && !string.IsNullOrEmpty(DmUser))
         {
-            var channel = ChatService.GetOrCreateDMChannel(Username, DmUser);
-            channelId = channel.Id;
+            var otherUser = UserService.GetByUsername(DmUser);
+            if (otherUser != null)
+            {
+                var channel = ChatService.GetOrCreateDMChannel(UserId, Username, otherUser.Id, otherUser.Username);
+                channelId = channel.Id;
+            }
+            else
+            {
+                channelId = null;
+            }
         }
         else
         {
@@ -295,7 +305,7 @@
 
         try
         {
-            await ChatService.SendMessageAsync(channelId.Value, Username, content);
+            await ChatService.SendMessageAsync(channelId.Value, UserId, Username, content);
             await StopTypingAsync();
         }
         catch (Exception ex)
@@ -379,7 +389,7 @@
             // Step 3: Send message immediately (gallery will show 800px thumbnails)
             if (imageUrls.Count > 0)
             {
-                await ChatService.SendMessageAsync(channelId.Value, Username, "", imageUrls);
+                await ChatService.SendMessageAsync(channelId.Value, UserId, Username, "", imageUrls);
                 Logger.LogInformation("Message posted with {Count} image(s)", imageUrls.Count);
             }
 

@@ -1,6 +1,7 @@
 @page "/"
 @inject ChatConfigService ChatConfig
 @inject ChatService ChatService
+@inject UserService UserService
 @inject UserStateService UserState
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
@@ -36,7 +37,6 @@
     private bool hasError = false;
     private bool isLengthError = false;
     private bool hasBlurred = false;
-    private bool isAutoLoggingIn = false;
     private bool _shouldRedirect = false;
 
     // Username rules: 2-23 chars, lowercase a-z, 0-9, underscore, period, no consecutive periods
@@ -74,7 +74,7 @@
             return;
         }
 
-        // Check localStorage for stored username (requires JS interop, so must be in OnAfterRender)
+        // Check localStorage for stored token (requires JS interop, so must be in OnAfterRender)
         await TryAutoLoginAsync();
     }
 
@@ -82,38 +82,70 @@
     {
         try
         {
+            // First try token-based auth (new system)
+            var storedToken = await JS.InvokeAsync<string?>("getStoredToken");
+            if (!string.IsNullOrWhiteSpace(storedToken))
+            {
+                var user = UserService.AuthenticateByToken(storedToken);
+                if (user != null)
+                {
+                    // Token valid - populate user state and redirect
+                    UserState.UserId = user.Id;
+                    UserState.Username = user.Username;
+                    UserState.DisplayName = user.DisplayName;
+                    NavigateToLobby();
+                    return;
+                }
+                else
+                {
+                    // Token invalid - clear it
+                    await JS.InvokeVoidAsync("clearStoredToken");
+                }
+            }
+
+            // Fall back to legacy login (username/sessionId) for migration
             var storedLoginJson = await JS.InvokeAsync<string?>("getStoredLogin");
-            if (string.IsNullOrWhiteSpace(storedLoginJson))
-                return;
-
-            var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            var storedLogin = System.Text.Json.JsonSerializer.Deserialize<StoredLogin>(storedLoginJson, jsonOptions);
-            if (storedLogin == null || string.IsNullOrWhiteSpace(storedLogin.Username))
-                return;
-
-            // Remove old session if exists (handles page refresh case)
-            if (!string.IsNullOrEmpty(storedLogin.SessionId))
+            if (!string.IsNullOrWhiteSpace(storedLoginJson))
             {
-                await ChatService.RemoveUserAsync(storedLogin.SessionId);
-            }
+                var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var storedLogin = System.Text.Json.JsonSerializer.Deserialize<StoredLogin>(storedLoginJson, jsonOptions);
+                if (storedLogin != null && !string.IsNullOrWhiteSpace(storedLogin.Username))
+                {
+                    // Check if this username already has a User record
+                    var existingUser = UserService.GetByUsername(storedLogin.Username);
+                    if (existingUser != null)
+                    {
+                        // Username exists - user needs to create new account or we migrate them
+                        // For now, clear storage and let them re-register
+                        await JS.InvokeVoidAsync("clearStoredLogin");
+                        usernameInput = storedLogin.Username;
+                        hasError = true;
+                        hasBlurred = true;
+                        errorMessage = "Please re-enter your username to continue";
+                        StateHasChanged();
+                        return;
+                    }
 
-            // Check if username is STILL taken by someone else (different session)
-            if (ChatService.IsUsernameTaken(storedLogin.Username))
-            {
-                // Username taken by another user - clear storage and show error
-                await JS.InvokeVoidAsync("clearStoredLogin");
-                hasError = true;
-                hasBlurred = true;
-                errorMessage = $"Username '{storedLogin.Username}' is already in use";
-                usernameInput = storedLogin.Username;
-                StateHasChanged();
-                return;
-            }
+                    // Username doesn't exist in new system - auto-migrate by creating new user
+                    if (!UserService.IsUsernameTaken(storedLogin.Username))
+                    {
+                        var newUser = await UserService.CreateUserAsync(storedLogin.Username);
+                        if (newUser != null)
+                        {
+                            // Clear old storage and save new token
+                            await JS.InvokeVoidAsync("clearStoredLogin");
+                            await JS.InvokeVoidAsync("saveToken", newUser.Token);
 
-            // Auto-login with stored username
-            isAutoLoggingIn = true;
-            UserState.Username = storedLogin.Username;
-            NavigateToLobby();
+                            // Populate user state
+                            UserState.UserId = newUser.Id;
+                            UserState.Username = newUser.Username;
+                            UserState.DisplayName = newUser.DisplayName;
+                            NavigateToLobby();
+                            return;
+                        }
+                    }
+                }
+            }
         }
         catch (TaskCanceledException)
         {
@@ -180,8 +212,8 @@
             return;
         }
 
-        // Username must be unique
-        if (ChatService.IsUsernameTaken(usernameInput))
+        // Username must be unique (check UserService, not ChatService)
+        if (UserService.IsUsernameTaken(usernameInput))
         {
             hasError = true;
             errorMessage = "Username is already taken";
@@ -204,10 +236,24 @@
         if (!IsValid) return;
 
         var username = usernameInput.Trim();
-        UserState.Username = username;
 
-        // Save to localStorage for persistent login
-        await JS.InvokeVoidAsync("saveUsername", username);
+        // Create user with token
+        var user = await UserService.CreateUserAsync(username);
+        if (user == null)
+        {
+            hasError = true;
+            errorMessage = "Failed to create user. Please try again.";
+            StateHasChanged();
+            return;
+        }
+
+        // Populate user state
+        UserState.UserId = user.Id;
+        UserState.Username = user.Username;
+        UserState.DisplayName = user.DisplayName;
+
+        // Save token to localStorage
+        await JS.InvokeVoidAsync("saveToken", user.Token);
 
         try
         {

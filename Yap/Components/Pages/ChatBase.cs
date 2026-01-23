@@ -14,6 +14,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     [Inject] protected ChatService ChatService { get; set; } = default!;
     [Inject] protected ChatConfigService ChatConfig { get; set; } = default!;
     [Inject] protected UserStateService UserState { get; set; } = default!;
+    [Inject] protected UserService UserService { get; set; } = default!;
     [Inject] protected ChatNavigationState NavState { get; set; } = default!;
     [Inject] protected NavigationManager Navigation { get; set; } = default!;
     [Inject] protected IJSRuntime JS { get; set; } = default!;
@@ -21,6 +22,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
 
     // Common accessors
+    protected Guid UserId => UserState.UserId ?? Guid.Empty;
     protected string Username => UserState.Username ?? "";
 
     // Channel state - set by derived classes
@@ -74,14 +76,10 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
             }
 
             // Join chat if not already joined
-            if (!UserState.IsJoinedChat)
+            if (!UserState.IsJoinedChat && UserState.UserId.HasValue)
             {
                 UserState.SessionId = Guid.NewGuid().ToString();
-                await ChatService.AddUserAsync(UserState.SessionId, Username, UserState.Status, UserState.IsMobile);
-
-                // Save session ID to localStorage for persistent login
-                try { await JS.InvokeVoidAsync("saveLogin", Username, UserState.SessionId); }
-                catch (Exception ex) { Console.WriteLine($"[ChatBase] Failed to save login: {ex.Message}"); }
+                await ChatService.AddUserAsync(UserState.SessionId, UserState.UserId.Value, Username, UserState.Status, UserState.IsMobile);
             }
 
             // Setup tab notifications
@@ -277,7 +275,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     protected async Task ToggleReaction(Guid messageId, string emoji)
     {
         await AddRecentEmojiAsync(emoji);
-        await ChatService.ToggleReactionAsync(messageId, channelId, Username, emoji);
+        await ChatService.ToggleReactionAsync(messageId, channelId, UserId, Username, emoji);
     }
 
     protected void StartEdit(ChatMessage message)

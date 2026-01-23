@@ -13,6 +13,7 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
 
     private readonly ChatService _chatService;
     private readonly UserStateService _userState;
+    private readonly UserService _userService;
     private readonly CircuitTracker _circuitTracker;
     private readonly ILogger<ChatCircuitHandler> _logger;
 
@@ -29,11 +30,13 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
     public ChatCircuitHandler(
         ChatService chatService,
         UserStateService userState,
+        UserService userService,
         CircuitTracker circuitTracker,
         ILogger<ChatCircuitHandler> logger)
     {
         _chatService = chatService;
         _userState = userState;
+        _userService = userService;
         _circuitTracker = circuitTracker;
         _logger = logger;
     }
@@ -80,6 +83,12 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
                 _statusBeforeDisconnect = currentStatus;
                 _logger.LogDebug("Connection lost for {Username}, marking as Invisible", _userState.Username);
                 await _chatService.SetUserStatusAsync(_userState.SessionId, UserStatus.Invisible);
+            }
+
+            // Update LastSeenAt for the user
+            if (_userState.UserId.HasValue)
+            {
+                await _userService.UpdateLastSeenAsync(_userState.UserId.Value);
             }
         }
 
