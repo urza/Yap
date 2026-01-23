@@ -4,6 +4,13 @@ using SixLabors.ImageSharp.Processing;
 
 namespace Yap.Services;
 
+/// <summary>
+/// - Generates WebP thumbnails on upload at two sizes: 800px (gallery) and 1600px (lightbox)
+/// - Uses SixLabors.ImageSharp for cross-platform image processing
+/// - Smart resampling: Lanczos3 for photos, Box for screenshots/graphics
+/// - Skips resizing for small files(<500KB), just converts to WebP
+/// - Auto-orients images based on EXIF data
+/// </summary>
 public class ImageService
 {
     // Available sizes for different use cases

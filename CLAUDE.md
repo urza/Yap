@@ -3,7 +3,40 @@
 ## Claude Instructions
 - **Do NOT run `dotnet build` or `dotnet run`** - always ask the user to build/run and report results
 - The dev environment uses .NET 10 which may not be available in the CLI environment
-- **Avoid server-evaluated `@onkeydown:preventDefault` in Blazor Server** - the latency inherent in Blazor Server's SignalR circuit makes server-side property toggling too slow to reliably intercept browser-native events like key presses. Use client-side JavaScript for timing-critical DOM behavior instead.
+
+## Coding Principles
+
+### Core Values
+- **Simplicity**: Prefer straightforward solutions over over-engineered ones. 
+- **Maintainability**: Write code that's easy to change. Avoid tight coupling, keep components focused.
+- **Understandability**: Think about the next developer (including future you) - will he understand this?
+- **Elegance**: Strive for solutions that feel "right" - minimal moving parts, clear intent, no unnecessary complexity.
+
+When in doubt, choose the simpler path. Refactor when patterns emerge, not in anticipation of hypothetical needs.
+
+### Blazor-First Development
+Embrace Blazor's declarative, binding-based model as the default approach:
+
+- **Data binding**: Let UI reflect state automatically - modify properties, UI updates. Avoid manual DOM manipulation.
+- **Component composition**: Break UI into reusable components with clear `[Parameter]` contracts.
+- **Event callbacks**: Use `EventCallback<T>` for child-to-parent communication.
+- **Cascading values**: Use for deeply-nested shared state (e.g., theme, user context).
+- **State management**: Keep state in services (singleton for shared, scoped for per-user), let components subscribe to changes.
+- **Read Blazor documentation**: Feel free to lookup Blazor Server best practices and Documentation.
+
+### Blazor Server Latency Exceptions
+Blazor Server's SignalR round-trip adds latency. Only escape to CSS/JS for **proven** performance issues:
+
+- **Rapid hover effects**: Use CSS `:hover` when Blazor `@onmouseenter`/`@onmouseleave` causes visible lag (e.g., message action popups).
+- **Key interception**: Avoid server-evaluated `@onkeydown:preventDefault` - use client-side JS for timing-critical input handling.
+- **High-frequency events**: Scroll position, mouse movement - debounce or handle in JS, call back to Blazor sparingly.
+
+When using JS interop, keep it minimal and focused. The goal is surgical fixes, not replacing Blazor's model.
+
+### Mobile Considerations
+- Use `@ontouchstart` for touch-specific behavior when needed
+- CSS `:hover` becomes "sticky" after tap on mobile - may need JS class toggling for dismiss behaviors
+- Test on actual devices - mobile browser behavior varies
 
 ## Overview
 A real-time chat application built with Blazor Server (.NET 10), featuring instant messaging, image sharing, and resilient reconnection with persistent state.
@@ -17,12 +50,9 @@ Yap/
 │   ├── Layout/
 │   │   ├── MainLayout.razor           # Base layout
 │   │   ├── ChatLayout.razor           # Chat-specific layout (header, sidebar, body)
-│   │   ├── ChatLayout.razor.css
-│   │   ├── ReconnectModal.razor       # Discord-style reconnection banner
-│   │   ├── ReconnectModal.razor.js    # Auto-resume, infinite retry logic
-│   │   └── ReconnectModal.razor.css   # Banner styling
+│   │   └── ReconnectModal.razor       # Discord-style reconnection banner with auto-resume
 │   ├── Pages/
-│   │   ├── Home.razor                 # Login/username entry
+│   │   ├── Login.razor                # Login/username entry
 │   │   ├── RoomChat.razor             # Room chat page (/lobby, /room/{id})
 │   │   ├── DmChat.razor               # DM chat page (/dm/{username})
 │   │   ├── ChatBase.cs                # Shared base class for chat pages
@@ -32,44 +62,54 @@ Yap/
 │   ├── ChatSidebar.razor              # Rooms list, users list with status dots
 │   ├── MessageInput.razor             # Message input with typing, file upload
 │   ├── MessageItem.razor              # Individual message display
+│   ├── EmojiPicker.razor              # Emoji selection popup for reactions
+│   ├── ImageGalleryModal.razor        # Lightbox for viewing uploaded images
 │   ├── App.razor                      # Root component with Blazor.start() config
 │   ├── Routes.razor
 │   └── _Imports.razor
 ├── Configuration/
-│   └── PersistenceSettings.cs         # Database persistence configuration
+│   └── PersistenceSettings.cs
 ├── Data/
 │   ├── ChatDbContext.cs               # EF Core DbContext
 │   ├── ChatDbContextFactory.cs        # Design-time factory for migrations
-│   └── Migrations/                    # EF Core migrations
+│   └── Migrations/
 ├── Extensions/
-│   └── PersistenceServiceExtensions.cs # DI registration for persistence
+│   └── PersistenceServiceExtensions.cs
+├── Middleware/
+│   ├── DeviceDetectionMiddleware.cs   # Detects mobile vs desktop
+│   └── RequestLoggingMiddleware.cs    # HTTP request logging
 ├── Services/
 │   ├── ChatService.cs                 # Core real-time functionality (singleton)
 │   ├── ChatPersistenceService.cs      # Write-through database persistence
-│   ├── ChatConfigService.cs           # UI text configuration
+│   ├── ChatConfigService.cs           # UI text configuration from appsettings
 │   ├── ChatNavigationState.cs         # Navigation state with [PersistentState]
 │   ├── UserStateService.cs            # User identity with [PersistentState]
+│   ├── UserService.cs                 # User management (join, leave, status)
 │   ├── ChatCircuitHandler.cs          # Circuit lifecycle + auto-away detection
+│   ├── CircuitTracker.cs              # Tracks active circuits per user
 │   ├── PushSubscriptionStore.cs       # Push notification subscriptions
 │   ├── PushNotificationService.cs     # Web push notifications
 │   ├── EmojiService.cs                # Twemoji rendering
+│   ├── EmojiData.cs                   # Emoji definitions and categories
 │   └── ImageService.cs                # Thumbnail generation (WebP)
 ├── Models/
-│   ├── ChatMessage.cs                 # Message model (EF entity)
-│   ├── Channel.cs                     # Unified room/DM channel model (EF entity)
-│   ├── Reaction.cs                    # Message reaction model (EF entity)
-│   ├── PushSubscription.cs            # Push subscription model (EF entity)
-│   └── UserStatus.cs                  # User presence status enum
+│   ├── ChatMessage.cs
+│   ├── Channel.cs
+│   ├── ChannelType.cs
+│   ├── ChannelReadState.cs
+│   ├── Reaction.cs
+│   ├── User.cs
+│   ├── UserStatus.cs
+│   ├── PushSubscription.cs
+│   └── ChatDiagnostics.cs
 ├── wwwroot/
 │   ├── js/chat.js                     # Tab notifications, badge API helpers
 │   ├── uploads/                       # Image storage
 │   ├── app.css                        # Base styles
 │   ├── notif.mp3                      # Notification sound
 │   ├── manifest.webmanifest           # PWA manifest
-│   ├── service-worker.js              # PWA service worker
-│   └── icon.svg                       # App icon (SVG)
-├── Data/                              # SQLite database location (when enabled)
-│   └── yap.db
+│   └── service-worker.js              # PWA service worker
+├── Data/yap.db                        # SQLite database (when persistence enabled)
 ├── appsettings.json                   # Chat config + persistence settings
 ├── Program.cs                         # Service registration, circuit config
 └── Yap.csproj
@@ -120,11 +160,7 @@ No custom SignalR hub needed - Blazor's built-in circuit handles everything.
 - Properties marked with `[PersistentState]` for session restoration
 
 **ImageService.cs** (Singleton)
-- Generates WebP thumbnails at two sizes: 800px (gallery) and 1600px (lightbox)
-- Uses SixLabors.ImageSharp for cross-platform image processing
-- Smart resampling: Lanczos3 for photos, Box for screenshots/graphics
-- Skips resizing for small files (<500KB), just converts to WebP
-- Auto-orients images based on EXIF data
+- Generates WebP thumbnails on image upload
 
 ## .NET 10 Circuit & Reconnection Features
 
@@ -155,57 +191,14 @@ Custom Discord-style top banner (not blocking modal):
 - Appears immediately when connection lost
 - Infinite retries every 4 seconds
 - Auto-resumes with persisted state when circuit evicted
-- Animated loading dots during reconnection
-
-**Key files:**
-- `ReconnectModal.razor` - Banner HTML structure
-- `ReconnectModal.razor.js` - Event handling, auto-resume logic
-- `ReconnectModal.razor.css` - Banner styling
-- `App.razor` - `Blazor.start()` with custom retry config
 
 ## Configuration
 
-All settings in `appsettings.json`:
-
-```json
-{
-  "ChatSettings": {
-    "ProjectName": "Yap",
-    "RoomName": "lobby",
-    "ClearUploadsOnStart": false,
-    "Persistence": {
-      "Enabled": true,
-      "Provider": "SQLite",
-      "ConnectionStrings": {
-        "SQLite": "Data Source=Data/yap.db",
-        "Postgres": "Host=localhost;Database=yap;Username=yap;Password=yap"
-      }
-    },
-    "FunnyTexts": {
-      "WelcomeMessages": [...],
-      "JoinButtonTexts": [...],
-      "SystemMessages": { "UserJoined": [...], "UserLeft": [...] },
-      "TypingIndicators": { "Single": [...], "Double": [...], "Multiple": [...] }
-    }
-  }
-}
-```
-
-## Running the Application
-
-### Development
-```bash
-cd Yap
-dotnet run
-```
-
-Access at `https://localhost:5001` (or the port shown in console).
-
-### Docker
-```bash
-docker build -t yap .
-docker run -p 8080:8080 -v ./uploads:/app/wwwroot/uploads yap
-```
+Settings in `appsettings.json` under `ChatSettings`:
+- `ProjectName`, `RoomName` - Basic app identity
+- `ClearUploadsOnStart` - Whether to clear uploads folder on startup
+- `Persistence.Enabled`, `Persistence.Provider` - SQLite or Postgres
+- `FunnyTexts` - Randomized UI text (welcome messages, join buttons, typing indicators)
 
 ## Features
 
@@ -224,7 +217,7 @@ docker run -p 8080:8080 -v ./uploads:/app/wwwroot/uploads yap
 - **Multiline input** - Discord-style auto-expanding textarea (Shift+Enter for newlines)
 - **Emoji support** - Twemoji rendering
 - **Tab notifications** - Unread count in title + audio
-- **Online users** - Live user list with status dots, sorted by recent DM activity
+- **Online users** - List of users in sidebar with status
 - **Infinite scroll** - Load older messages on scroll, Discord-style
 - **Typing indicators** - See who's typing
 - **Mobile responsive** - Collapsible sidebar
@@ -244,45 +237,16 @@ Optional persistence layer using EF Core. When enabled, all chat data survives a
 - **Graceful fallback**: When disabled, everything works in-memory only
 
 ### What's Persisted
-- **Channels** (rooms and DMs)
-- **Messages** (full history, loaded via infinite scroll)
-- **Reactions** (stored in separate table, grouped by emoji for display)
-- **Push subscriptions** (moved from JSON file to database)
-
-### Database Schema
-```
-Channel                    ChatMessage                 Reaction
-+------------------+       +------------------+        +------------------+
-| Id (PK, Guid)    |<──────| Id (PK, Guid)    |<──────| Id (PK, int)     |
-| Type (int)       |       | ChannelId (FK)   |       | MessageId (FK)   |
-| Name             |       | Username         |       | Emoji            |
-| CreatedAt        |       | Content          |       | Username         |
-| CreatedBy        |       | Timestamp        |       +------------------+
-| IsDefault        |       | IsEdited         |
-| Participant1     |       | ImageUrls (JSON) |       PushSubscription
-| Participant2     |       +------------------+       +------------------+
-+------------------+                                  | Endpoint (PK)    |
-                                                      | Username         |
-                                                      | P256dh           |
-                                                      | Auth             |
-                                                      | CreatedAt        |
-                                                      +------------------+
-```
+- **User** - Username, status, last activity (survives app restarts)
+- **Channel** → has many **ChatMessage** → has many **Reaction**
+- **PushSubscription** - Web push notification endpoints per user
+- DMs are identified by `Participant1`/`Participant2` fields on Channel
 
 ### Key Design Decisions
 - **DMs persist permanently** (like Discord) - users see chat history when they return
 - **Models = Tables** - No separate entity classes, models are EF-friendly
 - **DbContextFactory** - Used by singleton `ChatService` to create short-lived DbContext instances
 - **Pooled factory** - `AddPooledDbContextFactory` for singleton compatibility and performance
-
-### Migrations
-```powershell
-# Package Manager Console
-Add-Migration InitialCreate -Context ChatDbContext -OutputDir Data/Migrations
-Update-Database -Context ChatDbContext
-```
-
-If no migrations exist, the app uses `EnsureCreatedAsync()` to create tables directly from the model.
 
 ## Technical Details
 
@@ -296,41 +260,6 @@ If no migrations exist, the app uses `EnsureCreatedAsync()` to create tables dir
 - `MapStaticAssets()` for fingerprinted static files
 - `CreateInboundActivityHandler` for circuit activity tracking (auto-away)
 
-### Auto-Away Detection
-Uses `CircuitHandler.CreateInboundActivityHandler()` to detect user activity:
-
-```csharp
-public override Func<CircuitInboundActivityContext, Task> CreateInboundActivityHandler(
-    Func<CircuitInboundActivityContext, Task> next)
-{
-    return async context =>
-    {
-        _idleTimer.Stop();   // Reset timer on ANY activity
-        _idleTimer.Start();
-
-        if (_isAutoAway) { /* restore previous status */ }
-
-        await next(context);
-    };
-}
-```
-
-**How it works:**
-- `CreateInboundActivityHandler` intercepts ALL inbound circuit traffic (UI events, JS interop)
-- A timer resets on every activity; if it expires (5 min), user is set to Away
-- Any activity restores user from Away back to Online automatically
-- Disconnected users (tab closed) are marked Invisible (grey) and stay in user list
-- When user reconnects, their previous status is restored
-- Invisible users are never auto-changed to Away (explicit preference)
-- No JavaScript needed - purely server-side detection
-
-### EF Core Packages
-```xml
-<PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0-*" />
-<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0-*" />
-<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.0-*" />
-<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0-*" />
-```
 
 ### File Upload & Thumbnails
 Images are uploaded directly in the component using `InputFile`:
@@ -365,12 +294,3 @@ The app is installable on desktop and mobile:
 - Support: Chrome/Edge on Windows/macOS, Safari on iOS 16.4+
 - Badge only appears when app is installed as PWA
 
-## Previous Architecture (Migrated From)
-
-The app was migrated from a 4-project Blazor WebAssembly + SignalR architecture:
-- BlazorChat.Server (SignalR hub + API)
-- BlazorChat.Client (WebAssembly)
-- BlazorChat.Client.Serve (WASM host)
-- BlazorChat.AppHost (Aspire)
-
-See `MIGRATION_TO_BLAZOR_SERVER.md` for migration details.
