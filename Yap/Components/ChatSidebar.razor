@@ -303,11 +303,29 @@
 
     private IEnumerable<(string Username, UserStatus Status, bool? IsMobile)> GetSortedUsersWithStatus()
     {
-        var adminEntry = onlineUsers
+        // Merge online users with offline DM partners
+        var onlineUsersByName = onlineUsers.ToDictionary(u => u.Username, StringComparer.OrdinalIgnoreCase);
+
+        // FUTURE: To show ALL known users instead of just DM contacts,
+        // replace GetDMConversations() with UserService.GetAllUsernames()
+        var dmPartners = ChatService.GetDMConversations(Username);
+
+        var allUsers = new List<(string Username, UserStatus Status, bool? IsMobile)>(onlineUsers);
+
+        // Add DM partners who are offline (shown as Invisible - same gray dot)
+        foreach (var partner in dmPartners)
+        {
+            if (!onlineUsersByName.ContainsKey(partner))
+            {
+                allUsers.Add((partner, UserStatus.Invisible, null));
+            }
+        }
+
+        var adminEntry = allUsers
             .Where(u => ChatService.IsAdmin(u.Username));
-        var currentUserEntry = onlineUsers
+        var currentUserEntry = allUsers
             .Where(u => u.Username.Equals(Username, StringComparison.OrdinalIgnoreCase) && !ChatService.IsAdmin(u.Username));
-        var otherUsers = onlineUsers
+        var otherUsers = allUsers
             .Where(u => !u.Username.Equals(Username, StringComparison.OrdinalIgnoreCase) && !ChatService.IsAdmin(u.Username))
             .ToList();
 
