@@ -132,24 +132,36 @@
 
     private bool HasUnreadInRoom(Guid roomId)
     {
+        if (UserId == Guid.Empty) return false;
         return ChatService.HasUnreadInRoom(UserId, roomId);
     }
 
     private int GetUnreadDMCountForUser(string otherUsername)
     {
+        // Safety check - user must be logged in
+        if (UserId == Guid.Empty || string.IsNullOrEmpty(Username))
+            return 0;
+
         // If we're currently viewing this DM, don't show unread
         if (NavState.CurrentDmUser?.Equals(otherUsername, StringComparison.OrdinalIgnoreCase) == true)
             return 0;
 
-        var otherUser = UserService.GetByUsername(otherUsername);
-        if (otherUser == null) return 0;
+        try
+        {
+            var otherUser = UserService.GetByUsername(otherUsername);
+            if (otherUser == null) return 0;
 
-        // Find the DM channel between current user and other user
-        var channels = ChatService.GetDMChannels(Username);
-        var dmChannel = channels.FirstOrDefault(c => c.IsDMBetween(Username, otherUsername));
-        if (dmChannel == null) return 0;
+            // Find the DM channel between current user and other user
+            var channels = ChatService.GetDMChannels(Username);
+            var dmChannel = channels.FirstOrDefault(c => c.IsDMBetween(Username, otherUsername));
+            if (dmChannel == null) return 0;
 
-        return ChatService.GetUnreadCount(UserId, dmChannel.Id);
+            return ChatService.GetUnreadCount(UserId, dmChannel.Id);
+        }
+        catch (Exception)
+        {
+            return 0;
+        }
     }
 
     #region Event Handlers

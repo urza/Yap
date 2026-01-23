@@ -266,22 +266,33 @@
 
     private async Task RefreshUnreadCountAsync()
     {
-        if (UserState.UserId.HasValue)
+        if (!UserState.UserId.HasValue || string.IsNullOrEmpty(UserState.Username))
+        {
+            unreadCount = 0;
+            return;
+        }
+
+        try
         {
             // Exclude currently viewed DM channel from unread count
             Guid? excludeChannelId = null;
-            if (NavState.CurrentDmUser != null)
+            if (!string.IsNullOrEmpty(NavState.CurrentDmUser))
             {
                 var otherUser = UserService.GetByUsername(NavState.CurrentDmUser);
                 if (otherUser != null)
                 {
-                    var channel = ChatService.GetOrCreateDMChannelByUsername(UserState.Username ?? "", NavState.CurrentDmUser);
+                    var channel = ChatService.GetOrCreateDMChannelByUsername(UserState.Username, NavState.CurrentDmUser);
                     excludeChannelId = channel?.Id;
                 }
             }
 
             unreadCount = ChatService.GetTotalUnreadDMCount(UserState.UserId.Value, excludeChannelId);
             await UpdateBadgeAsync();
+        }
+        catch (Exception)
+        {
+            // Ignore errors during unread count refresh (user might not be fully initialized)
+            unreadCount = 0;
         }
     }
 
@@ -310,7 +321,7 @@
     private async Task HandleUnreadChanged(Guid userId, Guid channelId)
     {
         // Only refresh if the unread change is for the current user
-        if (userId == UserState.UserId)
+        if (UserState.UserId.HasValue && userId == UserState.UserId.Value)
         {
             await InvokeAsync(async () =>
             {

@@ -50,12 +50,24 @@
 
     protected override void OnInitialized()
     {
-        // If already logged in (persisted state), mark for redirect after render
-        // Don't navigate here - it causes "insertBefore" errors during initial render
-        if (UserState.IsLoggedIn)
+        // If already logged in (persisted state), verify the user still exists in the database
+        // before redirecting. This handles cases where the database was reset or the user was deleted.
+        if (UserState.IsLoggedIn && UserState.UserId.HasValue)
         {
-            _shouldRedirect = true;
-            return;
+            var existingUser = UserService.GetById(UserState.UserId.Value);
+            if (existingUser != null)
+            {
+                _shouldRedirect = true;
+                return;
+            }
+            else
+            {
+                // User no longer exists - clear the stale state
+                UserState.UserId = null;
+                UserState.Username = null;
+                UserState.DisplayName = null;
+                UserState.SessionId = null;
+            }
         }
 
         welcomeMessage = ChatConfig.GetRandomWelcomeMessage();
