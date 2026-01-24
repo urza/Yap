@@ -71,9 +71,13 @@ public class ChatService
 
     #region Parallel Event Invocation
 
+    // Timeout for individual event handlers - prevents slow/disconnected clients from blocking dispatch
+    private static readonly TimeSpan HandlerTimeout = TimeSpan.FromSeconds(5);
+
     /// <summary>
     /// Invokes all event handlers in parallel instead of sequentially.
     /// This dramatically improves performance when there are multiple subscribers (circuits).
+    /// Each handler has a timeout to prevent slow/disconnected clients from blocking others.
     /// </summary>
     private async Task InvokeParallelAsync<T>(Func<T, Task>? eventDelegate, T arg, [System.Runtime.CompilerServices.CallerMemberName] string? caller = null)
     {
@@ -88,7 +92,18 @@ public class ChatService
         {
             try
             {
-                await handler(arg);
+                var handlerTask = handler(arg);
+                var completedTask = await Task.WhenAny(handlerTask, Task.Delay(HandlerTimeout));
+
+                if (completedTask != handlerTask)
+                {
+                    _logger.LogWarning("Event handler timed out after {Timeout}s in {Caller}", HandlerTimeout.TotalSeconds, caller);
+                    // Don't await the slow handler - let it complete in background
+                }
+                else
+                {
+                    await handlerTask; // Observe any exception
+                }
             }
             catch (Exception ex)
             {
@@ -109,6 +124,7 @@ public class ChatService
 
     /// <summary>
     /// Invokes all event handlers (no arguments) in parallel.
+    /// Each handler has a timeout to prevent slow/disconnected clients from blocking others.
     /// </summary>
     private async Task InvokeParallelAsync(Func<Task>? eventDelegate, [System.Runtime.CompilerServices.CallerMemberName] string? caller = null)
     {
@@ -123,7 +139,17 @@ public class ChatService
         {
             try
             {
-                await handler();
+                var handlerTask = handler();
+                var completedTask = await Task.WhenAny(handlerTask, Task.Delay(HandlerTimeout));
+
+                if (completedTask != handlerTask)
+                {
+                    _logger.LogWarning("Event handler timed out after {Timeout}s in {Caller}", HandlerTimeout.TotalSeconds, caller);
+                }
+                else
+                {
+                    await handlerTask;
+                }
             }
             catch (Exception ex)
             {
@@ -143,6 +169,7 @@ public class ChatService
 
     /// <summary>
     /// Invokes all event handlers (two arguments) in parallel.
+    /// Each handler has a timeout to prevent slow/disconnected clients from blocking others.
     /// </summary>
     private async Task InvokeParallelAsync<T1, T2>(Func<T1, T2, Task>? eventDelegate, T1 arg1, T2 arg2, [System.Runtime.CompilerServices.CallerMemberName] string? caller = null)
     {
@@ -157,7 +184,17 @@ public class ChatService
         {
             try
             {
-                await handler(arg1, arg2);
+                var handlerTask = handler(arg1, arg2);
+                var completedTask = await Task.WhenAny(handlerTask, Task.Delay(HandlerTimeout));
+
+                if (completedTask != handlerTask)
+                {
+                    _logger.LogWarning("Event handler timed out after {Timeout}s in {Caller}", HandlerTimeout.TotalSeconds, caller);
+                }
+                else
+                {
+                    await handlerTask;
+                }
             }
             catch (Exception ex)
             {
