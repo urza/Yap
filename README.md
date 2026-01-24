@@ -20,6 +20,7 @@ Access at `http://localhost:5221` - it's up to you how to make this accessible f
 ## Features
 
 - **No registration required** - Just log in with username
+- **User profiles** - Set profile picture, display name, and bio; avatars shown in chat
 - **Database optional** - Everything can be ephemeral and live only in memory (wiped on app reset) or you can use SQLite/Postgres for persistence
 - **Customizable labels in config** - make it fun or serious
 - **Emoji support** - Beautiful Twemoji rendering

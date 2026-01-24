@@ -2,6 +2,38 @@
 
 All notable changes to Yap are documented in this file.
 
+## [2.7.0] - 2026-01-24
+
+### User Profiles & Settings
+
+#### New Features
+- **Profile settings page** - New `/settings` page accessible from status dropdown
+  - Upload profile picture (128px WebP thumbnail)
+  - Set display name (shown instead of username)
+  - Add bio (up to 150 characters)
+- **Avatars in chat** - Discord-style message layout with avatars
+  - Profile picture or colored initials fallback
+  - Consistent color generated from username hash
+- **Display names everywhere** - Sidebar, header, and messages show display name
+- **Twemoji in names** - Emojis in display names and room names render as Twemoji
+
+#### Technical Changes
+- Added `Avatar.razor` component with `AvatarSize` enum (Small/Medium/Large)
+- Added `Settings.razor` page with profile editing
+- Added `ProfilePictureUrl` and `Bio` properties to `User` model
+- Added `ProfilePictureUrl` to `UserStateService` with `[PersistentState]`
+- Added `UpdateProfileAsync()` to `UserService`
+- Added `GenerateProfilePictureAsync()` to `ImageService`
+- Added `inline` parameter to `EmojiService.ConvertEmojisToTwemoji()` for text-sized emojis
+- Updated `MessageItem.razor` with avatar display and CSS for Discord-style layout
+
+#### Bug Fixes
+- Added 5-second per-handler timeout in event dispatch to prevent slow clients from blocking others
+- Fixed ghost sidebar entries from orphaned DM channels with missing participants
+- Added startup detection and logging of orphaned DM channels
+
+---
+
 ## [2.6.0] - 2026-01-01
 
 ### PWA Support & Badge Notifications

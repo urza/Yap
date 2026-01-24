@@ -56,14 +56,16 @@ Yap/
 │   │   ├── RoomChat.razor             # Room chat page (/lobby, /room/{id})
 │   │   ├── DmChat.razor               # DM chat page (/dm/{username})
 │   │   ├── ChatBase.cs                # Shared base class for chat pages
+│   │   ├── Settings.razor             # User profile settings (picture, display name, bio)
 │   │   ├── Error.razor
 │   │   └── NotFound.razor
 │   ├── ChatHeader.razor               # Header with status dropdown, mailbox, user count
 │   ├── ChatSidebar.razor              # Rooms list, users list with status dots
 │   ├── MessageInput.razor             # Message input with typing, file upload
-│   ├── MessageItem.razor              # Individual message display
+│   ├── MessageItem.razor              # Individual message display with avatars
 │   ├── EmojiPicker.razor              # Emoji selection popup for reactions
 │   ├── ImageGalleryModal.razor        # Lightbox for viewing uploaded images
+│   ├── Avatar.razor                   # Reusable avatar (image or colored initials fallback)
 │   ├── App.razor                      # Root component with Blazor.start() config
 │   ├── Routes.razor
 │   └── _Imports.razor
@@ -206,6 +208,7 @@ Settings in `appsettings.json` under `ChatSettings`:
 - **Multiple rooms** - Create and switch between chat rooms (admin only)
 - **Admin system** - First user becomes admin, can manage rooms (👑 badge)
 - **Direct messages** - Private conversations (persist permanently when DB enabled)
+- **User profiles** - Profile picture, display name, bio; avatars shown in messages (Discord-style)
 - **User status** - Online (green), Away (orange), Invisible (gray) with dropdown selector
 - **Auto-away** - Automatically sets status to Away after 5 minutes idle
 - **Sign out** - Explicit sign out clears session and returns to login
