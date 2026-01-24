@@ -71,15 +71,9 @@
                      title="@(isCurrentUser ? "You" : $"Message {displayName}")">
                     <span class="user-status-dot @statusClass"></span>
                     <span class="user-name">@EmojiService.ConvertEmojisToTwemoji(displayName, inline: true)</span>
-                    @if (isMobile.HasValue)
-                    {
-                        <span class="device-badge" title="@(isMobile.Value ? "Mobile" : "Desktop")">
-                            @(isMobile.Value ? "📱" : "🖥️")
-                        </span>
-                    }
                     @if (isUserAdmin)
                     {
-                        <span class="admin-badge" title="Admin">👑</span>
+                        <span class="admin-badge" title="Admin">@EmojiService.ConvertEmojisToTwemoji("👑", inline: true)</span>
                     }
                     @if (userUnreadCount > 0)
                     {
