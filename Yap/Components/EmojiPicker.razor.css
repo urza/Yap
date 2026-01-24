@@ -94,6 +94,12 @@
     transform: scale(1.1);
 }
 
+/* Larger emojis in picker grid (override inline 18px from forceSmall) */
+.emoji-btn ::deep .emoji {
+    width: 24px !important;
+    height: 24px !important;
+}
+
 .emoji-empty {
     grid-column: 1 / -1;
     text-align: center;
