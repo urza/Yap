@@ -273,6 +273,27 @@ public class ChatService
             _channelTypingUsers[channel.Id] = new ConcurrentDictionary<string, DateTime>();
         }
 
+        // Check for orphaned DM channels (participants that no longer exist as users)
+        var orphanedDMs = _channels.Values
+            .Where(c => c.Type == ChannelType.DirectMessage &&
+                       (_userService.GetByUsername(c.Participant1 ?? "") == null ||
+                        _userService.GetByUsername(c.Participant2 ?? "") == null))
+            .ToList();
+
+        if (orphanedDMs.Count > 0)
+        {
+            _logger.LogWarning("Found {Count} orphaned DM channel(s) with non-existent participants:", orphanedDMs.Count);
+            foreach (var dm in orphanedDMs)
+            {
+                var p1Exists = _userService.GetByUsername(dm.Participant1 ?? "") != null;
+                var p2Exists = _userService.GetByUsername(dm.Participant2 ?? "") != null;
+                _logger.LogWarning("  - Channel {Id}: Participant1='{P1}' ({P1Status}), Participant2='{P2}' ({P2Status})",
+                    dm.Id,
+                    dm.Participant1 ?? "(null)", p1Exists ? "exists" : "MISSING",
+                    dm.Participant2 ?? "(null)", p2Exists ? "exists" : "MISSING");
+            }
+        }
+
         // Load read states
         foreach (var readState in snapshot.ReadStates)
         {
@@ -435,7 +456,7 @@ public class ChatService
     public List<string> GetDMConversations(string username) =>
         GetDMChannels(username)
             .Select(c => c.GetOtherParticipant(username)!)
-            .Where(u => u != null)
+            .Where(u => !string.IsNullOrWhiteSpace(u))
             .ToList();
 
     #endregion
