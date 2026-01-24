@@ -4,15 +4,16 @@
 @inject ChatNavigationState NavState
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject EmojiService EmojiService
 @implements IDisposable
 
 <div class="chat-header">
-    <h3>@NavState.Title</h3>
+    <h3>@EmojiService.ConvertEmojisToTwemoji(NavState.Title, inline: true)</h3>
     <div class="header-controls">
         <div class="status-dropdown-container">
             <button class="status-button status-@UserState.Status.ToString().ToLower()" @onclick="ToggleDropdown" @onclick:stopPropagation="true">
                 <span class="status-indicator"></span>
-                <span class="status-username">@UserState.EffectiveDisplayName</span>
+                <span class="status-username">@EmojiService.ConvertEmojisToTwemoji(UserState.EffectiveDisplayName, inline: true)</span>
                 <svg class="dropdown-arrow" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M7 10l5 5 5-5z"/>
                 </svg>

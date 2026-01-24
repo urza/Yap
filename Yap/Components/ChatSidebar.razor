@@ -4,6 +4,7 @@
 @inject ChatConfigService ChatConfig
 @inject ChatNavigationState NavState
 @inject NavigationManager Navigation
+@inject EmojiService EmojiService
 @implements IDisposable
 
 <div class="users-sidebar @(NavState.SidebarOpen ? "sidebar-open" : "")">
@@ -17,7 +18,7 @@
                 var hasUnread = !isActive && HasUnreadInRoom(room.Id);
                 <div class="room-item @(isActive ? "active" : "") @(hasUnread ? "has-unread" : "")" @onclick="() => SwitchToRoom(room.Id)">
                     <span class="room-icon">#</span>
-                    <span class="room-name">@room.Name</span>
+                    <span class="room-name">@EmojiService.ConvertEmojisToTwemoji(room.Name, inline: true)</span>
                     @if (hasUnread)
                     {
                         <span class="room-unread-dot"></span>
@@ -69,7 +70,7 @@
                      @onclick="() => OpenDM(user)"
                      title="@(isCurrentUser ? "You" : $"Message {displayName}")">
                     <span class="user-status-dot @statusClass"></span>
-                    <span class="user-name">@displayName</span>
+                    <span class="user-name">@EmojiService.ConvertEmojisToTwemoji(displayName, inline: true)</span>
                     @if (isMobile.HasValue)
                     {
                         <span class="device-badge" title="@(isMobile.Value ? "Mobile" : "Desktop")">

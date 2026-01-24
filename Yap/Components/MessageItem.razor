@@ -17,7 +17,7 @@
         @if (ShowHeader)
         {
             <div class="message-meta">
-                <strong class="message-username">@(DisplayName ?? Message.Username)</strong>
+                <strong class="message-username">@EmojiService.ConvertEmojisToTwemoji(DisplayName ?? Message.Username, inline: true)</strong>
                 <span class="message-time">@Message.Timestamp.ToLocalTime().ToString("HH:mm")</span>
             </div>
         }

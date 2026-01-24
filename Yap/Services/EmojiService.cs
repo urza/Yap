@@ -10,15 +10,37 @@ public partial class EmojiService
         @"(?:[\u2700-\u27bf]|(?:\ud83c[\udde6-\uddff]){2}|[\ud800-\udbff][\udc00-\udfff]|[\u0023-\u0039]\ufe0f?\u20e3|\u3299|\u3297|\u303d|\u3030|\u24c2|\ud83c[\udd70-\udd71]|\ud83c[\udd7e-\udd7f]|\ud83c\udd8e|\ud83c[\udd91-\udd9a]|\ud83c[\udde6-\uddff]|\ud83c[\ude01-\ude02]|\ud83c\ude1a|\ud83c\ude2f|\ud83c[\ude32-\ude3a]|\ud83c[\ude50-\ude51]|\u203c|\u2049|[\u25aa-\u25ab]|\u25b6|\u25c0|[\u25fb-\u25fe]|\u00a9|\u00ae|\u2122|\u2139|\ud83c\udc04|[\u2600-\u26FF]|\u2b05|\u2b06|\u2b07|\u2b1b|\u2b1c|\u2b50|\u2b55|\u231a|\u231b|\u2328|\u23cf|[\u23e9-\u23f3]|[\u23f8-\u23fa]|\ud83c\udccf|\u2934|\u2935|[\u2190-\u21ff])")]
     private static partial Regex EmojiRegex();
 
-    public MarkupString ConvertEmojisToTwemoji(string text, bool forceSmall = false)
+    /// <summary>
+    /// Converts all Unicode emoji characters in the specified text to Twemoji SVG image tags, preserving the original
+    /// text for non-emoji content.
+    /// </summary>
+    /// <remarks>The rendered emoji images use the Twemoji CDN and are styled according to the specified
+    /// parameters. If the text consists only of emojis and whitespace, larger emoji images are used for emphasis. This
+    /// method is intended for use in Blazor or other environments that support MarkupString rendering.</remarks>
+    /// <param name="text">The input text that may contain Unicode emoji characters to be replaced with Twemoji images. Can be null or
+    /// empty.</param>
+    /// <param name="forceSmall">true to force emojis to render at a smaller size suitable for compact UI elements such as reaction pills;
+    /// otherwise, false.</param>
+    /// <param name="inline">true to render emojis with inline sizing and alignment, suitable for use within text flows such as display names
+    /// or room names; otherwise, false.</param>
+    /// <returns>A MarkupString containing the input text with all recognized emoji characters replaced by Twemoji SVG image
+    /// tags. If no emojis are present or the input is null or empty, returns the original text as a MarkupString.</returns>
+    public MarkupString ConvertEmojisToTwemoji(string text, bool forceSmall = false, bool inline = false)
     {
         if (string.IsNullOrEmpty(text))
             return new MarkupString(text);
 
         // Check if message contains only emojis (and whitespace)
-        var isEmojiOnly = !forceSmall && IsEmojiOnlyMessage(text);
-        var emojiSize = forceSmall ? "18px" : (isEmojiOnly ? "3em" : "1.2em");
-        var verticalAlign = forceSmall ? "-3px" : (isEmojiOnly ? "-0.4em" : "-0.2em");
+        var isEmojiOnly = !forceSmall && !inline && IsEmojiOnlyMessage(text);
+
+        var (emojiSize, verticalAlign) 
+            = (inline, forceSmall, isEmojiOnly) switch
+        {
+              (true, _, _) => ("1em", "-0.15em"),      // Inline text (display names, room names)
+              (_, true, _) => ("18px", "-3px"),         // Reaction pills
+              (_, _, true) => ("3em", "-0.4em"),        // Emoji-only messages
+               _ => ("1.2em", "-0.2em")                  // Mixed content messages - nomral chat message containing text + emojis
+        };
 
         var result = EmojiRegex().Replace(text, match =>
         {
@@ -51,6 +73,14 @@ public partial class EmojiService
         return string.IsNullOrWhiteSpace(withoutEmojis);
     }
 
+    /// <summary>
+    /// Converts the specified emoji string to its Unicode code point representation in hexadecimal format.
+    /// </summary>
+    /// <remarks>Variation selectors and zero-width joiners are omitted from the output. Surrogate pairs are
+    /// combined into a single code point as appropriate.</remarks>
+    /// <param name="emoji">The emoji string to convert. May contain one or more Unicode characters, including surrogate pairs.</param>
+    /// <returns>A string containing the hexadecimal Unicode code points of the emoji, separated by hyphens. Returns an empty
+    /// string if the input is invalid or an error occurs.</returns>
     private static string GetCodePoint(string emoji)
     {
         try
