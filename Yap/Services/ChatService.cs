@@ -566,9 +566,9 @@ public class ChatService
         // Persist message
         await _persistence.PersistMessageAsync(message);
 
-        // Stop typing when message is sent
-        if (_channelTypingUsers.TryGetValue(channelId, out var typingUsers))
-            typingUsers.TryRemove(username, out _);
+        // Stop typing when message is sent (notify immediately so receivers clear indicator with the message)
+        if (_channelTypingUsers.TryGetValue(channelId, out var typingUsers) && typingUsers.TryRemove(username, out _))
+            await InvokeParallelAsync(OnTypingUsersChanged, channelId);
 
         await InvokeParallelAsync(OnMessageReceived, message);
 
