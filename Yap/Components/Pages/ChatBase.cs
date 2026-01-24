@@ -71,9 +71,12 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
             }
 
             // Auth guard - layout also checks, but this is a fallback
+            // UserState is populated by AuthMiddleware before Blazor starts
             if (!UserState.IsLoggedIn)
             {
-                Navigation.NavigateTo("/");
+                var currentUrl = Navigation.ToBaseRelativePath(Navigation.Uri);
+                var returnUrl = Uri.EscapeDataString("/" + currentUrl);
+                Navigation.NavigateTo($"/?returnUrl={returnUrl}");
                 return;
             }
 

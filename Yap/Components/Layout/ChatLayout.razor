@@ -40,9 +40,13 @@
 
     protected override void OnAfterRender(bool firstRender)
     {
+        // Auth guard - redirect to login if not authenticated
+        // UserState is populated by AuthMiddleware before Blazor starts
         if (firstRender && !UserState.IsLoggedIn)
         {
-            Navigation.NavigateTo("/");
+            var currentUrl = Navigation.ToBaseRelativePath(Navigation.Uri);
+            var returnUrl = Uri.EscapeDataString("/" + currentUrl);
+            Navigation.NavigateTo($"/?returnUrl={returnUrl}");
         }
     }
 

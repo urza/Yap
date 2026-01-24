@@ -135,6 +135,7 @@ app.UseAntiforgery();
 app.UseStaticFiles(); // Serve uploaded images from wwwroot/uploads
 
 // Custom middlewares - positioned after UseStaticFiles() to skip static file requests
+app.UseMiddleware<AuthMiddleware>();
 app.UseMiddleware<DeviceDetectionMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();
 
@@ -177,6 +178,39 @@ app.MapPost("/api/push/unsubscribe", async (HttpContext context, PushSubscriptio
 
     store.RemoveSubscription(body.Endpoint);
     return Results.Ok(new { success = true });
+});
+
+// =============================================================================
+// AUTH ROUTES
+// =============================================================================
+// HttpOnly cookies can only be set via HTTP response headers, not from Blazor
+// after SignalR streaming starts. So we redirect here with forceLoad.
+
+app.MapGet("/auth/signin", async (HttpContext context, UserService userService, string username, string? returnUrl) =>
+{
+    if (string.IsNullOrEmpty(username))
+        return Results.Redirect("/");
+
+    var user = await userService.CreateUserAsync(username);
+    if (user == null)
+        return Results.Redirect("/");
+
+    AuthMiddleware.SetAuthCookie(context, user.Token);
+
+    // Validate returnUrl is relative (prevent open redirect)
+    var destination = "/lobby";
+    if (!string.IsNullOrEmpty(returnUrl) && returnUrl.StartsWith("/") && !returnUrl.StartsWith("//"))
+    {
+        destination = returnUrl;
+    }
+
+    return Results.Redirect(destination);
+});
+
+app.MapGet("/auth/signout", (HttpContext context) =>
+{
+    AuthMiddleware.ClearAuthCookie(context);
+    return Results.Redirect("/");
 });
 
 // =============================================================================

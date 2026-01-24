@@ -263,20 +263,8 @@
             await UserService.DeleteUserAsync(UserState.UserId.Value);
         }
 
-        // Clear localStorage (persistent login and token)
-        await JS.InvokeVoidAsync("clearStoredLogin");
-        await JS.InvokeVoidAsync("clearStoredToken");
-
-        // Clear user state
-        UserState.UserId = null;
-        UserState.Username = null;
-        UserState.DisplayName = null;
-        UserState.ProfilePictureUrl = null;
-        UserState.SessionId = null;
-        UserState.Status = UserStatus.Online;
-
-        // Navigate to login
-        Navigation.NavigateTo("/", forceLoad: true);
+        // Clear cookie and redirect to login
+        Navigation.NavigateTo("/auth/signout", forceLoad: true);
     }
 
     private async Task RefreshUnreadCountAsync()
