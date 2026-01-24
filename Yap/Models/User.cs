@@ -39,6 +39,17 @@ public class User
     public bool IsAdmin { get; set; }
 
     /// <summary>
+    /// URL to the user's profile picture (stored in /uploads/profiles/).
+    /// Null if no profile picture set.
+    /// </summary>
+    public string? ProfilePictureUrl { get; set; }
+
+    /// <summary>
+    /// User's bio/about text (max 150 characters).
+    /// </summary>
+    public string? Bio { get; set; }
+
+    /// <summary>
     /// Gets the name to display in the UI.
     /// Returns DisplayName if set, otherwise Username.
     /// </summary>

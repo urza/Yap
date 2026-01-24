@@ -63,12 +63,13 @@
                 var userUnreadCount = isCurrentUser ? 0 : GetUnreadDMCount(user);
                 var isActiveDM = NavState.CurrentDmUser != null && NavState.CurrentDmUser.Equals(user, StringComparison.OrdinalIgnoreCase);
                 var statusClass = status.ToString().ToLower();
+                var displayName = GetDisplayName(user);
 
                 <div class="user-item @(isCurrentUser ? "current-user" : "") @(isActiveDM ? "active-dm" : "")"
                      @onclick="() => OpenDM(user)"
-                     title="@(isCurrentUser ? "You" : $"Message {user}")">
+                     title="@(isCurrentUser ? "You" : $"Message {displayName}")">
                     <span class="user-status-dot @statusClass"></span>
-                    <span class="user-name">@user</span>
+                    <span class="user-name">@displayName</span>
                     @if (isMobile.HasValue)
                     {
                         <span class="device-badge" title="@(isMobile.Value ? "Mobile" : "Desktop")">
@@ -353,6 +354,12 @@
     private void UpdateOnlineUsersHeader()
     {
         onlineUsersHeader = ChatConfig.GetRandomOnlineUsersHeader(onlineUsers.Count);
+    }
+
+    private string GetDisplayName(string username)
+    {
+        var user = UserService.GetByUsername(username);
+        return user?.EffectiveDisplayName ?? username;
     }
 
     #endregion

@@ -64,6 +64,12 @@ public class UserStateService
     public bool? IsMobile { get; set; }
 
     /// <summary>
+    /// URL to the user's profile picture. Persisted across circuit evictions.
+    /// </summary>
+    [PersistentState]
+    public string? ProfilePictureUrl { get; set; }
+
+    /// <summary>
     /// Gets the name to display in the UI.
     /// Returns DisplayName if set, otherwise Username.
     /// </summary>

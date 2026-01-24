@@ -66,6 +66,7 @@
                 UserState.UserId = null;
                 UserState.Username = null;
                 UserState.DisplayName = null;
+                UserState.ProfilePictureUrl = null;
                 UserState.SessionId = null;
                 UserState.Status = UserStatus.Online;
             }
@@ -106,6 +107,7 @@
                     UserState.UserId = user.Id;
                     UserState.Username = user.Username;
                     UserState.DisplayName = user.DisplayName;
+                    UserState.ProfilePictureUrl = user.ProfilePictureUrl;
                     UserState.Status = UserStatus.Online;
                     NavigateToLobby();
                     return;
@@ -154,6 +156,7 @@
                             UserState.UserId = newUser.Id;
                             UserState.Username = newUser.Username;
                             UserState.DisplayName = newUser.DisplayName;
+                            UserState.ProfilePictureUrl = newUser.ProfilePictureUrl;
                             UserState.Status = UserStatus.Online;
                             NavigateToLobby();
                             return;
@@ -266,6 +269,7 @@
         UserState.UserId = user.Id;
         UserState.Username = user.Username;
         UserState.DisplayName = user.DisplayName;
+        UserState.ProfilePictureUrl = user.ProfilePictureUrl;
         UserState.Status = UserStatus.Online;
 
         // Save token to localStorage

@@ -1,0 +1,217 @@
+@page "/settings"
+@layout ChatLayout
+@inject UserStateService UserState
+@inject UserService UserService
+@inject ImageService ImageService
+@inject ChatNavigationState NavState
+@inject NavigationManager Navigation
+
+<PageTitle>Settings</PageTitle>
+
+<div class="settings-container">
+    <div class="settings-header">
+        <button class="back-button" @onclick="GoBack" title="Go back">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+            </svg>
+        </button>
+        <h2>Settings</h2>
+    </div>
+
+    <div class="settings-content">
+        <div class="settings-section">
+            <h3>Profile</h3>
+
+            <div class="profile-picture-section">
+                <Avatar Username="@(UserState.Username ?? "")"
+                        ProfilePictureUrl="@profilePictureUrl"
+                        Size="AvatarSize.Large" />
+
+                <div class="profile-picture-actions">
+                    <InputFile OnChange="HandleProfilePictureUpload" accept="image/*" id="profile-upload" class="file-input" />
+                    <label for="profile-upload" class="upload-button">
+                        @if (isUploading)
+                        {
+                            <span>Uploading...</span>
+                        }
+                        else
+                        {
+                            <span>@(string.IsNullOrEmpty(profilePictureUrl) ? "Upload Picture" : "Change Picture")</span>
+                        }
+                    </label>
+                    @if (!string.IsNullOrEmpty(profilePictureUrl))
+                    {
+                        <button class="remove-button" @onclick="RemoveProfilePicture" disabled="@isUploading">
+                            Remove
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="display-name">Display Name</label>
+                <input type="text" id="display-name" @bind="displayName" @bind:event="oninput"
+                       placeholder="@(UserState.Username ?? "Username")" maxlength="64" class="form-input" />
+                <span class="form-hint">Leave blank to use your username</span>
+            </div>
+
+            <div class="form-group">
+                <label for="bio">Bio</label>
+                <textarea id="bio" @bind="bio" @bind:event="oninput" maxlength="150"
+                          placeholder="Tell us about yourself..." class="form-textarea"></textarea>
+                <span class="form-counter">@(bio?.Length ?? 0)/150</span>
+            </div>
+        </div>
+
+        <div class="settings-actions">
+            <button class="cancel-button" @onclick="GoBack">Cancel</button>
+            <button class="save-button" @onclick="SaveSettings" disabled="@(!hasChanges || isSaving)">
+                @if (isSaving)
+                {
+                    <span>Saving...</span>
+                }
+                else
+                {
+                    <span>Save Changes</span>
+                }
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string? displayName;
+    private string? profilePictureUrl;
+    private string? bio;
+
+    private string? originalDisplayName;
+    private string? originalProfilePictureUrl;
+    private string? originalBio;
+
+    private bool isUploading = false;
+    private bool isSaving = false;
+
+    private bool hasChanges => displayName != originalDisplayName ||
+                               profilePictureUrl != originalProfilePictureUrl ||
+                               bio != originalBio;
+
+    protected override void OnInitialized()
+    {
+        if (!UserState.IsLoggedIn || !UserState.UserId.HasValue)
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+
+        // Load current values
+        var user = UserService.GetById(UserState.UserId.Value);
+        if (user != null)
+        {
+            displayName = user.DisplayName;
+            profilePictureUrl = user.ProfilePictureUrl;
+            bio = user.Bio;
+        }
+
+        // Store originals for change detection
+        originalDisplayName = displayName;
+        originalProfilePictureUrl = profilePictureUrl;
+        originalBio = bio;
+
+        // Set nav context
+        NavState.SetTitle("Settings");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/lobby");
+    }
+
+    private async Task HandleProfilePictureUpload(InputFileChangeEventArgs e)
+    {
+        if (isUploading) return;
+
+        var file = e.File;
+        if (file == null) return;
+
+        // Validate file type
+        if (!file.ContentType.StartsWith("image/"))
+        {
+            return;
+        }
+
+        // Validate size (10MB max for profile pictures)
+        if (file.Size > 10 * 1024 * 1024)
+        {
+            return;
+        }
+
+        isUploading = true;
+        StateHasChanged();
+
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            var url = await ImageService.GenerateProfilePictureAsync(stream, UserState.UserId!.Value);
+            if (url != null)
+            {
+                // Add cache-busting query parameter
+                profilePictureUrl = $"{url}?v={DateTime.UtcNow.Ticks}";
+            }
+        }
+        finally
+        {
+            isUploading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void RemoveProfilePicture()
+    {
+        if (UserState.UserId.HasValue)
+        {
+            ImageService.DeleteProfilePicture(UserState.UserId.Value);
+        }
+        profilePictureUrl = null;
+    }
+
+    private async Task SaveSettings()
+    {
+        if (!UserState.UserId.HasValue || isSaving) return;
+
+        isSaving = true;
+        StateHasChanged();
+
+        try
+        {
+            // Normalize empty strings to null
+            var normalizedDisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim();
+            var normalizedBio = string.IsNullOrWhiteSpace(bio) ? null : bio.Trim();
+
+            // Remove cache-busting from URL before saving
+            var cleanProfileUrl = profilePictureUrl?.Split('?')[0];
+
+            await UserService.UpdateProfileAsync(
+                UserState.UserId.Value,
+                normalizedDisplayName,
+                cleanProfileUrl,
+                normalizedBio);
+
+            // Update UserState for immediate UI updates
+            UserState.DisplayName = normalizedDisplayName;
+            UserState.ProfilePictureUrl = cleanProfileUrl;
+
+            // Update originals so hasChanges becomes false
+            originalDisplayName = displayName;
+            originalProfilePictureUrl = profilePictureUrl;
+            originalBio = bio;
+
+            // Navigate back
+            Navigation.NavigateTo("/lobby");
+        }
+        finally
+        {
+            isSaving = false;
+            StateHasChanged();
+        }
+    }
+}

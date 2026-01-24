@@ -32,6 +32,8 @@
                      ShowHeader="@showHeader"
                      IsEditing="@(editingMessageId == message.Id)"
                      CurrentUsername="@Username"
+                     ProfilePictureUrl="@GetProfilePictureUrl(message.Username)"
+                     DisplayName="@GetDisplayName(message.Username)"
                      RecentEmojis="@recentEmojis"
                      QuickReactions="@quickReactions"
                      EditContent="@editContent"

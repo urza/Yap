@@ -87,5 +87,11 @@ public class ChatNavigationState
         NotifyStateChanged();
     }
 
+    public void SetTitle(string title)
+    {
+        Title = title;
+        NotifyStateChanged();
+    }
+
     private void NotifyStateChanged() => OnChange?.Invoke();
 }

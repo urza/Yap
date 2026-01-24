@@ -304,6 +304,39 @@ public class UserService
     }
 
     /// <summary>
+    /// Updates a user's profile (display name, profile picture, bio).
+    /// </summary>
+    public async Task UpdateProfileAsync(Guid userId, string? displayName, string? profilePictureUrl, string? bio)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        // Update in-memory cache
+        user.DisplayName = displayName;
+        user.ProfilePictureUrl = profilePictureUrl;
+        user.Bio = bio;
+
+        // Persist to database
+        if (_persistenceEnabled)
+        {
+            try
+            {
+                await using var db = await _dbFactory!.CreateDbContextAsync();
+                await db.Users
+                    .Where(u => u.Id == userId)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(u => u.DisplayName, displayName)
+                        .SetProperty(u => u.ProfilePictureUrl, profilePictureUrl)
+                        .SetProperty(u => u.Bio, bio));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update profile for user {UserId}", userId);
+            }
+        }
+    }
+
+    /// <summary>
     /// Generates a secure random token.
     /// </summary>
     private static string GenerateToken()

@@ -137,4 +137,70 @@ public class ImageService
     // Convenience methods for common sizes
     public static string GetMediumUrl(string originalUrl) => GetSizedUrl(originalUrl, SizeMedium);
     public static string GetLargeUrl(string originalUrl) => GetSizedUrl(originalUrl, SizeLarge);
+
+    // Profile picture settings
+    private const int ProfilePictureSize = 128;
+    private static readonly string ProfilesDirectory = Path.Combine("wwwroot", "uploads", "profiles");
+
+    /// <summary>
+    /// Generates a profile picture thumbnail (128px square WebP).
+    /// Returns the URL path to the generated image.
+    /// Deletes any existing profile picture for this user.
+    /// </summary>
+    public async Task<string?> GenerateProfilePictureAsync(Stream imageStream, Guid userId)
+    {
+        try
+        {
+            // Ensure profiles directory exists
+            Directory.CreateDirectory(ProfilesDirectory);
+
+            // Delete existing profile picture if any
+            var existingFiles = Directory.GetFiles(ProfilesDirectory, $"{userId}.*");
+            foreach (var file in existingFiles)
+            {
+                try { File.Delete(file); } catch { }
+            }
+
+            var outputPath = Path.Combine(ProfilesDirectory, $"{userId}.webp");
+            var urlPath = $"/uploads/profiles/{userId}.webp";
+
+            using var image = await Image.LoadAsync(imageStream);
+            image.Mutate(x => x
+                .AutoOrient()
+                .Resize(new ResizeOptions
+                {
+                    Size = new Size(ProfilePictureSize, ProfilePictureSize),
+                    Mode = ResizeMode.Crop,
+                    Position = AnchorPositionMode.Center
+                }));
+
+            await image.SaveAsync(outputPath, WebpEncoder);
+
+            return urlPath;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to generate profile picture for user {userId}: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Deletes a user's profile picture.
+    /// </summary>
+    public void DeleteProfilePicture(Guid userId)
+    {
+        try
+        {
+            var filePath = Path.Combine(ProfilesDirectory, $"{userId}.webp");
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to delete profile picture for user {userId}: {ex.Message}");
+        }
+    }
 }

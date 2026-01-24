@@ -2,19 +2,27 @@
 @using Yap.Services
 @inject EmojiService EmojiService
 
-<div class="message-group @(IsSystem ? "system-message" : "") @(showEmojiPicker ? "picker-open" : "")"
+<div class="message-group @(IsSystem ? "system-message" : "") @(ShowHeader ? "has-header" : "") @(showEmojiPicker ? "picker-open" : "")"
      @ontouchstart="HandleTouchStart"
      @ontouchstart:stopPropagation>
 
     @if (ShowHeader)
     {
-        <div class="message-header">
-            <strong class="message-username">@Message.Username</strong>
-            <span class="message-time">@Message.Timestamp.ToLocalTime().ToString("HH:mm")</span>
-        </div>
+        <Avatar Username="@Message.Username"
+                ProfilePictureUrl="@ProfilePictureUrl"
+                Size="AvatarSize.Medium" />
     }
 
-    <div class="message-content">
+    <div class="message-body">
+        @if (ShowHeader)
+        {
+            <div class="message-meta">
+                <strong class="message-username">@(DisplayName ?? Message.Username)</strong>
+                <span class="message-time">@Message.Timestamp.ToLocalTime().ToString("HH:mm")</span>
+            </div>
+        }
+
+        <div class="message-content">
         @if (IsEditing)
         {
             <div class="edit-container">
@@ -69,25 +77,26 @@
                 <span class="edited-indicator">(edited)</span>
             }
         }
-    </div>
-
-    @* Reactions display *@
-    @if (Message.Reactions?.Count > 0)
-    {
-        <div class="reactions-display">
-            @foreach (var reactionGroup in Message.Reactions.GroupByEmoji())
-            {
-                var emoji = reactionGroup.Key;
-                var users = reactionGroup.Value;
-                var hasReacted = users.Any(u => u.Equals(CurrentUsername, StringComparison.OrdinalIgnoreCase));
-                <button class="reaction-pill @(hasReacted ? "reacted" : "")"
-                        @onclick="() => OnReaction.InvokeAsync(emoji)"
-                        title="@string.Join(", ", users)">
-                    @EmojiService.ConvertEmojisToTwemoji(emoji, forceSmall: true) <span class="reaction-count">@users.Count</span>
-                </button>
-            }
         </div>
-    }
+
+        @* Reactions display *@
+        @if (Message.Reactions?.Count > 0)
+        {
+            <div class="reactions-display">
+                @foreach (var reactionGroup in Message.Reactions.GroupByEmoji())
+                {
+                    var emoji = reactionGroup.Key;
+                    var users = reactionGroup.Value;
+                    var hasReacted = users.Any(u => u.Equals(CurrentUsername, StringComparison.OrdinalIgnoreCase));
+                    <button class="reaction-pill @(hasReacted ? "reacted" : "")"
+                            @onclick="() => OnReaction.InvokeAsync(emoji)"
+                            title="@string.Join(", ", users)">
+                        @EmojiService.ConvertEmojisToTwemoji(emoji, forceSmall: true) <span class="reaction-count">@users.Count</span>
+                    </button>
+                }
+            </div>
+        }
+    </div>
 
     @* Backdrop to close emoji picker when clicking outside *@
     @if (showEmojiPicker)
@@ -141,6 +150,8 @@
     [Parameter] public bool ShowHeader { get; set; }
     [Parameter] public bool IsEditing { get; set; }
     [Parameter] public string CurrentUsername { get; set; } = "";
+    [Parameter] public string? ProfilePictureUrl { get; set; }
+    [Parameter] public string? DisplayName { get; set; }
     [Parameter] public List<string> RecentEmojis { get; set; } = new();  // For full emoji drawer
     [Parameter] public List<string> QuickReactions { get; set; } = new(); // Cached quick reactions
 

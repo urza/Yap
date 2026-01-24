@@ -28,6 +28,8 @@ public class ChatDbContext : DbContext
             entity.Property(u => u.Username).HasMaxLength(32);
             entity.Property(u => u.DisplayName).HasMaxLength(64);
             entity.Property(u => u.Token).HasMaxLength(64);
+            entity.Property(u => u.ProfilePictureUrl).HasMaxLength(256);
+            entity.Property(u => u.Bio).HasMaxLength(150);
 
             // Ignore computed property
             entity.Ignore(u => u.EffectiveDisplayName);

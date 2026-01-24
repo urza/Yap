@@ -133,6 +133,24 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
         catch (Exception ex) { Console.WriteLine($"[ChatBase] Failed to scroll: {ex.Message}"); }
     }
 
+    /// <summary>
+    /// Gets the profile picture URL for a username.
+    /// </summary>
+    protected string? GetProfilePictureUrl(string username)
+    {
+        var user = UserService.GetByUsername(username);
+        return user?.ProfilePictureUrl;
+    }
+
+    /// <summary>
+    /// Gets the display name for a username.
+    /// </summary>
+    protected string? GetDisplayName(string username)
+    {
+        var user = UserService.GetByUsername(username);
+        return user?.EffectiveDisplayName;
+    }
+
     protected void ShowGallery(List<string> gallery, int startIndex)
     {
         modalGallery = gallery;
