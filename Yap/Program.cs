@@ -144,6 +144,38 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 // =============================================================================
+// FILE UPLOAD ENDPOINT (for parallel HTTP uploads)
+// =============================================================================
+app.MapPost("/api/upload", async (IFormFile file, IWebHostEnvironment env, ILogger<Program> logger) =>
+{
+    if (file == null || file.Length == 0)
+        return Results.BadRequest(new { error = "No file provided" });
+
+    if (file.Length > 100 * 1024 * 1024)
+        return Results.BadRequest(new { error = "File too large" });
+
+    var allowedExtensions = new HashSet<string> { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+    var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+    if (!allowedExtensions.Contains(extension))
+        return Results.BadRequest(new { error = "Invalid file type" });
+
+    var uploadsFolder = Path.Combine(env.WebRootPath, "uploads");
+    Directory.CreateDirectory(uploadsFolder);
+
+    var uniqueFileName = $"{Guid.NewGuid()}{extension}";
+    var filePath = Path.Combine(uploadsFolder, uniqueFileName);
+
+    await using (var stream = new FileStream(filePath, FileMode.Create))
+    {
+        await file.CopyToAsync(stream);
+    }
+
+    logger.LogDebug("File uploaded via HTTP: {FileName}", uniqueFileName);
+
+    return Results.Ok(new { url = $"/uploads/{uniqueFileName}", path = filePath });
+}).DisableAntiforgery();
+
+// =============================================================================
 // PUSH NOTIFICATION API ENDPOINTS
 // =============================================================================
 app.MapGet("/api/push/vapid-public-key", (PushNotificationService pushService) =>

@@ -417,6 +417,70 @@ window.cleanupScrollDismiss = () => {
 };
 
 // ==========================================
+// Parallel File Upload via HTTP
+// ==========================================
+
+// Upload multiple files in parallel via HTTP POST
+// Returns array of { url, path } for successful uploads
+window.uploadFilesParallel = async (fileInputId) => {
+    const fileInput = document.getElementById(fileInputId);
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        return { success: false, error: 'No files selected' };
+    }
+
+    const files = Array.from(fileInput.files);
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    const maxSize = 100 * 1024 * 1024; // 100MB
+
+    // Filter valid files
+    const validFiles = files.filter(f => {
+        const ext = '.' + f.name.split('.').pop().toLowerCase();
+        return allowedExtensions.includes(ext) && f.size <= maxSize;
+    });
+
+    if (validFiles.length === 0) {
+        return { success: false, error: 'No valid image files' };
+    }
+
+    // Upload all files in parallel
+    const uploadPromises = validFiles.map(async (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                console.error('[Upload] Failed:', file.name, err);
+                return null;
+            }
+
+            return await response.json();
+        } catch (e) {
+            console.error('[Upload] Error:', file.name, e);
+            return null;
+        }
+    });
+
+    const results = await Promise.all(uploadPromises);
+    const successful = results.filter(r => r !== null);
+
+    // Clear the input for next upload
+    fileInput.value = '';
+
+    return {
+        success: successful.length > 0,
+        files: successful,
+        totalCount: validFiles.length,
+        successCount: successful.length
+    };
+};
+
+// ==========================================
 // Infinite Scroll Support
 // ==========================================
 

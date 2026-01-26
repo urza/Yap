@@ -322,61 +322,32 @@
     {
         if (!channelId.HasValue) return;
 
-        IReadOnlyList<IBrowserFile> files;
-        try
-        {
-            files = e.GetMultipleFiles(10);
-        }
-        catch (InvalidOperationException)
-        {
-            ShowWarning("Too many uploads!", "You can only upload 10 files at a time!");
-            return;
-        }
-
-        if (files.Count == 0) return;
-
-        var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
-        var validFiles = files.Where(f =>
-            allowedExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()) &&
-            f.Size <= 100 * 1024 * 1024).ToList();
-
-        if (validFiles.Count == 0)
-        {
-            ShowWarning("Invalid files", "Only image files (jpg, png, gif, webp) up to 100MB allowed");
-            return;
-        }
-
-        var imageUrls = new List<string>();
+        // Get file count for UI (validation happens in JS/controller)
+        var fileCount = e.GetMultipleFiles(10).Count;
+        if (fileCount == 0) return;
 
         try
         {
             // Show upload indicator
             isUploading = true;
-            uploadingCount = validFiles.Count;
+            uploadingCount = fileCount;
             StateHasChanged();
 
-            Logger.LogInformation("Upload started: {Count} file(s)", validFiles.Count);
+            Logger.LogInformation("Upload started: {Count} file(s) via HTTP", fileCount);
 
-            var uploadsFolder = Path.Combine(Environment.WebRootPath, "uploads");
-            Directory.CreateDirectory(uploadsFolder);
+            // Step 1: Upload all files in parallel via HTTP (browser opens 6 connections)
+            var result = await JS.InvokeAsync<UploadResult>("uploadFilesParallel", FileInputId);
 
-            // Step 1: Upload all files to disk
-            var filePaths = new List<string>();
-            foreach (var file in validFiles)
+            if (!result.Success)
             {
-                var extension = Path.GetExtension(file.Name).ToLowerInvariant();
-                var uniqueFileName = $"{Guid.NewGuid()}{extension}";
-                var filePath = Path.Combine(uploadsFolder, uniqueFileName);
-
-                await using (var stream = new FileStream(filePath, FileMode.Create))
-                {
-                    await file.OpenReadStream(maxAllowedSize: 100 * 1024 * 1024).CopyToAsync(stream);
-                }
-
-                filePaths.Add(filePath);
-                imageUrls.Add($"/uploads/{uniqueFileName}");
-                Logger.LogDebug("File saved: {FileName}", uniqueFileName);
+                ShowWarning("Upload failed", result.Error ?? "No valid image files");
+                return;
             }
+
+            Logger.LogInformation("HTTP upload complete: {Success}/{Total} files", result.SuccessCount, result.TotalCount);
+
+            var imageUrls = result.Files.Select(f => f.Url).ToList();
+            var filePaths = result.Files.Select(f => f.Path).ToList();
 
             // Step 2: Generate 800px thumbnails in parallel (needed for gallery display)
             await Parallel.ForEachAsync(filePaths, new ParallelOptions { MaxDegreeOfParallelism = 4 },
@@ -420,16 +391,18 @@
         }
         finally
         {
-            // Hide upload indicator - must use InvokeAsync because Parallel.ForEachAsync
-            // may leave us on a thread pool thread instead of the Blazor sync context
             uploadingCount = 0;
             await InvokeAsync(() =>
-                {
-                    isUploading = false;
-                    StateHasChanged();
-                });
+            {
+                isUploading = false;
+                StateHasChanged();
+            });
         }
     }
+
+    // DTOs for JS interop
+    private record UploadResult(bool Success, string? Error, UploadedFile[] Files, int TotalCount, int SuccessCount);
+    private record UploadedFile(string Url, string Path);
 
     private void ShowWarning(string title, string message)
     {
