@@ -563,8 +563,8 @@ public class ChatService
             messages.Add(message);
         }
 
-        // Persist message
-        await _persistence.PersistMessageAsync(message);
+        // Persist message (no SELECT needed - always new)
+        await _persistence.PersistNewMessageAsync(message);
 
         // Stop typing when message is sent (notify immediately so receivers clear indicator with the message)
         if (_channelTypingUsers.TryGetValue(channelId, out var typingUsers) && typingUsers.TryRemove(username, out _))
@@ -658,8 +658,8 @@ public class ChatService
         message.Content = newContent;
         message.IsEdited = true;
 
-        // Persist the edit
-        await _persistence.PersistMessageAsync(message);
+        // Persist the edit (single UPDATE, no SELECT)
+        await _persistence.PersistMessageEditAsync(messageId, newContent);
 
         await InvokeParallelAsync(OnMessageUpdated, message);
 
@@ -790,58 +790,60 @@ public class ChatService
 
     /// <summary>
     /// Increments unread count for all participants except the sender.
+    /// Uses batch DB update for efficiency.
     /// </summary>
     private async Task IncrementUnreadAsync(Guid channelId, Guid senderUserId)
     {
         if (!_channels.TryGetValue(channelId, out var channel))
             return;
 
+        // Collect user IDs to update
+        var userIdsToIncrement = new List<Guid>();
+
         if (channel.IsDirectMessage)
         {
-            // For DMs, increment for the other participant
             var otherUserId = channel.GetOtherParticipantId(senderUserId);
             if (otherUserId.HasValue)
-            {
-                await IncrementUnreadForUserAsync(otherUserId.Value, channelId);
-            }
+                userIdsToIncrement.Add(otherUserId.Value);
         }
         else
         {
-            // For rooms, increment for all online users except sender
-            foreach (var session in _users.Values)
+            userIdsToIncrement = _users.Values
+                .Where(s => s.UserId != senderUserId)
+                .Select(s => s.UserId)
+                .ToList();
+        }
+
+        if (userIdsToIncrement.Count == 0) return;
+
+        // Update in-memory state (fast)
+        foreach (var userId in userIdsToIncrement)
+        {
+            var key = (userId, channelId);
+            if (_readStates.TryGetValue(key, out var state))
             {
-                if (session.UserId != senderUserId)
+                state.UnreadCount++;
+            }
+            else
+            {
+                _readStates[key] = new ChannelReadState
                 {
-                    await IncrementUnreadForUserAsync(session.UserId, channelId);
-                }
+                    UserId = userId,
+                    ChannelId = channelId,
+                    LastReadAt = DateTime.MinValue,
+                    UnreadCount = 1
+                };
             }
         }
-    }
 
-    private async Task IncrementUnreadForUserAsync(Guid userId, Guid channelId)
-    {
-        var key = (userId, channelId);
+        // Single DB call for all users
+        await _persistence.IncrementUnreadForUsersAsync(channelId, userIdsToIncrement);
 
-        if (_readStates.TryGetValue(key, out var state))
+        // Notify all affected users
+        foreach (var userId in userIdsToIncrement)
         {
-            state.UnreadCount++;
+            await InvokeParallelAsync(OnUnreadChanged, userId, channelId);
         }
-        else
-        {
-            state = new ChannelReadState
-            {
-                UserId = userId,
-                ChannelId = channelId,
-                LastReadAt = DateTime.MinValue,
-                UnreadCount = 1
-            };
-            _readStates[key] = state;
-        }
-
-        await _persistence.PersistReadStateAsync(state);
-
-        // Notify about the unread change
-        await InvokeParallelAsync(OnUnreadChanged, userId, channelId);
     }
 
     /// <summary>

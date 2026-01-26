@@ -87,7 +87,7 @@ public class ChatPersistenceService
 
     #region Message Operations
 
-    public async Task PersistMessageAsync(ChatMessage message)
+    public async Task PersistNewMessageAsync(ChatMessage message)
     {
         if (!IsEnabled) return;
 
@@ -95,37 +95,46 @@ public class ChatPersistenceService
         {
             await using var db = await _dbFactory!.CreateDbContextAsync();
 
-            var existing = await db.Messages.FindAsync(message.Id);
-            if (existing != null)
+            // Create a detached copy to avoid navigation property issues
+            var newMessage = new ChatMessage(
+                message.ChannelId,
+                message.UserId,
+                message.Username,
+                message.Content,
+                message.Timestamp,
+                message.ImageUrls.ToList()
+            )
             {
-                // Update only the mutable fields
-                existing.Content = message.Content;
-                existing.IsEdited = message.IsEdited;
-            }
-            else
-            {
-                // Create a detached copy to avoid navigation property issues
-                var newMessage = new ChatMessage(
-                    message.ChannelId,
-                    message.UserId,
-                    message.Username,
-                    message.Content,
-                    message.Timestamp,
-                    message.ImageUrls.ToList()
-                )
-                {
-                    Id = message.Id,
-                    IsEdited = message.IsEdited
-                };
+                Id = message.Id,
+                IsEdited = message.IsEdited
+            };
 
-                db.Messages.Add(newMessage);
-            }
-
+            db.Messages.Add(newMessage);
             await db.SaveChangesAsync();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to persist message {MessageId}", message.Id);
+            _logger.LogError(ex, "Failed to persist new message {MessageId}", message.Id);
+        }
+    }
+
+    public async Task PersistMessageEditAsync(Guid messageId, string newContent)
+    {
+        if (!IsEnabled) return;
+
+        try
+        {
+            await using var db = await _dbFactory!.CreateDbContextAsync();
+
+            await db.Messages
+                .Where(m => m.Id == messageId)
+                .ExecuteUpdateAsync(m => m
+                    .SetProperty(x => x.Content, newContent)
+                    .SetProperty(x => x.IsEdited, true));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to persist message edit {MessageId}", messageId);
         }
     }
 
@@ -232,6 +241,33 @@ public class ChatPersistenceService
         {
             _logger.LogError(ex, "Failed to persist read state for user {UserId} channel {ChannelId}",
                 readState.UserId, readState.ChannelId);
+        }
+    }
+
+    /// <summary>
+    /// Batch increment unread count for multiple users in a single query.
+    /// </summary>
+    public async Task IncrementUnreadForUsersAsync(Guid channelId, IEnumerable<Guid> userIds)
+    {
+        if (!IsEnabled) return;
+
+        try
+        {
+            var userIdList = userIds.ToList();
+            if (userIdList.Count == 0) return;
+
+            await using var db = await _dbFactory!.CreateDbContextAsync();
+
+            // Single query to increment all existing read states
+            var updated = await db.ChannelReadStates
+                .Where(r => r.ChannelId == channelId && userIdList.Contains(r.UserId))
+                .ExecuteUpdateAsync(r => r.SetProperty(x => x.UnreadCount, x => x.UnreadCount + 1));
+
+            _logger.LogDebug("Batch incremented unread for {Count} users in channel {ChannelId}", updated, channelId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to batch increment unread for channel {ChannelId}", channelId);
         }
     }
 
