@@ -40,17 +40,17 @@
 
         @* Message shown on first reconnection attempt *@
         <span class="components-reconnect-first-attempt-visible">
-            Reconnecting to server...
+            You're awesome. And we are reconnecting...
         </span>
 
         @* Message shown on subsequent attempts with countdown *@
         <span class="components-reconnect-repeated-attempt-visible">
-            Connection lost. Retrying in <span id="components-seconds-to-next-attempt">4</span>s...
+            Connection lost. You are loved. Retrying in <span id="components-seconds-to-next-attempt">4</span>s...
         </span>
 
         @* Message shown if reconnection completely failed (shouldn't happen with infinite retry) *@
         <span class="components-reconnect-failed-visible">
-            Connection failed.
+            Connection failed. Please halp!
             <button id="components-reconnect-button">Retry Now</button>
         </span>
 
@@ -59,12 +59,12 @@
             With auto-resume enabled, this should rarely be visible.
         *@
         <span class="components-pause-visible">
-            Session paused. Resuming...
+            Session took a nap. Waking it up...
         </span>
 
         @* Message shown if resume failed - last resort *@
         <span class="components-resume-failed-visible">
-            Failed to resume session.
+            Time for a fresh start. Please hit that refresh!
             <button id="components-reload-button">Reload Page</button>
         </span>
     </div>
