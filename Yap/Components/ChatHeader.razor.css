@@ -18,6 +18,17 @@
     white-space: nowrap;
 }
 
+.dm-header-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.dm-header-title ::deep .avatar {
+    flex-shrink: 0;
+}
+
 .header-controls {
     display: flex;
     align-items: center;

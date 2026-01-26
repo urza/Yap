@@ -2,6 +2,26 @@
 
 All notable changes to Yap are documented in this file.
 
+## [2.8.0] - 2026-01-26
+
+### Performance Improvements
+
+#### Parallel Image Uploads
+- **10x faster multi-image uploads** - Now uses HTTP parallel transfers instead of sequential SignalR streaming
+  - Browser opens up to 6 concurrent HTTP connections
+  - 10 images upload in ~1.5 seconds instead of ~15 seconds
+- Added `/api/upload` endpoint for parallel file uploads
+- Added `uploadFilesParallel()` JS function for client-side parallel uploads
+
+#### Optimized Database Writes
+- **O(N) to O(1) database operations** - Sending a message no longer scales with user count
+  - Previously: N+1 queries (one SELECT+UPDATE per online user)
+  - Now: 3 queries total (INSERT message + UPDATE sender's read state + batch UPDATE all other users)
+- Added `IncrementUnreadForUsersAsync()` for batch read state updates using `ExecuteUpdateAsync`
+- Split `PersistMessageAsync` into `PersistNewMessageAsync` (skip SELECT) and `PersistMessageEditAsync` (use `ExecuteUpdateAsync`)
+
+---
+
 ## [2.7.0] - 2026-01-24
 
 ### User Profiles & Settings

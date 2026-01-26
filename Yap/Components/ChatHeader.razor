@@ -8,7 +8,20 @@
 @implements IDisposable
 
 <div class="chat-header">
-    <h3>@EmojiService.ConvertEmojisToTwemoji(NavState.Title, inline: true)</h3>
+    @if (!string.IsNullOrEmpty(NavState.CurrentDmUser))
+    {
+        var dmUser = UserService.GetByUsername(NavState.CurrentDmUser);
+        <div class="dm-header-title">
+            <Avatar Username="@(dmUser?.Username ?? NavState.CurrentDmUser)"
+                    ProfilePictureUrl="@dmUser?.ProfilePictureUrl"
+                    Size="AvatarSize.Small" />
+            <h3>@EmojiService.ConvertEmojisToTwemoji(dmUser?.EffectiveDisplayName ?? NavState.CurrentDmUser, inline: true)</h3>
+        </div>
+    }
+    else
+    {
+        <h3>@EmojiService.ConvertEmojisToTwemoji(NavState.Title, inline: true)</h3>
+    }
     <div class="header-controls">
         <div class="status-dropdown-container">
             <button class="status-button status-@UserState.Status.ToString().ToLower()" @onclick="ToggleDropdown" @onclick:stopPropagation="true">
