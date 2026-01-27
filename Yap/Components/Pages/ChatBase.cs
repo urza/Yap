@@ -331,15 +331,24 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
     protected async Task HandleReactionChanged(ChatMessage message)
     {
+        if (message.ChannelId != channelId) return;
+
+        // Check if near bottom BEFORE updating (to decide if we should scroll after)
+        var wasNearBottom = await JS.InvokeAsync<bool>("isNearBottom", 100);
+
         await InvokeAsync(() =>
         {
-            if (message.ChannelId == channelId)
-            {
-                var index = messages.FindIndex(m => m.Id == message.Id);
-                if (index >= 0) messages[index] = message;
-                StateHasChanged();
-            }
+            var index = messages.FindIndex(m => m.Id == message.Id);
+            if (index >= 0) messages[index] = message;
+            StateHasChanged();
         });
+
+        // If viewer was near bottom, scroll to reveal the reaction
+        if (wasNearBottom)
+        {
+            await Task.Delay(50);
+            await ScrollToBottomAsync();
+        }
     }
 
     #endregion
@@ -351,6 +360,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
         await AddRecentEmojiAsync(emoji);
         await IncrementEmojiCountAsync(emoji);
         await ChatService.ToggleReactionAsync(messageId, channelId, UserId, Username, emoji);
+        // Scroll handling is done in HandleReactionChanged for all viewers
     }
 
     protected void StartEdit(ChatMessage message)

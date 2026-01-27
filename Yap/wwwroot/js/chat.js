@@ -57,6 +57,16 @@ window.scrollToBottom = () => {
     setTimeout(doScroll, 300);
 };
 
+// Check if user is scrolled near the bottom of messages
+// Used to decide whether to auto-scroll after adding reactions
+window.isNearBottom = (threshold = 100) => {
+    const element = document.querySelector('.messages');
+    if (!element) return true; // Default to true if no element
+
+    const distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
+    return distanceFromBottom <= threshold;
+};
+
 // Image modal keyboard navigation
 let modalKeyHandler = null;
 
