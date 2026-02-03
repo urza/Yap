@@ -2,85 +2,103 @@
 @inject EmojiService EmojiService
 @inject CustomEmojiService CustomEmojiService
 @inject IJSRuntime JS
+@implements IAsyncDisposable
 
 <div class="emoji-picker @(isFlipped ? "flipped" : "")" @ref="pickerElement">
-    <div class="emoji-categories">
-        @* Custom tab first (if custom emojis exist) *@
+    <div class="emoji-sidebar">
+        @* Custom tab (if custom emojis exist) *@
         @if (CustomEmojiService.HasCustomEmojis)
         {
             var firstCustom = CustomEmojiService.GetAll().First();
-            <button class="category-btn @(selectedCategory == CustomCategory ? "active" : "")"
-                    @onclick="() => SelectCategory(CustomCategory)"
+            <button class="category-btn" data-category="custom"
+                    @onclick="() => ScrollToCategory(CustomCategory)"
                     title="Custom">
                 @EmojiService.RenderCustomEmoji(firstCustom)
             </button>
         }
         @* Recent tab *@
-        <button class="category-btn @(selectedCategory == RecentCategory ? "active" : "")"
-                @onclick="() => SelectCategory(RecentCategory)"
+        <button class="category-btn" data-category="recent"
+                @onclick="() => ScrollToCategory(RecentCategory)"
                 title="Recent">
             @EmojiService.ConvertEmojisToTwemoji("🕐", forceSmall: true)
         </button>
         @foreach (var category in EmojiData.Categories)
         {
-            <button class="category-btn @(selectedCategory == category.Key ? "active" : "")"
-                    @onclick="() => SelectCategory(category.Key)"
-                    title="@category.Key">
+            <button class="category-btn" data-category="@category.Key"
+                    @onclick="() => ScrollToCategory(category.Key)"
+                    title="@CapitalizeFirst(category.Key)">
                 @EmojiService.ConvertEmojisToTwemoji(category.Value.Icon, forceSmall: true)
             </button>
         }
     </div>
 
-    <div class="emoji-grid">
-        @if (selectedCategory == CustomCategory)
+    <div class="emoji-content" @ref="contentElement">
+        @* Custom section *@
+        @if (CustomEmojiService.HasCustomEmojis)
         {
-            @foreach (var emoji in CustomEmojiService.GetAll())
-            {
-                var shortcode = $":{emoji.Shortcode}:";
-                <button class="emoji-btn" @onclick="() => SelectEmoji(shortcode)" title="@shortcode">
-                    @EmojiService.RenderCustomEmoji(emoji, "22px")
-                </button>
-            }
+            <div class="emoji-section" data-section="custom">
+                <div class="section-header">Custom</div>
+                <div class="emoji-grid">
+                    @foreach (var emoji in CustomEmojiService.GetAll())
+                    {
+                        var shortcode = $":{emoji.Shortcode}:";
+                        <button class="emoji-btn" @onclick="() => SelectEmoji(shortcode)" title="@shortcode">
+                            @EmojiService.RenderCustomEmoji(emoji, "22px")
+                        </button>
+                    }
+                </div>
+            </div>
         }
-        else if (selectedCategory == RecentCategory)
-        {
-            @if (RecentEmojis.Count > 0)
-            {
-                @foreach (var emoji in RecentEmojis)
+
+        @* Recent section *@
+        <div class="emoji-section" data-section="recent">
+            <div class="section-header">Recent</div>
+            <div class="emoji-grid">
+                @if (RecentEmojis.Count > 0)
                 {
-                    var e = emoji;
-                    <button class="emoji-btn" @onclick="() => SelectEmoji(e)">
-                        @if (IsCustomEmojiString(e))
-                        {
-                            var ce = GetCustomEmojiFromString(e);
-                            if (ce != null)
+                    @foreach (var emoji in RecentEmojis)
+                    {
+                        var e = emoji;
+                        <button class="emoji-btn" @onclick="() => SelectEmoji(e)">
+                            @if (IsCustomEmojiString(e))
                             {
-                                @EmojiService.RenderCustomEmoji(ce)
+                                var ce = GetCustomEmojiFromString(e);
+                                if (ce != null)
+                                {
+                                    @EmojiService.RenderCustomEmoji(ce)
+                                }
+                                else
+                                {
+                                    @e
+                                }
                             }
                             else
                             {
-                                @e
+                                @EmojiService.ConvertEmojisToTwemoji(e, forceSmall: true)
                             }
-                        }
-                        else
-                        {
-                            @EmojiService.ConvertEmojisToTwemoji(e, forceSmall: true)
-                        }
-                    </button>
+                        </button>
+                    }
                 }
-            }
-            else
-            {
-                <div class="emoji-empty">No recent emojis yet</div>
-            }
-        }
-        else
+                else
+                {
+                    <div class="emoji-empty">No recent emojis yet</div>
+                }
+            </div>
+        </div>
+
+        @* Standard categories *@
+        @foreach (var category in EmojiData.Categories)
         {
-            @foreach (var emoji in EmojiData.Categories[selectedCategory].Emojis)
-            {
-                var e = emoji;
-                <button class="emoji-btn" @onclick="() => SelectEmoji(e)">@EmojiService.ConvertEmojisToTwemoji(e, forceSmall: true)</button>
-            }
+            <div class="emoji-section" data-section="@category.Key">
+                <div class="section-header">@CapitalizeFirst(category.Key)</div>
+                <div class="emoji-grid">
+                    @foreach (var emoji in category.Value.Emojis)
+                    {
+                        var e = emoji;
+                        <button class="emoji-btn" @onclick="() => SelectEmoji(e)">@EmojiService.ConvertEmojisToTwemoji(e, forceSmall: true)</button>
+                    }
+                </div>
+            </div>
         }
     </div>
 </div>
@@ -91,23 +109,15 @@
 
     private const string RecentCategory = "recent";
     private const string CustomCategory = "custom";
-    private string selectedCategory = "smileys";
     private ElementReference pickerElement;
+    private ElementReference contentElement;
     private bool isFlipped = false;
-
-    protected override void OnInitialized()
-    {
-        if (CustomEmojiService.HasCustomEmojis)
-        {
-            selectedCategory = CustomCategory;
-        }
-    }
+    private IJSObjectReference? scrollTracker;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            // Check if picker would overflow viewport bottom
             try
             {
                 isFlipped = await JS.InvokeAsync<bool>("checkEmojiPickerPosition", pickerElement);
@@ -115,14 +125,20 @@
                 {
                     StateHasChanged();
                 }
+
+                scrollTracker = await JS.InvokeAsync<IJSObjectReference>("initEmojiPickerScroll", contentElement);
             }
             catch { /* Ignore JS errors */ }
         }
     }
 
-    private void SelectCategory(string category)
+    private async Task ScrollToCategory(string key)
     {
-        selectedCategory = category;
+        try
+        {
+            await JS.InvokeVoidAsync("scrollEmojiPickerToSection", contentElement, key);
+        }
+        catch { /* Ignore JS errors */ }
     }
 
     private async Task SelectEmoji(string emoji)
@@ -130,9 +146,25 @@
         await OnEmojiSelected.InvokeAsync(emoji);
     }
 
+    private static string CapitalizeFirst(string s) =>
+        string.IsNullOrEmpty(s) ? s : char.ToUpper(s[0]) + s[1..];
+
     private static bool IsCustomEmojiString(string s) =>
         s.Length > 2 && s[0] == ':' && s[^1] == ':' && !s.AsSpan(1, s.Length - 2).Contains(':');
 
     private CustomEmoji? GetCustomEmojiFromString(string s) =>
         IsCustomEmojiString(s) ? CustomEmojiService.GetByShortcode(s[1..^1]) : null;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (scrollTracker is not null)
+        {
+            try
+            {
+                await scrollTracker.InvokeVoidAsync("dispose");
+                await scrollTracker.DisposeAsync();
+            }
+            catch { /* Circuit may already be gone */ }
+        }
+    }
 }

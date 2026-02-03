@@ -420,6 +420,62 @@ window.checkEmojiPickerPosition = (element) => {
     return spaceBelow < pickerHeight && spaceAbove > spaceBelow;
 };
 
+// Initialize scroll-tracking for emoji picker sidebar highlights.
+// Returns an object with dispose() to clean up the scroll listener.
+window.initEmojiPickerScroll = (contentElement) => {
+    if (!contentElement) return { dispose: () => {} };
+
+    const picker = contentElement.closest('.emoji-picker');
+    if (!picker) return { dispose: () => {} };
+
+    const sidebar = picker.querySelector('.emoji-sidebar');
+    if (!sidebar) return { dispose: () => {} };
+
+    const highlightActive = () => {
+        const sections = contentElement.querySelectorAll('.emoji-section');
+        let activeKey = null;
+
+        // Find the section whose top is at or above the container's scroll position
+        for (const section of sections) {
+            if (section.offsetTop <= contentElement.scrollTop + 8) {
+                activeKey = section.getAttribute('data-section');
+            }
+        }
+
+        // Fallback to first section if nothing matched
+        if (!activeKey && sections.length > 0) {
+            activeKey = sections[0].getAttribute('data-section');
+        }
+
+        // Toggle .active on matching sidebar button
+        for (const btn of sidebar.querySelectorAll('.category-btn')) {
+            btn.classList.toggle('active', btn.getAttribute('data-category') === activeKey);
+        }
+    };
+
+    // Run initial highlight
+    highlightActive();
+
+    const onScroll = () => highlightActive();
+    contentElement.addEventListener('scroll', onScroll, { passive: true });
+
+    return {
+        dispose: () => {
+            contentElement.removeEventListener('scroll', onScroll);
+        }
+    };
+};
+
+// Smooth-scroll emoji picker content to a specific category section.
+window.scrollEmojiPickerToSection = (contentElement, categoryKey) => {
+    if (!contentElement) return;
+
+    const section = contentElement.querySelector(`.emoji-section[data-section="${categoryKey}"]`);
+    if (section) {
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+};
+
 // ==========================================
 // Scroll-to-Dismiss (Mobile message actions)
 // Uses pure CSS class toggling - no Blazor callbacks needed
