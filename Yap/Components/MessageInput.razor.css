@@ -120,16 +120,30 @@
     width: 44px;
     height: 44px;
     background: transparent;
-    color: var(--text-secondary);
     border: none;
     border-radius: 50%;
     cursor: pointer;
-    font-size: 1.5rem;
-    transition: color 0.2s;
+    transition: filter 0.2s, opacity 0.2s;
 }
 
-.emoji-toggle-button:hover {
-    color: var(--text-primary);
+.emoji-toggle-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    filter: grayscale(100%);
+    opacity: 0.5;
+    transition: filter 0.2s, opacity 0.2s;
+}
+
+.emoji-toggle-icon ::deep .emoji {
+    width: 22px !important;
+    height: 22px !important;
+}
+
+.emoji-toggle-button:hover .emoji-toggle-icon,
+.emoji-toggle-button.active .emoji-toggle-icon {
+    filter: none;
+    opacity: 1;
 }
 
 /* Emoji picker positioned above the button */

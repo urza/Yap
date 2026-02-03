@@ -6,6 +6,7 @@
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Environment
 @inject ILogger<MessageInput> Logger
+@inject EmojiService EmojiService
 @implements IAsyncDisposable
 
 @if (!string.IsNullOrEmpty(warningTitle))
@@ -71,14 +72,8 @@
         <InputFile OnChange="HandleFileSelected" accept="image/*" multiple style="display: none;" id="@FileInputId" />
     </label>
     <div class="emoji-toggle-wrapper">
-        <button class="emoji-toggle-button" @onclick="ToggleEmojiPicker" title="Emoji picker">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
-                <line x1="9" y1="9" x2="9.01" y2="9"></line>
-                <line x1="15" y1="9" x2="15.01" y2="9"></line>
-            </svg>
+        <button class="emoji-toggle-button @(showEmojiPicker ? "active" : "")" @onclick="ToggleEmojiPicker" title="Emoji picker">
+            <span class="emoji-toggle-icon">@EmojiService.ConvertEmojisToTwemoji(randomButtonEmoji, forceSmall: true)</span>
         </button>
         @if (showEmojiPicker)
         {
@@ -137,9 +132,20 @@
     private string FileInputId = $"fileInput_{Guid.NewGuid():N}";
     private bool isTouchDevice = false;
     private bool showEmojiPicker = false;
+    private string randomButtonEmoji = "😀";
+
+    private static readonly string[] ButtonEmojis = new[]
+    {
+        "😀", "😊", "😎", "🤩", "😋", "🥳", "🤗", "😺", "🐱", "🐶",
+        "🦊", "🐼", "🐸", "🌟", "🔥", "💜", "🎉", "🎵", "🍕", "🚀"
+    };
+
+    private static readonly Random _random = new();
 
     protected override void OnInitialized()
     {
+        randomButtonEmoji = ButtonEmojis[_random.Next(ButtonEmojis.Length)];
+
         UpdateChannelId();
         UpdatePlaceholder();
 
