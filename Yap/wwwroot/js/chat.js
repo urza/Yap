@@ -171,6 +171,27 @@ window.insertTextAtCursor = (textareaId, text) => {
     window.autoResizeTextarea(textareaId);
 };
 
+// Emoji toggle button: randomize which color emoji appears on each hover
+// Listens on the button (parent) to avoid re-triggering when moving within it
+window.setupEmojiToggle = (iconId, cols, totalEmojis) => {
+    const icon = document.getElementById(iconId);
+    if (!icon) return;
+    const button = icon.parentElement;
+    if (!button) return;
+
+    button.addEventListener('mouseenter', () => {
+        // Pick one random emoji — set on both color and grey
+        // Color shows immediately (hover), grey shows when you leave (same emoji, greyed out)
+        const index = Math.floor(Math.random() * totalEmojis);
+        const col = index % cols;
+        const row = Math.floor(index / cols);
+        icon.style.setProperty('--color-col', col);
+        icon.style.setProperty('--color-row', row);
+        icon.style.setProperty('--grey-col', col);
+        icon.style.setProperty('--grey-row', row);
+    });
+};
+
 // Detect touch/mobile device - Enter should not send on these
 window.isTouchDevice = () => {
     return 'ontouchstart' in window || navigator.maxTouchPoints > 0;

@@ -6,7 +6,6 @@
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Environment
 @inject ILogger<MessageInput> Logger
-@inject EmojiService EmojiService
 @implements IAsyncDisposable
 
 @if (!string.IsNullOrEmpty(warningTitle))
@@ -73,7 +72,8 @@
     </label>
     <div class="emoji-toggle-wrapper">
         <button class="emoji-toggle-button @(showEmojiPicker ? "active" : "")" @onclick="ToggleEmojiPicker" title="Emoji picker">
-            <span class="emoji-toggle-icon">@EmojiService.ConvertEmojisToTwemoji(randomButtonEmoji, forceSmall: true)</span>
+            <span class="emoji-toggle-icon" id="@EmojiIconId"
+                  style="--grey-col: @greyCol; --grey-row: @greyRow; --color-col: @colorCol; --color-row: @colorRow;"></span>
         </button>
         @if (showEmojiPicker)
         {
@@ -132,19 +132,25 @@
     private string FileInputId = $"fileInput_{Guid.NewGuid():N}";
     private bool isTouchDevice = false;
     private bool showEmojiPicker = false;
-    private string randomButtonEmoji = "😀";
 
-    private static readonly string[] ButtonEmojis = new[]
-    {
-        "😀", "😊", "😎", "🤩", "😋", "🥳", "🤗", "😺", "🐱", "🐶",
-        "🦊", "🐼", "🐸", "🌟", "🔥", "💜", "🎉", "🎵", "🍕", "🚀"
-    };
-
+    // Emoji button sprite grid: 960x192 PNG, 48px cells = 20 cols x 4 rows
+    private const int SpriteCols = 20;
+    private const int SpriteTotalEmojis = 73; // 3 full rows + 13 in last row
     private static readonly Random _random = new();
+    private string EmojiIconId = $"emojiIcon_{Guid.NewGuid():N}";
+    private int greyCol;
+    private int greyRow;
+    private int colorCol;
+    private int colorRow;
 
     protected override void OnInitialized()
     {
-        randomButtonEmoji = ButtonEmojis[_random.Next(ButtonEmojis.Length)];
+        var greyIndex = _random.Next(SpriteTotalEmojis);
+        greyCol = greyIndex % SpriteCols;
+        greyRow = greyIndex / SpriteCols;
+        var colorIndex = _random.Next(SpriteTotalEmojis);
+        colorCol = colorIndex % SpriteCols;
+        colorRow = colorIndex / SpriteCols;
 
         UpdateChannelId();
         UpdatePlaceholder();
@@ -172,6 +178,8 @@
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to detect touch device"); }
             try { await JS.InvokeVoidAsync("setupEnterKeyHandler", TextareaId); }
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup enter key handler"); }
+            try { await JS.InvokeVoidAsync("setupEmojiToggle", EmojiIconId, SpriteCols, SpriteTotalEmojis); }
+            catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup emoji toggle"); }
         }
     }
 
