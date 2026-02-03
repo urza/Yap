@@ -48,7 +48,7 @@
     }
 </div>
 
-<MessageInput RoomId="@channelId" />
+<MessageInput RoomId="@channelId" RecentEmojis="@recentEmojis" OnEmojiUsed="HandleInputEmojiUsed" />
 
 <ImageGalleryModal Visible="@showImageModal"
                    Images="@modalGallery"

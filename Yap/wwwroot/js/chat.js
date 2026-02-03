@@ -145,6 +145,32 @@ window.resetTextareaHeight = (id) => {
     }
 };
 
+// Insert text at cursor position in textarea (for emoji picker)
+window.insertTextAtCursor = (textareaId, text) => {
+    const textarea = document.getElementById(textareaId);
+    if (!textarea) return;
+
+    textarea.focus();
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const value = textarea.value;
+
+    // Splice text in at cursor position
+    textarea.value = value.substring(0, start) + text + value.substring(end);
+
+    // Move cursor to after inserted text
+    const newPos = start + text.length;
+    textarea.selectionStart = newPos;
+    textarea.selectionEnd = newPos;
+
+    // Dispatch input event so Blazor's @bind picks up the change
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+
+    // Auto-resize textarea
+    window.autoResizeTextarea(textareaId);
+};
+
 // Detect touch/mobile device - Enter should not send on these
 window.isTouchDevice = () => {
     return 'ontouchstart' in window || navigator.maxTouchPoints > 0;

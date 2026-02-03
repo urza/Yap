@@ -389,6 +389,12 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
         await ChatService.DeleteMessageAsync(messageId, channelId, Username);
     }
 
+    protected async Task HandleInputEmojiUsed(string emoji)
+    {
+        await AddRecentEmojiAsync(emoji);
+        await IncrementEmojiCountAsync(emoji);
+    }
+
     #endregion
 
     #region Tab Notifications

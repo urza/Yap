@@ -70,6 +70,24 @@
         </svg>
         <InputFile OnChange="HandleFileSelected" accept="image/*" multiple style="display: none;" id="@FileInputId" />
     </label>
+    <div class="emoji-toggle-wrapper">
+        <button class="emoji-toggle-button" @onclick="ToggleEmojiPicker" title="Emoji picker">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+                <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                <line x1="15" y1="9" x2="15.01" y2="9"></line>
+            </svg>
+        </button>
+        @if (showEmojiPicker)
+        {
+            <div class="emoji-picker-backdrop" @onclick="CloseEmojiPicker"></div>
+            <div class="emoji-picker-container">
+                <EmojiPicker RecentEmojis="@RecentEmojis" OnEmojiSelected="HandleEmojiSelected" />
+            </div>
+        }
+    </div>
     <button class="send-button @(string.IsNullOrWhiteSpace(messageText) ? "disabled" : "")"
             @onclick="HandleSend"
             disabled="@string.IsNullOrWhiteSpace(messageText)"
@@ -84,6 +102,10 @@
     // Context parameters - one or the other will be set
     [Parameter] public Guid? RoomId { get; set; }
     [Parameter] public string? DmUser { get; set; }
+
+    // Emoji drawer parameters
+    [Parameter] public List<string> RecentEmojis { get; set; } = new();
+    [Parameter] public EventCallback<string> OnEmojiUsed { get; set; }
 
     private Guid UserId => UserState.UserId ?? Guid.Empty;
     private string Username => UserState.Username ?? "";
@@ -114,6 +136,7 @@
     private string TextareaId = $"messageTextarea_{Guid.NewGuid():N}";
     private string FileInputId = $"fileInput_{Guid.NewGuid():N}";
     private bool isTouchDevice = false;
+    private bool showEmojiPicker = false;
 
     protected override void OnInitialized()
     {
@@ -311,6 +334,33 @@
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to send message");
+        }
+    }
+
+    #endregion
+
+    #region Emoji Picker
+
+    private void ToggleEmojiPicker()
+    {
+        showEmojiPicker = !showEmojiPicker;
+    }
+
+    private void CloseEmojiPicker()
+    {
+        showEmojiPicker = false;
+    }
+
+    private async Task HandleEmojiSelected(string emoji)
+    {
+        try { await JS.InvokeVoidAsync("insertTextAtCursor", TextareaId, emoji); }
+        catch (Exception ex) { Logger.LogWarning(ex, "Failed to insert emoji at cursor"); }
+
+        showEmojiPicker = false;
+
+        if (OnEmojiUsed.HasDelegate)
+        {
+            await OnEmojiUsed.InvokeAsync(emoji);
         }
     }
 

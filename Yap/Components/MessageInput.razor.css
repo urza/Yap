@@ -107,6 +107,50 @@
     color: var(--text-primary);
 }
 
+/* Emoji toggle button */
+.emoji-toggle-wrapper {
+    position: relative;
+}
+
+.emoji-toggle-button {
+    flex: 0 0 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    background: transparent;
+    color: var(--text-secondary);
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.5rem;
+    transition: color 0.2s;
+}
+
+.emoji-toggle-button:hover {
+    color: var(--text-primary);
+}
+
+/* Emoji picker positioned above the button */
+.emoji-picker-container {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    margin-bottom: 8px;
+    z-index: 1000;
+}
+
+/* Invisible backdrop to catch outside clicks */
+.emoji-picker-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 999;
+}
+
 /* Typing indicator styles */
 .typing-indicator-container {
     height: 18px;
@@ -204,6 +248,16 @@
         flex: 0 0 40px;
         width: 40px;
         height: 40px;
+    }
+
+    .emoji-toggle-button {
+        flex: 0 0 40px;
+        width: 40px;
+        height: 40px;
+    }
+
+    .emoji-picker-container {
+        right: -40px;
     }
 }
 
