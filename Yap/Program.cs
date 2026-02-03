@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.Extensions.FileProviders;
 using Yap.Components;
 using Yap.Extensions;
 using Yap.Middleware;
@@ -81,6 +82,7 @@ builder.Services.Configure<CircuitOptions>(options =>
 builder.Services.AddChatPersistence(builder.Configuration);
 
 // Chat services
+builder.Services.AddSingleton<CustomEmojiService>();
 builder.Services.AddSingleton<ImageService>();
 builder.Services.AddSingleton<PushSubscriptionStore>();
 builder.Services.AddSingleton<PushNotificationService>();
@@ -133,6 +135,15 @@ app.UseHttpsRedirection();
 app.UseAntiforgery();
 
 app.UseStaticFiles(); // Serve uploaded images from wwwroot/uploads
+
+// Serve custom emojis from Data/custom-emojis/ folder
+var customEmojisPath = Path.Combine(app.Environment.ContentRootPath, "Data", "custom-emojis");
+Directory.CreateDirectory(customEmojisPath);
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(customEmojisPath),
+    RequestPath = "/custom-emojis"
+});
 
 // Custom middlewares - positioned after UseStaticFiles() to skip static file requests
 app.UseMiddleware<AuthMiddleware>();

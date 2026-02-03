@@ -7,5 +7,8 @@ if [ ! -f /app/Data/appsettings.json ]; then
     cp /app/appsettings.default.json /app/Data/appsettings.json
 fi
 
+# Ensure custom emojis folder exists
+mkdir -p /app/Data/custom-emojis
+
 # Run the app
 exec dotnet Yap.dll

@@ -1,10 +1,21 @@
 @using Yap.Services
 @inject EmojiService EmojiService
+@inject CustomEmojiService CustomEmojiService
 @inject IJSRuntime JS
 
 <div class="emoji-picker @(isFlipped ? "flipped" : "")" @ref="pickerElement">
     <div class="emoji-categories">
-        @* Recent tab first *@
+        @* Custom tab first (if custom emojis exist) *@
+        @if (CustomEmojiService.HasCustomEmojis)
+        {
+            var firstCustom = CustomEmojiService.GetAll().First();
+            <button class="category-btn @(selectedCategory == CustomCategory ? "active" : "")"
+                    @onclick="() => SelectCategory(CustomCategory)"
+                    title="Custom">
+                @EmojiService.RenderCustomEmoji(firstCustom)
+            </button>
+        }
+        @* Recent tab *@
         <button class="category-btn @(selectedCategory == RecentCategory ? "active" : "")"
                 @onclick="() => SelectCategory(RecentCategory)"
                 title="Recent">
@@ -21,14 +32,41 @@
     </div>
 
     <div class="emoji-grid">
-        @if (selectedCategory == RecentCategory)
+        @if (selectedCategory == CustomCategory)
+        {
+            @foreach (var emoji in CustomEmojiService.GetAll())
+            {
+                var shortcode = $":{emoji.Shortcode}:";
+                <button class="emoji-btn" @onclick="() => SelectEmoji(shortcode)" title="@shortcode">
+                    @EmojiService.RenderCustomEmoji(emoji, "22px")
+                </button>
+            }
+        }
+        else if (selectedCategory == RecentCategory)
         {
             @if (RecentEmojis.Count > 0)
             {
                 @foreach (var emoji in RecentEmojis)
                 {
                     var e = emoji;
-                    <button class="emoji-btn" @onclick="() => SelectEmoji(e)">@EmojiService.ConvertEmojisToTwemoji(e, forceSmall: true)</button>
+                    <button class="emoji-btn" @onclick="() => SelectEmoji(e)">
+                        @if (IsCustomEmojiString(e))
+                        {
+                            var ce = GetCustomEmojiFromString(e);
+                            if (ce != null)
+                            {
+                                @EmojiService.RenderCustomEmoji(ce)
+                            }
+                            else
+                            {
+                                @e
+                            }
+                        }
+                        else
+                        {
+                            @EmojiService.ConvertEmojisToTwemoji(e, forceSmall: true)
+                        }
+                    </button>
                 }
             }
             else
@@ -52,9 +90,18 @@
     [Parameter] public EventCallback<string> OnEmojiSelected { get; set; }
 
     private const string RecentCategory = "recent";
+    private const string CustomCategory = "custom";
     private string selectedCategory = "smileys";
     private ElementReference pickerElement;
     private bool isFlipped = false;
+
+    protected override void OnInitialized()
+    {
+        if (CustomEmojiService.HasCustomEmojis)
+        {
+            selectedCategory = CustomCategory;
+        }
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -82,4 +129,10 @@
     {
         await OnEmojiSelected.InvokeAsync(emoji);
     }
+
+    private static bool IsCustomEmojiString(string s) =>
+        s.Length > 2 && s[0] == ':' && s[^1] == ':' && !s.AsSpan(1, s.Length - 2).Contains(':');
+
+    private CustomEmoji? GetCustomEmojiFromString(string s) =>
+        IsCustomEmojiString(s) ? CustomEmojiService.GetByShortcode(s[1..^1]) : null;
 }

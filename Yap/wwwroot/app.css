@@ -167,3 +167,7 @@ h1:focus {
     margin: 0;
     font-style: italic;
 }
+
+.custom-emoji {
+    object-fit: contain;
+}

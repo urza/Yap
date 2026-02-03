@@ -5,10 +5,20 @@ namespace Yap.Services;
 
 public partial class EmojiService
 {
+    private readonly CustomEmojiService _customEmojiService;
+
+    public EmojiService(CustomEmojiService customEmojiService)
+    {
+        _customEmojiService = customEmojiService;
+    }
+
     // More precise emoji regex - common emojis only
     [GeneratedRegex(
         @"(?:[\u2700-\u27bf]|(?:\ud83c[\udde6-\uddff]){2}|[\ud800-\udbff][\udc00-\udfff]|[\u0023-\u0039]\ufe0f?\u20e3|\u3299|\u3297|\u303d|\u3030|\u24c2|\ud83c[\udd70-\udd71]|\ud83c[\udd7e-\udd7f]|\ud83c\udd8e|\ud83c[\udd91-\udd9a]|\ud83c[\udde6-\uddff]|\ud83c[\ude01-\ude02]|\ud83c\ude1a|\ud83c\ude2f|\ud83c[\ude32-\ude3a]|\ud83c[\ude50-\ude51]|\u203c|\u2049|[\u25aa-\u25ab]|\u25b6|\u25c0|[\u25fb-\u25fe]|\u00a9|\u00ae|\u2122|\u2139|\ud83c\udc04|[\u2600-\u26FF]|\u2b05|\u2b06|\u2b07|\u2b1b|\u2b1c|\u2b50|\u2b55|\u231a|\u231b|\u2328|\u23cf|[\u23e9-\u23f3]|[\u23f8-\u23fa]|\ud83c\udccf|\u2934|\u2935|[\u2190-\u21ff])")]
     private static partial Regex EmojiRegex();
+
+    [GeneratedRegex(@":([a-zA-Z0-9_-]+):")]
+    private static partial Regex CustomEmojiShortcodeRegex();
 
     /// <summary>
     /// Converts all Unicode emoji characters in the specified text to Twemoji SVG image tags, preserving the original
@@ -33,7 +43,7 @@ public partial class EmojiService
         // Check if message contains only emojis (and whitespace)
         var isEmojiOnly = !forceSmall && !inline && IsEmojiOnlyMessage(text);
 
-        var (emojiSize, verticalAlign) 
+        var (emojiSize, verticalAlign)
             = (inline, forceSmall, isEmojiOnly) switch
         {
               (true, _, _) => ("1em", "-0.15em"),      // Inline text (display names, room names)
@@ -42,7 +52,19 @@ public partial class EmojiService
                _ => ("1.2em", "-0.2em")                  // Mixed content messages - nomral chat message containing text + emojis
         };
 
-        var result = EmojiRegex().Replace(text, match =>
+        // Replace custom emoji shortcodes FIRST (before Unicode emoji replacement)
+        var result = CustomEmojiShortcodeRegex().Replace(text, match =>
+        {
+            var shortcode = match.Groups[1].Value;
+            var emoji = _customEmojiService.GetByShortcode(shortcode);
+            if (emoji == null)
+                return match.Value; // Not a known custom emoji, leave as-is
+
+            return $"<img src=\"{emoji.Url}\" alt=\":{emoji.Shortcode}:\" class=\"emoji custom-emoji\" " +
+                   $"style=\"width: {emojiSize}; height: {emojiSize}; vertical-align: {verticalAlign}; display: inline-block; object-fit: contain;\" />";
+        });
+
+        result = EmojiRegex().Replace(result, match =>
         {
             var emoji = match.Value;
             var codePoint = GetCodePoint(emoji);
@@ -58,29 +80,31 @@ public partial class EmojiService
         return new MarkupString(result);
     }
 
-    private static bool IsEmojiOnlyMessage(string text)
+    private bool IsEmojiOnlyMessage(string text)
     {
         if (string.IsNullOrEmpty(text))
             return false;
 
-        // Remove all whitespace
         var trimmed = text.Trim();
 
-        // Replace all emojis with empty string
-        var withoutEmojis = EmojiRegex().Replace(trimmed, "");
+        // Strip known custom emoji shortcodes
+        var withoutCustom = CustomEmojiShortcodeRegex().Replace(trimmed, match =>
+            _customEmojiService.IsCustomEmoji(match.Groups[1].Value) ? "" : match.Value);
+
+        // Replace all Unicode emojis with empty string
+        var withoutEmojis = EmojiRegex().Replace(withoutCustom, "");
 
         // If nothing remains after removing emojis, it's emoji-only
         return string.IsNullOrWhiteSpace(withoutEmojis);
     }
 
-    /// <summary>
-    /// Converts the specified emoji string to its Unicode code point representation in hexadecimal format.
-    /// </summary>
-    /// <remarks>Variation selectors and zero-width joiners are omitted from the output. Surrogate pairs are
-    /// combined into a single code point as appropriate.</remarks>
-    /// <param name="emoji">The emoji string to convert. May contain one or more Unicode characters, including surrogate pairs.</param>
-    /// <returns>A string containing the hexadecimal Unicode code points of the emoji, separated by hyphens. Returns an empty
-    /// string if the input is invalid or an error occurs.</returns>
+    public MarkupString RenderCustomEmoji(CustomEmoji emoji, string size = "18px")
+    {
+        return new MarkupString(
+            $"<img src=\"{emoji.Url}\" alt=\":{emoji.Shortcode}:\" class=\"emoji custom-emoji\" " +
+            $"style=\"width: {size}; height: {size}; vertical-align: -3px; display: inline-block; object-fit: contain;\" />");
+    }
+
     private static string GetCodePoint(string emoji)
     {
         try
