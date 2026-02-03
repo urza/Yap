@@ -2,12 +2,17 @@
     display: flex;
     flex-direction: row;
     align-items: flex-end;
-    gap: 0.5rem;
+    gap: 0.25rem;
     width: 100%;
     padding: 4px 8px 16px;
     background: var(--bg-primary);
     transition: background-color 0.2s, box-shadow 0.2s;
     position: relative;
+}
+
+/* Keep some breathing room between textarea and the buttons */
+.message-input {
+    margin-right: 0.25rem;
 }
 
 .message-input-container.drag-over {
@@ -110,6 +115,7 @@
 /* Emoji toggle button */
 .emoji-toggle-wrapper {
     position: relative;
+    margin-left: -0.5rem;
 }
 
 .emoji-toggle-button {
@@ -251,6 +257,11 @@
 @media (max-width: 600px) {
     .message-input-container {
         padding: 4px 8px 16px;
+        gap: 0;
+    }
+
+    .message-input {
+        margin-right: 0.125rem;
     }
 
     .typing-indicator-container {
