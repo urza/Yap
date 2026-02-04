@@ -212,6 +212,19 @@ public class ChatService
         }
     }
 
+    /// <summary>
+    /// Runs an async action in the background via Task.Run. Used for event dispatch
+    /// so the caller's circuit is never blocked waiting for other circuits' handlers.
+    /// </summary>
+    private void FireAndForget(Func<Task> action, [System.Runtime.CompilerServices.CallerMemberName] string? caller = null)
+    {
+        _ = Task.Run(async () =>
+        {
+            try { await action(); }
+            catch (Exception ex) { _logger.LogError(ex, "Background notification failed in {Caller}", caller); }
+        });
+    }
+
     #endregion
 
     #region Diagnostics
@@ -376,7 +389,7 @@ public class ChatService
         // Persist to database
         await _persistence.PersistChannelAsync(channel);
 
-        await InvokeParallelAsync(OnChannelCreated, channel);
+        FireAndForget(async () => await InvokeParallelAsync(OnChannelCreated, channel));
 
         return channel;
     }
@@ -401,7 +414,7 @@ public class ChatService
         // Delete from database
         await _persistence.DeleteChannelAsync(channelId);
 
-        await InvokeParallelAsync(OnChannelDeleted, channelId);
+        FireAndForget(async () => await InvokeParallelAsync(OnChannelDeleted, channelId));
 
         return true;
     }
@@ -463,7 +476,7 @@ public class ChatService
 
     #region User Management
 
-    public async Task AddUserAsync(string sessionId, Guid userId, string username, UserStatus status = UserStatus.Online, bool? isMobile = null)
+    public Task AddUserAsync(string sessionId, Guid userId, string username, UserStatus status = UserStatus.Online, bool? isMobile = null)
     {
         // Remove any existing sessions for this username (stale circuits from page refresh, etc.)
         var staleSessionIds = _users
@@ -478,20 +491,30 @@ public class ChatService
 
         _users[sessionId] = new UserSession(userId, username, sessionId, status, isMobile);
 
-        await InvokeParallelAsync(OnUserChanged, username, true);
-        await InvokeParallelAsync(OnUsersListChanged);
+        FireAndForget(async () =>
+        {
+            await InvokeParallelAsync(OnUserChanged, username, true);
+            await InvokeParallelAsync(OnUsersListChanged);
+        });
+
+        return Task.CompletedTask;
     }
 
-    public async Task SetUserStatusAsync(string sessionId, UserStatus status)
+    public Task SetUserStatusAsync(string sessionId, UserStatus status)
     {
         if (!_users.TryGetValue(sessionId, out var session))
-            return;
+            return Task.CompletedTask;
 
         // Update with new status
         _users[sessionId] = session with { Status = status };
 
-        await InvokeParallelAsync(OnUserStatusChanged, session.Username, status);
-        await InvokeParallelAsync(OnUsersListChanged);
+        FireAndForget(async () =>
+        {
+            await InvokeParallelAsync(OnUserStatusChanged, session.Username, status);
+            await InvokeParallelAsync(OnUsersListChanged);
+        });
+
+        return Task.CompletedTask;
     }
 
     public UserStatus? GetUserStatus(string username)
@@ -501,7 +524,7 @@ public class ChatService
         return session?.Status;
     }
 
-    public async Task RemoveUserAsync(string circuitId)
+    public Task RemoveUserAsync(string circuitId)
     {
         if (_users.TryRemove(circuitId, out var session))
         {
@@ -514,9 +537,14 @@ public class ChatService
             // Note: DM channels now persist permanently (like Discord)
             // They are NOT deleted when user disconnects
 
-            await InvokeParallelAsync(OnUserChanged, session.Username, false);
-            await InvokeParallelAsync(OnUsersListChanged);
+            FireAndForget(async () =>
+            {
+                await InvokeParallelAsync(OnUserChanged, session.Username, false);
+                await InvokeParallelAsync(OnUsersListChanged);
+            });
         }
+
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -566,25 +594,32 @@ public class ChatService
         // Persist message (no SELECT needed - always new)
         await _persistence.PersistNewMessageAsync(message);
 
-        // Stop typing when message is sent (notify immediately so receivers clear indicator with the message)
-        if (_channelTypingUsers.TryGetValue(channelId, out var typingUsers) && typingUsers.TryRemove(username, out _))
-            await InvokeParallelAsync(OnTypingUsersChanged, channelId);
+        // Update unread counts in memory + DB (awaited — fast, no events)
+        var affectedUserIds = await IncrementUnreadCountsAsync(channelId, userId);
 
-        await InvokeParallelAsync(OnMessageReceived, message);
+        // Clear typing state in memory (fast, no event dispatch)
+        var wasTyping = _channelTypingUsers.TryGetValue(channelId, out var typingUsers) && typingUsers.TryRemove(username, out _);
 
-        // Increment unread counts for other participants
-        await IncrementUnreadAsync(channelId, userId);
-
-        // Send push notification for DMs
-        if (channel.IsDirectMessage)
+        // All notifications fire-and-forget — sender's circuit returns immediately
+        FireAndForget(async () =>
         {
-            var recipient = channel.GetOtherParticipant(username);
-            if (recipient != null)
+            if (wasTyping)
+                await InvokeParallelAsync(OnTypingUsersChanged, channelId);
+
+            await InvokeParallelAsync(OnMessageReceived, message);
+            await NotifyUnreadChangedAsync(channelId, affectedUserIds);
+
+            // Send push notification for DMs
+            if (channel.IsDirectMessage)
             {
-                var preview = imageUrls?.Count > 0 ? "[Image]" : content;
-                _ = _pushService.SendDmNotificationAsync(recipient, username, preview, 1);
+                var recipient = channel.GetOtherParticipant(username);
+                if (recipient != null)
+                {
+                    var preview = imageUrls?.Count > 0 ? "[Image]" : content;
+                    await _pushService.SendDmNotificationAsync(recipient, username, preview, 1);
+                }
             }
-        }
+        });
     }
 
     public List<ChatMessage> GetMessages(Guid channelId, int count = 50)
@@ -661,7 +696,7 @@ public class ChatService
         // Persist the edit (single UPDATE, no SELECT)
         await _persistence.PersistMessageEditAsync(messageId, newContent);
 
-        await InvokeParallelAsync(OnMessageUpdated, message);
+        FireAndForget(async () => await InvokeParallelAsync(OnMessageUpdated, message));
 
         return true;
     }
@@ -684,7 +719,7 @@ public class ChatService
         // Delete from database
         await _persistence.DeleteMessageAsync(messageId);
 
-        await InvokeParallelAsync(OnMessageDeleted, messageId, channelId);
+        FireAndForget(async () => await InvokeParallelAsync(OnMessageDeleted, messageId, channelId));
 
         return true;
     }
@@ -733,7 +768,7 @@ public class ChatService
         else
             await _persistence.RemoveReactionAsync(messageId, userId, emoji);
 
-        await InvokeParallelAsync(OnReactionChanged, message);
+        FireAndForget(async () => await InvokeParallelAsync(OnReactionChanged, message));
     }
 
     #endregion
@@ -754,8 +789,9 @@ public class ChatService
 
     /// <summary>
     /// Marks a channel as read for a user (resets unread count to 0).
+    /// Use silent: true when called from event handlers to avoid nested event cascades.
     /// </summary>
-    public async Task MarkChannelAsReadAsync(Guid userId, Guid channelId)
+    public async Task MarkChannelAsReadAsync(Guid userId, Guid channelId, bool silent = false)
     {
         var key = (userId, channelId);
         var now = DateTime.UtcNow;
@@ -782,20 +818,20 @@ public class ChatService
         await _persistence.PersistReadStateAsync(state);
 
         // Notify if there were unread messages that are now cleared
-        if (hadUnread)
+        if (hadUnread && !silent)
         {
-            await InvokeParallelAsync(OnUnreadChanged, userId, channelId);
+            FireAndForget(async () => await InvokeParallelAsync(OnUnreadChanged, userId, channelId));
         }
     }
 
     /// <summary>
-    /// Increments unread count for all participants except the sender.
-    /// Uses batch DB update for efficiency.
+    /// Increments unread count for all participants except the sender (memory + DB only).
+    /// Returns the list of affected user IDs for notification.
     /// </summary>
-    private async Task IncrementUnreadAsync(Guid channelId, Guid senderUserId)
+    private async Task<List<Guid>> IncrementUnreadCountsAsync(Guid channelId, Guid senderUserId)
     {
         if (!_channels.TryGetValue(channelId, out var channel))
-            return;
+            return new List<Guid>();
 
         // Collect user IDs to update
         var userIdsToIncrement = new List<Guid>();
@@ -814,7 +850,7 @@ public class ChatService
                 .ToList();
         }
 
-        if (userIdsToIncrement.Count == 0) return;
+        if (userIdsToIncrement.Count == 0) return userIdsToIncrement;
 
         // Update in-memory state (fast)
         foreach (var userId in userIdsToIncrement)
@@ -839,11 +875,16 @@ public class ChatService
         // Single DB call for all users
         await _persistence.IncrementUnreadForUsersAsync(channelId, userIdsToIncrement);
 
-        // Notify all affected users
-        foreach (var userId in userIdsToIncrement)
-        {
-            await InvokeParallelAsync(OnUnreadChanged, userId, channelId);
-        }
+        return userIdsToIncrement;
+    }
+
+    /// <summary>
+    /// Fires OnUnreadChanged for all affected users in parallel.
+    /// </summary>
+    private async Task NotifyUnreadChangedAsync(Guid channelId, List<Guid> userIds)
+    {
+        var tasks = userIds.Select(uid => InvokeParallelAsync(OnUnreadChanged, uid, channelId));
+        await Task.WhenAll(tasks);
     }
 
     /// <summary>
@@ -903,22 +944,24 @@ public class ChatService
 
     #region Typing Indicators
 
-    public async Task StartTypingAsync(Guid channelId, string username)
+    public Task StartTypingAsync(Guid channelId, string username)
     {
         if (_channelTypingUsers.TryGetValue(channelId, out var typingUsers))
         {
             typingUsers[username] = DateTime.UtcNow;
-            await InvokeParallelAsync(OnTypingUsersChanged, channelId);
+            FireAndForget(async () => await InvokeParallelAsync(OnTypingUsersChanged, channelId));
         }
+        return Task.CompletedTask;
     }
 
-    public async Task StopTypingAsync(Guid channelId, string username)
+    public Task StopTypingAsync(Guid channelId, string username)
     {
         if (_channelTypingUsers.TryGetValue(channelId, out var typingUsers))
         {
             typingUsers.TryRemove(username, out _);
-            await InvokeParallelAsync(OnTypingUsersChanged, channelId);
+            FireAndForget(async () => await InvokeParallelAsync(OnTypingUsersChanged, channelId));
         }
+        return Task.CompletedTask;
     }
 
     public List<string> GetTypingUsers(Guid channelId)

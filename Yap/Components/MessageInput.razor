@@ -419,7 +419,15 @@
                     Logger.LogDebug("Medium thumbnail generated: {FileName}", Path.GetFileName(filePath));
                 });
 
-            // Step 3: Send message immediately (gallery will show 800px thumbnails)
+            // Upload complete - hide indicator BEFORE message send.
+            // SendMessageAsync dispatches events to all connected circuits (which blocks
+            // until all handlers complete or timeout). That delay grows with user count
+            // and must not block the upload indicator.
+            uploadingCount = 0;
+            isUploading = false;
+            StateHasChanged();
+
+            // Step 3: Send message (event dispatch to all circuits happens here)
             if (imageUrls.Count > 0)
             {
                 await ChatService.SendMessageAsync(channelId.Value, UserId, Username, "", imageUrls);
@@ -453,12 +461,16 @@
         }
         finally
         {
-            uploadingCount = 0;
-            await InvokeAsync(() =>
+            // Safety net - ensure indicator is always hidden even on error paths
+            if (isUploading)
             {
-                isUploading = false;
-                StateHasChanged();
-            });
+                uploadingCount = 0;
+                await InvokeAsync(() =>
+                {
+                    isUploading = false;
+                    StateHasChanged();
+                });
+            }
         }
     }
 

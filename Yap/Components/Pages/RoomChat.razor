@@ -130,8 +130,8 @@
             if (message.ChannelId == channelId)
             {
                 messages.Add(message);
-                // Mark as read since we're viewing this channel
-                await ChatService.MarkChannelAsReadAsync(UserId, channelId);
+                // Mark as read since we're viewing this channel (silent to avoid nested event cascade)
+                await ChatService.MarkChannelAsReadAsync(UserId, channelId, silent: true);
                 StateHasChanged();
                 await ScrollToBottomAsync();
             }
