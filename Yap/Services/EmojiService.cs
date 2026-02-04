@@ -94,6 +94,10 @@ public partial class EmojiService
         // Replace all Unicode emojis with empty string
         var withoutEmojis = EmojiRegex().Replace(withoutCustom, "");
 
+        // Strip variation selectors (FE0F) and ZWJ (200D) that may remain
+        // These are modifier characters attached to emojis but not matched by the regex
+        withoutEmojis = withoutEmojis.Replace("\uFE0F", "").Replace("\u200D", "");
+
         // If nothing remains after removing emojis, it's emoji-only
         return string.IsNullOrWhiteSpace(withoutEmojis);
     }

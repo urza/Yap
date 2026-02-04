@@ -141,7 +141,7 @@ Messages shown when users are typing:
 ]
 ```
 
-## How It Works
+### How It Works
 
 1. **Random Selection**: Each UI element randomly selects from its configured text variations
 2. **Fallback Values**: If a configuration is missing, sensible defaults are used
@@ -189,3 +189,28 @@ The `ChatConfigService` class handles:
 - Providing fallback defaults
 
 The service is registered as scoped in `Program.cs` and injected into the Chat component.
+
+
+## Custom Emojis
+
+Yap supports custom emojis. Place image files in the `Data/custom-emojis/` folder (created automatically on first run).
+
+### Supported Formats
+PNG, SVG, GIF, WebP, JPG/JPEG
+
+### Naming
+The filename (without extension) becomes the shortcode. Use only letters, numbers, hyphens, and underscores.
+
+| File | Shortcode | Usage |
+|------|-----------|-------|
+| `pepe.png` | `:pepe:` | Type `:pepe:` in chat |
+| `party-parrot.gif` | `:party-parrot:` | Type `:party-parrot:` in chat |
+
+### How It Works
+- Emojis are scanned on app startup — restart required after adding new files
+- When custom emojis exist, they appear as the first category in the emoji picker
+- Custom emojis can be used in messages and as reactions
+- Duplicate shortcodes (same name, different extension) are logged and skipped
+
+### Docker
+Custom emojis are inside the `Data/` folder, which is already mounted as the config volume. Just place your images in the `custom-emojis/` subfolder within your mounted config directory.

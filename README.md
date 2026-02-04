@@ -8,12 +8,12 @@ Self hosted community chat inspired by Discord aesthetics
 ## Run with Docker
 
 ```bash
-docker run -d --name yap -p 5221:8080 -v ./uploads:/app/wwwroot/uploads -v ./config:/app/Data ghcr.io/urza/yap:latest
+docker run -d --name yap -p 5221:8080 -v ./uploads:/app/wwwroot/uploads -v ./data:/app/Data ghcr.io/urza/yap:latest
 ```
 
 There are two volumes:
-- "uploads" which holds media uploaded by users
-- "data" which contains configuration (appconfig.json) and SQLite db (if you opt for using it)
+- "uploads" which holds media (pictures) uploaded by users
+- "data" which contains configuration (appsettings.json), SQLite db (if enabled), and custom emojis
 
 Access at `http://localhost:5221` - it's up to you how to make this accessible for others. For example use some reverse proxy like nginx proxy manager  (https://nginxproxymanager.com/) or cloudflare tunnel.
 
@@ -23,8 +23,9 @@ Access at `http://localhost:5221` - it's up to you how to make this accessible f
 - **User profiles** - Set profile picture, display name, and bio; avatars shown in chat
 - **Database optional** - Everything can be ephemeral and live only in memory (wiped on app reset) or you can use SQLite/Postgres for persistence
 - **Customizable labels in config** - make it fun or serious
-- **Emoji support** - Beautiful Twemoji rendering
-- **Dark theme hardcoded** - Discord-inspired UI, because I know what's best for you
+- **Emoji support** - Beautiful Twemoji rendering 
+- **Custom emojis** - Drop image files into `Data/custom-emojis/` (data volume) folder and they become available for your users
+- **Dark theme hardcoded** - because I know what's best for you
 - **Multiple rooms/channels** - admin can create new
 - **Direct messages** - Private conversations between users
 - **Image sharing** - Upload image(s) and see them in inline gallery

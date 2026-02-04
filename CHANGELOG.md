@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Yap are documented in this file.
+Most notable changes to Yap are documented in this file.
 
 ## [2.8.0] - 2026-01-26
 

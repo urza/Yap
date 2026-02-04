@@ -74,7 +74,8 @@ Yap/
 ├── Data/
 │   ├── ChatDbContext.cs               # EF Core DbContext
 │   ├── ChatDbContextFactory.cs        # Design-time factory for migrations
-│   └── Migrations/
+│   ├── Migrations/
+│   └── custom-emojis/                 # Drop image files here for custom emojis
 ├── Extensions/
 │   └── PersistenceServiceExtensions.cs
 ├── Middleware/
@@ -91,8 +92,9 @@ Yap/
 │   ├── CircuitTracker.cs              # Tracks active circuits per user
 │   ├── PushSubscriptionStore.cs       # Push notification subscriptions
 │   ├── PushNotificationService.cs     # Web push notifications
-│   ├── EmojiService.cs                # Twemoji rendering
+│   ├── EmojiService.cs                # Twemoji rendering + emoji-only message detection
 │   ├── EmojiData.cs                   # Emoji definitions and categories
+│   ├── CustomEmojiService.cs          # Custom emoji loading from Data/custom-emojis/
 │   └── ImageService.cs                # Thumbnail generation (WebP)
 ├── Models/
 │   ├── ChatMessage.cs
@@ -218,7 +220,8 @@ Settings in `appsettings.json` under `ChatSettings`:
 - **Edit/Delete** - Edit or delete your own messages (shows "edited" indicator)
 - **Image sharing** - Direct file upload, up to 100MB, drag & drop support, WebP thumbnails
 - **Multiline input** - Discord-style auto-expanding textarea (Shift+Enter for newlines)
-- **Emoji support** - Twemoji rendering
+- **Emoji support** - Twemoji rendering with Discord-style picker (category sidebar + scrollable grid)
+- **Custom emojis** - Drop images into `Data/custom-emojis/`, auto-loaded as `:shortcode:` (filename = shortcode)
 - **Tab notifications** - Unread count in title + audio
 - **Online users** - List of users in sidebar with status
 - **Infinite scroll** - Load older messages on scroll, Discord-style
@@ -263,6 +266,15 @@ Optional persistence layer using EF Core. When enabled, all chat data survives a
 - `MapStaticAssets()` for fingerprinted static files
 - `CreateInboundActivityHandler` for circuit activity tracking (auto-away)
 
+
+### Custom Emojis
+Drop image files (PNG, SVG, GIF, WebP, JPG) into `Data/custom-emojis/`. The filename (without extension) becomes the shortcode. For example, `pepe.png` becomes `:pepe:`.
+
+- **Scanned on startup** by `CustomEmojiService` (singleton)
+- **Filename rules**: alphanumeric, hyphens, underscores only (`^[a-zA-Z0-9_-]+$`)
+- **Served via** `/custom-emojis/{filename}` static file route
+- **Used in**: messages (`:shortcode:` syntax), emoji picker (shown as first category when present), reactions
+- **EmojiPicker**: when custom emojis exist, a "Custom" section appears first in the picker with the first custom emoji as the sidebar icon
 
 ### File Upload & Thumbnails
 Images are uploaded directly in the component using `InputFile`:
