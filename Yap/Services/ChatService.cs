@@ -120,6 +120,11 @@ public class ChatService
             _logger.LogWarning("Slow event dispatch: {Caller} took {ElapsedMs}ms for {HandlerCount} handlers",
                 caller, sw.ElapsedMilliseconds, handlers.Count);
         }
+        else
+        {
+            _logger.LogDebug("Event dispatch: {Caller} took {ElapsedMs}ms for {HandlerCount} handlers",
+                caller, sw.ElapsedMilliseconds, handlers.Count);
+        }
     }
 
     /// <summary>
@@ -163,6 +168,11 @@ public class ChatService
         if (sw.ElapsedMilliseconds > 100)
         {
             _logger.LogWarning("Slow event dispatch: {Caller} took {ElapsedMs}ms for {HandlerCount} handlers",
+                caller, sw.ElapsedMilliseconds, handlers.Count);
+        }
+        else
+        {
+            _logger.LogDebug("Event dispatch: {Caller} took {ElapsedMs}ms for {HandlerCount} handlers",
                 caller, sw.ElapsedMilliseconds, handlers.Count);
         }
     }
@@ -210,6 +220,11 @@ public class ChatService
             _logger.LogWarning("Slow event dispatch: {Caller} took {ElapsedMs}ms for {HandlerCount} handlers",
                 caller, sw.ElapsedMilliseconds, handlers.Count);
         }
+        else
+        {
+            _logger.LogDebug("Event dispatch: {Caller} took {ElapsedMs}ms for {HandlerCount} handlers",
+                caller, sw.ElapsedMilliseconds, handlers.Count);
+        }
     }
 
     /// <summary>
@@ -220,8 +235,13 @@ public class ChatService
     {
         _ = Task.Run(async () =>
         {
-            try { await action(); }
-            catch (Exception ex) { _logger.LogError(ex, "Background notification failed in {Caller}", caller); }
+            var sw = Stopwatch.StartNew();
+            try
+            {
+                await action();
+                _logger.LogDebug("[BG] {Caller} notifications completed in {ElapsedMs}ms", caller, sw.ElapsedMilliseconds);
+            }
+            catch (Exception ex) { _logger.LogError(ex, "Background notification failed in {Caller} after {ElapsedMs}ms", caller, sw.ElapsedMilliseconds); }
         });
     }
 
@@ -387,7 +407,10 @@ public class ChatService
         _channelTypingUsers[channel.Id] = new ConcurrentDictionary<string, DateTime>();
 
         // Persist to database
+        var sw = Stopwatch.StartNew();
         await _persistence.PersistChannelAsync(channel);
+
+        _logger.LogDebug("CreateRoom '{RoomName}' by {User}: persist={ElapsedMs}ms", roomName, adminUsername, sw.ElapsedMilliseconds);
 
         FireAndForget(async () => await InvokeParallelAsync(OnChannelCreated, channel));
 
@@ -412,7 +435,10 @@ public class ChatService
         _channelLocks.TryRemove(channelId, out _);
 
         // Delete from database
+        var sw = Stopwatch.StartNew();
         await _persistence.DeleteChannelAsync(channelId);
+
+        _logger.LogDebug("DeleteRoom '{RoomName}' channel={ChannelId}: persist={ElapsedMs}ms", channel.Name, channelId, sw.ElapsedMilliseconds);
 
         FireAndForget(async () => await InvokeParallelAsync(OnChannelDeleted, channelId));
 
@@ -491,6 +517,9 @@ public class ChatService
 
         _users[sessionId] = new UserSession(userId, username, sessionId, status, isMobile);
 
+        _logger.LogDebug("AddUser {User} session={SessionId} status={Status} staleRemoved={StaleCount} totalSessions={TotalSessions}",
+            username, sessionId, status, staleSessionIds.Count, _users.Count);
+
         FireAndForget(async () =>
         {
             await InvokeParallelAsync(OnUserChanged, username, true);
@@ -505,8 +534,11 @@ public class ChatService
         if (!_users.TryGetValue(sessionId, out var session))
             return Task.CompletedTask;
 
+        var oldStatus = session.Status;
         // Update with new status
         _users[sessionId] = session with { Status = status };
+
+        _logger.LogDebug("SetUserStatus {User}: {OldStatus} -> {NewStatus}", session.Username, oldStatus, status);
 
         FireAndForget(async () =>
         {
@@ -533,6 +565,9 @@ public class ChatService
             {
                 typingUsers.TryRemove(session.Username, out _);
             }
+
+            _logger.LogDebug("RemoveUser {User} circuit={CircuitId} remainingSessions={TotalSessions}",
+                session.Username, circuitId, _users.Count);
 
             // Note: DM channels now persist permanently (like Discord)
             // They are NOT deleted when user disconnects
@@ -578,6 +613,7 @@ public class ChatService
 
     public async Task SendMessageAsync(Guid channelId, Guid userId, string username, string content, List<string>? imageUrls = null)
     {
+        var totalSw = Stopwatch.StartNew();
         if (!_channels.TryGetValue(channelId, out var channel))
             return;
 
@@ -592,13 +628,20 @@ public class ChatService
         }
 
         // Persist message (no SELECT needed - always new)
+        var persistSw = Stopwatch.StartNew();
         await _persistence.PersistNewMessageAsync(message);
+        var persistMs = persistSw.ElapsedMilliseconds;
 
         // Update unread counts in memory + DB (awaited — fast, no events)
+        var unreadSw = Stopwatch.StartNew();
         var affectedUserIds = await IncrementUnreadCountsAsync(channelId, userId);
+        var unreadMs = unreadSw.ElapsedMilliseconds;
 
         // Clear typing state in memory (fast, no event dispatch)
         var wasTyping = _channelTypingUsers.TryGetValue(channelId, out var typingUsers) && typingUsers.TryRemove(username, out _);
+
+        _logger.LogDebug("SendMessage by {User} to channel {ChannelId}: persist={PersistMs}ms unread={UnreadMs}ms ({AffectedUsers} users) callerTotal={TotalMs}ms images={HasImages}",
+            username, channelId, persistMs, unreadMs, affectedUserIds.Count, totalSw.ElapsedMilliseconds, imageUrls?.Count > 0);
 
         // All notifications fire-and-forget — sender's circuit returns immediately
         FireAndForget(async () =>
@@ -675,6 +718,7 @@ public class ChatService
 
     public async Task<bool> EditMessageAsync(Guid messageId, Guid channelId, string username, string newContent)
     {
+        var sw = Stopwatch.StartNew();
         if (!_channelMessages.TryGetValue(channelId, out var messages))
             return false;
 
@@ -696,6 +740,8 @@ public class ChatService
         // Persist the edit (single UPDATE, no SELECT)
         await _persistence.PersistMessageEditAsync(messageId, newContent);
 
+        _logger.LogDebug("EditMessage {MessageId} by {User}: persist={ElapsedMs}ms", messageId, username, sw.ElapsedMilliseconds);
+
         FireAndForget(async () => await InvokeParallelAsync(OnMessageUpdated, message));
 
         return true;
@@ -703,6 +749,7 @@ public class ChatService
 
     public async Task<bool> DeleteMessageAsync(Guid messageId, Guid channelId, string username)
     {
+        var sw = Stopwatch.StartNew();
         if (!_channelMessages.TryGetValue(channelId, out var messages))
             return false;
 
@@ -719,6 +766,8 @@ public class ChatService
         // Delete from database
         await _persistence.DeleteMessageAsync(messageId);
 
+        _logger.LogDebug("DeleteMessage {MessageId} by {User}: persist={ElapsedMs}ms", messageId, username, sw.ElapsedMilliseconds);
+
         FireAndForget(async () => await InvokeParallelAsync(OnMessageDeleted, messageId, channelId));
 
         return true;
@@ -726,6 +775,7 @@ public class ChatService
 
     public async Task ToggleReactionAsync(Guid messageId, Guid channelId, Guid userId, string username, string emoji)
     {
+        var sw = Stopwatch.StartNew();
         if (!_channelMessages.TryGetValue(channelId, out var messages))
             return;
 
@@ -768,6 +818,9 @@ public class ChatService
         else
             await _persistence.RemoveReactionAsync(messageId, userId, emoji);
 
+        _logger.LogDebug("ToggleReaction {Emoji} on {MessageId} by {User}: action={Action} persist={ElapsedMs}ms",
+            emoji, messageId, username, added ? "add" : "remove", sw.ElapsedMilliseconds);
+
         FireAndForget(async () => await InvokeParallelAsync(OnReactionChanged, message));
     }
 
@@ -793,13 +846,16 @@ public class ChatService
     /// </summary>
     public async Task MarkChannelAsReadAsync(Guid userId, Guid channelId, bool silent = false)
     {
+        var sw = Stopwatch.StartNew();
         var key = (userId, channelId);
         var now = DateTime.UtcNow;
         var hadUnread = false;
+        var previousCount = 0;
 
         if (_readStates.TryGetValue(key, out var state))
         {
             hadUnread = state.UnreadCount > 0;
+            previousCount = state.UnreadCount;
             state.LastReadAt = now;
             state.UnreadCount = 0;
         }
@@ -816,6 +872,9 @@ public class ChatService
         }
 
         await _persistence.PersistReadStateAsync(state);
+
+        _logger.LogDebug("MarkChannelAsRead user={UserId} channel={ChannelId}: cleared={ClearedCount} silent={Silent} persist={ElapsedMs}ms",
+            userId, channelId, previousCount, silent, sw.ElapsedMilliseconds);
 
         // Notify if there were unread messages that are now cleared
         if (hadUnread && !silent)
@@ -873,7 +932,11 @@ public class ChatService
         }
 
         // Single DB call for all users
+        var sw = Stopwatch.StartNew();
         await _persistence.IncrementUnreadForUsersAsync(channelId, userIdsToIncrement);
+
+        _logger.LogDebug("IncrementUnreadCounts channel={ChannelId}: {UserCount} users, persist={ElapsedMs}ms",
+            channelId, userIdsToIncrement.Count, sw.ElapsedMilliseconds);
 
         return userIdsToIncrement;
     }
@@ -883,8 +946,14 @@ public class ChatService
     /// </summary>
     private async Task NotifyUnreadChangedAsync(Guid channelId, List<Guid> userIds)
     {
+        if (userIds.Count == 0) return;
+
+        var sw = Stopwatch.StartNew();
         var tasks = userIds.Select(uid => InvokeParallelAsync(OnUnreadChanged, uid, channelId));
         await Task.WhenAll(tasks);
+
+        _logger.LogDebug("NotifyUnreadChanged channel={ChannelId}: {UserCount} users notified in {ElapsedMs}ms",
+            channelId, userIds.Count, sw.ElapsedMilliseconds);
     }
 
     /// <summary>
@@ -949,6 +1018,7 @@ public class ChatService
         if (_channelTypingUsers.TryGetValue(channelId, out var typingUsers))
         {
             typingUsers[username] = DateTime.UtcNow;
+            _logger.LogDebug("StartTyping {User} in channel {ChannelId}", username, channelId);
             FireAndForget(async () => await InvokeParallelAsync(OnTypingUsersChanged, channelId));
         }
         return Task.CompletedTask;
@@ -959,6 +1029,7 @@ public class ChatService
         if (_channelTypingUsers.TryGetValue(channelId, out var typingUsers))
         {
             typingUsers.TryRemove(username, out _);
+            _logger.LogDebug("StopTyping {User} in channel {ChannelId}", username, channelId);
             FireAndForget(async () => await InvokeParallelAsync(OnTypingUsersChanged, channelId));
         }
         return Task.CompletedTask;
