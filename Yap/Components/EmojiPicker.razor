@@ -4,7 +4,7 @@
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
-<div class="emoji-picker @(isFlipped ? "flipped" : "")" @ref="pickerElement">
+<div class="emoji-picker">
     <div class="emoji-sidebar">
         @* Recent tab *@
         <button class="category-btn" data-category="recent"
@@ -109,9 +109,7 @@
 
     private const string RecentCategory = "recent";
     private const string CustomCategory = "custom";
-    private ElementReference pickerElement;
     private ElementReference contentElement;
-    private bool isFlipped = false;
     private IJSObjectReference? scrollTracker;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -120,12 +118,6 @@
         {
             try
             {
-                isFlipped = await JS.InvokeAsync<bool>("checkEmojiPickerPosition", pickerElement);
-                if (isFlipped)
-                {
-                    StateHasChanged();
-                }
-
                 scrollTracker = await JS.InvokeAsync<IJSObjectReference>("initEmojiPickerScroll", contentElement);
             }
             catch { /* Ignore JS errors */ }

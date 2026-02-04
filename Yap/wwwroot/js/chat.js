@@ -404,20 +404,40 @@ if ('serviceWorker' in navigator) {
 // Emoji Picker Positioning
 // ==========================================
 
-// Check if emoji picker would overflow viewport bottom and should flip upward
-window.checkEmojiPickerPosition = (element) => {
-    if (!element) return false;
+// Position emoji picker as a fixed overlay near the anchor button, clamped to viewport.
+// On mobile (<=600px), CSS handles bottom-sheet positioning so we skip JS.
+window.positionEmojiPickerFixed = (wrapper, anchor) => {
+    if (!wrapper || !anchor) return;
 
-    const rect = element.getBoundingClientRect();
-    const pickerHeight = 350; // Approximate height of emoji picker
-    const viewportHeight = window.innerHeight;
+    // On mobile, CSS bottom-sheet handles positioning
+    if (window.innerWidth <= 600) return;
 
-    const spaceBelow = viewportHeight - rect.bottom;
-    const spaceAbove = rect.top;
+    const anchorRect = anchor.getBoundingClientRect();
+    const pickerWidth = 340;
+    const pickerHeight = 384;
+    const margin = 4;
 
-    // Only flip if: not enough space below AND more space above than below
-    // This prevents always-flipped on mobile where neither direction has full space
-    return spaceBelow < pickerHeight && spaceAbove > spaceBelow;
+    // Default: below anchor, right-aligned with anchor's right edge
+    let top = anchorRect.bottom + margin;
+    let left = anchorRect.right - pickerWidth;
+
+    // If not enough space below, position above the anchor
+    if (top + pickerHeight > window.innerHeight - margin) {
+        top = anchorRect.top - pickerHeight - margin;
+    }
+
+    // Clamp to viewport edges
+    if (top < margin) top = margin;
+    if (left < margin) left = margin;
+    if (left + pickerWidth > window.innerWidth - margin) {
+        left = window.innerWidth - pickerWidth - margin;
+    }
+    if (top + pickerHeight > window.innerHeight - margin) {
+        top = window.innerHeight - pickerHeight - margin;
+    }
+
+    wrapper.style.top = top + 'px';
+    wrapper.style.left = left + 'px';
 };
 
 // Initialize scroll-tracking for emoji picker sidebar highlights.
