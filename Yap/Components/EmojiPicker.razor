@@ -6,6 +6,12 @@
 
 <div class="emoji-picker @(isFlipped ? "flipped" : "")" @ref="pickerElement">
     <div class="emoji-sidebar">
+        @* Recent tab *@
+        <button class="category-btn" data-category="recent"
+                @onclick="() => ScrollToCategory(RecentCategory)"
+                title="Recent">
+            @EmojiService.ConvertEmojisToTwemoji("🕐", forceSmall: true)
+        </button>
         @* Custom tab (if custom emojis exist) *@
         @if (CustomEmojiService.HasCustomEmojis)
         {
@@ -16,12 +22,6 @@
                 @EmojiService.RenderCustomEmoji(firstCustom)
             </button>
         }
-        @* Recent tab *@
-        <button class="category-btn" data-category="recent"
-                @onclick="() => ScrollToCategory(RecentCategory)"
-                title="Recent">
-            @EmojiService.ConvertEmojisToTwemoji("🕐", forceSmall: true)
-        </button>
         @foreach (var category in EmojiData.Categories)
         {
             <button class="category-btn" data-category="@category.Key"
@@ -33,23 +33,6 @@
     </div>
 
     <div class="emoji-content" @ref="contentElement">
-        @* Custom section *@
-        @if (CustomEmojiService.HasCustomEmojis)
-        {
-            <div class="emoji-section" data-section="custom">
-                <div class="section-header">Custom</div>
-                <div class="emoji-grid">
-                    @foreach (var emoji in CustomEmojiService.GetAll())
-                    {
-                        var shortcode = $":{emoji.Shortcode}:";
-                        <button class="emoji-btn" @onclick="() => SelectEmoji(shortcode)" title="@shortcode">
-                            @EmojiService.RenderCustomEmoji(emoji, "22px")
-                        </button>
-                    }
-                </div>
-            </div>
-        }
-
         @* Recent section *@
         <div class="emoji-section" data-section="recent">
             <div class="section-header">Recent</div>
@@ -85,6 +68,23 @@
                 }
             </div>
         </div>
+
+        @* Custom section *@
+        @if (CustomEmojiService.HasCustomEmojis)
+        {
+            <div class="emoji-section" data-section="custom">
+                <div class="section-header">Custom</div>
+                <div class="emoji-grid">
+                    @foreach (var emoji in CustomEmojiService.GetAll())
+                    {
+                        var shortcode = $":{emoji.Shortcode}:";
+                        <button class="emoji-btn" @onclick="() => SelectEmoji(shortcode)" title="@shortcode">
+                            @EmojiService.RenderCustomEmoji(emoji, "22px")
+                        </button>
+                    }
+                </div>
+            </div>
+        }
 
         @* Standard categories *@
         @foreach (var category in EmojiData.Categories)
