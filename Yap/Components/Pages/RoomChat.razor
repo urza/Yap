@@ -138,7 +138,13 @@
                 await ChatService.MarkChannelAsReadAsync(UserId, channelId, silent: true);
                 await InvokeAsync(ScrollToBottomAsync);
             }
-            catch { } // Circuit dead, ignore
+            catch (Exception ex)
+            {
+                if (ex is ObjectDisposedException or InvalidOperationException)
+                    Logger.LogWarning("HandleMessageReceived: {Message}", ex.Message);
+                else
+                    Logger.LogError(ex, "Error in HandleMessageReceived");
+            }
         }
 
         if (message.Username != Username && message.Username != "System")
@@ -147,7 +153,13 @@
             {
                 await InvokeAsync(() => HandleNewMessageNotificationAsync(message.Username, isDM: false));
             }
-            catch { } // Circuit dead, ignore
+            catch (Exception ex)
+            {
+                if (ex is ObjectDisposedException or InvalidOperationException)
+                    Logger.LogWarning("HandleMessageReceived notification: {Message}", ex.Message);
+                else
+                    Logger.LogError(ex, "Error in HandleMessageReceived notification");
+            }
         }
     }
 
@@ -171,7 +183,13 @@
                     StateHasChanged();
                 });
             }
-            catch { } // Circuit dead, ignore
+            catch (Exception ex)
+            {
+                if (ex is ObjectDisposedException or InvalidOperationException)
+                    Logger.LogWarning("HandleUserChanged: {Message}", ex.Message);
+                else
+                    Logger.LogError(ex, "Error in HandleUserChanged");
+            }
         }
     }
 
@@ -186,7 +204,13 @@
                     Navigation.NavigateTo("/lobby", replace: true);
                 });
             }
-            catch { } // Circuit dead, ignore
+            catch (Exception ex)
+            {
+                if (ex is ObjectDisposedException or InvalidOperationException)
+                    Logger.LogWarning("HandleChannelDeleted: {Message}", ex.Message);
+                else
+                    Logger.LogError(ex, "Error in HandleChannelDeleted");
+            }
         }
     }
 

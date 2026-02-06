@@ -5,6 +5,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject EmojiService EmojiService
+@inject ILogger<ChatHeader> Logger
 @implements IDisposable
 
 <div class="chat-header">
@@ -338,7 +339,13 @@
                     StateHasChanged();
                 });
             }
-            catch { } // Circuit dead, ignore
+            catch (Exception ex)
+            {
+                if (ex is ObjectDisposedException or InvalidOperationException)
+                    Logger.LogWarning("HandleUnreadChanged: {Message}", ex.Message);
+                else
+                    Logger.LogError(ex, "Error in HandleUnreadChanged");
+            }
         }
     }
 
@@ -352,7 +359,13 @@
                 StateHasChanged();
             });
         }
-        catch { } // Circuit dead, ignore
+        catch (Exception ex)
+        {
+            if (ex is ObjectDisposedException or InvalidOperationException)
+                Logger.LogWarning("HandleUsersListChanged: {Message}", ex.Message);
+            else
+                Logger.LogError(ex, "Error in HandleUsersListChanged");
+        }
     }
 
     private async void HandleUserStatusChanged(string username, UserStatus status)
@@ -368,7 +381,13 @@
                     StateHasChanged();
                 });
             }
-            catch { } // Circuit dead, ignore
+            catch (Exception ex)
+            {
+                if (ex is ObjectDisposedException or InvalidOperationException)
+                    Logger.LogWarning("HandleUserStatusChanged: {Message}", ex.Message);
+                else
+                    Logger.LogError(ex, "Error in HandleUserStatusChanged");
+            }
         }
     }
 

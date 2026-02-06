@@ -258,9 +258,12 @@
                     StateHasChanged();
                 });
             }
-            catch
+            catch (Exception ex)
             {
-                // Circuit dead or disposed, ignore
+                if (ex is ObjectDisposedException or InvalidOperationException)
+                    Logger.LogWarning("HandleTypingUsersChanged: {Message}", ex.Message);
+                else
+                    Logger.LogError(ex, "Error in HandleTypingUsersChanged");
             }
         }
     }

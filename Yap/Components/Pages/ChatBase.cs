@@ -19,6 +19,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     [Inject] protected NavigationManager Navigation { get; set; } = default!;
     [Inject] protected IJSRuntime JS { get; set; } = default!;
     [Inject] private IHttpContextAccessor HttpContextAccessor { get; set; } = default!;
+    [Inject] protected ILogger<ChatBase> Logger { get; set; } = default!;
 
     // Common accessors
     protected Guid UserId => UserState.UserId ?? Guid.Empty;
@@ -316,7 +317,13 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
                 StateHasChanged();
             });
         }
-        catch { } // Circuit dead, ignore
+        catch (Exception ex)
+        {
+            if (ex is ObjectDisposedException or InvalidOperationException)
+                Logger.LogWarning("HandleMessageUpdated: {Message}", ex.Message);
+            else
+                Logger.LogError(ex, "Error in HandleMessageUpdated");
+        }
     }
 
     protected async void HandleMessageDeleted(Guid messageId, Guid deletedChannelId)
@@ -330,7 +337,13 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
                 StateHasChanged();
             });
         }
-        catch { } // Circuit dead, ignore
+        catch (Exception ex)
+        {
+            if (ex is ObjectDisposedException or InvalidOperationException)
+                Logger.LogWarning("HandleMessageDeleted: {Message}", ex.Message);
+            else
+                Logger.LogError(ex, "Error in HandleMessageDeleted");
+        }
     }
 
     protected async void HandleReactionChanged(ChatMessage message)
@@ -356,7 +369,13 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
                 await ScrollToBottomAsync();
             }
         }
-        catch { } // Circuit dead, ignore
+        catch (Exception ex)
+        {
+            if (ex is ObjectDisposedException or InvalidOperationException)
+                Logger.LogWarning("HandleReactionChanged: {Message}", ex.Message);
+            else
+                Logger.LogError(ex, "Error in HandleReactionChanged");
+        }
     }
 
     #endregion

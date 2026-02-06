@@ -44,9 +44,6 @@ public class ChatService
     public event Action<Channel>? OnChannelCreated;
     public event Action<Guid>? OnChannelDeleted;
 
-    // Admin events
-    public event Action<string?>? OnAdminChanged;
-
     // User status events
     public event Action<string, UserStatus>? OnUserStatusChanged; // username, newStatus
 
@@ -97,7 +94,6 @@ public class ChatService
                 ["OnTypingUsersChanged"] = OnTypingUsersChanged?.GetInvocationList().Length ?? 0,
                 ["OnChannelCreated"] = OnChannelCreated?.GetInvocationList().Length ?? 0,
                 ["OnChannelDeleted"] = OnChannelDeleted?.GetInvocationList().Length ?? 0,
-                ["OnAdminChanged"] = OnAdminChanged?.GetInvocationList().Length ?? 0,
                 ["OnUserStatusChanged"] = OnUserStatusChanged?.GetInvocationList().Length ?? 0,
                 ["OnUnreadChanged"] = OnUnreadChanged?.GetInvocationList().Length ?? 0
             },

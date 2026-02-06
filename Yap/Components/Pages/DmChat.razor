@@ -159,7 +159,13 @@
                 await ChatService.MarkChannelAsReadAsync(UserId, channelId, silent: true);
                 await InvokeAsync(ScrollToBottomAsync);
             }
-            catch { } // Circuit dead, ignore
+            catch (Exception ex)
+            {
+                if (ex is ObjectDisposedException or InvalidOperationException)
+                    Logger.LogWarning("HandleMessageReceived: {Message}", ex.Message);
+                else
+                    Logger.LogError(ex, "Error in HandleMessageReceived");
+            }
         }
 
         // Only notify if: message is not from us AND we're a participant in this DM
@@ -172,7 +178,13 @@
             {
                 await InvokeAsync(() => HandleNewMessageNotificationAsync(message.Username, isDM: true));
             }
-            catch { } // Circuit dead, ignore
+            catch (Exception ex)
+            {
+                if (ex is ObjectDisposedException or InvalidOperationException)
+                    Logger.LogWarning("HandleMessageReceived notification: {Message}", ex.Message);
+                else
+                    Logger.LogError(ex, "Error in HandleMessageReceived notification");
+            }
         }
     }
 

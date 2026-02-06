@@ -5,6 +5,7 @@
 @inject ChatNavigationState NavState
 @inject NavigationManager Navigation
 @inject EmojiService EmojiService
+@inject ILogger<ChatSidebar> Logger
 @implements IDisposable
 
 <div class="users-sidebar @(NavState.SidebarOpen ? "sidebar-open" : "")">
@@ -116,7 +117,6 @@
         ChatService.OnUserStatusChanged += HandleUserStatusChanged;
         ChatService.OnMessageReceived += HandleMessageReceived;
         ChatService.OnUnreadChanged += HandleUnreadChanged;
-        ChatService.OnAdminChanged += HandleAdminChanged;
         NavState.OnChange += StateHasChanged;
     }
 
@@ -174,7 +174,13 @@
                     StateHasChanged();
                 });
             }
-            catch { } // Circuit dead, ignore
+            catch (Exception ex)
+            {
+                if (ex is ObjectDisposedException or InvalidOperationException)
+                    Logger.LogWarning("HandleChannelCreated: {Message}", ex.Message);
+                else
+                    Logger.LogError(ex, "Error in HandleChannelCreated");
+            }
         }
     }
 
@@ -188,7 +194,13 @@
                 StateHasChanged();
             });
         }
-        catch { } // Circuit dead, ignore
+        catch (Exception ex)
+        {
+            if (ex is ObjectDisposedException or InvalidOperationException)
+                Logger.LogWarning("HandleChannelDeleted: {Message}", ex.Message);
+            else
+                Logger.LogError(ex, "Error in HandleChannelDeleted");
+        }
     }
 
     private async void HandleUsersListChanged()
@@ -202,7 +214,13 @@
                 StateHasChanged();
             });
         }
-        catch { } // Circuit dead, ignore
+        catch (Exception ex)
+        {
+            if (ex is ObjectDisposedException or InvalidOperationException)
+                Logger.LogWarning("HandleUsersListChanged: {Message}", ex.Message);
+            else
+                Logger.LogError(ex, "Error in HandleUsersListChanged");
+        }
     }
 
     private async void HandleUserStatusChanged(string username, UserStatus status)
@@ -215,7 +233,13 @@
                 StateHasChanged();
             });
         }
-        catch { } // Circuit dead, ignore
+        catch (Exception ex)
+        {
+            if (ex is ObjectDisposedException or InvalidOperationException)
+                Logger.LogWarning("HandleUserStatusChanged: {Message}", ex.Message);
+            else
+                Logger.LogError(ex, "Error in HandleUserStatusChanged");
+        }
     }
 
     private async void HandleMessageReceived(ChatMessage message)
@@ -229,7 +253,13 @@
                 StateHasChanged();
             });
         }
-        catch { } // Circuit dead, ignore
+        catch (Exception ex)
+        {
+            if (ex is ObjectDisposedException or InvalidOperationException)
+                Logger.LogWarning("HandleMessageReceived: {Message}", ex.Message);
+            else
+                Logger.LogError(ex, "Error in HandleMessageReceived");
+        }
     }
 
     private async void HandleUnreadChanged(Guid userId, Guid channelId)
@@ -241,21 +271,14 @@
             {
                 await InvokeAsync(StateHasChanged);
             }
-            catch { } // Circuit dead, ignore
-        }
-    }
-
-    private async void HandleAdminChanged(string? adminUser)
-    {
-        try
-        {
-            await InvokeAsync(() =>
+            catch (Exception ex)
             {
-                isAdmin = ChatService.IsAdmin(UserId);
-                StateHasChanged();
-            });
+                if (ex is ObjectDisposedException or InvalidOperationException)
+                    Logger.LogWarning("HandleUnreadChanged: {Message}", ex.Message);
+                else
+                    Logger.LogError(ex, "Error in HandleUnreadChanged");
+            }
         }
-        catch { } // Circuit dead, ignore
     }
 
     #endregion
@@ -395,7 +418,6 @@
         ChatService.OnUserStatusChanged -= HandleUserStatusChanged;
         ChatService.OnMessageReceived -= HandleMessageReceived;
         ChatService.OnUnreadChanged -= HandleUnreadChanged;
-        ChatService.OnAdminChanged -= HandleAdminChanged;
         NavState.OnChange -= StateHasChanged;
     }
 }
