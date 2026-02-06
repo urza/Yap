@@ -325,37 +325,49 @@
         });
     }
 
-    private async Task HandleUnreadChanged(Guid userId, Guid channelId)
+    private void HandleUnreadChanged(Guid userId, Guid channelId)
     {
         // Only refresh if the unread change is for the current user
         if (UserState.UserId.HasValue && userId == UserState.UserId.Value)
         {
-            await InvokeAsync(async () =>
+            _ = InvokeAsync(async () =>
             {
-                await RefreshUnreadCountAsync();
-                StateHasChanged();
+                try
+                {
+                    await RefreshUnreadCountAsync();
+                    StateHasChanged();
+                }
+                catch { } // Circuit dead, ignore
             });
         }
     }
 
-    private async Task HandleUsersListChanged()
+    private void HandleUsersListChanged()
     {
-        await InvokeAsync(() =>
+        _ = InvokeAsync(() =>
         {
-            onlineCount = ChatService.GetOnlineUsers().Count;
-            StateHasChanged();
+            try
+            {
+                onlineCount = ChatService.GetOnlineUsers().Count;
+                StateHasChanged();
+            }
+            catch { } // Circuit dead, ignore
         });
     }
 
-    private async Task HandleUserStatusChanged(string username, UserStatus status)
+    private void HandleUserStatusChanged(string username, UserStatus status)
     {
         // Update header if it's our status that changed (e.g., auto-away)
         if (username.Equals(UserState.Username, StringComparison.OrdinalIgnoreCase))
         {
-            await InvokeAsync(() =>
+            _ = InvokeAsync(() =>
             {
-                UserState.Status = status;
-                StateHasChanged();
+                try
+                {
+                    UserState.Status = status;
+                    StateHasChanged();
+                }
+                catch { } // Circuit dead, ignore
             });
         }
     }

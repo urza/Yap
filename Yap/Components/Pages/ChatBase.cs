@@ -12,6 +12,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 {
     // Injected services
     [Inject] protected ChatService ChatService { get; set; } = default!;
+    [Inject] private ILogger<ChatBase> Logger { get; set; } = default!;
     [Inject] protected ChatConfigService ChatConfig { get; set; } = default!;
     [Inject] protected UserStateService UserState { get; set; } = default!;
     [Inject] protected UserService UserService { get; set; } = default!;
@@ -127,6 +128,38 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     /// Called after first render - derived classes load their messages here.
     /// </summary>
     protected virtual Task OnInitializedChatAsync() => Task.CompletedTask;
+
+    #region Event Handler Helper
+
+    /// <summary>
+    /// Fire-and-forget wrapper for event handlers. Marshals to circuit context
+    /// and swallows exceptions from dead circuits.
+    /// </summary>
+    protected void SafeInvoke(Action action)
+    {
+        try
+        {
+            _ = InvokeAsync(() =>
+            {
+                try
+                {
+                    action();
+                    StateHasChanged();
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning(ex, "Event handler action failed");
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            // Circuit is dead, ignore
+            Logger.LogDebug(ex, "InvokeAsync failed (circuit likely dead)");
+        }
+    }
+
+    #endregion
 
     #region UI Helpers
 
@@ -304,50 +337,57 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
     #region Shared Event Handlers
 
-    protected async Task HandleMessageUpdated(ChatMessage message)
+    protected void HandleMessageUpdated(ChatMessage message)
     {
-        await InvokeAsync(() =>
+        if (message.ChannelId != channelId) return;
+        SafeInvoke(() =>
         {
-            if (message.ChannelId == channelId)
+            var index = messages.FindIndex(m => m.Id == message.Id);
+            if (index >= 0) messages[index] = message;
+        });
+    }
+
+    protected void HandleMessageDeleted(Guid messageId, Guid deletedChannelId)
+    {
+        if (deletedChannelId != channelId) return;
+        SafeInvoke(() =>
+        {
+            messages.RemoveAll(m => m.Id == messageId);
+        });
+    }
+
+    protected void HandleReactionChanged(ChatMessage message)
+    {
+        if (message.ChannelId != channelId) return;
+
+        // Fire-and-forget — needs async for JS interop + scroll
+        _ = HandleReactionChangedAsync(message);
+    }
+
+    private async Task HandleReactionChangedAsync(ChatMessage message)
+    {
+        try
+        {
+            // Check if near bottom BEFORE updating (to decide if we should scroll after)
+            var wasNearBottom = await JS.InvokeAsync<bool>("isNearBottom", 100);
+
+            await InvokeAsync(() =>
             {
                 var index = messages.FindIndex(m => m.Id == message.Id);
                 if (index >= 0) messages[index] = message;
                 StateHasChanged();
-            }
-        });
-    }
+            });
 
-    protected async Task HandleMessageDeleted(Guid messageId, Guid deletedChannelId)
-    {
-        await InvokeAsync(() =>
-        {
-            if (deletedChannelId == channelId)
+            // If viewer was near bottom, scroll to reveal the reaction
+            if (wasNearBottom)
             {
-                messages.RemoveAll(m => m.Id == messageId);
-                StateHasChanged();
+                await Task.Delay(50);
+                await ScrollToBottomAsync();
             }
-        });
-    }
-
-    protected async Task HandleReactionChanged(ChatMessage message)
-    {
-        if (message.ChannelId != channelId) return;
-
-        // Check if near bottom BEFORE updating (to decide if we should scroll after)
-        var wasNearBottom = await JS.InvokeAsync<bool>("isNearBottom", 100);
-
-        await InvokeAsync(() =>
+        }
+        catch
         {
-            var index = messages.FindIndex(m => m.Id == message.Id);
-            if (index >= 0) messages[index] = message;
-            StateHasChanged();
-        });
-
-        // If viewer was near bottom, scroll to reveal the reaction
-        if (wasNearBottom)
-        {
-            await Task.Delay(50);
-            await ScrollToBottomAsync();
+            // Circuit dead, ignore
         }
     }
 

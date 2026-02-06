@@ -162,71 +162,99 @@
 
     #region Event Handlers
 
-    private async Task HandleChannelCreated(Channel channel)
+    private void HandleChannelCreated(Channel channel)
     {
-        await InvokeAsync(() =>
+        if (channel.Type == ChannelType.Room)
         {
-            if (channel.Type == ChannelType.Room)
+            _ = InvokeAsync(() =>
+            {
+                try
+                {
+                    rooms = ChatService.GetRooms();
+                    StateHasChanged();
+                }
+                catch { } // Circuit dead, ignore
+            });
+        }
+    }
+
+    private void HandleChannelDeleted(Guid channelId)
+    {
+        _ = InvokeAsync(() =>
+        {
+            try
             {
                 rooms = ChatService.GetRooms();
                 StateHasChanged();
             }
+            catch { } // Circuit dead, ignore
         });
     }
 
-    private async Task HandleChannelDeleted(Guid channelId)
+    private void HandleUsersListChanged()
     {
-        await InvokeAsync(() =>
+        _ = InvokeAsync(() =>
         {
-            rooms = ChatService.GetRooms();
-            StateHasChanged();
+            try
+            {
+                RefreshOnlineUsers();
+                UpdateOnlineUsersHeader();
+                StateHasChanged();
+            }
+            catch { } // Circuit dead, ignore
         });
     }
 
-    private async Task HandleUsersListChanged()
+    private void HandleUserStatusChanged(string username, UserStatus status)
     {
-        await InvokeAsync(() =>
+        _ = InvokeAsync(() =>
         {
-            RefreshOnlineUsers();
-            UpdateOnlineUsersHeader();
-            StateHasChanged();
+            try
+            {
+                RefreshOnlineUsers();
+                StateHasChanged();
+            }
+            catch { } // Circuit dead, ignore
         });
     }
 
-    private async Task HandleUserStatusChanged(string username, UserStatus status)
+    private void HandleMessageReceived(ChatMessage message)
     {
-        await InvokeAsync(() =>
+        _ = InvokeAsync(() =>
         {
-            RefreshOnlineUsers();
-            StateHasChanged();
+            try
+            {
+                // Re-render to update unread indicators
+                // The unread counts are now managed by ChatService
+                StateHasChanged();
+            }
+            catch { } // Circuit dead, ignore
         });
     }
 
-    private async Task HandleMessageReceived(ChatMessage message)
-    {
-        await InvokeAsync(() =>
-        {
-            // Re-render to update unread indicators
-            // The unread counts are now managed by ChatService
-            StateHasChanged();
-        });
-    }
-
-    private async Task HandleUnreadChanged(Guid userId, Guid channelId)
+    private void HandleUnreadChanged(Guid userId, Guid channelId)
     {
         // Only refresh if the unread change is for the current user
         if (userId == UserId)
         {
-            await InvokeAsync(StateHasChanged);
+            _ = InvokeAsync(() =>
+            {
+                try { StateHasChanged(); }
+                catch { } // Circuit dead, ignore
+            });
         }
     }
 
-    private async Task HandleAdminChanged(string? adminUser)
+    private void HandleAdminChanged(string? adminUser)
     {
-        await InvokeAsync(() =>
+        _ = InvokeAsync(() =>
         {
-            isAdmin = ChatService.IsAdmin(UserId);
-            StateHasChanged();
+            try
+            {
+                isAdmin = ChatService.IsAdmin(UserId);
+                StateHasChanged();
+            }
+            catch { } // Circuit dead, ignore
         });
     }
 

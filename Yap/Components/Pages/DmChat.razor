@@ -144,28 +144,27 @@
 
     #region DM-Specific Event Handlers
 
-    private async Task HandleMessageReceived(ChatMessage message)
+    private void HandleMessageReceived(ChatMessage message)
     {
-        await InvokeAsync(async () =>
+        if (message.ChannelId == channelId)
         {
-            if (message.ChannelId == channelId)
+            SafeInvoke(() =>
             {
                 messages.Add(message);
-                // Mark as read since we're viewing this channel (silent to avoid nested event cascade)
-                await ChatService.MarkChannelAsReadAsync(UserId, channelId, silent: true);
-                StateHasChanged();
-                await ScrollToBottomAsync();
-            }
+            });
+            // Mark as read since we're viewing this channel (fire-and-forget)
+            _ = ChatService.MarkChannelAsReadAsync(UserId, channelId, silent: true);
+            _ = InvokeAsync(ScrollToBottomAsync);
+        }
 
-            // Only notify if: message is not from us AND we're a participant in this DM
-            var messageChannel = ChatService.GetChannel(message.ChannelId);
-            if (!message.Username.Equals(Username, StringComparison.OrdinalIgnoreCase) &&
-                messageChannel?.IsDirectMessage == true &&
-                messageChannel.CanAccess(Username))
-            {
-                await HandleNewMessageNotificationAsync(message.Username, isDM: true);
-            }
-        });
+        // Only notify if: message is not from us AND we're a participant in this DM
+        var messageChannel = ChatService.GetChannel(message.ChannelId);
+        if (!message.Username.Equals(Username, StringComparison.OrdinalIgnoreCase) &&
+            messageChannel?.IsDirectMessage == true &&
+            messageChannel.CanAccess(Username))
+        {
+            _ = InvokeAsync(() => HandleNewMessageNotificationAsync(message.Username, isDM: true));
+        }
     }
 
     #endregion

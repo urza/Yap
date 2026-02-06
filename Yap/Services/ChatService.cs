@@ -31,26 +31,27 @@ public class ChatService
     private Guid _lobbyId;
 
     // Events for real-time updates (unified for all channel types)
-    public event Func<ChatMessage, Task>? OnMessageReceived;
-    public event Func<ChatMessage, Task>? OnMessageUpdated;
-    public event Func<Guid, Guid, Task>? OnMessageDeleted; // messageId, channelId
-    public event Func<ChatMessage, Task>? OnReactionChanged;
-    public event Func<string, bool, Task>? OnUserChanged;
-    public event Func<Task>? OnUsersListChanged;
-    public event Func<Guid, Task>? OnTypingUsersChanged; // channelId
+    // All events are synchronous (Action) - handlers use fire-and-forget internally
+    public event Action<ChatMessage>? OnMessageReceived;
+    public event Action<ChatMessage>? OnMessageUpdated;
+    public event Action<Guid, Guid>? OnMessageDeleted; // messageId, channelId
+    public event Action<ChatMessage>? OnReactionChanged;
+    public event Action<string, bool>? OnUserChanged;
+    public event Action? OnUsersListChanged;
+    public event Action<Guid>? OnTypingUsersChanged; // channelId
 
     // Channel events
-    public event Func<Channel, Task>? OnChannelCreated;
-    public event Func<Guid, Task>? OnChannelDeleted;
+    public event Action<Channel>? OnChannelCreated;
+    public event Action<Guid>? OnChannelDeleted;
 
     // Admin events
-    public event Func<string?, Task>? OnAdminChanged;
+    public event Action<string?>? OnAdminChanged;
 
     // User status events
-    public event Func<string, UserStatus, Task>? OnUserStatusChanged; // username, newStatus
+    public event Action<string, UserStatus>? OnUserStatusChanged; // username, newStatus
 
     // Unread state events
-    public event Func<Guid, Guid, Task>? OnUnreadChanged; // userId, channelId
+    public event Action<Guid, Guid>? OnUnreadChanged; // userId, channelId
 
     public record UserSession(Guid UserId, string Username, string SessionId, UserStatus Status = UserStatus.Online, bool? IsMobile = null);
 
@@ -69,183 +70,6 @@ public class ChatService
         _channelTypingUsers[lobby.Id] = new ConcurrentDictionary<string, DateTime>();
     }
 
-    #region Parallel Event Invocation
-
-    // Timeout for individual event handlers - prevents slow/disconnected clients from blocking dispatch
-    private static readonly TimeSpan HandlerTimeout = TimeSpan.FromSeconds(5);
-
-    /// <summary>
-    /// Invokes all event handlers in parallel instead of sequentially.
-    /// This dramatically improves performance when there are multiple subscribers (circuits).
-    /// Each handler has a timeout to prevent slow/disconnected clients from blocking others.
-    /// </summary>
-    private async Task InvokeParallelAsync<T>(Func<T, Task>? eventDelegate, T arg, [System.Runtime.CompilerServices.CallerMemberName] string? caller = null)
-    {
-        if (eventDelegate == null) return;
-
-        var handlers = eventDelegate.GetInvocationList().Cast<Func<T, Task>>().ToList();
-        if (handlers.Count == 0) return;
-
-        var sw = Stopwatch.StartNew();
-
-        var tasks = handlers.Select(async handler =>
-        {
-            try
-            {
-                var handlerTask = handler(arg);
-                var completedTask = await Task.WhenAny(handlerTask, Task.Delay(HandlerTimeout));
-
-                if (completedTask != handlerTask)
-                {
-                    _logger.LogWarning("Event handler timed out after {Timeout}s in {Caller}", HandlerTimeout.TotalSeconds, caller);
-                    // Don't await the slow handler - let it complete in background
-                }
-                else
-                {
-                    await handlerTask; // Observe any exception
-                }
-            }
-            catch (Exception ex)
-            {
-                // Log but don't rethrow - one handler failing shouldn't break others
-                _logger.LogWarning(ex, "Event handler failed in {Caller}", caller);
-            }
-        });
-
-        await Task.WhenAll(tasks);
-
-        sw.Stop();
-        if (sw.ElapsedMilliseconds > 100)
-        {
-            _logger.LogWarning("Slow event dispatch: {Caller} took {ElapsedMs}ms for {HandlerCount} handlers",
-                caller, sw.ElapsedMilliseconds, handlers.Count);
-        }
-        else
-        {
-            _logger.LogDebug("Event dispatch: {Caller} took {ElapsedMs}ms for {HandlerCount} handlers",
-                caller, sw.ElapsedMilliseconds, handlers.Count);
-        }
-    }
-
-    /// <summary>
-    /// Invokes all event handlers (no arguments) in parallel.
-    /// Each handler has a timeout to prevent slow/disconnected clients from blocking others.
-    /// </summary>
-    private async Task InvokeParallelAsync(Func<Task>? eventDelegate, [System.Runtime.CompilerServices.CallerMemberName] string? caller = null)
-    {
-        if (eventDelegate == null) return;
-
-        var handlers = eventDelegate.GetInvocationList().Cast<Func<Task>>().ToList();
-        if (handlers.Count == 0) return;
-
-        var sw = Stopwatch.StartNew();
-
-        var tasks = handlers.Select(async handler =>
-        {
-            try
-            {
-                var handlerTask = handler();
-                var completedTask = await Task.WhenAny(handlerTask, Task.Delay(HandlerTimeout));
-
-                if (completedTask != handlerTask)
-                {
-                    _logger.LogWarning("Event handler timed out after {Timeout}s in {Caller}", HandlerTimeout.TotalSeconds, caller);
-                }
-                else
-                {
-                    await handlerTask;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Event handler failed in {Caller}", caller);
-            }
-        });
-
-        await Task.WhenAll(tasks);
-
-        sw.Stop();
-        if (sw.ElapsedMilliseconds > 100)
-        {
-            _logger.LogWarning("Slow event dispatch: {Caller} took {ElapsedMs}ms for {HandlerCount} handlers",
-                caller, sw.ElapsedMilliseconds, handlers.Count);
-        }
-        else
-        {
-            _logger.LogDebug("Event dispatch: {Caller} took {ElapsedMs}ms for {HandlerCount} handlers",
-                caller, sw.ElapsedMilliseconds, handlers.Count);
-        }
-    }
-
-    /// <summary>
-    /// Invokes all event handlers (two arguments) in parallel.
-    /// Each handler has a timeout to prevent slow/disconnected clients from blocking others.
-    /// </summary>
-    private async Task InvokeParallelAsync<T1, T2>(Func<T1, T2, Task>? eventDelegate, T1 arg1, T2 arg2, [System.Runtime.CompilerServices.CallerMemberName] string? caller = null)
-    {
-        if (eventDelegate == null) return;
-
-        var handlers = eventDelegate.GetInvocationList().Cast<Func<T1, T2, Task>>().ToList();
-        if (handlers.Count == 0) return;
-
-        var sw = Stopwatch.StartNew();
-
-        var tasks = handlers.Select(async handler =>
-        {
-            try
-            {
-                var handlerTask = handler(arg1, arg2);
-                var completedTask = await Task.WhenAny(handlerTask, Task.Delay(HandlerTimeout));
-
-                if (completedTask != handlerTask)
-                {
-                    _logger.LogWarning("Event handler timed out after {Timeout}s in {Caller}", HandlerTimeout.TotalSeconds, caller);
-                }
-                else
-                {
-                    await handlerTask;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Event handler failed in {Caller}", caller);
-            }
-        });
-
-        await Task.WhenAll(tasks);
-
-        sw.Stop();
-        if (sw.ElapsedMilliseconds > 100)
-        {
-            _logger.LogWarning("Slow event dispatch: {Caller} took {ElapsedMs}ms for {HandlerCount} handlers",
-                caller, sw.ElapsedMilliseconds, handlers.Count);
-        }
-        else
-        {
-            _logger.LogDebug("Event dispatch: {Caller} took {ElapsedMs}ms for {HandlerCount} handlers",
-                caller, sw.ElapsedMilliseconds, handlers.Count);
-        }
-    }
-
-    /// <summary>
-    /// Runs an async action in the background via Task.Run. Used for event dispatch
-    /// so the caller's circuit is never blocked waiting for other circuits' handlers.
-    /// </summary>
-    private void FireAndForget(Func<Task> action, [System.Runtime.CompilerServices.CallerMemberName] string? caller = null)
-    {
-        _ = Task.Run(async () =>
-        {
-            var sw = Stopwatch.StartNew();
-            try
-            {
-                await action();
-                _logger.LogDebug("[BG] {Caller} notifications completed in {ElapsedMs}ms", caller, sw.ElapsedMilliseconds);
-            }
-            catch (Exception ex) { _logger.LogError(ex, "Background notification failed in {Caller} after {ElapsedMs}ms", caller, sw.ElapsedMilliseconds); }
-        });
-    }
-
-    #endregion
 
     #region Diagnostics
 
@@ -412,7 +236,7 @@ public class ChatService
 
         _logger.LogDebug("CreateRoom '{RoomName}' by {User}: persist={ElapsedMs}ms", roomName, adminUsername, sw.ElapsedMilliseconds);
 
-        FireAndForget(async () => await InvokeParallelAsync(OnChannelCreated, channel));
+        OnChannelCreated?.Invoke(channel);
 
         return channel;
     }
@@ -440,7 +264,7 @@ public class ChatService
 
         _logger.LogDebug("DeleteRoom '{RoomName}' channel={ChannelId}: persist={ElapsedMs}ms", channel.Name, channelId, sw.ElapsedMilliseconds);
 
-        FireAndForget(async () => await InvokeParallelAsync(OnChannelDeleted, channelId));
+        OnChannelDeleted?.Invoke(channelId);
 
         return true;
     }
@@ -520,11 +344,8 @@ public class ChatService
         _logger.LogDebug("AddUser {User} session={SessionId} status={Status} staleRemoved={StaleCount} totalSessions={TotalSessions}",
             username, sessionId, status, staleSessionIds.Count, _users.Count);
 
-        FireAndForget(async () =>
-        {
-            await InvokeParallelAsync(OnUserChanged, username, true);
-            await InvokeParallelAsync(OnUsersListChanged);
-        });
+        OnUserChanged?.Invoke(username, true);
+        OnUsersListChanged?.Invoke();
 
         return Task.CompletedTask;
     }
@@ -540,11 +361,8 @@ public class ChatService
 
         _logger.LogDebug("SetUserStatus {User}: {OldStatus} -> {NewStatus}", session.Username, oldStatus, status);
 
-        FireAndForget(async () =>
-        {
-            await InvokeParallelAsync(OnUserStatusChanged, session.Username, status);
-            await InvokeParallelAsync(OnUsersListChanged);
-        });
+        OnUserStatusChanged?.Invoke(session.Username, status);
+        OnUsersListChanged?.Invoke();
 
         return Task.CompletedTask;
     }
@@ -572,11 +390,8 @@ public class ChatService
             // Note: DM channels now persist permanently (like Discord)
             // They are NOT deleted when user disconnects
 
-            FireAndForget(async () =>
-            {
-                await InvokeParallelAsync(OnUserChanged, session.Username, false);
-                await InvokeParallelAsync(OnUsersListChanged);
-            });
+            OnUserChanged?.Invoke(session.Username, false);
+            OnUsersListChanged?.Invoke();
         }
 
         return Task.CompletedTask;
@@ -643,26 +458,23 @@ public class ChatService
         _logger.LogDebug("SendMessage by {User} to channel {ChannelId}: persist={PersistMs}ms unread={UnreadMs}ms ({AffectedUsers} users) callerTotal={TotalMs}ms images={HasImages}",
             username, channelId, persistMs, unreadMs, affectedUserIds.Count, totalSw.ElapsedMilliseconds, imageUrls?.Count > 0);
 
-        // All notifications fire-and-forget — sender's circuit returns immediately
-        FireAndForget(async () =>
+        // Notify all subscribers
+        if (wasTyping)
+            OnTypingUsersChanged?.Invoke(channelId);
+
+        OnMessageReceived?.Invoke(message);
+        NotifyUnreadChanged(channelId, affectedUserIds);
+
+        // Send push notification for DMs (fire-and-forget, doesn't block)
+        if (channel.IsDirectMessage)
         {
-            if (wasTyping)
-                await InvokeParallelAsync(OnTypingUsersChanged, channelId);
-
-            await InvokeParallelAsync(OnMessageReceived, message);
-            await NotifyUnreadChangedAsync(channelId, affectedUserIds);
-
-            // Send push notification for DMs
-            if (channel.IsDirectMessage)
+            var recipient = channel.GetOtherParticipant(username);
+            if (recipient != null)
             {
-                var recipient = channel.GetOtherParticipant(username);
-                if (recipient != null)
-                {
-                    var preview = imageUrls?.Count > 0 ? "[Image]" : content;
-                    await _pushService.SendDmNotificationAsync(recipient, username, preview, 1);
-                }
+                var preview = imageUrls?.Count > 0 ? "[Image]" : content;
+                _ = _pushService.SendDmNotificationAsync(recipient, username, preview, 1);
             }
-        });
+        }
     }
 
     public List<ChatMessage> GetMessages(Guid channelId, int count = 50)
@@ -742,7 +554,7 @@ public class ChatService
 
         _logger.LogDebug("EditMessage {MessageId} by {User}: persist={ElapsedMs}ms", messageId, username, sw.ElapsedMilliseconds);
 
-        FireAndForget(async () => await InvokeParallelAsync(OnMessageUpdated, message));
+        OnMessageUpdated?.Invoke(message);
 
         return true;
     }
@@ -768,7 +580,7 @@ public class ChatService
 
         _logger.LogDebug("DeleteMessage {MessageId} by {User}: persist={ElapsedMs}ms", messageId, username, sw.ElapsedMilliseconds);
 
-        FireAndForget(async () => await InvokeParallelAsync(OnMessageDeleted, messageId, channelId));
+        OnMessageDeleted?.Invoke(messageId, channelId);
 
         return true;
     }
@@ -821,7 +633,7 @@ public class ChatService
         _logger.LogDebug("ToggleReaction {Emoji} on {MessageId} by {User}: action={Action} persist={ElapsedMs}ms",
             emoji, messageId, username, added ? "add" : "remove", sw.ElapsedMilliseconds);
 
-        FireAndForget(async () => await InvokeParallelAsync(OnReactionChanged, message));
+        OnReactionChanged?.Invoke(message);
     }
 
     #endregion
@@ -879,7 +691,7 @@ public class ChatService
         // Notify if there were unread messages that are now cleared
         if (hadUnread && !silent)
         {
-            FireAndForget(async () => await InvokeParallelAsync(OnUnreadChanged, userId, channelId));
+            OnUnreadChanged?.Invoke(userId, channelId);
         }
     }
 
@@ -942,18 +754,14 @@ public class ChatService
     }
 
     /// <summary>
-    /// Fires OnUnreadChanged for all affected users in parallel.
+    /// Fires OnUnreadChanged for all affected users.
     /// </summary>
-    private async Task NotifyUnreadChangedAsync(Guid channelId, List<Guid> userIds)
+    private void NotifyUnreadChanged(Guid channelId, List<Guid> userIds)
     {
-        if (userIds.Count == 0) return;
-
-        var sw = Stopwatch.StartNew();
-        var tasks = userIds.Select(uid => InvokeParallelAsync(OnUnreadChanged, uid, channelId));
-        await Task.WhenAll(tasks);
-
-        _logger.LogDebug("NotifyUnreadChanged channel={ChannelId}: {UserCount} users notified in {ElapsedMs}ms",
-            channelId, userIds.Count, sw.ElapsedMilliseconds);
+        foreach (var userId in userIds)
+        {
+            OnUnreadChanged?.Invoke(userId, channelId);
+        }
     }
 
     /// <summary>
@@ -1019,7 +827,7 @@ public class ChatService
         {
             typingUsers[username] = DateTime.UtcNow;
             _logger.LogDebug("StartTyping {User} in channel {ChannelId}", username, channelId);
-            FireAndForget(async () => await InvokeParallelAsync(OnTypingUsersChanged, channelId));
+            OnTypingUsersChanged?.Invoke(channelId);
         }
         return Task.CompletedTask;
     }
@@ -1030,7 +838,7 @@ public class ChatService
         {
             typingUsers.TryRemove(username, out _);
             _logger.LogDebug("StopTyping {User} in channel {ChannelId}", username, channelId);
-            FireAndForget(async () => await InvokeParallelAsync(OnTypingUsersChanged, channelId));
+            OnTypingUsersChanged?.Invoke(channelId);
         }
         return Task.CompletedTask;
     }

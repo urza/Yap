@@ -123,33 +123,32 @@
 
     #region Room-Specific Event Handlers
 
-    private async Task HandleMessageReceived(ChatMessage message)
+    private void HandleMessageReceived(ChatMessage message)
     {
-        await InvokeAsync(async () =>
+        if (message.ChannelId == channelId)
         {
-            if (message.ChannelId == channelId)
+            SafeInvoke(() =>
             {
                 messages.Add(message);
-                // Mark as read since we're viewing this channel (silent to avoid nested event cascade)
-                await ChatService.MarkChannelAsReadAsync(UserId, channelId, silent: true);
-                StateHasChanged();
-                await ScrollToBottomAsync();
-            }
+            });
+            // Mark as read since we're viewing this channel (fire-and-forget)
+            _ = ChatService.MarkChannelAsReadAsync(UserId, channelId, silent: true);
+            _ = InvokeAsync(ScrollToBottomAsync);
+        }
 
-            if (message.Username != Username && message.Username != "System")
-            {
-                await HandleNewMessageNotificationAsync(message.Username, isDM: false);
-            }
-        });
+        if (message.Username != Username && message.Username != "System")
+        {
+            _ = InvokeAsync(() => HandleNewMessageNotificationAsync(message.Username, isDM: false));
+        }
     }
 
-    private async Task HandleUserChanged(string user, bool isJoining)
+    private void HandleUserChanged(string user, bool isJoining)
     {
-        await InvokeAsync(() =>
+        // Add system message in lobby
+        var lobbyId = ChatService.GetLobbyId();
+        if (channelId == lobbyId)
         {
-            // Add system message in lobby
-            var lobbyId = ChatService.GetLobbyId();
-            if (channelId == lobbyId)
+            SafeInvoke(() =>
             {
                 messages.Add(new ChatMessage(
                     lobbyId,
@@ -158,20 +157,19 @@
                     ChatConfig.GetRandomSystemMessage(user, isJoining),
                     DateTime.UtcNow
                 ));
-                StateHasChanged();
-            }
-        });
+            });
+        }
     }
 
-    private async Task HandleChannelDeleted(Guid deletedChannelId)
+    private void HandleChannelDeleted(Guid deletedChannelId)
     {
-        await InvokeAsync(() =>
+        if (channelId == deletedChannelId)
         {
-            if (channelId == deletedChannelId)
+            SafeInvoke(() =>
             {
                 Navigation.NavigateTo("/lobby", replace: true);
-            }
-        });
+            });
+        }
     }
 
     #endregion
