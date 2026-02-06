@@ -123,52 +123,70 @@
 
     #region Room-Specific Event Handlers
 
-    private void HandleMessageReceived(ChatMessage message)
+    private async void HandleMessageReceived(ChatMessage message)
     {
         if (message.ChannelId == channelId)
         {
-            SafeInvoke(() =>
+            try
             {
-                messages.Add(message);
-            });
-            // Mark as read since we're viewing this channel (fire-and-forget)
-            _ = ChatService.MarkChannelAsReadAsync(UserId, channelId, silent: true);
-            _ = InvokeAsync(ScrollToBottomAsync);
+                await InvokeAsync(() =>
+                {
+                    messages.Add(message);
+                    StateHasChanged();
+                });
+                // Mark as read since we're viewing this channel
+                await ChatService.MarkChannelAsReadAsync(UserId, channelId, silent: true);
+                await InvokeAsync(ScrollToBottomAsync);
+            }
+            catch { } // Circuit dead, ignore
         }
 
         if (message.Username != Username && message.Username != "System")
         {
-            _ = InvokeAsync(() => HandleNewMessageNotificationAsync(message.Username, isDM: false));
+            try
+            {
+                await InvokeAsync(() => HandleNewMessageNotificationAsync(message.Username, isDM: false));
+            }
+            catch { } // Circuit dead, ignore
         }
     }
 
-    private void HandleUserChanged(string user, bool isJoining)
+    private async void HandleUserChanged(string user, bool isJoining)
     {
         // Add system message in lobby
         var lobbyId = ChatService.GetLobbyId();
         if (channelId == lobbyId)
         {
-            SafeInvoke(() =>
+            try
             {
-                messages.Add(new ChatMessage(
-                    lobbyId,
-                    Guid.Empty, // System messages don't have a real user
-                    "System",
-                    ChatConfig.GetRandomSystemMessage(user, isJoining),
-                    DateTime.UtcNow
-                ));
-            });
+                await InvokeAsync(() =>
+                {
+                    messages.Add(new ChatMessage(
+                        lobbyId,
+                        Guid.Empty, // System messages don't have a real user
+                        "System",
+                        ChatConfig.GetRandomSystemMessage(user, isJoining),
+                        DateTime.UtcNow
+                    ));
+                    StateHasChanged();
+                });
+            }
+            catch { } // Circuit dead, ignore
         }
     }
 
-    private void HandleChannelDeleted(Guid deletedChannelId)
+    private async void HandleChannelDeleted(Guid deletedChannelId)
     {
         if (channelId == deletedChannelId)
         {
-            SafeInvoke(() =>
+            try
             {
-                Navigation.NavigateTo("/lobby", replace: true);
-            });
+                await InvokeAsync(() =>
+                {
+                    Navigation.NavigateTo("/lobby", replace: true);
+                });
+            }
+            catch { } // Circuit dead, ignore
         }
     }
 

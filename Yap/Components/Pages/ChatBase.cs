@@ -12,7 +12,6 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 {
     // Injected services
     [Inject] protected ChatService ChatService { get; set; } = default!;
-    [Inject] private ILogger<ChatBase> Logger { get; set; } = default!;
     [Inject] protected ChatConfigService ChatConfig { get; set; } = default!;
     [Inject] protected UserStateService UserState { get; set; } = default!;
     [Inject] protected UserService UserService { get; set; } = default!;
@@ -128,38 +127,6 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     /// Called after first render - derived classes load their messages here.
     /// </summary>
     protected virtual Task OnInitializedChatAsync() => Task.CompletedTask;
-
-    #region Event Handler Helper
-
-    /// <summary>
-    /// Fire-and-forget wrapper for event handlers. Marshals to circuit context
-    /// and swallows exceptions from dead circuits.
-    /// </summary>
-    protected void SafeInvoke(Action action)
-    {
-        try
-        {
-            _ = InvokeAsync(() =>
-            {
-                try
-                {
-                    action();
-                    StateHasChanged();
-                }
-                catch (Exception ex)
-                {
-                    Logger.LogWarning(ex, "Event handler action failed");
-                }
-            });
-        }
-        catch (Exception ex)
-        {
-            // Circuit is dead, ignore
-            Logger.LogDebug(ex, "InvokeAsync failed (circuit likely dead)");
-        }
-    }
-
-    #endregion
 
     #region UI Helpers
 
@@ -337,35 +304,39 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
     #region Shared Event Handlers
 
-    protected void HandleMessageUpdated(ChatMessage message)
+    protected async void HandleMessageUpdated(ChatMessage message)
     {
         if (message.ChannelId != channelId) return;
-        SafeInvoke(() =>
+        try
         {
-            var index = messages.FindIndex(m => m.Id == message.Id);
-            if (index >= 0) messages[index] = message;
-        });
+            await InvokeAsync(() =>
+            {
+                var index = messages.FindIndex(m => m.Id == message.Id);
+                if (index >= 0) messages[index] = message;
+                StateHasChanged();
+            });
+        }
+        catch { } // Circuit dead, ignore
     }
 
-    protected void HandleMessageDeleted(Guid messageId, Guid deletedChannelId)
+    protected async void HandleMessageDeleted(Guid messageId, Guid deletedChannelId)
     {
         if (deletedChannelId != channelId) return;
-        SafeInvoke(() =>
+        try
         {
-            messages.RemoveAll(m => m.Id == messageId);
-        });
+            await InvokeAsync(() =>
+            {
+                messages.RemoveAll(m => m.Id == messageId);
+                StateHasChanged();
+            });
+        }
+        catch { } // Circuit dead, ignore
     }
 
-    protected void HandleReactionChanged(ChatMessage message)
+    protected async void HandleReactionChanged(ChatMessage message)
     {
         if (message.ChannelId != channelId) return;
 
-        // Fire-and-forget — needs async for JS interop + scroll
-        _ = HandleReactionChangedAsync(message);
-    }
-
-    private async Task HandleReactionChangedAsync(ChatMessage message)
-    {
         try
         {
             // Check if near bottom BEFORE updating (to decide if we should scroll after)
@@ -385,10 +356,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
                 await ScrollToBottomAsync();
             }
         }
-        catch
-        {
-            // Circuit dead, ignore
-        }
+        catch { } // Circuit dead, ignore
     }
 
     #endregion

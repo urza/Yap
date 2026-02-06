@@ -848,16 +848,27 @@ public class ChatService
         if (!_channelTypingUsers.TryGetValue(channelId, out var typingUsers))
             return new List<string>();
 
-        // Clean up stale typing indicators (> 3 seconds)
-        var stale = typingUsers
-            .Where(kvp => (DateTime.UtcNow - kvp.Value).TotalSeconds > 3)
-            .Select(kvp => kvp.Key)
-            .ToList();
+        // Take a snapshot first (ToArray on ConcurrentDictionary is more atomic than enumeration)
+        var snapshot = typingUsers.ToArray();
+        var now = DateTime.UtcNow;
 
+        // Separate active from stale based on the snapshot
+        var active = new List<string>();
+        var stale = new List<string>();
+
+        foreach (var kvp in snapshot)
+        {
+            if ((now - kvp.Value).TotalSeconds > 3)
+                stale.Add(kvp.Key);
+            else
+                active.Add(kvp.Key);
+        }
+
+        // Clean up stale entries
         foreach (var user in stale)
             typingUsers.TryRemove(user, out _);
 
-        return typingUsers.Keys.ToList();
+        return active;
     }
 
     #endregion

@@ -246,19 +246,22 @@
         }
     }
 
-    private void HandleTypingUsersChanged(Guid changedChannelId)
+    private async void HandleTypingUsersChanged(Guid changedChannelId)
     {
         if (channelId.HasValue && channelId.Value == changedChannelId)
         {
-            _ = InvokeAsync(() =>
+            try
             {
-                try
+                await InvokeAsync(() =>
                 {
                     UpdateTypingIndicator();
                     StateHasChanged();
-                }
-                catch { } // Circuit dead, ignore
-            });
+                });
+            }
+            catch
+            {
+                // Circuit dead or disposed, ignore
+            }
         }
     }
 

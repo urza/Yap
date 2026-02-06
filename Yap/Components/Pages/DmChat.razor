@@ -144,17 +144,22 @@
 
     #region DM-Specific Event Handlers
 
-    private void HandleMessageReceived(ChatMessage message)
+    private async void HandleMessageReceived(ChatMessage message)
     {
         if (message.ChannelId == channelId)
         {
-            SafeInvoke(() =>
+            try
             {
-                messages.Add(message);
-            });
-            // Mark as read since we're viewing this channel (fire-and-forget)
-            _ = ChatService.MarkChannelAsReadAsync(UserId, channelId, silent: true);
-            _ = InvokeAsync(ScrollToBottomAsync);
+                await InvokeAsync(() =>
+                {
+                    messages.Add(message);
+                    StateHasChanged();
+                });
+                // Mark as read since we're viewing this channel
+                await ChatService.MarkChannelAsReadAsync(UserId, channelId, silent: true);
+                await InvokeAsync(ScrollToBottomAsync);
+            }
+            catch { } // Circuit dead, ignore
         }
 
         // Only notify if: message is not from us AND we're a participant in this DM
@@ -163,7 +168,11 @@
             messageChannel?.IsDirectMessage == true &&
             messageChannel.CanAccess(Username))
         {
-            _ = InvokeAsync(() => HandleNewMessageNotificationAsync(message.Username, isDM: true));
+            try
+            {
+                await InvokeAsync(() => HandleNewMessageNotificationAsync(message.Username, isDM: true));
+            }
+            catch { } // Circuit dead, ignore
         }
     }
 
