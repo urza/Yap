@@ -135,8 +135,8 @@
     font-size: 0.875rem;
 }
 
-/* Mobile adjustments */
-@media (max-width: 400px) {
+/* Mobile adjustments - match parent's 600px breakpoint */
+@media (max-width: 600px) {
     .emoji-sidebar {
         width: 36px;
     }
@@ -147,7 +147,12 @@
     }
 
     .emoji-btn {
-        width: 30px;
-        height: 30px;
+        width: 36px;
+        height: 36px;
+    }
+
+    .emoji-btn ::deep .emoji {
+        width: 28px !important;
+        height: 28px !important;
     }
 }
