@@ -29,6 +29,10 @@
                         <button class="room-delete" @onclick="() => DeleteRoom(room.Id)"
                                 @onclick:stopPropagation="true" title="Delete room">×</button>
                     }
+                    else if (isAdmin)
+                    {
+                        <span class="room-delete room-delete-spacer">×</span>
+                    }
                 </div>
             }
             @if (isAdmin)

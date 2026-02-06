@@ -101,6 +101,11 @@
     opacity: 1;
 }
 
+.room-delete-spacer,
+.room-item:hover .room-delete-spacer {
+    visibility: hidden;
+}
+
 .room-delete:hover {
     color: var(--color-danger);
     background: rgba(237, 66, 69, 0.1);
@@ -240,6 +245,20 @@
 .admin-badge {
     margin-left: 0.25rem;
     opacity: 0.8;
+}
+
+/* Room unread dot */
+.room-unread-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--text-primary);
+    border-radius: 50%;
+    margin-left: 0.25rem;
+    flex-shrink: 0;
+}
+
+.room-item.has-unread {
+    color: var(--text-primary);
 }
 
 /* DM unread badge */
