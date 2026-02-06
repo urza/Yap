@@ -115,7 +115,6 @@
         ChatService.OnChannelDeleted += HandleChannelDeleted;
         ChatService.OnUsersListChanged += HandleUsersListChanged;
         ChatService.OnUserStatusChanged += HandleUserStatusChanged;
-        ChatService.OnMessageReceived += HandleMessageReceived;
         ChatService.OnUnreadChanged += HandleUnreadChanged;
         NavState.OnChange += StateHasChanged;
     }
@@ -239,26 +238,6 @@
                 Logger.LogWarning("HandleUserStatusChanged: {Message}", ex.Message);
             else
                 Logger.LogError(ex, "Error in HandleUserStatusChanged");
-        }
-    }
-
-    private async void HandleMessageReceived(ChatMessage message)
-    {
-        try
-        {
-            await InvokeAsync(() =>
-            {
-                // Re-render to update unread indicators
-                // The unread counts are now managed by ChatService
-                StateHasChanged();
-            });
-        }
-        catch (Exception ex)
-        {
-            if (ex is ObjectDisposedException or InvalidOperationException)
-                Logger.LogWarning("HandleMessageReceived: {Message}", ex.Message);
-            else
-                Logger.LogError(ex, "Error in HandleMessageReceived");
         }
     }
 
@@ -416,7 +395,6 @@
         ChatService.OnChannelDeleted -= HandleChannelDeleted;
         ChatService.OnUsersListChanged -= HandleUsersListChanged;
         ChatService.OnUserStatusChanged -= HandleUserStatusChanged;
-        ChatService.OnMessageReceived -= HandleMessageReceived;
         ChatService.OnUnreadChanged -= HandleUnreadChanged;
         NavState.OnChange -= StateHasChanged;
     }
