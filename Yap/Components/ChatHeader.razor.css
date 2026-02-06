@@ -102,6 +102,25 @@
     height: 20px;
 }
 
+/* Desktop: people icon, Mobile: hamburger */
+.icon-hamburger {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .icon-people {
+        display: none;
+    }
+
+    .icon-hamburger {
+        display: block;
+    }
+
+    .online-count {
+        display: none;
+    }
+}
+
 .online-count {
     font-size: 0.875rem;
     font-weight: 500;
@@ -156,9 +175,9 @@
     white-space: nowrap;
 }
 
-.dropdown-arrow {
-    opacity: 0.8;
-    margin-left: -0.25rem;
+.dropdown-gear {
+    opacity: 0.7;
+    margin-left: -0.125rem;
 }
 
 /* Backdrop for closing dropdown */

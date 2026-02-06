@@ -75,7 +75,7 @@
                      @onclick="() => OpenDM(user)"
                      title="@(isCurrentUser ? "You" : $"Message {displayName}")">
                     <span class="user-status-dot @statusClass"></span>
-                    <span class="user-name">@EmojiService.ConvertEmojisToTwemoji(displayName, inline: true)</span>
+                    <span class="user-name">@EmojiService.ConvertEmojisToTwemoji(displayName, inline: true)@(isCurrentUser ? " (you)" : "")</span>
                     @if (isUserAdmin)
                     {
                         <span class="admin-badge" title="Admin">@EmojiService.ConvertEmojisToTwemoji("👑", inline: true)</span>
@@ -363,14 +363,12 @@
             .Select(u => new
             {
                 Entry = u,
-                UnreadCount = GetUnreadDMCount(u.Username),
-                LastDM = ChatService.GetLastDMTimestamp(Username, u.Username),
+                HasUnread = GetUnreadDMCount(u.Username) > 0,
                 IsOnline = u.Status != UserStatus.Invisible
             })
-            .OrderByDescending(x => x.UnreadCount > 0)
+            .OrderByDescending(x => x.HasUnread)
             .ThenByDescending(x => x.IsOnline)
-            .ThenByDescending(x => x.LastDM ?? DateTime.MinValue)
-            .ThenBy(x => x.Entry.Username)
+            .ThenBy(x => x.Entry.Username, StringComparer.OrdinalIgnoreCase)
             .Select(x => x.Entry);
 
         return adminEntry.Concat(currentUserEntry).Concat(sorted);

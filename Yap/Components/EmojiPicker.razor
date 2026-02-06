@@ -37,9 +37,9 @@
         <div class="emoji-section" data-section="recent">
             <div class="section-header">Recent</div>
             <div class="emoji-grid">
-                @if (RecentEmojis.Count > 0)
+                @if (frozenRecents.Count > 0)
                 {
-                    @foreach (var emoji in RecentEmojis)
+                    @foreach (var emoji in frozenRecents)
                     {
                         var e = emoji;
                         <button class="emoji-btn" @onclick="() => SelectEmoji(e)">
@@ -111,6 +111,14 @@
     private const string CustomCategory = "custom";
     private ElementReference contentElement;
     private IJSObjectReference? scrollTracker;
+
+    // Snapshot of recents taken on init — won't shift under the user's fingers
+    private List<string> frozenRecents = new();
+
+    protected override void OnInitialized()
+    {
+        frozenRecents = new List<string>(RecentEmojis);
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
