@@ -9,6 +9,12 @@ using Yap.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Allow large file uploads (100 MB) - matches app-level limit
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 100 * 1024 * 1024;
+});
+
 // Load config from Data folder if exists (for Docker deployment)
 var dataConfigPath = Path.Combine(builder.Environment.ContentRootPath, "Data", "appsettings.json");
 if (File.Exists(dataConfigPath))
