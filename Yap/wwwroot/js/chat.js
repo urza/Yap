@@ -326,7 +326,7 @@ window.showPwaInstallGuide = () => {
                 appName: 'Yap',
                 appIconUrl: 'icon-192.png',
                 assetUrl: cdnBase + '/assets/img/',
-                allowClose: true,
+                allowClose: false,
                 showArrow: true
             });
             instance.show('en');
