@@ -296,6 +296,45 @@ window.isPwaInstalled = () => {
            window.navigator.standalone === true;
 };
 
+// PWA Install Banner helpers
+window.shouldShowPwaInstallBanner = () => {
+    if (window.isPwaInstalled()) return false;
+    if (sessionStorage.getItem('pwa-banner-dismissed')) return false;
+    return true;
+};
+
+window.dismissPwaInstallBanner = () => {
+    sessionStorage.setItem('pwa-banner-dismissed', 'true');
+};
+
+window.showPwaInstallGuide = () => {
+    sessionStorage.setItem('pwa-banner-dismissed', 'true');
+
+    // Lazy-load add-to-homescreen library from CDN
+    const cdnBase = 'https://cdn.jsdelivr.net/gh/philfung/add-to-homescreen@3.5/dist';
+
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = cdnBase + '/add-to-homescreen.min.css';
+    document.head.appendChild(link);
+
+    const script = document.createElement('script');
+    script.src = cdnBase + '/add-to-homescreen.min.js';
+    script.onload = () => {
+        if (window.AddToHomeScreen) {
+            const instance = window.AddToHomeScreen({
+                appName: 'Yap',
+                appIconUrl: 'icon-192.png',
+                assetUrl: cdnBase + '/assets/img/',
+                allowClose: true,
+                showArrow: true
+            });
+            instance.show('en');
+        }
+    };
+    document.body.appendChild(script);
+};
+
 // Subscribe to push notifications
 window.subscribeToPush = async (vapidPublicKey) => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
