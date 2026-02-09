@@ -106,7 +106,8 @@ public class ChatPersistenceService
             )
             {
                 Id = message.Id,
-                IsEdited = message.IsEdited
+                IsEdited = message.IsEdited,
+                ReplyToMessageId = message.ReplyToMessageId
             };
 
             db.Messages.Add(newMessage);

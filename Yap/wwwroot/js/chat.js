@@ -602,6 +602,48 @@ window.cleanupScrollDismiss = () => {
     scrollWatchActive = false;
 };
 
+// Focus message input (used after clicking Reply)
+window.focusMessageInput = () => {
+    const el = document.querySelector('.message-input');
+    if (el) el.focus();
+};
+
+// ==========================================
+// Scroll to Message (Reply click)
+// ==========================================
+
+window.scrollToMessage = (messageId) => {
+    const el = document.getElementById('msg-' + messageId);
+    if (!el) return;
+
+    const container = document.querySelector('.messages');
+    if (!container) return;
+
+    // Target: center the element in the container
+    const targetTop = el.offsetTop - container.offsetTop - (container.clientHeight / 2) + (el.offsetHeight / 2);
+    const startTop = container.scrollTop;
+    const distance = targetTop - startTop;
+    const duration = 600; // ms — fixed duration regardless of distance
+    const startTime = performance.now();
+
+    // Ease-out cubic for a natural deceleration feel
+    const ease = (t) => 1 - Math.pow(1 - t, 3);
+
+    const step = (now) => {
+        const elapsed = Math.min((now - startTime) / duration, 1);
+        container.scrollTop = startTop + distance * ease(elapsed);
+        if (elapsed < 1) {
+            requestAnimationFrame(step);
+        } else {
+            // Highlight with blurple tint after scroll completes
+            el.classList.add('highlight-message');
+            setTimeout(() => el.classList.remove('highlight-message'), 2000);
+        }
+    };
+
+    requestAnimationFrame(step);
+};
+
 // ==========================================
 // Parallel File Upload via HTTP
 // ==========================================

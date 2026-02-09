@@ -23,6 +23,7 @@
     --accent-hover: #4752c4;
     --accent-light: #dee0fc;
     --accent-focus: #00aff4;
+    --accent-tint: hsl(235 85.6% 64.7% / 0.16);
 
     /* Status colors */
     --status-online: #3ba55c;

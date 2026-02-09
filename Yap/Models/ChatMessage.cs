@@ -19,6 +19,7 @@ public class ChatMessage
     public DateTime Timestamp { get; set; }
     public List<string> ImageUrls { get; set; } = new();
     public bool IsEdited { get; set; }
+    public Guid? ReplyToMessageId { get; set; }
 
     // Navigation properties
     public Channel Channel { get; set; } = null!;
@@ -29,7 +30,7 @@ public class ChatMessage
 
     private ChatMessage() { } // EF Core constructor
 
-    public ChatMessage(Guid channelId, Guid userId, string username, string content, DateTime timestamp, List<string>? imageUrls = null)
+    public ChatMessage(Guid channelId, Guid userId, string username, string content, DateTime timestamp, List<string>? imageUrls = null, Guid? replyToMessageId = null)
     {
         ChannelId = channelId;
         UserId = userId;
@@ -37,6 +38,7 @@ public class ChatMessage
         Content = content;
         Timestamp = timestamp;
         ImageUrls = imageUrls ?? new();
+        ReplyToMessageId = replyToMessageId;
         Reactions = new();
     }
 }

@@ -26,7 +26,8 @@
     @for (int i = 0; i < messages.Count; i++)
     {
         var message = messages[i];
-        var showHeader = i == 0 || messages[i - 1].Username != message.Username;
+        var showHeader = i == 0 || messages[i - 1].Username != message.Username || message.ReplyToMessageId != null;
+        var replyTarget = GetReplyTarget(message);
 
         <MessageItem Message="@message"
                      ShowHeader="@showHeader"
@@ -36,8 +37,14 @@
                      DisplayName="@GetDisplayName(message.Username)"
                      RecentEmojis="@recentEmojis"
                      QuickReactions="@quickReactions"
+                     IsReplyTarget="@(replyingToMessage?.Id == message.Id)"
                      EditContent="@editContent"
                      EditContentChanged="@(v => editContent = v)"
+                     ReplyToMessage="@replyTarget"
+                     ReplyToDisplayName="@(replyTarget != null ? GetDisplayName(replyTarget.Username) : null)"
+                     ReplyToProfilePictureUrl="@(replyTarget != null ? GetProfilePictureUrl(replyTarget.Username) : null)"
+                     OnReply="@(() => StartReply(message))"
+                     OnScrollToMessage="@(() => ScrollToMessageAsync(message.ReplyToMessageId!.Value))"
                      OnTouchStart="ActivateScrollWatch"
                      OnReaction="@(emoji => ToggleReaction(message.Id, emoji))"
                      OnStartEdit="@(() => StartEdit(message))"
@@ -48,7 +55,10 @@
     }
 </div>
 
-<MessageInput DmUser="@DmUser" RecentEmojis="@recentEmojis" OnEmojiUsed="HandleInputEmojiUsed" />
+<MessageInput DmUser="@DmUser" RecentEmojis="@recentEmojis" OnEmojiUsed="HandleInputEmojiUsed"
+              ReplyingToMessage="@replyingToMessage"
+              ReplyingToDisplayName="@(replyingToMessage != null ? GetDisplayName(replyingToMessage.Username) : null)"
+              OnCancelReply="CancelReply" />
 
 <ImageGalleryModal Visible="@showImageModal"
                    Images="@modalGallery"

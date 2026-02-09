@@ -422,13 +422,13 @@ public class ChatService
 
     #region Messaging
 
-    public async Task SendMessageAsync(Guid channelId, Guid userId, string username, string content, List<string>? imageUrls = null)
+    public async Task SendMessageAsync(Guid channelId, Guid userId, string username, string content, List<string>? imageUrls = null, Guid? replyToMessageId = null)
     {
         var totalSw = Stopwatch.StartNew();
         if (!_channels.TryGetValue(channelId, out var channel))
             return;
 
-        var message = new ChatMessage(channelId, userId, username, content, DateTime.UtcNow, imageUrls);
+        var message = new ChatMessage(channelId, userId, username, content, DateTime.UtcNow, imageUrls, replyToMessageId);
 
         lock (GetChannelLock(channelId))
         {
@@ -521,6 +521,15 @@ public class ChatService
                           messages.Any(m => m.Timestamp < oldestReturned.Value);
 
             return (result, hasMore);
+        }
+    }
+
+    public ChatMessage? GetMessageById(Guid channelId, Guid messageId)
+    {
+        if (!_channelMessages.TryGetValue(channelId, out var messages)) return null;
+        lock (GetChannelLock(channelId))
+        {
+            return messages.FirstOrDefault(m => m.Id == messageId);
         }
     }
 

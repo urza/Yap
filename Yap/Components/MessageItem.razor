@@ -3,9 +3,21 @@
 @inject EmojiService EmojiService
 @inject IJSRuntime JS
 
-<div class="message-group @(IsSystem ? "system-message" : "") @(ShowHeader ? "has-header" : "") @(showEmojiPicker ? "picker-open" : "")"
+<div class="message-group @(IsSystem ? "system-message" : "") @(ShowHeader ? "has-header" : "") @(showEmojiPicker ? "picker-open" : "") @(ReplyToMessage != null ? "has-reply" : "") @(IsReplyTarget ? "reply-target" : "")"
+     id="msg-@Message.Id"
      @ontouchstart="HandleTouchStart"
      @ontouchstart:stopPropagation>
+
+    @if (ReplyToMessage != null)
+    {
+        <div class="reply-preview" @onclick="() => OnScrollToMessage.InvokeAsync()">
+            <Avatar Username="@ReplyToMessage.Username"
+                    ProfilePictureUrl="@ReplyToProfilePictureUrl"
+                    Size="AvatarSize.Small" />
+            <span class="reply-author">@(ReplyToDisplayName ?? ReplyToMessage.Username)</span>
+            <span class="reply-text">@GetReplyPreviewText()</span>
+        </div>
+    }
 
     @if (ShowHeader)
     {
@@ -120,6 +132,11 @@
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-6c.78 2.34 2.72 4 5 4s4.22-1.66 5-4H7zm8-4c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm-6 0c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1z"/>
                 </svg>
             </button>
+            <button class="action-btn action-reply" @onclick="() => OnReply.InvokeAsync()" title="Reply">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/>
+                </svg>
+            </button>
             @if (IsOwn && !Message.HasImages)
             {
                 <button class="action-btn action-edit" @onclick="() => OnStartEdit.InvokeAsync()" title="Edit">
@@ -158,6 +175,7 @@
     [Parameter] public string? DisplayName { get; set; }
     [Parameter] public List<string> RecentEmojis { get; set; } = new();  // For full emoji drawer
     [Parameter] public List<string> QuickReactions { get; set; } = new(); // Cached quick reactions
+    [Parameter] public bool IsReplyTarget { get; set; }
 
     // Computed from Message
     private bool IsOwn => Message.Username.Equals(CurrentUsername, StringComparison.OrdinalIgnoreCase);
@@ -167,6 +185,13 @@
     [Parameter] public string EditContent { get; set; } = "";
     [Parameter] public EventCallback<string> EditContentChanged { get; set; }
 
+    // Reply parameters
+    [Parameter] public ChatMessage? ReplyToMessage { get; set; }
+    [Parameter] public string? ReplyToDisplayName { get; set; }
+    [Parameter] public string? ReplyToProfilePictureUrl { get; set; }
+    [Parameter] public EventCallback OnReply { get; set; }
+    [Parameter] public EventCallback OnScrollToMessage { get; set; }
+
     // Callbacks
     [Parameter] public EventCallback OnTouchStart { get; set; }  // For mobile scroll-dismiss
     [Parameter] public EventCallback<string> OnReaction { get; set; }
@@ -175,6 +200,14 @@
     [Parameter] public EventCallback OnCancelEdit { get; set; }
     [Parameter] public EventCallback OnDelete { get; set; }
     [Parameter] public EventCallback<(List<string> Images, int Index)> OnImageClick { get; set; }
+
+    private string GetReplyPreviewText()
+    {
+        if (ReplyToMessage == null) return "";
+        if (ReplyToMessage.HasImages && string.IsNullOrEmpty(ReplyToMessage.Content))
+            return "Click to see attachment";
+        return ReplyToMessage.Content;
+    }
 
     private async Task HandleTouchStart()
     {

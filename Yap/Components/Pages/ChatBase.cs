@@ -50,6 +50,9 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     protected List<string> modalGallery = new();
     protected int modalImageIndex = 0;
 
+    // Reply state
+    protected ChatMessage? replyingToMessage = null;
+
     // Recent emojis for full emoji drawer
     protected List<string> recentEmojis = new();
 
@@ -420,6 +423,34 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     {
         await AddRecentEmojiAsync(emoji);
         await IncrementEmojiCountAsync(emoji);
+    }
+
+    protected async Task StartReply(ChatMessage message)
+    {
+        replyingToMessage = message;
+        try { await JS.InvokeVoidAsync("focusMessageInput"); }
+        catch { /* ignore during disconnect */ }
+    }
+
+    protected void CancelReply()
+    {
+        replyingToMessage = null;
+    }
+
+    protected ChatMessage? GetReplyTarget(ChatMessage message)
+    {
+        if (message.ReplyToMessageId == null) return null;
+        var local = messages.FirstOrDefault(m => m.Id == message.ReplyToMessageId);
+        if (local != null) return local;
+        return ChatService.GetMessageById(message.ChannelId, message.ReplyToMessageId.Value);
+    }
+
+    protected async Task ScrollToMessageAsync(Guid messageId)
+    {
+        if (messages.Any(m => m.Id == messageId))
+        {
+            await JS.InvokeVoidAsync("scrollToMessage", messageId.ToString());
+        }
     }
 
     #endregion

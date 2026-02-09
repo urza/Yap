@@ -97,6 +97,8 @@ public class ChatDbContext : DbContext
                   .HasForeignKey(m => m.UserId)
                   .OnDelete(DeleteBehavior.Cascade);
 
+            entity.Property(m => m.ReplyToMessageId);
+
             // Ignore computed property
             entity.Ignore(m => m.HasImages);
         });

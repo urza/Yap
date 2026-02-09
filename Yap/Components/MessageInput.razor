@@ -49,7 +49,17 @@
     }
 </div>
 
-<div class="message-input-container @(isDraggingOver ? "drag-over" : "")"
+@if (ReplyingToMessage != null)
+{
+    <div class="reply-bar">
+        <span class="reply-bar-text">
+            Replying to <strong>@(ReplyingToDisplayName ?? ReplyingToMessage.Username)</strong>
+        </span>
+        <button class="reply-bar-close" @onclick="HandleCancelReply">✕</button>
+    </div>
+}
+
+<div class="message-input-container @(isDraggingOver ? "drag-over" : "") @(ReplyingToMessage != null ? "has-reply-bar" : "")"
      @ref="dropZoneElement"
      @ondragenter="HandleDragEnter"
      @ondragover="HandleDragOver"
@@ -101,6 +111,11 @@
     // Emoji drawer parameters
     [Parameter] public List<string> RecentEmojis { get; set; } = new();
     [Parameter] public EventCallback<string> OnEmojiUsed { get; set; }
+
+    // Reply parameters
+    [Parameter] public ChatMessage? ReplyingToMessage { get; set; }
+    [Parameter] public string? ReplyingToDisplayName { get; set; }
+    [Parameter] public EventCallback OnCancelReply { get; set; }
 
     private Guid UserId => UserState.UserId ?? Guid.Empty;
     private string Username => UserState.Username ?? "";
@@ -354,8 +369,12 @@
 
         try
         {
-            await ChatService.SendMessageAsync(channelId.Value, UserId, Username, content);
+            await ChatService.SendMessageAsync(channelId.Value, UserId, Username, content, replyToMessageId: ReplyingToMessage?.Id);
             await StopTypingAsync();
+            if (ReplyingToMessage != null)
+            {
+                await OnCancelReply.InvokeAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -370,6 +389,11 @@
     private void ToggleEmojiPicker()
     {
         showEmojiPicker = !showEmojiPicker;
+    }
+
+    private async Task HandleCancelReply()
+    {
+        await OnCancelReply.InvokeAsync();
     }
 
     private void CloseEmojiPicker()
