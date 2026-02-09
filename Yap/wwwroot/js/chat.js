@@ -197,6 +197,20 @@ window.isTouchDevice = () => {
     return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 };
 
+// Prevent textarea from losing focus when send button is tapped (keeps mobile keyboard open)
+window.setupSendButtonFocus = (textareaId) => {
+    const textarea = document.getElementById(textareaId);
+    if (!textarea) return;
+    const container = textarea.closest('.message-input-container');
+    if (!container) return;
+    const sendBtn = container.querySelector('.send-button');
+    if (!sendBtn) return;
+
+    sendBtn.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+    });
+};
+
 // Prevent Enter from inserting newline (handled server-side for sending)
 // This runs client-side to avoid race conditions with server-side preventDefault
 window.setupEnterKeyHandler = (textareaId) => {

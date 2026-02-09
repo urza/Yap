@@ -178,6 +178,8 @@
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to detect touch device"); }
             try { await JS.InvokeVoidAsync("setupEnterKeyHandler", TextareaId); }
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup enter key handler"); }
+            try { await JS.InvokeVoidAsync("setupSendButtonFocus", TextareaId); }
+            catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup send button focus"); }
             try { await JS.InvokeVoidAsync("setupEmojiToggle", EmojiIconId, SpriteCols, SpriteTotalEmojis); }
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup emoji toggle"); }
         }
