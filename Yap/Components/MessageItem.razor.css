@@ -36,6 +36,8 @@
     color: var(--text-secondary);
     padding-left: calc(40px + 1rem); /* avatar + gap */
     margin-bottom: 0.25rem;
+    position: relative;
+    z-index: 101; /* Above .message-actions (z:100) so it's always tappable on mobile */
 }
 
 .reply-preview:hover .reply-author {

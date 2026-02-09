@@ -425,11 +425,11 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
         await IncrementEmojiCountAsync(emoji);
     }
 
-    protected async Task StartReply(ChatMessage message)
+    protected void StartReply(ChatMessage message)
     {
         replyingToMessage = message;
-        try { await JS.InvokeVoidAsync("focusMessageInput"); }
-        catch { /* ignore during disconnect */ }
+        // Focus + action dismiss handled client-side via onclick="focusMessageInput()"
+        // on the reply button to avoid Blazor round-trip losing the user gesture context
     }
 
     protected void CancelReply()
