@@ -296,7 +296,6 @@
 
     private async Task HandleReplyClick()
     {
-        try { await JS.InvokeVoidAsync("dismissMessageActions"); } catch { }
         try { await JS.InvokeVoidAsync("focusMessageInput"); } catch { }
         await OnReply.InvokeAsync();
     }
