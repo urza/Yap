@@ -303,7 +303,7 @@
 
     private async Task HandleReplyPreviewClick()
     {
-        try { await JS.InvokeVoidAsync("dismissMessageActions"); } catch { }
+        // Action dismiss handled by global touchstart listener in chat.js
         await OnScrollToMessage.InvokeAsync();
     }
 

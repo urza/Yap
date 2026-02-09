@@ -615,6 +615,15 @@ window.dismissMessageActions = () => {
     if (messagesEl) messagesEl.classList.add('scroll-dismissing');
 };
 
+// Prevent action popup from appearing when touching reply-preview on mobile.
+// touchstart fires synchronously before :hover is applied, so we can dismiss
+// actions before the browser ever renders them.
+document.addEventListener('touchstart', (e) => {
+    if (e.target.closest('.reply-preview')) {
+        dismissMessageActions();
+    }
+}, { passive: true });
+
 // ==========================================
 // Scroll to Message (Reply click)
 // ==========================================
