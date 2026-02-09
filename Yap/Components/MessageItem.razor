@@ -10,7 +10,7 @@
 
     @if (ReplyToMessage != null)
     {
-        <div class="reply-preview" @onclick="() => OnScrollToMessage.InvokeAsync()">
+        <div class="reply-preview" @onclick="() => OnScrollToMessage.InvokeAsync()" @onclick:stopPropagation>
             <Avatar Username="@ReplyToMessage.Username"
                     ProfilePictureUrl="@ReplyToProfilePictureUrl"
                     Size="AvatarSize.Small" />

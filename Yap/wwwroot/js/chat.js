@@ -604,6 +604,10 @@ window.cleanupScrollDismiss = () => {
 
 // Focus message input (used after clicking Reply)
 window.focusMessageInput = () => {
+    // Dismiss sticky hover on mobile (hides message action popups)
+    const messagesEl = document.querySelector('.messages');
+    if (messagesEl) messagesEl.classList.add('scroll-dismissing');
+
     const el = document.querySelector('.message-input');
     if (el) el.focus();
 };
