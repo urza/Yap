@@ -428,8 +428,6 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     protected void StartReply(ChatMessage message)
     {
         replyingToMessage = message;
-        // Focus + action dismiss handled client-side via onclick="focusMessageInput()"
-        // on the reply button to avoid Blazor round-trip losing the user gesture context
     }
 
     protected void CancelReply()
