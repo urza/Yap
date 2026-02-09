@@ -585,11 +585,8 @@ window.setupScrollDismiss = () => {
 window.activateScrollWatch = () => {
     const messagesEl = document.querySelector('.messages');
     if (messagesEl) {
-        // Remove dismiss class when user taps a message,
-        // but not if dismissMessageActions() was called in the same frame
-        if (!dismissLocked) {
-            messagesEl.classList.remove('scroll-dismissing');
-        }
+        // Remove dismiss class when user taps a message
+        messagesEl.classList.remove('scroll-dismissing');
         scrollStartTop = messagesEl.scrollTop;
         scrollWatchActive = true;
     }
@@ -611,25 +608,6 @@ window.focusMessageInput = () => {
     if (el) el.focus();
 };
 
-// Dismiss sticky :hover action popups on mobile.
-// Uses a lock so activateScrollWatch (called via Blazor round-trip) doesn't
-// immediately undo the dismiss when both fire from the same touch.
-let dismissLocked = false;
-
-window.dismissMessageActions = () => {
-    const messagesEl = document.querySelector('.messages');
-    if (messagesEl) messagesEl.classList.add('scroll-dismissing');
-    dismissLocked = true;
-    requestAnimationFrame(() => { dismissLocked = false; });
-};
-
-// Prevent action popup from appearing when touching reply-preview on mobile.
-// touchstart fires synchronously before :hover is applied.
-document.addEventListener('touchstart', (e) => {
-    if (e.target.closest('.reply-preview')) {
-        dismissMessageActions();
-    }
-}, { passive: true });
 
 // ==========================================
 // Scroll to Message (Reply click)

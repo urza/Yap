@@ -250,6 +250,14 @@
     pointer-events: auto;
 }
 
+/* Hide actions when reply-preview is hovered/tapped (sibling combinator).
+   On mobile: sticky :hover from tap hides actions so reply-preview click works.
+   On desktop: actions hide only while mouse is over the reply reference. */
+.reply-preview:hover ~ .message-actions {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
 .action-btn {
     background: transparent;
     border: none;
