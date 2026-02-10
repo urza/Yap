@@ -608,6 +608,16 @@ window.focusMessageInput = () => {
     if (el) el.focus();
 };
 
+// Focus input on reply button click, in the user gesture context.
+// Uses capture phase so it fires before Blazor's bubbling-phase handler,
+// keeping focus in the same gesture without interfering with Blazor's click processing.
+document.addEventListener('click', (e) => {
+    if (e.target.closest('.action-reply')) {
+        const el = document.querySelector('.message-input');
+        if (el) el.focus();
+    }
+}, true);
+
 
 // ==========================================
 // Scroll to Message (Reply click)

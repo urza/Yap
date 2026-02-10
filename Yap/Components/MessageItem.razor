@@ -296,7 +296,7 @@
 
     private async Task HandleReplyClick()
     {
-        try { await JS.InvokeVoidAsync("focusMessageInput"); } catch { }
+        // Focus handled by pointerdown listener in chat.js (needs user gesture context for mobile keyboard)
         await OnReply.InvokeAsync();
     }
 
