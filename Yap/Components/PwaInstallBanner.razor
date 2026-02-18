@@ -55,7 +55,12 @@
             var shouldShow = await JS.InvokeAsync<bool>("shouldShowPwaInstallBanner");
             if (!shouldShow) return;
 
-            await Task.Delay(3000);
+            await Task.Delay(45_000);
+
+            // Wait for user to finish typing before interrupting
+            while (await JS.InvokeAsync<bool>("isMessageInputFocused"))
+                await Task.Delay(5000);
+
             _visible = true;
             StateHasChanged();
         }
