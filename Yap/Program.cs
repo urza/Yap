@@ -5,6 +5,7 @@ using Microsoft.Extensions.FileProviders;
 using Yap.Components;
 using Yap.Extensions;
 using Yap.Middleware;
+using Yap.Models;
 using Yap.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -114,6 +115,10 @@ builder.Services.AddHttpContextAccessor();
 // Request logging
 builder.Services.AddSingleton<RequestLogQueue>();
 builder.Services.AddHostedService<RequestLogWriter>();
+
+// User action logging (queued, flushed to database periodically)
+builder.Services.AddSingleton<UserActionLogService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<UserActionLogService>());
 
 var app = builder.Build();
 
@@ -242,7 +247,7 @@ app.MapPost("/api/push/unsubscribe", async (HttpContext context, PushSubscriptio
 // HttpOnly cookies can only be set via HTTP response headers, not from Blazor
 // after SignalR streaming starts. So we redirect here with forceLoad.
 
-app.MapGet("/auth/signin", async (HttpContext context, UserService userService, string username, string? returnUrl) =>
+app.MapGet("/auth/signin", async (HttpContext context, UserService userService, UserActionLogService actionLog, string username, string? returnUrl) =>
 {
     if (string.IsNullOrEmpty(username))
         return Results.Redirect("/");
@@ -252,6 +257,9 @@ app.MapGet("/auth/signin", async (HttpContext context, UserService userService, 
         return Results.Redirect("/");
 
     AuthMiddleware.SetAuthCookie(context, user.Token);
+
+    var ip = GetClientIp(context);
+    actionLog.Log(user.Id.ToString(), UserActionLog.KnownActions.LOGIN, info: username, ip: ip);
 
     // Validate returnUrl is relative (prevent open redirect)
     var destination = "/lobby";
@@ -263,8 +271,20 @@ app.MapGet("/auth/signin", async (HttpContext context, UserService userService, 
     return Results.Redirect(destination);
 });
 
-app.MapGet("/auth/signout", (HttpContext context) =>
+app.MapGet("/auth/signout", (HttpContext context, UserService userService, UserActionLogService actionLog) =>
 {
+    // Try to identify the user before clearing cookie (may be null if already deleted by ChatHeader.SignOut)
+    var token = context.Request.Cookies[AuthMiddleware.CookieName];
+    if (!string.IsNullOrEmpty(token))
+    {
+        var user = userService.AuthenticateByToken(token);
+        if (user != null)
+        {
+            var ip = GetClientIp(context);
+            actionLog.Log(user.Id.ToString(), UserActionLog.KnownActions.LOGOUT, info: user.Username, ip: ip);
+        }
+    }
+
     AuthMiddleware.ClearAuthCookie(context);
     return Results.Redirect("/");
 });
@@ -363,6 +383,19 @@ app.MapGet("/api/test-exception", () =>
 });
 
 app.Run();
+
+// Helper to extract client IP (same logic as RequestLoggingMiddleware)
+static string GetClientIp(HttpContext context)
+{
+    var forwardedFor = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+    if (!string.IsNullOrEmpty(forwardedFor))
+    {
+        var firstIp = forwardedFor.Split(',')[0].Trim();
+        if (!string.IsNullOrEmpty(firstIp))
+            return firstIp;
+    }
+    return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+}
 
 // Request DTOs for push API
 record PushSubscribeRequest(string Username, string Endpoint, string? P256dh, string? Auth);

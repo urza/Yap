@@ -12,6 +12,7 @@ public class ChatDbContext : DbContext
     public DbSet<Reaction> Reactions { get; set; } = null!;
     public DbSet<ChannelReadState> ChannelReadStates { get; set; } = null!;
     public DbSet<PushSubscription> PushSubscriptions { get; set; } = null!;
+    public DbSet<UserActionLog> UserActionLogs { get; set; } = null!;
 
     public ChatDbContext(DbContextOptions<ChatDbContext> options) : base(options)
     {
@@ -135,6 +136,19 @@ public class ChatDbContext : DbContext
             entity.HasKey(p => p.Endpoint);
             entity.Property(p => p.Endpoint).HasMaxLength(2048);
             entity.HasIndex(p => p.Username);
+        });
+
+        // UserActionLog configuration
+        modelBuilder.Entity<UserActionLog>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.UserUid);
+            entity.HasIndex(e => e.Date);
+            entity.HasIndex(e => e.Action);
+            entity.Property(e => e.UserUid).HasMaxLength(64);
+            entity.Property(e => e.Url).HasMaxLength(2048);
+            entity.Property(e => e.Info).HasMaxLength(1024);
+            entity.Property(e => e.IP).HasMaxLength(45); // IPv6 max
         });
     }
 }

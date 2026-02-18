@@ -15,6 +15,8 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
     private readonly UserStateService _userState;
     private readonly UserService _userService;
     private readonly CircuitTracker _circuitTracker;
+    private readonly UserActionLogService _actionLog;
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<ChatCircuitHandler> _logger;
 
     // Idle timeout uses CancellationTokenSource + Task.Delay pattern:
@@ -26,18 +28,23 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
     private bool _isAutoAway;
     private UserStatus? _statusBeforeAway;
     private string? _circuitId;
+    private string? _clientIp;
 
     public ChatCircuitHandler(
         ChatService chatService,
         UserStateService userState,
         UserService userService,
         CircuitTracker circuitTracker,
+        UserActionLogService actionLog,
+        IHttpContextAccessor httpContextAccessor,
         ILogger<ChatCircuitHandler> logger)
     {
         _chatService = chatService;
         _userState = userState;
         _userService = userService;
         _circuitTracker = circuitTracker;
+        _actionLog = actionLog;
+        _httpContextAccessor = httpContextAccessor;
         _logger = logger;
     }
 
@@ -45,6 +52,17 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
     {
         _circuitId = circuit.Id;
         _circuitTracker.OnCircuitOpened(circuit.Id);
+
+        // Capture client IP from the initial HTTP request (available during circuit setup)
+        var httpContext = _httpContextAccessor.HttpContext;
+        if (httpContext != null)
+        {
+            var forwarded = httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+            _clientIp = !string.IsNullOrEmpty(forwarded)
+                ? forwarded.Split(',')[0].Trim()
+                : httpContext.Connection.RemoteIpAddress?.ToString();
+        }
+
         _logger.LogDebug("Circuit {CircuitId} opened, starting idle timer ({Timeout})", circuit.Id, IdleTimeout);
         StartIdleTimer();
         return base.OnCircuitOpenedAsync(circuit, cancellationToken);
@@ -63,6 +81,9 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
             await _chatService.SetUserStatusAsync(_userState.SessionId, _statusBeforeDisconnect.Value);
             _userState.Status = _statusBeforeDisconnect.Value;
             _statusBeforeDisconnect = null;
+
+            _actionLog.Log(_userState.UserId?.ToString(), UserActionLog.KnownActions.CIRCUIT_RECONNECT,
+                info: _userState.Username, ip: _clientIp);
         }
 
         StartIdleTimer();
@@ -90,6 +111,9 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
             {
                 await _userService.UpdateLastSeenAsync(_userState.UserId.Value);
             }
+
+            _actionLog.Log(_userState.UserId?.ToString(), UserActionLog.KnownActions.CIRCUIT_DISCONNECT,
+                info: _userState.Username, ip: _clientIp);
         }
 
         await base.OnConnectionDownAsync(circuit, cancellationToken);

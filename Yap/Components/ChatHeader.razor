@@ -1,6 +1,7 @@
 @inject ChatService ChatService
 @inject UserStateService UserState
 @inject UserService UserService
+@inject UserActionLogService ActionLog
 @inject ChatNavigationState NavState
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
@@ -257,6 +258,9 @@
     private async Task SignOut()
     {
         showDropdown = false;
+
+        // Log before deletion (user record won't exist after DeleteUserAsync)
+        ActionLog.Log(UserState.UserId?.ToString(), UserActionLog.KnownActions.LOGOUT, info: UserState.Username);
 
         // Remove from chat service
         if (UserState.SessionId != null)

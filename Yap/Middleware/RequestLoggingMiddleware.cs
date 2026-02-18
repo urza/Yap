@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
+using Yap.Models;
+using Yap.Services;
 
 namespace Yap.Middleware;
 
@@ -12,17 +14,19 @@ public class RequestLoggingMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly RequestLogQueue _logQueue;
+    private readonly UserActionLogService _actionLog;
 
     private static readonly string[] SkipPrefixes = ["/_framework", "/_blazor", "/uploads"];
     private static readonly string[] SkipExtensions = [".js", ".css", ".webp", ".png", ".jpg", ".jpeg", ".gif", ".webmanifest"];
 
-    public RequestLoggingMiddleware(RequestDelegate next, RequestLogQueue logQueue)
+    public RequestLoggingMiddleware(RequestDelegate next, RequestLogQueue logQueue, UserActionLogService actionLog)
     {
         _next = next;
         _logQueue = logQueue;
+        _actionLog = actionLog;
     }
 
-    public async Task InvokeAsync(HttpContext context)
+    public async Task InvokeAsync(HttpContext context, UserStateService userState)
     {
         var path = context.Request.Path.Value ?? "";
 
@@ -42,6 +46,8 @@ public class RequestLoggingMiddleware
         {
             stopwatch.Stop();
 
+            var clientIp = GetClientIp(context);
+
             var entry = new RequestLogEntry
             {
                 Timestamp = DateTime.UtcNow,
@@ -49,7 +55,7 @@ public class RequestLoggingMiddleware
                 Path = path + context.Request.QueryString,
                 StatusCode = context.Response.StatusCode,
                 DurationMs = stopwatch.ElapsedMilliseconds,
-                ClientIp = GetClientIp(context),
+                ClientIp = clientIp,
                 UserAgent = context.Request.Headers.UserAgent.ToString(),
                 Referer = context.Request.Headers.Referer.ToString(),
                 Protocol = context.Request.Protocol,
@@ -57,6 +63,13 @@ public class RequestLoggingMiddleware
             };
 
             _logQueue.Enqueue(entry);
+
+            // Also log to database (UserStateService populated by AuthMiddleware upstream)
+            _actionLog.Log(
+                userState.UserId?.ToString(),
+                UserActionLog.KnownActions.HTTP_REQUEST,
+                url: path + context.Request.QueryString,
+                ip: clientIp);
         }
     }
 
