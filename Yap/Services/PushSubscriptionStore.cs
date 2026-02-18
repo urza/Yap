@@ -4,21 +4,21 @@ using Yap.Models;
 namespace Yap.Services;
 
 /// <summary>
-/// In-memory storage for push subscriptions with database persistence.
+/// In-memory storage for push subscriptions with pluggable persistence.
 /// Uses endpoint as unique key.
 /// </summary>
 public class PushSubscriptionStore
 {
-    private readonly ChatPersistenceService _persistence;
+    private readonly IPushSubscriptionPersistence _persistence;
 
     // Endpoint -> Subscription (endpoint is unique per device/browser)
     private ConcurrentDictionary<string, PushSubscription> _subscriptions = new();
 
-    public PushSubscriptionStore(ChatPersistenceService persistence)
+    public PushSubscriptionStore(IPushSubscriptionPersistence persistence)
     {
         _persistence = persistence;
 
-        // Load subscriptions from database
+        // Load subscriptions from persistence
         _ = LoadAsync();
     }
 
@@ -34,14 +34,14 @@ public class PushSubscriptionStore
         };
 
         _subscriptions[subscription.Endpoint] = entry;
-        _ = _persistence.SavePushSubscriptionAsync(entry);
+        _ = _persistence.SaveAsync(entry);
     }
 
     public void RemoveSubscription(string endpoint)
     {
         if (_subscriptions.TryRemove(endpoint, out _))
         {
-            _ = _persistence.RemovePushSubscriptionAsync(endpoint);
+            _ = _persistence.RemoveAsync(endpoint);
         }
     }
 
@@ -59,7 +59,7 @@ public class PushSubscriptionStore
                 _subscriptions.TryRemove(endpoint, out _);
             }
 
-            _ = _persistence.RemovePushSubscriptionsByUsernameAsync(username);
+            _ = _persistence.RemoveByUsernameAsync(username);
         }
     }
 
@@ -86,13 +86,13 @@ public class PushSubscriptionStore
     {
         try
         {
-            var entries = await _persistence.GetAllPushSubscriptionsAsync();
+            var entries = await _persistence.LoadAllAsync();
             _subscriptions = new ConcurrentDictionary<string, PushSubscription>(
                 entries.ToDictionary(e => e.Endpoint, e => e));
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[PushStore] Failed to load from database: {ex.Message}");
+            Console.WriteLine($"[PushStore] Failed to load subscriptions: {ex.Message}");
         }
     }
 }

@@ -87,6 +87,13 @@ builder.Services.Configure<CircuitOptions>(options =>
 // Persistence (optional database support)
 builder.Services.AddChatPersistence(builder.Configuration);
 
+// Push subscription persistence (Json file or Database)
+var pushStorage = builder.Configuration.GetValue<string>("ChatSettings:PushSubscriptionStorage") ?? "Json";
+if (pushStorage.Equals("Database", StringComparison.OrdinalIgnoreCase))
+    builder.Services.AddSingleton<IPushSubscriptionPersistence, DbPushSubscriptionPersistence>();
+else
+    builder.Services.AddSingleton<IPushSubscriptionPersistence, JsonPushSubscriptionPersistence>();
+
 // Chat services
 builder.Services.AddSingleton<CustomEmojiService>();
 builder.Services.AddSingleton<ImageService>();

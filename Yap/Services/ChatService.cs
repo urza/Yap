@@ -42,6 +42,7 @@ public class ChatService
 
     // Channel events
     public event Action<Channel>? OnChannelCreated;
+    public event Action<Channel>? OnChannelUpdated;
     public event Action<Guid>? OnChannelDeleted;
 
     // User status events
@@ -93,6 +94,7 @@ public class ChatService
                 ["OnUsersListChanged"] = OnUsersListChanged?.GetInvocationList().Length ?? 0,
                 ["OnTypingUsersChanged"] = OnTypingUsersChanged?.GetInvocationList().Length ?? 0,
                 ["OnChannelCreated"] = OnChannelCreated?.GetInvocationList().Length ?? 0,
+                ["OnChannelUpdated"] = OnChannelUpdated?.GetInvocationList().Length ?? 0,
                 ["OnChannelDeleted"] = OnChannelDeleted?.GetInvocationList().Length ?? 0,
                 ["OnUserStatusChanged"] = OnUserStatusChanged?.GetInvocationList().Length ?? 0,
                 ["OnUnreadChanged"] = OnUnreadChanged?.GetInvocationList().Length ?? 0
@@ -199,14 +201,15 @@ public class ChatService
     public List<Channel> GetRooms() =>
         _channels.Values
             .Where(c => c.Type == ChannelType.Room)
-            .OrderBy(c => c.IsDefault ? 0 : 1)
+            .OrderBy(c => c.SortOrder)
             .ThenBy(c => c.CreatedAt)
             .ToList();
 
     public Channel? GetChannel(Guid channelId) =>
         _channels.TryGetValue(channelId, out var channel) ? channel : null;
 
-    public async Task<Channel?> CreateRoomAsync(Guid adminUserId, string adminUsername, string roomName)
+    public async Task<Channel?> CreateRoomAsync(Guid adminUserId, string adminUsername, string roomName,
+        string? description = null, ChannelPermission writePermission = ChannelPermission.Everyone)
     {
         if (!IsAdmin(adminUserId))
             return null;
@@ -221,7 +224,15 @@ public class ChatService
             c.Name.Equals(roomName, StringComparison.OrdinalIgnoreCase)))
             return null;
 
-        var channel = Channel.CreateRoom(roomName, adminUserId, adminUsername);
+        // Auto-assign sort order: new rooms go to the bottom
+        var maxSortOrder = _channels.Values
+            .Where(c => c.Type == ChannelType.Room)
+            .Select(c => c.SortOrder)
+            .DefaultIfEmpty(-1)
+            .Max();
+
+        var channel = Channel.CreateRoom(roomName, adminUserId, adminUsername,
+            description: description, sortOrder: maxSortOrder + 1, writePermission: writePermission);
         _channels[channel.Id] = channel;
         _channelMessages[channel.Id] = new List<ChatMessage>();
         _channelTypingUsers[channel.Id] = new ConcurrentDictionary<string, DateTime>();
@@ -263,6 +274,90 @@ public class ChatService
         OnChannelDeleted?.Invoke(channelId);
 
         return true;
+    }
+
+    /// <summary>
+    /// Updates a channel's name, description and write permission. Admin only.
+    /// Returns null on success, or an error message string on failure.
+    /// </summary>
+    public async Task<string?> UpdateChannelAsync(Guid adminUserId, Guid channelId, string name, string? description, ChannelPermission writePermission)
+    {
+        if (!IsAdmin(adminUserId))
+            return "Not authorized.";
+
+        if (!_channels.TryGetValue(channelId, out var channel))
+            return "Channel not found.";
+
+        if (channel.IsDirectMessage)
+            return "Cannot edit DM channels.";
+
+        // Normalize name
+        name = name.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(name))
+            return "Channel name is required.";
+
+        // Check for duplicate name (excluding self)
+        if (_channels.Values.Any(c => c.Type == ChannelType.Room &&
+            c.Id != channelId &&
+            c.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+            return "A channel with that name already exists.";
+
+        channel.Name = name;
+        channel.Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+        channel.WritePermission = writePermission;
+
+        var sw = Stopwatch.StartNew();
+        await _persistence.PersistChannelAsync(channel);
+
+        _logger.LogDebug("UpdateChannel '{ChannelName}' channel={ChannelId}: persist={ElapsedMs}ms",
+            channel.Name, channelId, sw.ElapsedMilliseconds);
+
+        OnChannelUpdated?.Invoke(channel);
+        return null;
+    }
+
+    /// <summary>
+    /// Moves a channel up or down in the sort order by swapping with the adjacent room.
+    /// </summary>
+    public async Task<bool> ReorderChannelAsync(Guid adminUserId, Guid channelId, bool moveUp)
+    {
+        if (!IsAdmin(adminUserId))
+            return false;
+
+        var rooms = GetRooms();
+        var index = rooms.FindIndex(r => r.Id == channelId);
+        if (index < 0)
+            return false;
+
+        var swapIndex = moveUp ? index - 1 : index + 1;
+        if (swapIndex < 0 || swapIndex >= rooms.Count)
+            return false;
+
+        // Swap sort orders
+        var currentChannel = rooms[index];
+        var adjacentChannel = rooms[swapIndex];
+        (currentChannel.SortOrder, adjacentChannel.SortOrder) = (adjacentChannel.SortOrder, currentChannel.SortOrder);
+
+        var sw = Stopwatch.StartNew();
+        await _persistence.PersistChannelAsync(currentChannel);
+        await _persistence.PersistChannelAsync(adjacentChannel);
+
+        _logger.LogDebug("ReorderChannel '{ChannelName}' {Direction}: persist={ElapsedMs}ms",
+            currentChannel.Name, moveUp ? "up" : "down", sw.ElapsedMilliseconds);
+
+        OnChannelUpdated?.Invoke(currentChannel);
+        return true;
+    }
+
+    /// <summary>
+    /// Checks if a user can write messages in a channel.
+    /// </summary>
+    public bool CanUserWrite(Guid channelId, Guid userId)
+    {
+        if (!_channels.TryGetValue(channelId, out var channel))
+            return false;
+
+        return channel.CanWrite(userId, IsAdmin(userId));
     }
 
     /// <summary>
@@ -426,6 +521,10 @@ public class ChatService
     {
         var totalSw = Stopwatch.StartNew();
         if (!_channels.TryGetValue(channelId, out var channel))
+            return;
+
+        // Check write permission
+        if (!channel.CanWrite(userId, IsAdmin(userId)))
             return;
 
         var message = new ChatMessage(channelId, userId, username, content, DateTime.UtcNow, imageUrls, replyToMessageId);

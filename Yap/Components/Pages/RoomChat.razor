@@ -14,10 +14,20 @@
             <span>Loading older messages...</span>
         </div>
     }
-    else if (!hasMoreMessages && messages.Count > 0)
+    else if (!hasMoreMessages)
     {
         <div class="history-start">
-            This is the beginning of #@currentContext
+            @if (!string.IsNullOrEmpty(channelDescription))
+            {
+                @foreach (var line in channelDescription.Split('\n'))
+                {
+                    <div>@line</div>
+                }
+            }
+            else
+            {
+                <span>This is the beginning of #@currentContext</span>
+            }
         </div>
     }
 
@@ -56,6 +66,7 @@
 </div>
 
 <MessageInput RoomId="@channelId" RecentEmojis="@recentEmojis" OnEmojiUsed="HandleInputEmojiUsed"
+              ReadOnly="@(!canWrite)"
               ReplyingToMessage="@replyingToMessage"
               ReplyingToDisplayName="@(replyingToMessage != null ? GetDisplayName(replyingToMessage.Username) : null)"
               OnCancelReply="CancelReply" />
@@ -71,6 +82,10 @@
     // Tracks previous room to detect navigation between rooms (e.g., /lobby -> /room/xyz)
     // without component recreation - Blazor reuses the component and just updates parameters
     private Guid? previousRoomId = null;
+
+    // Channel info
+    private string? channelDescription;
+    private bool canWrite = true;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -96,8 +111,10 @@
         await ChatService.MarkChannelAsReadAsync(UserId, channelId);
 
         // Set navigation context
-        var room = ChatService.GetRooms().FirstOrDefault(r => r.Id == channelId);
+        var room = ChatService.GetChannel(channelId);
         currentContext = room?.Name ?? "lobby";
+        channelDescription = room?.Description;
+        canWrite = ChatService.CanUserWrite(channelId, UserId);
         NavState.SetRoomContext(channelId, currentContext, ChatConfig.GetRandomRoomHeader(currentContext));
 
         await UpdatePageTitleAsync();
@@ -109,6 +126,7 @@
         ChatService.OnReactionChanged += HandleReactionChanged;
         ChatService.OnUserChanged += HandleUserChanged;
         ChatService.OnChannelDeleted += HandleChannelDeleted;
+        ChatService.OnChannelUpdated += HandleChannelUpdated;
     }
 
     private async Task SwitchRoomContentAsync(Guid newRoomId)
@@ -122,8 +140,10 @@
         // Mark channel as read
         await ChatService.MarkChannelAsReadAsync(UserId, channelId);
 
-        var room = ChatService.GetRooms().FirstOrDefault(r => r.Id == channelId);
+        var room = ChatService.GetChannel(channelId);
         currentContext = room?.Name ?? "lobby";
+        channelDescription = room?.Description;
+        canWrite = ChatService.CanUserWrite(channelId, UserId);
         NavState.SetRoomContext(channelId, currentContext, ChatConfig.GetRandomRoomHeader(currentContext));
 
         await UpdatePageTitleAsync();
@@ -224,6 +244,29 @@
         }
     }
 
+    private async void HandleChannelUpdated(Channel channel)
+    {
+        if (channel.Id == channelId)
+        {
+            try
+            {
+                await InvokeAsync(() =>
+                {
+                    channelDescription = channel.Description;
+                    canWrite = channel.CanWrite(UserId, ChatService.IsAdmin(UserId));
+                    StateHasChanged();
+                });
+            }
+            catch (Exception ex)
+            {
+                if (ex is ObjectDisposedException or InvalidOperationException)
+                    Logger.LogWarning("HandleChannelUpdated: {Message}", ex.Message);
+                else
+                    Logger.LogError(ex, "Error in HandleChannelUpdated");
+            }
+        }
+    }
+
     #endregion
 
     public override async ValueTask DisposeAsync()
@@ -234,6 +277,7 @@
         ChatService.OnReactionChanged -= HandleReactionChanged;
         ChatService.OnUserChanged -= HandleUserChanged;
         ChatService.OnChannelDeleted -= HandleChannelDeleted;
+        ChatService.OnChannelUpdated -= HandleChannelUpdated;
 
         // Mark channel as read when leaving to ensure no stale unread counts
         if (channelId != Guid.Empty && UserId != Guid.Empty)

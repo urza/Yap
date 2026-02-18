@@ -430,3 +430,21 @@
 .warning-modal-button:hover {
     background: var(--accent-hover);
 }
+
+/* Read-only channel bar */
+.readonly-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    margin: 0 8px 16px;
+    background: var(--bg-input);
+    border-radius: 8px;
+    color: var(--text-placeholder);
+    font-size: 0.875rem;
+}
+
+.readonly-bar svg {
+    flex-shrink: 0;
+    opacity: 0.6;
+}

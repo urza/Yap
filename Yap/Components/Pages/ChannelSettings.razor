@@ -1,0 +1,341 @@
+@page "/channel/new"
+@page "/channel/{ChannelId:guid}/settings"
+@layout ChatLayout
+@inject ChatService ChatService
+@inject UserStateService UserState
+@inject ChatNavigationState NavState
+@inject NavigationManager Navigation
+@inject EmojiService EmojiService
+@inject ILogger<ChannelSettings> Logger
+
+<PageTitle>@(isEditMode ? $"#{channel?.Name} Settings" : "New Channel")</PageTitle>
+
+<div class="settings-container">
+    <div class="settings-header">
+        <button class="back-button" @onclick="GoBack" title="Go back">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+            </svg>
+        </button>
+        <h2>@(isEditMode ? "Channel Settings" : "Create Channel")</h2>
+    </div>
+
+    <div class="settings-content">
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="error-message">@errorMessage</div>
+        }
+
+        @* Channel Info Section *@
+        <div class="settings-section">
+            <h3>Channel Info</h3>
+
+            <div class="form-group">
+                <label for="channel-name">Name</label>
+                <input type="text" id="channel-name" @bind="channelName" @bind:event="oninput"
+                       placeholder="channel-name" maxlength="50" class="form-input" />
+                <span class="form-hint">Lowercase, no spaces.</span>
+            </div>
+
+            <div class="form-group">
+                <label for="channel-description">Description</label>
+                <textarea id="channel-description" @bind="description" @bind:event="oninput"
+                          maxlength="500" placeholder="@descriptionPlaceholder"
+                          class="form-textarea"></textarea>
+                <span class="form-hint">Shown at the top of the channel. Leave blank for the default "This is the beginning of #channel" message.</span>
+                <span class="form-counter">@(description?.Length ?? 0)/500</span>
+            </div>
+        </div>
+
+        @* Permissions Section *@
+        <div class="settings-section">
+            <h3>Permissions</h3>
+            <span class="section-hint">Who can send messages in this channel</span>
+
+            <div class="permission-cards">
+                <div class="permission-card @(writePermission == ChannelPermission.Everyone ? "selected" : "")"
+                     @onclick="() => writePermission = ChannelPermission.Everyone">
+                    <div class="permission-card-radio">
+                        <div class="radio-outer">
+                            @if (writePermission == ChannelPermission.Everyone)
+                            {
+                                <div class="radio-inner"></div>
+                            }
+                        </div>
+                    </div>
+                    <div class="permission-card-content">
+                        <span class="permission-card-title">Everyone</span>
+                        <span class="permission-card-desc">All users can send messages</span>
+                    </div>
+                </div>
+
+                <div class="permission-card @(writePermission == ChannelPermission.AdminOnly ? "selected" : "")"
+                     @onclick="() => writePermission = ChannelPermission.AdminOnly">
+                    <div class="permission-card-radio">
+                        <div class="radio-outer">
+                            @if (writePermission == ChannelPermission.AdminOnly)
+                            {
+                                <div class="radio-inner"></div>
+                            }
+                        </div>
+                    </div>
+                    <div class="permission-card-content">
+                        <span class="permission-card-title">Admin Only</span>
+                        <span class="permission-card-desc">Only admin can send messages (read-only for others)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* Channel Order Section (edit mode only) *@
+        @if (isEditMode)
+        {
+            <div class="settings-section">
+                <h3>Channel Order</h3>
+                <span class="section-hint">Use the arrows to reorder channels in the sidebar</span>
+
+                <div class="reorder-list">
+                    @foreach (var room in orderedRooms)
+                    {
+                        var isCurrent = room.Id == ChannelId;
+                        var index = orderedRooms.IndexOf(room);
+                        var canMoveUp = index > 0;
+                        var canMoveDown = index < orderedRooms.Count - 1;
+
+                        <div class="reorder-item @(isCurrent ? "current" : "")">
+                            <span class="reorder-icon">#</span>
+                            <span class="reorder-name">@EmojiService.ConvertEmojisToTwemoji(room.Name, inline: true)</span>
+                            <div class="reorder-buttons">
+                                <button class="reorder-btn" disabled="@(!canMoveUp)"
+                                        @onclick="() => MoveChannel(room.Id, true)" title="Move up">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/>
+                                    </svg>
+                                </button>
+                                <button class="reorder-btn" disabled="@(!canMoveDown)"
+                                        @onclick="() => MoveChannel(room.Id, false)" title="Move down">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @* Save/Cancel Actions *@
+        <div class="settings-actions">
+            <button class="cancel-button" @onclick="GoBack">Cancel</button>
+            <button class="save-button" @onclick="Save" disabled="@(!hasChanges || isSaving)">
+                @if (isSaving)
+                {
+                    <span>@(isEditMode ? "Saving..." : "Creating...")</span>
+                }
+                else
+                {
+                    <span>@(isEditMode ? "Save Changes" : "Create Channel")</span>
+                }
+            </button>
+        </div>
+
+        @* Danger Zone (edit mode, non-default only) *@
+        @if (isEditMode && channel != null && !channel.IsDefault)
+        {
+            <div class="settings-section danger-section">
+                <h3>Danger Zone</h3>
+
+                <div class="danger-item">
+                    <div class="danger-text">
+                        <span class="danger-title">Delete this channel</span>
+                        <span class="danger-desc">This action cannot be undone. All messages will be lost.</span>
+                    </div>
+                    @if (confirmDelete)
+                    {
+                        <button class="delete-button confirm" @onclick="DeleteChannel">
+                            Click again to confirm
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="delete-button" @onclick="() => confirmDelete = true">
+                            Delete Channel
+                        </button>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public Guid? ChannelId { get; set; }
+
+    private Guid UserId => UserState.UserId ?? Guid.Empty;
+    private string Username => UserState.Username ?? "";
+
+    private bool isEditMode => ChannelId.HasValue;
+    private Channel? channel;
+
+    // Form fields
+    private string channelName = "";
+    private string? description;
+    private ChannelPermission writePermission = ChannelPermission.Everyone;
+
+    // Original values for change detection
+    private string originalName = "";
+    private string? originalDescription;
+    private ChannelPermission originalWritePermission;
+
+    // Reorder list
+    private List<Channel> orderedRooms = new();
+
+    // UI state
+    private bool isSaving;
+    private bool confirmDelete;
+    private string? errorMessage;
+
+    private string descriptionPlaceholder =>
+        $"This is the beginning of #{(string.IsNullOrWhiteSpace(channelName) ? "channel-name" : channelName.Trim().ToLowerInvariant())}";
+
+    private bool hasChanges => isEditMode
+        ? channelName != originalName || (description ?? "") != (originalDescription ?? "") || writePermission != originalWritePermission
+        : !string.IsNullOrWhiteSpace(channelName);
+
+    protected override void OnInitialized()
+    {
+        // Auth + admin guard
+        if (!UserState.IsLoggedIn || !ChatService.IsAdmin(UserId))
+        {
+            Navigation.NavigateTo("/lobby");
+            return;
+        }
+
+        if (isEditMode)
+        {
+            channel = ChatService.GetChannel(ChannelId!.Value);
+            if (channel == null || channel.IsDirectMessage)
+            {
+                Navigation.NavigateTo("/lobby");
+                return;
+            }
+
+            channelName = channel.Name;
+            description = channel.Description;
+            writePermission = channel.WritePermission;
+
+            originalName = channelName;
+            originalDescription = description;
+            originalWritePermission = writePermission;
+
+            RefreshOrderedRooms();
+        }
+
+        NavState.SetTitle(isEditMode ? $"#{channel?.Name} Settings" : "New Channel");
+    }
+
+    private void RefreshOrderedRooms()
+    {
+        orderedRooms = ChatService.GetRooms();
+    }
+
+    private void GoBack()
+    {
+        if (isEditMode && channel != null)
+            Navigation.NavigateTo(channel.IsDefault ? "/lobby" : $"/room/{channel.Id}");
+        else
+            Navigation.NavigateTo("/lobby");
+    }
+
+    private async Task Save()
+    {
+        if (isSaving) return;
+        errorMessage = null;
+
+        if (isEditMode)
+        {
+            isSaving = true;
+            StateHasChanged();
+
+            try
+            {
+                var error = await ChatService.UpdateChannelAsync(UserId, ChannelId!.Value,
+                    channelName, description, writePermission);
+
+                if (error == null)
+                {
+                    GoBack();
+                }
+                else
+                {
+                    errorMessage = error;
+                }
+            }
+            finally
+            {
+                isSaving = false;
+                StateHasChanged();
+            }
+        }
+        else
+        {
+            // Create mode
+            var name = channelName.Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                errorMessage = "Channel name is required.";
+                return;
+            }
+
+            isSaving = true;
+            StateHasChanged();
+
+            try
+            {
+                var newChannel = await ChatService.CreateRoomAsync(UserId, Username, name,
+                    description: string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
+                    writePermission: writePermission);
+
+                if (newChannel != null)
+                {
+                    Navigation.NavigateTo($"/room/{newChannel.Id}");
+                }
+                else
+                {
+                    errorMessage = "Failed to create channel. The name may already be taken.";
+                }
+            }
+            finally
+            {
+                isSaving = false;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task MoveChannel(Guid roomId, bool moveUp)
+    {
+        var success = await ChatService.ReorderChannelAsync(UserId, roomId, moveUp);
+        if (success)
+        {
+            RefreshOrderedRooms();
+        }
+    }
+
+    private async Task DeleteChannel()
+    {
+        if (channel == null) return;
+
+        var success = await ChatService.DeleteRoomAsync(UserId, channel.Id);
+        if (success)
+        {
+            Navigation.NavigateTo("/lobby");
+        }
+        else
+        {
+            errorMessage = "Failed to delete channel.";
+            confirmDelete = false;
+        }
+    }
+}

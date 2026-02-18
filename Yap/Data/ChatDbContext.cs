@@ -68,6 +68,9 @@ public class ChatDbContext : DbContext
                   .HasForeignKey(c => c.Participant2Id)
                   .OnDelete(DeleteBehavior.SetNull);
 
+            entity.Property(c => c.Description).HasMaxLength(500);
+            entity.Property(c => c.WritePermission).HasConversion<int>();
+
             // Ignore computed property
             entity.Ignore(c => c.IsDirectMessage);
         });

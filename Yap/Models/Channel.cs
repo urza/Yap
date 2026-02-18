@@ -19,6 +19,21 @@ public class Channel
 
     public bool IsDefault { get; set; }
 
+    /// <summary>
+    /// Optional description shown at the beginning of channel history.
+    /// </summary>
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// Sort order for rooms in the sidebar. Lower values appear first.
+    /// </summary>
+    public int SortOrder { get; set; }
+
+    /// <summary>
+    /// Who can write messages in this channel.
+    /// </summary>
+    public ChannelPermission WritePermission { get; set; } = ChannelPermission.Everyone;
+
     // DM-specific: the two participants (by UserId)
     public Guid? Participant1Id { get; set; }
     public Guid? Participant2Id { get; set; }
@@ -44,14 +59,18 @@ public class Channel
     /// <summary>
     /// Factory method to create a room channel
     /// </summary>
-    public static Channel CreateRoom(string name, Guid? createdById = null, string? createdBy = null, bool isDefault = false)
+    public static Channel CreateRoom(string name, Guid? createdById = null, string? createdBy = null, bool isDefault = false,
+        string? description = null, int sortOrder = 0, ChannelPermission writePermission = ChannelPermission.Everyone)
         => new Channel
         {
             Type = ChannelType.Room,
             Name = name,
             CreatedById = createdById,
             CreatedBy = createdBy,
-            IsDefault = isDefault
+            IsDefault = isDefault,
+            Description = description,
+            SortOrder = sortOrder,
+            WritePermission = writePermission
         };
 
     /// <summary>
@@ -115,4 +134,13 @@ public class Channel
         Type == ChannelType.DirectMessage &&
         ((Participant1Id == userId1 && Participant2Id == userId2) ||
          (Participant1Id == userId2 && Participant2Id == userId1));
+
+    /// <summary>
+    /// Checks if a user can write messages in this channel.
+    /// DMs are always writable. Rooms check WritePermission.
+    /// </summary>
+    public bool CanWrite(Guid userId, bool isAdmin) =>
+        Type == ChannelType.DirectMessage ||
+        WritePermission == ChannelPermission.Everyone ||
+        isAdmin;
 }

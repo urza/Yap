@@ -24,36 +24,23 @@
                     {
                         <span class="room-unread-dot"></span>
                     }
-                    @if (isAdmin && !room.IsDefault)
+                    @if (isAdmin)
                     {
-                        <button class="room-delete" @onclick="() => DeleteRoom(room.Id)"
-                                @onclick:stopPropagation="true" title="Delete room">×</button>
-                    }
-                    else if (isAdmin)
-                    {
-                        <span class="room-delete room-delete-spacer">×</span>
+                        <button class="room-settings" @onclick="() => OpenChannelSettings(room.Id)"
+                                @onclick:stopPropagation="true" title="Channel settings">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/>
+                            </svg>
+                        </button>
                     }
                 </div>
             }
             @if (isAdmin)
             {
-                @if (showNewRoomInput)
-                {
-                    <div class="new-room-input">
-                        <input type="text" @bind="newRoomName" @bind:event="oninput"
-                               placeholder="room name" class="room-name-input"
-                               @onkeydown="HandleNewRoomKeyPress" @ref="newRoomInputRef" />
-                        <button class="room-create-btn" @onclick="CreateRoom" title="Create">✓</button>
-                        <button class="room-cancel-btn" @onclick="CancelNewRoom" title="Cancel">✕</button>
-                    </div>
-                }
-                else
-                {
-                    <div class="room-item add-room" @onclick="ShowNewRoomInput">
-                        <span class="room-icon">+</span>
-                        <span class="room-name">Add Room</span>
-                    </div>
-                }
+                <div class="room-item add-room" @onclick="NavigateToCreateRoom">
+                    <span class="room-icon">+</span>
+                    <span class="room-name">Add Room</span>
+                </div>
             }
         </div>
     </div>
@@ -100,11 +87,6 @@
     private bool isAdmin = false;
     private string onlineUsersHeader = "";
 
-    // Room creation UI
-    private bool showNewRoomInput = false;
-    private string newRoomName = "";
-    private ElementReference newRoomInputRef;
-    private bool shouldFocusNewRoomInput = false;
 
     protected override void OnInitialized()
     {
@@ -116,6 +98,7 @@
 
         // Subscribe to events
         ChatService.OnChannelCreated += HandleChannelCreated;
+        ChatService.OnChannelUpdated += HandleChannelUpdated;
         ChatService.OnChannelDeleted += HandleChannelDeleted;
         ChatService.OnUsersListChanged += HandleUsersListChanged;
         ChatService.OnUserStatusChanged += HandleUserStatusChanged;
@@ -206,6 +189,28 @@
         }
     }
 
+    private async void HandleChannelUpdated(Channel channel)
+    {
+        if (channel.Type == ChannelType.Room)
+        {
+            try
+            {
+                await InvokeAsync(() =>
+                {
+                    rooms = ChatService.GetRooms();
+                    StateHasChanged();
+                });
+            }
+            catch (Exception ex)
+            {
+                if (ex is ObjectDisposedException or InvalidOperationException)
+                    Logger.LogWarning("HandleChannelUpdated: {Message}", ex.Message);
+                else
+                    Logger.LogError(ex, "Error in HandleChannelUpdated");
+            }
+        }
+    }
+
     private async void HandleUsersListChanged()
     {
         try
@@ -274,45 +279,14 @@
         Navigation.NavigateTo(url);
     }
 
-    private async Task CreateRoom()
+    private void NavigateToCreateRoom()
     {
-        if (string.IsNullOrWhiteSpace(newRoomName)) return;
-        await ChatService.CreateRoomAsync(UserId, Username, newRoomName);
-        showNewRoomInput = false;
-        newRoomName = "";
+        Navigation.NavigateTo("/channel/new");
     }
 
-    private async Task DeleteRoom(Guid roomId)
+    private void OpenChannelSettings(Guid roomId)
     {
-        await ChatService.DeleteRoomAsync(UserId, roomId);
-    }
-
-    private void ShowNewRoomInput()
-    {
-        showNewRoomInput = true;
-        newRoomName = "";
-        shouldFocusNewRoomInput = true;
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (shouldFocusNewRoomInput)
-        {
-            shouldFocusNewRoomInput = false;
-            await newRoomInputRef.FocusAsync();
-        }
-    }
-
-    private void CancelNewRoom()
-    {
-        showNewRoomInput = false;
-        newRoomName = "";
-    }
-
-    private async Task HandleNewRoomKeyPress(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter") await CreateRoom();
-        else if (e.Key == "Escape") CancelNewRoom();
+        Navigation.NavigateTo($"/channel/{roomId}/settings");
     }
 
     #endregion
@@ -394,6 +368,7 @@
     public void Dispose()
     {
         ChatService.OnChannelCreated -= HandleChannelCreated;
+        ChatService.OnChannelUpdated -= HandleChannelUpdated;
         ChatService.OnChannelDeleted -= HandleChannelDeleted;
         ChatService.OnUsersListChanged -= HandleUsersListChanged;
         ChatService.OnUserStatusChanged -= HandleUserStatusChanged;

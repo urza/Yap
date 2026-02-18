@@ -311,6 +311,10 @@ window.isPwaInstalled = () => {
 };
 
 // PWA Install Banner helpers
+window.isMessageInputFocused = () => {
+    return document.activeElement?.classList.contains('message-input') === true;
+};
+
 window.shouldShowPwaInstallBanner = () => {
     if (window.isPwaInstalled()) return false;
     if (sessionStorage.getItem('pwa-banner-dismissed')) return false;

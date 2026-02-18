@@ -84,31 +84,32 @@
     white-space: nowrap;
 }
 
-.room-delete {
+.room-settings {
     background: transparent;
     border: none;
     color: var(--text-placeholder);
     cursor: pointer;
-    padding: 0 4px;
-    font-size: 1.25rem;
+    padding: 2px 4px;
     line-height: 1;
     border-radius: 3px;
     opacity: 0;
     transition: all 0.15s;
+    display: flex;
+    align-items: center;
 }
 
-.room-item:hover .room-delete {
+.room-item:hover .room-settings {
     opacity: 1;
 }
 
-.room-delete-spacer,
-.room-item:hover .room-delete-spacer {
+.room-settings-spacer,
+.room-item:hover .room-settings-spacer {
     visibility: hidden;
 }
 
-.room-delete:hover {
-    color: var(--color-danger);
-    background: rgba(237, 66, 69, 0.1);
+.room-settings:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover);
 }
 
 .room-item.add-room {
@@ -121,59 +122,6 @@
 
 .room-item.add-room .room-icon {
     color: var(--color-success);
-}
-
-/* New room input */
-.new-room-input {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px;
-}
-
-.room-name-input {
-    flex: 1;
-    min-width: 0;
-    padding: 0.375rem 0.5rem;
-    background: var(--bg-input);
-    border: 1px solid var(--border-dark);
-    border-radius: 3px;
-    color: var(--text-primary);
-    font-size: 0.875rem;
-}
-
-.room-name-input:focus {
-    outline: none;
-    border-color: var(--accent-primary);
-}
-
-.room-create-btn,
-.room-cancel-btn {
-    flex-shrink: 0;
-    background: transparent;
-    border: none;
-    padding: 4px 8px;
-    cursor: pointer;
-    border-radius: 3px;
-    font-size: 0.875rem;
-    transition: all 0.15s;
-}
-
-.room-create-btn {
-    color: var(--color-success);
-}
-
-.room-create-btn:hover {
-    background: rgba(59, 165, 92, 0.2);
-}
-
-.room-cancel-btn {
-    color: var(--text-placeholder);
-}
-
-.room-cancel-btn:hover {
-    color: var(--text-primary);
-    background: var(--bg-secondary);
 }
 
 /* Users list */
