@@ -1,0 +1,172 @@
+@page "/admin"
+@inject UserStateService UserState
+@inject UserService UserService
+@inject ChatService ChatService
+@inject UserActionLogService ActionLog
+@inject NavigationManager Navigation
+
+<PageTitle>Admin</PageTitle>
+
+<div class="admin-page">
+    <nav class="admin-sidebar">
+        <div class="admin-sidebar-header">
+            <button class="back-button" @onclick="GoBack" title="Go back">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+                </svg>
+            </button>
+            <h2>Admin</h2>
+        </div>
+        <button class="nav-item @(activeSection == "users" ? "active" : "")"
+                @onclick='() => activeSection = "users"'>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M14 8.00598C14 10.211 12.206 12.006 10 12.006C7.795 12.006 6 10.211 6 8.00598C6 5.80098 7.795 4.00598 10 4.00598C12.206 4.00598 14 5.80098 14 8.00598ZM2 19.006C2 15.473 5.29 13.006 10 13.006C14.711 13.006 18 15.473 18 19.006V20.006H2V19.006Z"/>
+                <path d="M20.0001 20.006H22.0001V19.006C22.0001 16.4433 20.2697 14.4415 17.5213 13.5352C19.0621 14.9127 20.0001 16.8059 20.0001 19.006V20.006Z"/>
+                <path d="M14.8834 11.9077C16.6657 11.5044 18.0001 9.9077 18.0001 8.00598C18.0001 5.96916 16.4693 4.28218 14.4971 4.0367C15.4322 5.09511 16.0001 6.48524 16.0001 8.00598C16.0001 9.44888 15.4889 10.7742 14.6378 11.8102C14.7203 11.8734 14.8022 11.9388 14.8834 11.9077Z"/>
+            </svg>
+            <span>Users</span>
+        </button>
+    </nav>
+
+    <div class="admin-tabs">
+        <button class="tab-item @(activeSection == "users" ? "active" : "")"
+                @onclick='() => activeSection = "users"'>
+            Users
+        </button>
+    </div>
+
+    <main class="admin-content">
+        @if (activeSection == "users")
+        {
+            <div class="section-header">
+                <h3>Users</h3>
+                <span class="section-count">@users.Count registered</span>
+            </div>
+
+            <div class="table-wrapper">
+                <table class="users-table">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Last Action</th>
+                            <th>Recent IPs</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in users)
+                        {
+                            var isOnline = onlineStatusMap.TryGetValue(user.Username, out var statusInfo);
+                            var statusClass = isOnline ? statusInfo.Status.ToString().ToLower() : "offline";
+                            var statusLabel = isOnline ? statusInfo.Status.ToString() : "Offline";
+                            lastActions.TryGetValue(user.Id.ToString(), out var lastAction);
+                            recentIPs.TryGetValue(user.Id.ToString(), out var ips);
+
+                            <tr>
+                                <td class="user-cell">
+                                    <Avatar Username="@user.Username"
+                                            ProfilePictureUrl="@user.ProfilePictureUrl"
+                                            Size="AvatarSize.Small" />
+                                    <div class="user-info">
+                                        <span class="user-name">
+                                            @user.EffectiveDisplayName
+                                            @if (user.IsAdmin)
+                                            {
+                                                <span class="admin-badge" title="Admin">&#x1F451;</span>
+                                            }
+                                        </span>
+                                        @if (user.DisplayName != null)
+                                        {
+                                            <span class="user-username">@user.Username</span>
+                                        }
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="status-pill @statusClass">
+                                        <span class="status-dot"></span>
+                                        @statusLabel
+                                    </span>
+                                </td>
+                                <td class="date-cell">@user.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                                <td class="action-cell">
+                                    @if (lastAction != null)
+                                    {
+                                        <span class="action-type">@lastAction.Action</span>
+                                        <span class="action-date">@lastAction.Date.ToString("yyyy-MM-dd HH:mm")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="no-data">—</span>
+                                    }
+                                </td>
+                                <td class="ip-cell">
+                                    @if (ips != null && ips.Count > 0)
+                                    {
+                                        @foreach (var ip in ips)
+                                        {
+                                            <span class="ip-tag">@ip</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="no-data">—</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </main>
+</div>
+
+@code {
+    private string activeSection = "users";
+
+    private List<User> users = new();
+    private Dictionary<string, (UserStatus Status, bool? IsMobile)> onlineStatusMap = new();
+    private Dictionary<string, UserActionLog> lastActions = new();
+    private Dictionary<string, List<string>> recentIPs = new();
+
+    protected override void OnInitialized()
+    {
+        // Auth + admin guard
+        if (!UserState.IsLoggedIn || !UserState.UserId.HasValue || !UserService.IsAdmin(UserState.UserId.Value))
+        {
+            Navigation.NavigateTo("/lobby");
+            return;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!UserState.IsLoggedIn || !UserState.UserId.HasValue || !UserService.IsAdmin(UserState.UserId.Value))
+            return;
+
+        // Load users from UserService
+        users = UserService.GetAllUsers().OrderBy(u => u.CreatedAt).ToList();
+
+        // Build online status map from ChatService
+        var onlineUsers = ChatService.GetAllUsersWithStatus();
+        onlineStatusMap = onlineUsers.ToDictionary(
+            u => u.Username,
+            u => (u.Status, u.IsMobile),
+            StringComparer.OrdinalIgnoreCase);
+
+        // Load action logs and IPs in parallel
+        var lastActionsTask = ActionLog.GetLastActionPerUserAsync();
+        var recentIPsTask = ActionLog.GetRecentIPsPerUserAsync();
+
+        await Task.WhenAll(lastActionsTask, recentIPsTask);
+
+        lastActions = lastActionsTask.Result;
+        recentIPs = recentIPsTask.Result;
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/lobby");
+    }
+}

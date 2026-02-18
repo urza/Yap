@@ -187,6 +187,11 @@ public class UserService
     public List<string> GetAllUsernames() => _usernameToId.Keys.ToList();
 
     /// <summary>
+    /// Gets all registered users.
+    /// </summary>
+    public List<User> GetAllUsers() => _users.Values.ToList();
+
+    /// <summary>
     /// Updates the user's LastSeenAt timestamp.
     /// </summary>
     public async Task UpdateLastSeenAsync(Guid userId)

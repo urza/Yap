@@ -127,6 +127,66 @@ public class UserActionLogService : BackgroundService
         }
     }
 
+    /// <summary>
+    /// Gets the last action log entry per user.
+    /// </summary>
+    public async Task<Dictionary<string, UserActionLog>> GetLastActionPerUserAsync()
+    {
+        if (!IsEnabled || _dbFactory == null)
+            return new();
+
+        try
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync();
+            // Load all logs ordered by date desc, then group in memory
+            // (complex GroupBy + OrderBy + First doesn't translate to SQL in all providers)
+            var allLogs = await db.UserActionLogs
+                .Where(l => l.UserUid != "")
+                .OrderByDescending(l => l.Date)
+                .ToListAsync();
+
+            return allLogs
+                .GroupBy(l => l.UserUid)
+                .ToDictionary(g => g.Key, g => g.First());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get last action per user");
+            return new();
+        }
+    }
+
+    /// <summary>
+    /// Gets recent distinct IPs per user (up to 5).
+    /// </summary>
+    public async Task<Dictionary<string, List<string>>> GetRecentIPsPerUserAsync()
+    {
+        if (!IsEnabled || _dbFactory == null)
+            return new();
+
+        try
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync();
+            // Load logs with IPs, then group in memory
+            var logsWithIps = await db.UserActionLogs
+                .Where(l => l.UserUid != "" && l.IP != null && l.IP != "")
+                .OrderByDescending(l => l.Date)
+                .Select(l => new { l.UserUid, l.IP })
+                .ToListAsync();
+
+            return logsWithIps
+                .GroupBy(l => l.UserUid)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(l => l.IP!).Distinct().Take(5).ToList());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get recent IPs per user");
+            return new();
+        }
+    }
+
     private async Task FlushAsync()
     {
         if (_queue.IsEmpty || _dbFactory == null) return;

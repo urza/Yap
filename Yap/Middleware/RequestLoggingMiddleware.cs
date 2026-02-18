@@ -161,8 +161,27 @@ public class RequestLogWriter : IHostedService, IDisposable
     public Task StartAsync(CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(_logDirectory);
+        CleanupOldLogs();
         _flushTimer = new Timer(FlushCallback, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
         return Task.CompletedTask;
+    }
+
+    private void CleanupOldLogs()
+    {
+        var cutoff = DateTime.UtcNow.AddMonths(-1);
+        var deleted = 0;
+
+        foreach (var file in Directory.GetFiles(_logDirectory, "*.csv"))
+        {
+            var name = Path.GetFileNameWithoutExtension(file);
+            if (DateOnly.TryParseExact(name, "yyyy-MM-dd", out var date) && date < DateOnly.FromDateTime(cutoff))
+            {
+                try { File.Delete(file); deleted++; } catch { }
+            }
+        }
+
+        if (deleted > 0)
+            Console.WriteLine($"[RequestLog] Cleaned up {deleted} log files older than 1 month");
     }
 
     public Task StopAsync(CancellationToken cancellationToken)

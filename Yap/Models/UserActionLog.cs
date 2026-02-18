@@ -22,17 +22,17 @@ public class UserActionLog
     /// <summary>
     /// optional url
     /// </summary>
-    public string Url { get; set; }
+    public string? Url { get; set; }
 
     /// <summary>
     /// optional additional info
     /// </summary>
-    public string Info { get; set; }
+    public string? Info { get; set; }
 
     /// <summary>
     /// IP address
     /// </summary>
-    public string IP { get; set; }
+    public string? IP { get; set; }
 
 
     public static class KnownActions
