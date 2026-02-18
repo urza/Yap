@@ -128,6 +128,9 @@ await app.Services.InitializePersistenceAsync();
 // Initialize users from database (must be before ChatService.InitializeAsync)
 await app.Services.GetRequiredService<UserService>().LoadUsersAsync();
 
+// Clean up old action logs (keep last 100 per user, delete older than 6 months)
+await app.Services.GetRequiredService<UserActionLogService>().CleanupAsync();
+
 // Clear uploads folder on start if configured
 if (builder.Configuration.GetValue<bool>("ChatSettings:ClearUploadsOnStart", true))
 {
