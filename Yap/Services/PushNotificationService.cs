@@ -85,14 +85,14 @@ public class PushNotificationService
             {
                 var pushSubscription = new PushSubscription(sub.Endpoint, sub.P256dh, sub.Auth);
                 await _webPushClient.SendNotificationAsync(pushSubscription, json, _vapidDetails);
-                _logger.LogDebug("Push sent to {Username} at {Endpoint}", username, sub.Endpoint[..50]);
+                _logger.LogDebug("Push sent to {Username} at {Endpoint}", username, sub.Endpoint[..Math.Min(50, sub.Endpoint.Length)]);
             }
             catch (WebPushException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Gone ||
                                                ex.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
                 // Subscription expired or invalid - remove it
                 _logger.LogInformation("Removing expired push subscription for {Username}", username);
-                _subscriptionStore.RemoveSubscription(sub.Endpoint);
+                await _subscriptionStore.RemoveSubscriptionAsync(sub.Endpoint);
             }
             catch (Exception ex)
             {

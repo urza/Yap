@@ -69,17 +69,11 @@ public class UserService
     /// </summary>
     public async Task<User?> CreateUserAsync(string username)
     {
-        // Validate username isn't already taken
-        if (_usernameToId.ContainsKey(username))
-        {
-            _logger.LogWarning("Attempted to create user with existing username: {Username}", username);
-            return null;
-        }
-
         // Generate a secure random token
         var token = GenerateToken();
 
         // Determine if this user should be admin (first user)
+        // Single lock block to prevent two users both seeing null and both becoming admin
         bool isAdmin;
         lock (_adminLock)
         {
@@ -91,16 +85,31 @@ public class UserService
             IsAdmin = isAdmin
         };
 
-        // Add to in-memory cache
+        // Atomic uniqueness check — TryAdd returns false if username already exists
+        if (!_usernameToId.TryAdd(user.Username, user.Id))
+        {
+            _logger.LogWarning("Attempted to create user with existing username: {Username}", username);
+            return null;
+        }
+
         _users[user.Id] = user;
-        _usernameToId[user.Username] = user.Id;
         _tokenToId[user.Token] = user.Id;
 
         if (isAdmin)
         {
             lock (_adminLock)
             {
-                _adminUserId = user.Id;
+                // Double-check: another thread may have set admin between our check and here
+                if (_adminUserId == null)
+                {
+                    _adminUserId = user.Id;
+                }
+                else
+                {
+                    // Someone else became admin first — demote this user
+                    isAdmin = false;
+                    user.IsAdmin = false;
+                }
             }
         }
 

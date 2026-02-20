@@ -10,19 +10,38 @@ namespace Yap.Services;
 public class PushSubscriptionStore
 {
     private readonly IPushSubscriptionPersistence _persistence;
+    private readonly ILogger<PushSubscriptionStore> _logger;
 
     // Endpoint -> Subscription (endpoint is unique per device/browser)
-    private ConcurrentDictionary<string, PushSubscription> _subscriptions = new();
+    private readonly ConcurrentDictionary<string, PushSubscription> _subscriptions = new();
 
-    public PushSubscriptionStore(IPushSubscriptionPersistence persistence)
+    public PushSubscriptionStore(IPushSubscriptionPersistence persistence, ILogger<PushSubscriptionStore> logger)
     {
         _persistence = persistence;
-
-        // Load subscriptions from persistence
-        _ = LoadAsync();
+        _logger = logger;
     }
 
-    public void SaveSubscription(string username, PushSubscriptionInfo subscription)
+    /// <summary>
+    /// Loads subscriptions from persistence. Call during app startup.
+    /// </summary>
+    public async Task InitializeAsync()
+    {
+        try
+        {
+            var entries = await _persistence.LoadAllAsync();
+            foreach (var entry in entries)
+            {
+                _subscriptions[entry.Endpoint] = entry;
+            }
+            _logger.LogInformation("Loaded {Count} push subscriptions", entries.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load push subscriptions");
+        }
+    }
+
+    public async Task SaveSubscriptionAsync(string username, PushSubscriptionInfo subscription)
     {
         var entry = new PushSubscription
         {
@@ -34,18 +53,33 @@ public class PushSubscriptionStore
         };
 
         _subscriptions[subscription.Endpoint] = entry;
-        _ = _persistence.SaveAsync(entry);
-    }
 
-    public void RemoveSubscription(string endpoint)
-    {
-        if (_subscriptions.TryRemove(endpoint, out _))
+        try
         {
-            _ = _persistence.RemoveAsync(endpoint);
+            await _persistence.SaveAsync(entry);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to persist push subscription for {Username}", username);
         }
     }
 
-    public void RemoveUserSubscriptions(string username)
+    public async Task RemoveSubscriptionAsync(string endpoint)
+    {
+        if (_subscriptions.TryRemove(endpoint, out _))
+        {
+            try
+            {
+                await _persistence.RemoveAsync(endpoint);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to remove push subscription");
+            }
+        }
+    }
+
+    public async Task RemoveUserSubscriptionsAsync(string username)
     {
         var toRemove = _subscriptions
             .Where(kvp => kvp.Value.Username.Equals(username, StringComparison.OrdinalIgnoreCase))
@@ -59,7 +93,14 @@ public class PushSubscriptionStore
                 _subscriptions.TryRemove(endpoint, out _);
             }
 
-            _ = _persistence.RemoveByUsernameAsync(username);
+            try
+            {
+                await _persistence.RemoveByUsernameAsync(username);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to remove push subscriptions for {Username}", username);
+            }
         }
     }
 
@@ -80,20 +121,6 @@ public class PushSubscriptionStore
     {
         return _subscriptions.Values
             .Any(e => e.Username.Equals(username, StringComparison.OrdinalIgnoreCase));
-    }
-
-    private async Task LoadAsync()
-    {
-        try
-        {
-            var entries = await _persistence.LoadAllAsync();
-            _subscriptions = new ConcurrentDictionary<string, PushSubscription>(
-                entries.ToDictionary(e => e.Endpoint, e => e));
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[PushStore] Failed to load subscriptions: {ex.Message}");
-        }
     }
 }
 

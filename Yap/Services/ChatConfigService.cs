@@ -3,7 +3,6 @@ namespace Yap.Services;
 public class ChatConfigService
 {
     private readonly IConfiguration _configuration;
-    private readonly Random _random = new();
 
     public ChatConfigService(IConfiguration configuration)
     {
@@ -14,51 +13,29 @@ public class ChatConfigService
     public string RoomName => _configuration["ChatSettings:RoomName"] ?? "lobby";
 
     public string GetRandomWelcomeMessage()
-    {
-        var messages = _configuration.GetSection("ChatSettings:FunnyTexts:WelcomeMessages").Get<string[]>()
-            ?? ["Welcome to {0}!"];
-        var message = messages[_random.Next(messages.Length)];
-        return string.Format(message, ProjectName);
-    }
+        => GetRandomText("WelcomeMessages", "Welcome to {0}!", ProjectName);
 
     public string GetRandomJoinButtonText()
-    {
-        var texts = _configuration.GetSection("ChatSettings:FunnyTexts:JoinButtonTexts").Get<string[]>()
-            ?? ["Join Chat"];
-        return texts[_random.Next(texts.Length)];
-    }
+        => GetRandomText("JoinButtonTexts", "Join Chat");
 
     public string GetRandomUsernamePlaceholder()
-    {
-        var placeholders = _configuration.GetSection("ChatSettings:FunnyTexts:UsernamePlaceholders").Get<string[]>()
-            ?? ["Enter your username"];
-        return placeholders[_random.Next(placeholders.Length)];
-    }
+        => GetRandomText("UsernamePlaceholders", "Enter your username");
 
     public string GetRandomMessagePlaceholder()
-    {
-        var placeholders = _configuration.GetSection("ChatSettings:FunnyTexts:MessagePlaceholders").Get<string[]>()
-            ?? ["Type a message..."];
-        return placeholders[_random.Next(placeholders.Length)];
-    }
+        => GetRandomText("MessagePlaceholders", "Type a message...");
 
     public string GetRandomConnectionStatus(bool connected)
     {
-        var section = connected ? "ChatSettings:FunnyTexts:ConnectionStatuses:Connected"
-            : "ChatSettings:FunnyTexts:ConnectionStatuses:Disconnected";
-        var statuses = _configuration.GetSection(section).Get<string[]>()
-            ?? [connected ? "Connected" : "Disconnected"];
-        return statuses[_random.Next(statuses.Length)];
+        var key = connected ? "ConnectionStatuses:Connected" : "ConnectionStatuses:Disconnected";
+        var fallback = connected ? "Connected" : "Disconnected";
+        return GetRandomText(key, fallback);
     }
 
     public string GetRandomSystemMessage(string username, bool joined)
     {
-        var section = joined ? "ChatSettings:FunnyTexts:SystemMessages:UserJoined"
-            : "ChatSettings:FunnyTexts:SystemMessages:UserLeft";
-        var messages = _configuration.GetSection(section).Get<string[]>()
-            ?? [joined ? "{0} joined the chat" : "{0} left the chat"];
-        var message = messages[_random.Next(messages.Length)];
-        return string.Format(message, username);
+        var key = joined ? "SystemMessages:UserJoined" : "SystemMessages:UserLeft";
+        var fallback = joined ? "{0} joined the chat" : "{0} left the chat";
+        return GetRandomText(key, fallback, username);
     }
 
     public string GetRandomTypingIndicator(List<string> typingUsers, string currentUser)
@@ -68,34 +45,28 @@ public class ChatConfigService
 
         var (configKey, defaultMsg, formatArgs) = others.Count switch
         {
-            1 => ("Single", "{0} is typing..", new object[] { others[0] }),
-            2 => ("Double", "{0} and {1} are typing..", new object[] { others[0], others[1] }),
-            _ => ("Multiple", "{0} and {1} others are typing..", new object[] { others[0], others.Count - 1 })
+            1 => ("TypingIndicators:Single", "{0} is typing..", new object[] { others[0] }),
+            2 => ("TypingIndicators:Double", "{0} and {1} are typing..", new object[] { others[0], others[1] }),
+            _ => ("TypingIndicators:Multiple", "{0} and {1} others are typing..", new object[] { others[0], others.Count - 1 })
         };
 
-        var messages = _configuration.GetSection($"ChatSettings:FunnyTexts:TypingIndicators:{configKey}").Get<string[]>()
-            ?? [defaultMsg];
-        return string.Format(messages[_random.Next(messages.Length)], formatArgs);
+        return GetRandomText(configKey, defaultMsg, formatArgs);
     }
 
     public string GetRandomOnlineUsersHeader(int count)
-    {
-        var headers = _configuration.GetSection("ChatSettings:FunnyTexts:OnlineUsersHeader").Get<string[]>()
-            ?? ["Online Users ({0})"];
-        var header = headers[_random.Next(headers.Length)];
-        return string.Format(header, count);
-    }
+        => GetRandomText("OnlineUsersHeader", "Online Users ({0})", count);
 
     public string GetRandomRoomHeader()
-    {
-        return GetRandomRoomHeader(RoomName);
-    }
+        => GetRandomRoomHeader(RoomName);
 
     public string GetRandomRoomHeader(string roomName)
+        => GetRandomText("RoomHeaders", "# {0}", roomName);
+
+    private string GetRandomText(string configKey, string fallback, params object[] args)
     {
-        var headers = _configuration.GetSection("ChatSettings:FunnyTexts:RoomHeaders").Get<string[]>()
-            ?? ["# {0}"];
-        var header = headers[_random.Next(headers.Length)];
-        return string.Format(header, roomName);
+        var items = _configuration.GetSection($"ChatSettings:FunnyTexts:{configKey}").Get<string[]>()
+            ?? [fallback];
+        var text = items[Random.Shared.Next(items.Length)];
+        return args.Length > 0 ? string.Format(text, args) : text;
     }
 }

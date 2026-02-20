@@ -128,6 +128,9 @@ await app.Services.InitializePersistenceAsync();
 // Initialize users from database (must be before ChatService.InitializeAsync)
 await app.Services.GetRequiredService<UserService>().LoadUsersAsync();
 
+// Load push subscriptions from database
+await app.Services.GetRequiredService<PushSubscriptionStore>().InitializeAsync();
+
 // Clean up old action logs (keep last 100 per user, delete older than 6 months)
 await app.Services.GetRequiredService<UserActionLogService>().CleanupAsync();
 
@@ -224,7 +227,7 @@ app.MapPost("/api/push/subscribe", async (HttpContext context, PushSubscriptionS
     if (body == null || string.IsNullOrEmpty(body.Username) || string.IsNullOrEmpty(body.Endpoint))
         return Results.BadRequest(new { error = "Invalid subscription" });
 
-    store.SaveSubscription(body.Username, new PushSubscriptionInfo
+    await store.SaveSubscriptionAsync(body.Username, new PushSubscriptionInfo
     {
         Endpoint = body.Endpoint,
         P256dh = body.P256dh ?? "",
@@ -240,7 +243,7 @@ app.MapPost("/api/push/unsubscribe", async (HttpContext context, PushSubscriptio
     if (body == null || string.IsNullOrEmpty(body.Endpoint))
         return Results.BadRequest(new { error = "Invalid request" });
 
-    store.RemoveSubscription(body.Endpoint);
+    await store.RemoveSubscriptionAsync(body.Endpoint);
     return Results.Ok(new { success = true });
 });
 
