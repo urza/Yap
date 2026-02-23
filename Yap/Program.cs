@@ -265,7 +265,8 @@ app.MapGet("/auth/signin", async (HttpContext context, UserService userService, 
     AuthMiddleware.SetAuthCookie(context, user.Token);
 
     var ip = GetClientIp(context);
-    actionLog.Log(user.Id.ToString(), UserActionLog.KnownActions.LOGIN, info: username, ip: ip);
+    var ua = context.Request.Headers.UserAgent.ToString();
+    actionLog.Log(user.Id.ToString(), UserActionLog.KnownActions.LOGIN, info: username, ip: ip, userAgent: ua);
 
     // Validate returnUrl is relative (prevent open redirect)
     var destination = "/lobby";

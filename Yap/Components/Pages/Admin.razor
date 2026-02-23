@@ -62,8 +62,10 @@
                             var statusLabel = isOnline ? statusInfo.Status.ToString() : "Offline";
                             lastActions.TryGetValue(user.Id.ToString(), out var lastAction);
                             recentIPs.TryGetValue(user.Id.ToString(), out var ips);
+                            var uid = user.Id;
 
-                            <tr>
+                            <tr class="clickable-row @(selectedUserId == uid ? "selected" : "")"
+                                @onclick="() => SelectUser(uid)">
                                 <td class="user-cell">
                                     <Avatar Username="@user.Username"
                                             ProfilePictureUrl="@user.ProfilePictureUrl"
@@ -118,6 +120,94 @@
                     </tbody>
                 </table>
             </div>
+
+            @if (selectedUser != null)
+            {
+                <div class="user-detail-panel">
+                    <div class="detail-header">
+                        <Avatar Username="@selectedUser.Username"
+                                ProfilePictureUrl="@selectedUser.ProfilePictureUrl"
+                                Size="AvatarSize.Medium" />
+                        <div class="detail-header-info">
+                            <h4>@selectedUser.EffectiveDisplayName</h4>
+                            @if (selectedUser.DisplayName != null)
+                            {
+                                <span class="user-username">@selectedUser.Username</span>
+                            }
+                        </div>
+                        <button class="detail-close" @onclick="() => selectedUserId = null" title="Close">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    @if (loadingDetail)
+                    {
+                        <div class="detail-loading">Loading...</div>
+                    }
+                    else
+                    {
+                        <div class="detail-tables">
+                            <div class="detail-section">
+                                <h5>IP Addresses</h5>
+                                @if (detailIPs.Count > 0)
+                                {
+                                    <table class="detail-table">
+                                        <thead>
+                                            <tr>
+                                                <th>IP Address</th>
+                                                <th>Last Seen</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var (ip, lastSeen) in detailIPs)
+                                            {
+                                                <tr>
+                                                    <td class="ip-mono">@ip</td>
+                                                    <td class="date-cell">@lastSeen.ToString("yyyy-MM-dd HH:mm")</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                }
+                                else
+                                {
+                                    <span class="no-data">No IP data</span>
+                                }
+                            </div>
+
+                            <div class="detail-section">
+                                <h5>User Agents</h5>
+                                @if (detailUserAgents.Count > 0)
+                                {
+                                    <table class="detail-table">
+                                        <thead>
+                                            <tr>
+                                                <th>User Agent</th>
+                                                <th>Last Seen</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var (ua, lastSeen) in detailUserAgents)
+                                            {
+                                                <tr>
+                                                    <td class="ua-cell">@ua</td>
+                                                    <td class="date-cell">@lastSeen.ToString("yyyy-MM-dd HH:mm")</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                }
+                                else
+                                {
+                                    <span class="no-data">No user agent data</span>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
         }
     </main>
 </div>
@@ -129,6 +219,16 @@
     private Dictionary<string, (UserStatus Status, bool? IsMobile)> onlineStatusMap = new();
     private Dictionary<string, UserActionLog> lastActions = new();
     private Dictionary<string, List<string>> recentIPs = new();
+
+    // User detail panel
+    private Guid? selectedUserId;
+    private bool loadingDetail;
+    private List<(string IP, DateTime LastSeen)> detailIPs = new();
+    private List<(string UserAgent, DateTime LastSeen)> detailUserAgents = new();
+
+    private User? selectedUser => selectedUserId.HasValue
+        ? users.FirstOrDefault(u => u.Id == selectedUserId.Value)
+        : null;
 
     protected override void OnInitialized()
     {
@@ -163,6 +263,23 @@
 
         lastActions = lastActionsTask.Result;
         recentIPs = recentIPsTask.Result;
+    }
+
+    private async Task SelectUser(Guid userId)
+    {
+        if (selectedUserId == userId)
+        {
+            selectedUserId = null;
+            return;
+        }
+
+        selectedUserId = userId;
+        loadingDetail = true;
+
+        var (ips, agents) = await ActionLog.GetUserConnectionDetailsAsync(userId.ToString());
+        detailIPs = ips;
+        detailUserAgents = agents;
+        loadingDetail = false;
     }
 
     private void GoBack()

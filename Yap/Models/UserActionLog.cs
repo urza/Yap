@@ -34,6 +34,11 @@ public class UserActionLog
     /// </summary>
     public string? IP { get; set; }
 
+    /// <summary>
+    /// User-Agent header
+    /// </summary>
+    public string? UserAgent { get; set; }
+
 
     public static class KnownActions
     {

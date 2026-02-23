@@ -42,7 +42,7 @@ public class UserActionLogService : BackgroundService
     /// <summary>
     /// Enqueues a log entry. Synchronous, non-blocking.
     /// </summary>
-    public void Log(string? userUid, string action, string? url = null, string? info = null, string? ip = null)
+    public void Log(string? userUid, string action, string? url = null, string? info = null, string? ip = null, string? userAgent = null)
     {
         if (!IsEnabled) return;
 
@@ -53,7 +53,8 @@ public class UserActionLogService : BackgroundService
             Action = action,
             Url = url,
             Info = info,
-            IP = ip
+            IP = ip,
+            UserAgent = userAgent
         });
     }
 
@@ -184,6 +185,48 @@ public class UserActionLogService : BackgroundService
         {
             _logger.LogError(ex, "Failed to get recent IPs per user");
             return new();
+        }
+    }
+
+    /// <summary>
+    /// Gets distinct IPs with last-seen date and distinct user agents for a specific user.
+    /// </summary>
+    public async Task<(List<(string IP, DateTime LastSeen)> IPs, List<(string UserAgent, DateTime LastSeen)> UserAgents)>
+        GetUserConnectionDetailsAsync(string userUid)
+    {
+        if (!IsEnabled || _dbFactory == null)
+            return (new(), new());
+
+        try
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync();
+
+            var logs = await db.UserActionLogs
+                .Where(l => l.UserUid == userUid)
+                .OrderByDescending(l => l.Date)
+                .Select(l => new { l.IP, l.UserAgent, l.Date })
+                .ToListAsync();
+
+            var ips = logs
+                .Where(l => !string.IsNullOrEmpty(l.IP))
+                .GroupBy(l => l.IP!)
+                .Select(g => (IP: g.Key, LastSeen: g.Max(x => x.Date)))
+                .OrderByDescending(x => x.LastSeen)
+                .ToList();
+
+            var agents = logs
+                .Where(l => !string.IsNullOrEmpty(l.UserAgent))
+                .GroupBy(l => l.UserAgent!)
+                .Select(g => (UserAgent: g.Key, LastSeen: g.Max(x => x.Date)))
+                .OrderByDescending(x => x.LastSeen)
+                .ToList();
+
+            return (ips, agents);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get connection details for user {UserUid}", userUid);
+            return (new(), new());
         }
     }
 

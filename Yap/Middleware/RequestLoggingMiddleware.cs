@@ -69,7 +69,8 @@ public class RequestLoggingMiddleware
                 userState.UserId?.ToString(),
                 UserActionLog.KnownActions.HTTP_REQUEST,
                 url: path + context.Request.QueryString,
-                ip: clientIp);
+                ip: clientIp,
+                userAgent: context.Request.Headers.UserAgent.ToString());
         }
     }
 

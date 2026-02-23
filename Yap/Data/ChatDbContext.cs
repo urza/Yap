@@ -149,6 +149,7 @@ public class ChatDbContext : DbContext
             entity.Property(e => e.Url).HasMaxLength(2048);
             entity.Property(e => e.Info).HasMaxLength(1024);
             entity.Property(e => e.IP).HasMaxLength(45); // IPv6 max
+            entity.Property(e => e.UserAgent).HasMaxLength(512);
         });
     }
 }

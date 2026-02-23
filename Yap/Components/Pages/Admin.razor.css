@@ -279,6 +279,127 @@
     color: var(--text-muted);
 }
 
+/* Clickable rows */
+.clickable-row {
+    cursor: pointer;
+}
+
+.clickable-row.selected {
+    background: var(--accent-tint);
+}
+
+.clickable-row.selected:hover {
+    background: var(--accent-tint);
+}
+
+/* User detail panel */
+.user-detail-panel {
+    margin-top: 1.5rem;
+    border: 1px solid var(--border-dark);
+    border-radius: 8px;
+    background: var(--bg-sidebar);
+    padding: 1.25rem;
+}
+
+.detail-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-dark);
+}
+
+.detail-header-info {
+    flex: 1;
+}
+
+.detail-header-info h4 {
+    color: var(--text-white);
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.detail-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.detail-close:hover {
+    background: var(--bg-hover);
+    color: var(--text-white);
+}
+
+.detail-loading {
+    color: var(--text-muted);
+    padding: 1rem 0;
+}
+
+.detail-tables {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.detail-section h5 {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    margin: 0 0 0.5rem 0;
+}
+
+.detail-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+}
+
+.detail-table th {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    color: var(--text-muted);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    border-bottom: 1px solid var(--border-dark);
+    white-space: nowrap;
+}
+
+.detail-table td {
+    padding: 0.5rem 0.75rem;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-dark);
+}
+
+.detail-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.ip-mono {
+    font-family: monospace;
+    font-size: 0.8125rem;
+}
+
+.ua-cell {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    word-break: break-all;
+    max-width: 600px;
+}
+
 /* Mobile layout */
 @media (max-width: 600px) {
     .admin-page {
