@@ -19,9 +19,9 @@ window.setupVisibilityListener = (ref) => {
     dotNetRef = ref;
     ensureAudioLoaded();
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && dotNetRef) {
-            dotNetRef.invokeMethodAsync('OnPageBecameVisible');
-        }
+        if (!dotNetRef) return;
+        const visible = document.visibilityState === 'visible';
+        dotNetRef.invokeMethodAsync('OnPageVisibilityChanged', visible);
     });
 };
 

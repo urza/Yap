@@ -51,7 +51,7 @@ public class ChatService
     // Unread state events
     public event Action<Guid, Guid>? OnUnreadChanged; // userId, channelId
 
-    public record UserSession(Guid UserId, string Username, string SessionId, UserStatus Status = UserStatus.Online, bool? IsMobile = null);
+    public record UserSession(Guid UserId, string Username, string SessionId, UserStatus Status = UserStatus.Online, bool? IsMobile = null, bool PageVisible = true);
 
     public ChatService(PushNotificationService pushService, ChatPersistenceService persistence, UserService userService, ILogger<ChatService> logger)
     {
@@ -465,6 +465,19 @@ public class ChatService
         return session?.Status;
     }
 
+    public void SetPageVisibility(string sessionId, bool visible)
+    {
+        if (_users.TryGetValue(sessionId, out var session))
+            _users[sessionId] = session with { PageVisible = visible };
+    }
+
+    public bool IsPageVisible(string username)
+    {
+        return _users.Values
+            .Where(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase))
+            .Any(u => u.PageVisible);
+    }
+
     public Task RemoveUserAsync(string circuitId)
     {
         if (_users.TryRemove(circuitId, out var session))
@@ -561,16 +574,18 @@ public class ChatService
         NotifyUnreadChanged(channelId, affectedUserIds);
 
         // Send push notification for DMs (fire-and-forget, doesn't block)
-        // Skip if recipient has a live circuit (Online/Away) — they already see messages in real-time
+        // Skip only if recipient is actively viewing the app (page visible + live circuit)
         if (channel.IsDirectMessage)
         {
             var recipient = channel.GetOtherParticipant(username);
             if (recipient != null)
             {
                 var recipientStatus = GetUserStatus(recipient);
-                if (recipientStatus is UserStatus.Online or UserStatus.Away)
+                var pageVisible = IsPageVisible(recipient);
+
+                if (recipientStatus is UserStatus.Online or UserStatus.Away && pageVisible)
                 {
-                    _logger.LogDebug("Push DM skipped: {Recipient} is {Status}, has live circuit",
+                    _logger.LogDebug("Push DM skipped: {Recipient} is {Status} and page visible",
                         recipient, recipientStatus);
                 }
                 else
@@ -581,8 +596,8 @@ public class ChatService
                         : 1;
                     var preview = imageUrls?.Count > 0 ? "[Image]" : content;
 
-                    _logger.LogDebug("Push DM: from={From} to={To} totalUnread={UnreadCount} status={Status}",
-                        username, recipient, totalUnread, recipientStatus);
+                    _logger.LogDebug("Push DM: from={From} to={To} totalUnread={UnreadCount} status={Status} pageVisible={PageVisible}",
+                        username, recipient, totalUnread, recipientStatus, pageVisible);
 
                     _ = _pushService.SendDmNotificationAsync(recipient, username, preview, totalUnread);
                 }

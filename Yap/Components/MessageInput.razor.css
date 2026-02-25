@@ -356,6 +356,11 @@
     .emoji-picker-backdrop {
         background: rgba(0, 0, 0, 0.5);
     }
+
+    /* Push input above the fixed emoji picker so it stays visible */
+    .message-input-container.emoji-open {
+        margin-bottom: min(50vh, 400px);
+    }
 }
 
 /* Warning modal */

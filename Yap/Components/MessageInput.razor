@@ -72,7 +72,7 @@ else
     </div>
 }
 
-<div class="message-input-container @(isDraggingOver ? "drag-over" : "") @(ReplyingToMessage != null ? "has-reply-bar" : "")"
+<div class="message-input-container @(isDraggingOver ? "drag-over" : "") @(ReplyingToMessage != null ? "has-reply-bar" : "") @(showEmojiPicker ? "emoji-open" : "")"
      @ref="dropZoneElement"
      @ondragenter="HandleDragEnter"
      @ondragover="HandleDragOver"

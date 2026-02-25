@@ -489,9 +489,12 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     }
 
     [JSInvokable]
-    public async Task OnPageBecameVisible()
+    public async Task OnPageVisibilityChanged(bool visible)
     {
-        if (unreadCount > 0)
+        if (!string.IsNullOrEmpty(UserState.SessionId))
+            ChatService.SetPageVisibility(UserState.SessionId, visible);
+
+        if (visible && unreadCount > 0)
         {
             unreadCount = 0;
             await UpdatePageTitleAsync();
