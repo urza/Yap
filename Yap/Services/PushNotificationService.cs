@@ -12,15 +12,18 @@ public class PushNotificationService
     private readonly VapidDetails? _vapidDetails;
     private readonly WebPushClient _webPushClient;
     private readonly PushSubscriptionStore _subscriptionStore;
+    private readonly UserService _userService;
     private readonly ILogger<PushNotificationService> _logger;
     private readonly bool _isConfigured;
 
     public PushNotificationService(
         IConfiguration configuration,
         PushSubscriptionStore subscriptionStore,
+        UserService userService,
         ILogger<PushNotificationService> logger)
     {
         _subscriptionStore = subscriptionStore;
+        _userService = userService;
         _logger = logger;
         _webPushClient = new WebPushClient();
 
@@ -64,6 +67,14 @@ public class PushNotificationService
         if (!_isConfigured || _vapidDetails == null)
         {
             _logger.LogDebug("Push not configured, skipping notification to {Username}", username);
+            return;
+        }
+
+        // Check if user has muted push notifications
+        var user = _userService.GetByUsername(username);
+        if (user?.PushMuted == true)
+        {
+            _logger.LogDebug("Push muted for {Username}, skipping notification", username);
             return;
         }
 

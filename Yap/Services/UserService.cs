@@ -351,6 +351,33 @@ public class UserService
     }
 
     /// <summary>
+    /// Sets the push notification muted state for a user.
+    /// </summary>
+    public async Task SetPushMutedAsync(Guid userId, bool muted)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        user.PushMuted = muted;
+
+        if (_persistenceEnabled)
+        {
+            try
+            {
+                await using var db = await _dbFactory!.CreateDbContextAsync();
+                await db.Users
+                    .Where(u => u.Id == userId)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(u => u.PushMuted, muted));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update PushMuted for user {UserId}", userId);
+            }
+        }
+    }
+
+    /// <summary>
     /// Generates a secure random token.
     /// </summary>
     private static string GenerateToken()

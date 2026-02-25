@@ -30,7 +30,7 @@
     <div class="sidebar-backdrop @(NavState.SidebarOpen ? "show" : "")" @onclick="NavState.ToggleSidebar"></div>
 
     <PwaInstallBanner />
-    <PushNotificationBanner />
+    <PushPermissionPrompt />
 </div>
 
 @code {

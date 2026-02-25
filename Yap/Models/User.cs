@@ -50,6 +50,12 @@ public class User
     public string? Bio { get; set; }
 
     /// <summary>
+    /// Whether push notifications are muted for this user.
+    /// When true, PushNotificationService skips sending (subscription stays intact).
+    /// </summary>
+    public bool PushMuted { get; set; }
+
+    /// <summary>
     /// Gets the name to display in the UI.
     /// Returns DisplayName if set, otherwise Username.
     /// </summary>

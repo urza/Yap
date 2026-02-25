@@ -1,0 +1,133 @@
+@inject IJSRuntime JS
+@inject PushSubscriptionStore PushStore
+@inject PushNotificationService PushService
+@inject UserStateService UserState
+@inject ILogger<PushPermissionPrompt> Logger
+
+@if (_visible)
+{
+    <div class="push-prompt-overlay @(_hiding ? "hiding" : "")">
+        <div class="push-prompt-card">
+            <!-- Bell icon -->
+            <div class="push-prompt-icon">
+                <svg width="56" height="56" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/>
+                </svg>
+            </div>
+
+            <h2 class="push-prompt-heading">One more step</h2>
+
+            <p class="push-prompt-body">
+                Please enable notifications so Yap can send you notifs about new DM messages / mentions when the app is not open.
+                You can always change this later in Settings, and you can also disable notifications temporarily.
+            </p>
+
+            <button class="push-prompt-enable" @onclick="Enable" disabled="@_enabling">
+                @(_enabling ? "Enabling..." : "Enable Notifications")
+            </button>
+
+            <button class="push-prompt-later" @onclick="Dismiss">Maybe Later</button>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _visible;
+    private bool _hiding;
+    private bool _enabling;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        if (!PushService.IsConfigured) return;
+
+        try
+        {
+            var shouldShow = await JS.InvokeAsync<bool>("shouldShowPushPermissionPrompt");
+            if (!shouldShow) return;
+
+            _visible = true;
+            StateHasChanged();
+            Logger.LogDebug("Push permission prompt: shown for {Username}", UserState.Username);
+        }
+        catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException)
+        {
+            // Circuit dead, ignore
+        }
+    }
+
+    private async Task AnimateOut()
+    {
+        _hiding = true;
+        StateHasChanged();
+        await Task.Delay(300);
+        _visible = false;
+        _hiding = false;
+        StateHasChanged();
+    }
+
+    private async Task Enable()
+    {
+        _enabling = true;
+        StateHasChanged();
+
+        try
+        {
+            var permission = await JS.InvokeAsync<string>("requestNotificationPermission");
+            if (permission != "granted")
+            {
+                Logger.LogDebug("Push prompt: permission {Permission} for {Username}", permission, UserState.Username);
+                await AnimateOut();
+                return;
+            }
+
+            // Subscribe
+            var publicKey = PushService.GetPublicKey();
+            if (publicKey == null)
+            {
+                await AnimateOut();
+                return;
+            }
+
+            var subscriptionJson = await JS.InvokeAsync<string?>("subscribeToPush", publicKey);
+            if (subscriptionJson == null)
+            {
+                Logger.LogDebug("Push prompt: browser subscription failed for {Username}", UserState.Username);
+                await AnimateOut();
+                return;
+            }
+
+            var subData = System.Text.Json.JsonSerializer.Deserialize<PushSubData>(subscriptionJson);
+            if (subData != null && UserState.Username != null)
+            {
+                await PushStore.SaveSubscriptionAsync(UserState.Username, new PushSubscriptionInfo
+                {
+                    Endpoint = subData.Endpoint ?? "",
+                    P256dh = subData.P256dh ?? "",
+                    Auth = subData.Auth ?? ""
+                });
+                Logger.LogDebug("Push prompt: subscribed {Username}", UserState.Username);
+            }
+
+            await AnimateOut();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Push prompt: enable failed for {Username}", UserState.Username);
+            _enabling = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task Dismiss()
+    {
+        Logger.LogDebug("Push prompt: dismissed by {Username}", UserState.Username);
+        await JS.InvokeVoidAsync("dismissPushPermissionPrompt");
+        await AnimateOut();
+    }
+
+    private record PushSubData(
+        [property: System.Text.Json.Serialization.JsonPropertyName("endpoint")] string? Endpoint,
+        [property: System.Text.Json.Serialization.JsonPropertyName("p256dh")] string? P256dh,
+        [property: System.Text.Json.Serialization.JsonPropertyName("auth")] string? Auth);
+}

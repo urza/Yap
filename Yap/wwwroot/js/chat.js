@@ -325,27 +325,21 @@ window.dismissPwaInstallBanner = () => {
     sessionStorage.setItem('pwa-banner-dismissed', 'true');
 };
 
-// Push notification banner (shown to PWA users who haven't subscribed)
-window.shouldShowPushBanner = async () => {
-    if (sessionStorage.getItem('push-banner-dismissed')) return false;
+// Push permission prompt (full-page overlay for PWA users)
+window.shouldShowPushPermissionPrompt = () => {
     if (!window.isPwaInstalled()) return false;
     if (!window.isPushSupported()) return false;
-    if ('Notification' in window && Notification.permission === 'denied') return false;
-
-    // Check if already subscribed
-    try {
-        const registration = await navigator.serviceWorker.ready;
-        const subscription = await registration.pushManager.getSubscription();
-        if (subscription) return false; // Already subscribed
-    } catch (e) {
-        return false;
-    }
-
+    // Already granted or denied — no point showing
+    if ('Notification' in window && Notification.permission !== 'default') return false;
+    // Dismissed 3+ times — stop asking
+    const dismissCount = parseInt(localStorage.getItem('push-prompt-dismiss-count') || '0');
+    if (dismissCount >= 3) return false;
     return true;
 };
 
-window.dismissPushBanner = () => {
-    sessionStorage.setItem('push-banner-dismissed', 'true');
+window.dismissPushPermissionPrompt = () => {
+    const count = parseInt(localStorage.getItem('push-prompt-dismiss-count') || '0');
+    localStorage.setItem('push-prompt-dismiss-count', String(count + 1));
 };
 
 window.showPwaInstallGuide = () => {
