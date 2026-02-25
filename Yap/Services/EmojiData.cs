@@ -27,7 +27,7 @@ public static class EmojiData
         }),
         ["animals"] = ("🐶", new[]
         {
-            "🐶", "🐱", "🐭", "🐹", "🐰", "🦊", "🐻", "🐼", "🐻‍❄️", "🐨", "🐯", "🦁",
+            "🐶", "🐱", "🐈", "🐈‍⬛", "🐭", "🐹", "🐰", "🦊", "🐻", "🐼", "🐻‍❄️", "🐨", "🐯", "🦁",
             "🐮", "🐷", "🐸", "🐵", "🙈", "🙉", "🙊", "🐒", "🐔", "🐧", "🐦", "🐤",
             "🐣", "🐥", "🦆", "🦅", "🦉", "🦇", "🐺", "🐗", "🐴", "🦄", "🐝", "🪱",
             "🐛", "🦋", "🐌", "🐞", "🐜", "🪰", "🪲", "🪳", "🦟", "🦗", "🕷️", "🦂",
@@ -295,6 +295,8 @@ public static class EmojiData
         // Animals
         ["🐶"] = "dog face puppy pet",
         ["🐱"] = "cat face kitten pet",
+        ["🐈"] = "cat pet feline kitty",
+        ["🐈‍⬛"] = "black cat pet feline kitty",
         ["🐭"] = "mouse face rat",
         ["🐹"] = "hamster face pet",
         ["🐰"] = "rabbit face bunny",
