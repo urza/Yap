@@ -258,6 +258,27 @@
     cursor: not-allowed;
 }
 
+/* PWA install section */
+.pwa-installed-info {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    color: #43b581;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.pwa-check-icon {
+    flex-shrink: 0;
+}
+
+.pwa-description {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    margin: 0 0 1rem 0;
+    line-height: 1.4;
+}
+
 /* Mobile adjustments */
 @media (max-width: 600px) {
     .settings-container {

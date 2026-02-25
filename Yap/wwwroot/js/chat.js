@@ -342,10 +342,26 @@ window.dismissPushPermissionPrompt = () => {
     localStorage.setItem('push-prompt-dismiss-count', String(count + 1));
 };
 
-window.showPwaInstallGuide = () => {
+// Capture native install prompt (Chrome/Edge on desktop & Android)
+let _deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    _deferredInstallPrompt = e;
+});
+
+window.showPwaInstallGuide = async () => {
     sessionStorage.setItem('pwa-banner-dismissed', 'true');
 
-    // Lazy-load add-to-homescreen library from CDN
+    // Use native prompt if available (desktop Chrome/Edge, Android Chrome)
+    if (_deferredInstallPrompt) {
+        _deferredInstallPrompt.prompt();
+        const result = await _deferredInstallPrompt.userChoice;
+        console.log('[PWA] Install prompt result:', result.outcome);
+        _deferredInstallPrompt = null;
+        return;
+    }
+
+    // Fallback: show add-to-homescreen guide (iOS Safari, etc.)
     const cdnBase = 'https://cdn.jsdelivr.net/gh/philfung/add-to-homescreen@3.5/dist';
 
     const link = document.createElement('link');
