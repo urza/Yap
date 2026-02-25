@@ -325,6 +325,29 @@ window.dismissPwaInstallBanner = () => {
     sessionStorage.setItem('pwa-banner-dismissed', 'true');
 };
 
+// Push notification banner (shown to PWA users who haven't subscribed)
+window.shouldShowPushBanner = async () => {
+    if (sessionStorage.getItem('push-banner-dismissed')) return false;
+    if (!window.isPwaInstalled()) return false;
+    if (!window.isPushSupported()) return false;
+    if ('Notification' in window && Notification.permission === 'denied') return false;
+
+    // Check if already subscribed
+    try {
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription();
+        if (subscription) return false; // Already subscribed
+    } catch (e) {
+        return false;
+    }
+
+    return true;
+};
+
+window.dismissPushBanner = () => {
+    sessionStorage.setItem('push-banner-dismissed', 'true');
+};
+
 window.showPwaInstallGuide = () => {
     sessionStorage.setItem('pwa-banner-dismissed', 'true');
 

@@ -7,7 +7,6 @@
 @inject IJSRuntime JS
 @inject EmojiService EmojiService
 @inject PushSubscriptionStore PushStore
-@inject PushNotificationService PushService
 @inject ILogger<ChatHeader> Logger
 @implements IDisposable
 
@@ -52,18 +51,6 @@
                         <span>Invisible</span>
                     </button>
                     <div class="dropdown-divider"></div>
-                    <button class="dropdown-item @(notificationsEnabled ? "active" : "")"
-                            @onclick="ToggleNotifications"
-                            disabled="@(!notificationsSupported)">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/>
-                        </svg>
-                        <span>@(notificationsEnabled ? "Notifications On" : (notificationsSupported ? "Notifications" : "Notifications (N/A)"))</span>
-                        @if (notificationsEnabled)
-                        {
-                            <span class="checkmark">✓</span>
-                        }
-                    </button>
                     <button class="dropdown-item" @onclick="OpenSettings">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
@@ -123,17 +110,12 @@
     private int unreadCount = 0;
     private int onlineCount = 0;
     private bool showDropdown = false;
-    private bool notificationsEnabled = false;
-    private bool notificationsSupported = false;
 
     protected override async Task OnInitializedAsync()
     {
         // Get initial state
         await RefreshUnreadCountAsync();
         onlineCount = ChatService.GetOnlineUsers().Count;
-
-        // Check push notification status
-        await CheckNotificationStatusAsync();
 
         // Subscribe to events
         ChatService.OnUnreadChanged += HandleUnreadChanged;
@@ -157,26 +139,6 @@
         }
     }
 
-    private async Task CheckNotificationStatusAsync()
-    {
-        try
-        {
-            notificationsSupported = await JS.InvokeAsync<bool>("isPushSupported");
-            if (notificationsSupported)
-            {
-                // Check if already subscribed
-                var existingSub = await JS.InvokeAsync<string?>("getPushSubscription");
-                notificationsEnabled = existingSub != null;
-            }
-            Logger.LogDebug("Push status check: supported={Supported}, enabled={Enabled}, user={Username}",
-                notificationsSupported, notificationsEnabled, UserState.Username);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogDebug(ex, "Push status check failed for {Username}", UserState.Username);
-        }
-    }
-
     private void ToggleDropdown()
     {
         showDropdown = !showDropdown;
@@ -186,80 +148,6 @@
     {
         showDropdown = false;
     }
-
-    private async Task ToggleNotifications()
-    {
-        if (!notificationsSupported) return;
-
-        try
-        {
-            if (notificationsEnabled)
-            {
-                // Unsubscribe browser + remove from server store directly
-                var existingSub = await JS.InvokeAsync<string?>("getPushSubscription");
-                if (existingSub != null)
-                {
-                    var subData = System.Text.Json.JsonSerializer.Deserialize<PushSubData>(existingSub);
-                    await JS.InvokeAsync<bool>("unsubscribeFromPush");
-
-                    if (subData?.Endpoint != null)
-                    {
-                        await PushStore.RemoveSubscriptionAsync(subData.Endpoint);
-                        Logger.LogDebug("Push unsubscribed for {Username} via header toggle", UserState.Username);
-                    }
-                }
-                notificationsEnabled = false;
-            }
-            else
-            {
-                // Request permission first
-                var permission = await JS.InvokeAsync<string>("requestNotificationPermission");
-                if (permission != "granted")
-                {
-                    Logger.LogDebug("Push permission denied by user {Username}", UserState.Username);
-                    return;
-                }
-
-                // Get VAPID public key directly from service
-                var publicKey = PushService.GetPublicKey();
-                if (publicKey == null)
-                {
-                    Logger.LogDebug("Push subscribe skipped: VAPID not configured");
-                    return;
-                }
-
-                // Subscribe in browser
-                var subscriptionJson = await JS.InvokeAsync<string?>("subscribeToPush", publicKey);
-                if (subscriptionJson == null)
-                {
-                    Logger.LogDebug("Push browser subscription failed for {Username}", UserState.Username);
-                    return;
-                }
-
-                // Parse and save to store directly
-                var subData = System.Text.Json.JsonSerializer.Deserialize<PushSubData>(subscriptionJson);
-                if (subData != null && UserState.Username != null)
-                {
-                    await PushStore.SaveSubscriptionAsync(UserState.Username, new PushSubscriptionInfo
-                    {
-                        Endpoint = subData.Endpoint ?? "",
-                        P256dh = subData.P256dh ?? "",
-                        Auth = subData.Auth ?? ""
-                    });
-                    notificationsEnabled = true;
-                    Logger.LogDebug("Push subscribed for {Username}, endpoint={Endpoint}", UserState.Username, subData.Endpoint?[..Math.Min(50, subData.Endpoint?.Length ?? 0)]);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Notification toggle error for {Username}", UserState.Username);
-        }
-
-        showDropdown = false;
-    }
-
-    private record PushSubData(string? Endpoint, string? P256dh, string? Auth);
 
     private async Task SetStatus(UserStatus status)
     {
@@ -449,6 +337,8 @@
         showDropdown = false;
         Navigation.NavigateTo("/settings");
     }
+
+    private record PushSubData(string? Endpoint, string? P256dh, string? Auth);
 
     private void OpenAdmin()
     {
