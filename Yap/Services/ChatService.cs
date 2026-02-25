@@ -561,21 +561,31 @@ public class ChatService
         NotifyUnreadChanged(channelId, affectedUserIds);
 
         // Send push notification for DMs (fire-and-forget, doesn't block)
+        // Skip if recipient has a live circuit (Online/Away) — they already see messages in real-time
         if (channel.IsDirectMessage)
         {
             var recipient = channel.GetOtherParticipant(username);
             if (recipient != null)
             {
-                var recipientUser = _userService.GetByUsername(recipient);
-                var totalUnread = recipientUser != null
-                    ? GetTotalUnreadDMCount(recipientUser.Id)
-                    : 1;
-                var preview = imageUrls?.Count > 0 ? "[Image]" : content;
+                var recipientStatus = GetUserStatus(recipient);
+                if (recipientStatus is UserStatus.Online or UserStatus.Away)
+                {
+                    _logger.LogDebug("Push DM skipped: {Recipient} is {Status}, has live circuit",
+                        recipient, recipientStatus);
+                }
+                else
+                {
+                    var recipientUser = _userService.GetByUsername(recipient);
+                    var totalUnread = recipientUser != null
+                        ? GetTotalUnreadDMCount(recipientUser.Id)
+                        : 1;
+                    var preview = imageUrls?.Count > 0 ? "[Image]" : content;
 
-                _logger.LogDebug("Push DM: from={From} to={To} totalUnread={UnreadCount} recipientFound={RecipientFound}",
-                    username, recipient, totalUnread, recipientUser != null);
+                    _logger.LogDebug("Push DM: from={From} to={To} totalUnread={UnreadCount} status={Status}",
+                        username, recipient, totalUnread, recipientStatus);
 
-                _ = _pushService.SendDmNotificationAsync(recipient, username, preview, totalUnread);
+                    _ = _pushService.SendDmNotificationAsync(recipient, username, preview, totalUnread);
+                }
             }
         }
     }

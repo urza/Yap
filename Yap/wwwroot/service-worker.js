@@ -88,39 +88,30 @@ self.addEventListener('push', (event) => {
         }
     }
 
-    event.waitUntil(
-        (async () => {
-            // Update badge count regardless of app state
-            if ('setAppBadge' in self.navigator && data.unreadCount > 0) {
-                try {
-                    await self.navigator.setAppBadge(data.unreadCount);
-                } catch (err) {
-                    console.error('[SW] Badge error:', err);
-                }
-            }
+    const promises = [];
 
-            // Only show notification if app is not focused
-            const windowClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
-            const appIsFocused = windowClients.some(client =>
-                client.url.includes(self.location.origin) && client.visibilityState === 'visible'
-            );
+    // Update badge count
+    if ('setAppBadge' in self.navigator && data.unreadCount > 0) {
+        promises.push(
+            self.navigator.setAppBadge(data.unreadCount)
+                .catch(err => console.error('[SW] Badge error:', err))
+        );
+    }
 
-            if (appIsFocused) {
-                console.log('[SW] App is focused, skipping notification');
-                return;
-            }
-
-            await self.registration.showNotification(data.title, {
-                body: data.body,
-                icon: data.icon,
-                badge: data.badge,
-                tag: data.tag,
-                renotify: true,
-                requireInteraction: false,
-                data: { url: data.url }
-            });
-        })()
+    // Show notification (server already filters out active users)
+    promises.push(
+        self.registration.showNotification(data.title, {
+            body: data.body,
+            icon: data.icon,
+            badge: data.badge,
+            tag: data.tag,
+            renotify: true,
+            requireInteraction: false,
+            data: { url: data.url }
+        })
     );
+
+    event.waitUntil(Promise.all(promises));
 });
 
 // ==========================================
