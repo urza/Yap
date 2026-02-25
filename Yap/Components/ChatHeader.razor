@@ -6,6 +6,8 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject EmojiService EmojiService
+@inject PushSubscriptionStore PushStore
+@inject PushNotificationService PushService
 @inject ILogger<ChatHeader> Logger
 @implements IDisposable
 
@@ -166,10 +168,12 @@
                 var existingSub = await JS.InvokeAsync<string?>("getPushSubscription");
                 notificationsEnabled = existingSub != null;
             }
+            Logger.LogDebug("Push status check: supported={Supported}, enabled={Enabled}, user={Username}",
+                notificationsSupported, notificationsEnabled, UserState.Username);
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore errors during status check
+            Logger.LogDebug(ex, "Push status check failed for {Username}", UserState.Username);
         }
     }
 
@@ -191,16 +195,18 @@
         {
             if (notificationsEnabled)
             {
-                // Unsubscribe
+                // Unsubscribe browser + remove from server store directly
                 var existingSub = await JS.InvokeAsync<string?>("getPushSubscription");
                 if (existingSub != null)
                 {
                     var subData = System.Text.Json.JsonSerializer.Deserialize<PushSubData>(existingSub);
                     await JS.InvokeAsync<bool>("unsubscribeFromPush");
 
-                    // Notify server
-                    using var http = new HttpClient();
-                    await http.PostAsJsonAsync($"{Navigation.BaseUri}api/push/unsubscribe", new { endpoint = subData?.Endpoint });
+                    if (subData?.Endpoint != null)
+                    {
+                        await PushStore.RemoveSubscriptionAsync(subData.Endpoint);
+                        Logger.LogDebug("Push unsubscribed for {Username} via header toggle", UserState.Username);
+                    }
                 }
                 notificationsEnabled = false;
             }
@@ -210,48 +216,49 @@
                 var permission = await JS.InvokeAsync<string>("requestNotificationPermission");
                 if (permission != "granted")
                 {
-                    return; // User denied
+                    Logger.LogDebug("Push permission denied by user {Username}", UserState.Username);
+                    return;
                 }
 
-                // Get VAPID public key from server
-                using var http = new HttpClient();
-                var response = await http.GetFromJsonAsync<VapidKeyResponse>($"{Navigation.BaseUri}api/push/vapid-public-key");
-                if (response?.PublicKey == null)
+                // Get VAPID public key directly from service
+                var publicKey = PushService.GetPublicKey();
+                if (publicKey == null)
                 {
-                    return; // VAPID not configured
+                    Logger.LogDebug("Push subscribe skipped: VAPID not configured");
+                    return;
                 }
 
                 // Subscribe in browser
-                var subscriptionJson = await JS.InvokeAsync<string?>("subscribeToPush", response.PublicKey);
+                var subscriptionJson = await JS.InvokeAsync<string?>("subscribeToPush", publicKey);
                 if (subscriptionJson == null)
                 {
-                    return; // Subscription failed
+                    Logger.LogDebug("Push browser subscription failed for {Username}", UserState.Username);
+                    return;
                 }
 
-                // Parse and send to server
+                // Parse and save to store directly
                 var subData = System.Text.Json.JsonSerializer.Deserialize<PushSubData>(subscriptionJson);
                 if (subData != null && UserState.Username != null)
                 {
-                    await http.PostAsJsonAsync($"{Navigation.BaseUri}api/push/subscribe", new
+                    await PushStore.SaveSubscriptionAsync(UserState.Username, new PushSubscriptionInfo
                     {
-                        username = UserState.Username,
-                        endpoint = subData.Endpoint,
-                        p256dh = subData.P256dh,
-                        auth = subData.Auth
+                        Endpoint = subData.Endpoint ?? "",
+                        P256dh = subData.P256dh ?? "",
+                        Auth = subData.Auth ?? ""
                     });
                     notificationsEnabled = true;
+                    Logger.LogDebug("Push subscribed for {Username}, endpoint={Endpoint}", UserState.Username, subData.Endpoint?[..Math.Min(50, subData.Endpoint?.Length ?? 0)]);
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Notification toggle error: {ex.Message}");
+            Logger.LogError(ex, "Notification toggle error for {Username}", UserState.Username);
         }
 
         showDropdown = false;
     }
 
-    private record VapidKeyResponse(string? PublicKey);
     private record PushSubData(string? Endpoint, string? P256dh, string? Auth);
 
     private async Task SetStatus(UserStatus status)
@@ -270,6 +277,31 @@
 
         // Log before deletion (user record won't exist after DeleteUserAsync)
         ActionLog.Log(UserState.UserId?.ToString(), UserActionLog.KnownActions.LOGOUT, info: UserState.Username);
+
+        // Unsubscribe from push notifications (browser + server)
+        try
+        {
+            var existingSub = await JS.InvokeAsync<string?>("getPushSubscription");
+            if (existingSub != null)
+            {
+                var subData = System.Text.Json.JsonSerializer.Deserialize<PushSubData>(existingSub);
+                await JS.InvokeAsync<bool>("unsubscribeFromPush");
+                if (subData?.Endpoint != null)
+                {
+                    await PushStore.RemoveSubscriptionAsync(subData.Endpoint);
+                }
+                Logger.LogDebug("Push subscription cleaned up on sign-out for {Username}", UserState.Username);
+            }
+            // Also remove all server-side subscriptions for this username
+            if (UserState.Username != null)
+            {
+                await PushStore.RemoveUserSubscriptionsAsync(UserState.Username);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to clean up push subscription on sign-out for {Username}", UserState.Username);
+        }
 
         // Remove from chat service
         if (UserState.SessionId != null)

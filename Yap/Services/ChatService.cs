@@ -566,8 +566,16 @@ public class ChatService
             var recipient = channel.GetOtherParticipant(username);
             if (recipient != null)
             {
+                var recipientUser = _userService.GetByUsername(recipient);
+                var totalUnread = recipientUser != null
+                    ? GetTotalUnreadDMCount(recipientUser.Id)
+                    : 1;
                 var preview = imageUrls?.Count > 0 ? "[Image]" : content;
-                _ = _pushService.SendDmNotificationAsync(recipient, username, preview, 1);
+
+                _logger.LogDebug("Push DM: from={From} to={To} totalUnread={UnreadCount} recipientFound={RecipientFound}",
+                    username, recipient, totalUnread, recipientUser != null);
+
+                _ = _pushService.SendDmNotificationAsync(recipient, username, preview, totalUnread);
             }
         }
     }

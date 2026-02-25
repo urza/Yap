@@ -213,21 +213,34 @@ app.MapPost("/api/upload", async (IFormFile file, IWebHostEnvironment env, ILogg
 // =============================================================================
 // PUSH NOTIFICATION API ENDPOINTS
 // =============================================================================
-app.MapGet("/api/push/vapid-public-key", (PushNotificationService pushService) =>
+app.MapGet("/api/push/vapid-public-key", (PushNotificationService pushService, ILogger<Program> logger) =>
 {
     var publicKey = pushService.GetPublicKey();
+    logger.LogDebug("VAPID public key requested, configured={IsConfigured}", publicKey != null);
     return publicKey != null
         ? Results.Ok(new { publicKey })
         : Results.NotFound(new { error = "VAPID not configured" });
 });
 
-app.MapPost("/api/push/subscribe", async (HttpContext context, PushSubscriptionStore store) =>
+app.MapPost("/api/push/subscribe", async (HttpContext context, PushSubscriptionStore store, UserService userService, ILogger<Program> logger) =>
 {
+    // Authenticate via cookie — only the logged-in user can subscribe themselves
+    var token = context.Request.Cookies[AuthMiddleware.CookieName];
+    var user = !string.IsNullOrEmpty(token) ? userService.AuthenticateByToken(token) : null;
+    if (user == null)
+    {
+        logger.LogDebug("Push subscribe rejected: no valid auth cookie");
+        return Results.Unauthorized();
+    }
+
     var body = await context.Request.ReadFromJsonAsync<PushSubscribeRequest>();
-    if (body == null || string.IsNullOrEmpty(body.Username) || string.IsNullOrEmpty(body.Endpoint))
+    if (body == null || string.IsNullOrEmpty(body.Endpoint))
         return Results.BadRequest(new { error = "Invalid subscription" });
 
-    await store.SaveSubscriptionAsync(body.Username, new PushSubscriptionInfo
+    // Ignore the username from the body — use the authenticated user
+    logger.LogDebug("Push subscribe for {Username}, endpoint={Endpoint}", user.Username, body.Endpoint[..Math.Min(50, body.Endpoint.Length)]);
+
+    await store.SaveSubscriptionAsync(user.Username, new PushSubscriptionInfo
     {
         Endpoint = body.Endpoint,
         P256dh = body.P256dh ?? "",
@@ -237,11 +250,22 @@ app.MapPost("/api/push/subscribe", async (HttpContext context, PushSubscriptionS
     return Results.Ok(new { success = true });
 });
 
-app.MapPost("/api/push/unsubscribe", async (HttpContext context, PushSubscriptionStore store) =>
+app.MapPost("/api/push/unsubscribe", async (HttpContext context, PushSubscriptionStore store, UserService userService, ILogger<Program> logger) =>
 {
+    // Authenticate via cookie
+    var token = context.Request.Cookies[AuthMiddleware.CookieName];
+    var user = !string.IsNullOrEmpty(token) ? userService.AuthenticateByToken(token) : null;
+    if (user == null)
+    {
+        logger.LogDebug("Push unsubscribe rejected: no valid auth cookie");
+        return Results.Unauthorized();
+    }
+
     var body = await context.Request.ReadFromJsonAsync<PushUnsubscribeRequest>();
     if (body == null || string.IsNullOrEmpty(body.Endpoint))
         return Results.BadRequest(new { error = "Invalid request" });
+
+    logger.LogDebug("Push unsubscribe for {Username}, endpoint={Endpoint}", user.Username, body.Endpoint[..Math.Min(50, body.Endpoint.Length)]);
 
     await store.RemoveSubscriptionAsync(body.Endpoint);
     return Results.Ok(new { success = true });

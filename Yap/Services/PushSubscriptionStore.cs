@@ -43,6 +43,8 @@ public class PushSubscriptionStore
 
     public async Task SaveSubscriptionAsync(string username, PushSubscriptionInfo subscription)
     {
+        var isNew = !_subscriptions.ContainsKey(subscription.Endpoint);
+
         var entry = new PushSubscription
         {
             Username = username,
@@ -53,6 +55,9 @@ public class PushSubscriptionStore
         };
 
         _subscriptions[subscription.Endpoint] = entry;
+
+        _logger.LogDebug("SaveSubscription: {Action} subscription for {Username}, endpoint={Endpoint}, total={Total}",
+            isNew ? "new" : "updated", username, subscription.Endpoint[..Math.Min(50, subscription.Endpoint.Length)], _subscriptions.Count);
 
         try
         {
@@ -66,8 +71,11 @@ public class PushSubscriptionStore
 
     public async Task RemoveSubscriptionAsync(string endpoint)
     {
-        if (_subscriptions.TryRemove(endpoint, out _))
+        if (_subscriptions.TryRemove(endpoint, out var removed))
         {
+            _logger.LogDebug("RemoveSubscription: removed for {Username}, endpoint={Endpoint}, remaining={Total}",
+                removed.Username, endpoint[..Math.Min(50, endpoint.Length)], _subscriptions.Count);
+
             try
             {
                 await _persistence.RemoveAsync(endpoint);
@@ -77,6 +85,10 @@ public class PushSubscriptionStore
                 _logger.LogError(ex, "Failed to remove push subscription");
             }
         }
+        else
+        {
+            _logger.LogDebug("RemoveSubscription: endpoint not found, endpoint={Endpoint}", endpoint[..Math.Min(50, endpoint.Length)]);
+        }
     }
 
     public async Task RemoveUserSubscriptionsAsync(string username)
@@ -85,6 +97,8 @@ public class PushSubscriptionStore
             .Where(kvp => kvp.Value.Username.Equals(username, StringComparison.OrdinalIgnoreCase))
             .Select(kvp => kvp.Key)
             .ToList();
+
+        _logger.LogDebug("RemoveUserSubscriptions: removing {Count} subscriptions for {Username}", toRemove.Count, username);
 
         if (toRemove.Count > 0)
         {
@@ -106,7 +120,7 @@ public class PushSubscriptionStore
 
     public IEnumerable<PushSubscriptionInfo> GetSubscriptions(string username)
     {
-        return _subscriptions.Values
+        var subs = _subscriptions.Values
             .Where(e => e.Username.Equals(username, StringComparison.OrdinalIgnoreCase))
             .Select(e => new PushSubscriptionInfo
             {
@@ -115,6 +129,9 @@ public class PushSubscriptionStore
                 Auth = e.Auth
             })
             .ToList();
+
+        _logger.LogDebug("GetSubscriptions: {Count} subscriptions for {Username}", subs.Count, username);
+        return subs;
     }
 
     public bool HasSubscription(string username)

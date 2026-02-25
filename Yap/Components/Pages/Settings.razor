@@ -5,6 +5,10 @@
 @inject ImageService ImageService
 @inject ChatNavigationState NavState
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject PushSubscriptionStore PushStore
+@inject PushNotificationService PushService
+@inject ILogger<Settings> Logger
 
 <PageTitle>Settings</PageTitle>
 
@@ -63,6 +67,65 @@
             </div>
         </div>
 
+        <div class="settings-section">
+            <h3>Notifications</h3>
+
+            <div class="notification-status">
+                <div class="notification-row">
+                    <span class="notification-label">Push Notifications</span>
+                    <span class="notification-value @GetPushStatusClass()">@GetPushStatusText()</span>
+                </div>
+
+                @if (!string.IsNullOrEmpty(pushPermission) && pushPermission != "unsupported")
+                {
+                    <div class="notification-row">
+                        <span class="notification-label">Browser Permission</span>
+                        <span class="notification-value @GetPermissionClass()">@pushPermission</span>
+                    </div>
+                }
+
+                <div class="notification-row">
+                    <span class="notification-label">Server Subscriptions</span>
+                    <span class="notification-value">@serverSubscriptionCount device(s)</span>
+                </div>
+
+                @if (!string.IsNullOrEmpty(pushPermission) && pushPermission != "unsupported")
+                {
+                    <div class="notification-row">
+                        <span class="notification-label">Installed as App</span>
+                        <span class="notification-value">@(isPwa ? "Yes" : "No")</span>
+                    </div>
+                }
+            </div>
+
+            <div class="notification-actions">
+                @if (!pushSupported)
+                {
+                    <span class="form-hint">Push notifications are not supported in this browser.</span>
+                }
+                else if (!PushService.IsConfigured)
+                {
+                    <span class="form-hint">Push notifications are not configured on this server.</span>
+                }
+                else if (pushPermission == "denied")
+                {
+                    <span class="form-hint">Notification permission was denied. Reset it in your browser settings to re-enable.</span>
+                }
+                else if (pushSubscribed)
+                {
+                    <button class="remove-button" @onclick="DisablePush" disabled="@pushToggling">
+                        @(pushToggling ? "Disabling..." : "Disable Notifications")
+                    </button>
+                }
+                else
+                {
+                    <button class="upload-button" @onclick="EnablePush" disabled="@pushToggling">
+                        @(pushToggling ? "Enabling..." : "Enable Notifications")
+                    </button>
+                }
+            </div>
+        </div>
+
         <div class="settings-actions">
             <button class="cancel-button" @onclick="GoBack">Cancel</button>
             <button class="save-button" @onclick="SaveSettings" disabled="@(!hasChanges || isSaving)">
@@ -91,6 +154,14 @@
     private bool isUploading = false;
     private bool isSaving = false;
 
+    // Push notification state
+    private bool pushSupported = false;
+    private bool pushSubscribed = false;
+    private string? pushPermission;
+    private int serverSubscriptionCount = 0;
+    private bool isPwa = false;
+    private bool pushToggling = false;
+
     private bool hasChanges => displayName != originalDisplayName ||
                                profilePictureUrl != originalProfilePictureUrl ||
                                bio != originalBio;
@@ -117,8 +188,168 @@
         originalProfilePictureUrl = profilePictureUrl;
         originalBio = bio;
 
+        // Server-side subscription count (doesn't need JS)
+        if (UserState.Username != null)
+        {
+            serverSubscriptionCount = PushStore.GetSubscriptions(UserState.Username).Count();
+        }
+
         // Set nav context
         NavState.SetTitle("Settings");
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadPushStatusAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadPushStatusAsync()
+    {
+        try
+        {
+            pushSupported = await JS.InvokeAsync<bool>("isPushSupported");
+            pushPermission = await JS.InvokeAsync<string>("getNotificationPermission");
+            isPwa = await JS.InvokeAsync<bool>("isPwaInstalled");
+
+            if (pushSupported)
+            {
+                var existingSub = await JS.InvokeAsync<string?>("getPushSubscription");
+                pushSubscribed = existingSub != null;
+            }
+
+            Logger.LogDebug("Push status loaded: supported={Supported}, permission={Permission}, subscribed={Subscribed}, pwa={Pwa}, serverSubs={ServerSubs}",
+                pushSupported, pushPermission, pushSubscribed, isPwa, serverSubscriptionCount);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load push notification status");
+        }
+    }
+
+    private async Task EnablePush()
+    {
+        if (pushToggling || !pushSupported || !PushService.IsConfigured) return;
+        pushToggling = true;
+        StateHasChanged();
+
+        try
+        {
+            // Request permission
+            var permission = await JS.InvokeAsync<string>("requestNotificationPermission");
+            pushPermission = permission;
+
+            if (permission != "granted")
+            {
+                Logger.LogDebug("Push enable: permission {Permission} for {Username}", permission, UserState.Username);
+                return;
+            }
+
+            // Get VAPID key and subscribe
+            var publicKey = PushService.GetPublicKey();
+            if (publicKey == null) return;
+
+            var subscriptionJson = await JS.InvokeAsync<string?>("subscribeToPush", publicKey);
+            if (subscriptionJson == null)
+            {
+                Logger.LogDebug("Push enable: browser subscription failed for {Username}", UserState.Username);
+                return;
+            }
+
+            var subData = System.Text.Json.JsonSerializer.Deserialize<PushSubData>(subscriptionJson);
+            if (subData != null && UserState.Username != null)
+            {
+                await PushStore.SaveSubscriptionAsync(UserState.Username, new PushSubscriptionInfo
+                {
+                    Endpoint = subData.Endpoint ?? "",
+                    P256dh = subData.P256dh ?? "",
+                    Auth = subData.Auth ?? ""
+                });
+                pushSubscribed = true;
+                serverSubscriptionCount = PushStore.GetSubscriptions(UserState.Username).Count();
+                Logger.LogDebug("Push enabled for {Username} from settings", UserState.Username);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to enable push for {Username}", UserState.Username);
+        }
+        finally
+        {
+            pushToggling = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DisablePush()
+    {
+        if (pushToggling) return;
+        pushToggling = true;
+        StateHasChanged();
+
+        try
+        {
+            // Unsubscribe browser
+            var existingSub = await JS.InvokeAsync<string?>("getPushSubscription");
+            if (existingSub != null)
+            {
+                var subData = System.Text.Json.JsonSerializer.Deserialize<PushSubData>(existingSub);
+                await JS.InvokeAsync<bool>("unsubscribeFromPush");
+                if (subData?.Endpoint != null)
+                {
+                    await PushStore.RemoveSubscriptionAsync(subData.Endpoint);
+                }
+            }
+
+            // Remove all server-side subscriptions for this user
+            if (UserState.Username != null)
+            {
+                await PushStore.RemoveUserSubscriptionsAsync(UserState.Username);
+            }
+
+            pushSubscribed = false;
+            serverSubscriptionCount = 0;
+            Logger.LogDebug("Push disabled for {Username} from settings", UserState.Username);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to disable push for {Username}", UserState.Username);
+        }
+        finally
+        {
+            pushToggling = false;
+            StateHasChanged();
+        }
+    }
+
+    private record PushSubData(string? Endpoint, string? P256dh, string? Auth);
+
+    private string GetPushStatusText()
+    {
+        if (!pushSupported) return "Not Supported";
+        if (!PushService.IsConfigured) return "Not Configured";
+        if (pushSubscribed) return "Enabled";
+        return "Disabled";
+    }
+
+    private string GetPushStatusClass()
+    {
+        if (pushSubscribed) return "status-enabled";
+        if (!pushSupported || !PushService.IsConfigured) return "status-unavailable";
+        return "status-disabled";
+    }
+
+    private string GetPermissionClass()
+    {
+        return pushPermission switch
+        {
+            "granted" => "status-enabled",
+            "denied" => "status-denied",
+            _ => "status-disabled"
+        };
     }
 
     private void GoBack()

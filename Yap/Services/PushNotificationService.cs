@@ -106,6 +106,9 @@ public class PushNotificationService
     /// </summary>
     public Task SendDmNotificationAsync(string toUsername, string fromUsername, string messagePreview, int unreadCount)
     {
+        _logger.LogDebug("SendDmNotification: to={To} from={From} unreadCount={UnreadCount} preview={Preview}",
+            toUsername, fromUsername, unreadCount, messagePreview.Length > 30 ? messagePreview[..27] + "..." : messagePreview);
+
         var payload = new PushPayload
         {
             Title = $"DM from {fromUsername}",

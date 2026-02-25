@@ -222,6 +222,67 @@
     cursor: not-allowed;
 }
 
+/* Notification settings */
+.notification-status {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    margin-bottom: 1.25rem;
+}
+
+.notification-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-input);
+    border-radius: 4px;
+}
+
+.notification-label {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.notification-value {
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.notification-value.status-enabled {
+    color: #43b581;
+}
+
+.notification-value.status-disabled {
+    color: var(--text-muted);
+}
+
+.notification-value.status-unavailable {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.notification-value.status-denied {
+    color: #ed4245;
+}
+
+.notification-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.notification-actions .upload-button,
+.notification-actions .remove-button {
+    border: none;
+}
+
+.notification-actions .upload-button:disabled,
+.notification-actions .remove-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 /* Mobile adjustments */
 @media (max-width: 600px) {
     .settings-container {
