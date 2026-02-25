@@ -181,45 +181,20 @@
     margin-top: 0.25rem;
 }
 
-.settings-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.75rem;
-}
-
-.cancel-button,
-.save-button {
-    padding: 0.75rem 1.5rem;
-    border-radius: 4px;
-    font-size: 0.875rem;
+/* Auto-save status indicator */
+.save-status {
+    font-size: 0.75rem;
     font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.15s;
+    margin-left: auto;
+    transition: opacity 0.3s;
 }
 
-.cancel-button {
-    background: transparent;
-    border: 1px solid var(--border-subtle);
-    color: var(--text-secondary);
+.save-status.saving {
+    color: var(--text-muted);
 }
 
-.cancel-button:hover {
-    background: var(--bg-hover);
-}
-
-.save-button {
-    background: var(--accent-primary);
-    border: none;
-    color: var(--text-white);
-}
-
-.save-button:hover:not(:disabled) {
-    background: var(--accent-hover);
-}
-
-.save-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+.save-status.saved {
+    color: #43b581;
 }
 
 /* Notification settings */
@@ -296,14 +271,5 @@
     .profile-picture-section {
         flex-direction: column;
         align-items: flex-start;
-    }
-
-    .settings-actions {
-        flex-direction: column-reverse;
-    }
-
-    .cancel-button,
-    .save-button {
-        width: 100%;
     }
 }

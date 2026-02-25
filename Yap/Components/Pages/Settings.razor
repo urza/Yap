@@ -9,6 +9,7 @@
 @inject PushSubscriptionStore PushStore
 @inject PushNotificationService PushService
 @inject ILogger<Settings> Logger
+@implements IDisposable
 
 <PageTitle>Settings</PageTitle>
 
@@ -20,6 +21,10 @@
             </svg>
         </button>
         <h2>Settings</h2>
+        @if (saveStatus != null)
+        {
+            <span class="save-status @(saveStatus == "Saved" ? "saved" : "saving")">@saveStatus</span>
+        }
     </div>
 
     <div class="settings-content">
@@ -54,14 +59,16 @@
 
             <div class="form-group">
                 <label for="display-name">Display Name</label>
-                <input type="text" id="display-name" @bind="displayName" @bind:event="oninput"
+                <input type="text" id="display-name" value="@displayName"
+                       @oninput="OnDisplayNameInput"
                        placeholder="@(UserState.Username ?? "Username")" maxlength="64" class="form-input" />
                 <span class="form-hint">Leave blank to use your username</span>
             </div>
 
             <div class="form-group">
                 <label for="bio">Bio</label>
-                <textarea id="bio" @bind="bio" @bind:event="oninput" maxlength="150"
+                <textarea id="bio" value="@bio"
+                          @oninput="OnBioInput" maxlength="150"
                           placeholder="Tell us about yourself..." class="form-textarea"></textarea>
                 <span class="form-counter">@(bio?.Length ?? 0)/150</span>
             </div>
@@ -125,20 +132,6 @@
                 }
             </div>
         </div>
-
-        <div class="settings-actions">
-            <button class="cancel-button" @onclick="GoBack">Cancel</button>
-            <button class="save-button" @onclick="SaveSettings" disabled="@(!hasChanges || isSaving)">
-                @if (isSaving)
-                {
-                    <span>Saving...</span>
-                }
-                else
-                {
-                    <span>Save Changes</span>
-                }
-            </button>
-        </div>
     </div>
 </div>
 
@@ -147,12 +140,9 @@
     private string? profilePictureUrl;
     private string? bio;
 
-    private string? originalDisplayName;
-    private string? originalProfilePictureUrl;
-    private string? originalBio;
-
     private bool isUploading = false;
-    private bool isSaving = false;
+    private string? saveStatus;
+    private CancellationTokenSource? _debounceCts;
 
     // Push notification state
     private bool pushSupported = false;
@@ -161,10 +151,6 @@
     private int serverSubscriptionCount = 0;
     private bool isPwa = false;
     private bool pushToggling = false;
-
-    private bool hasChanges => displayName != originalDisplayName ||
-                               profilePictureUrl != originalProfilePictureUrl ||
-                               bio != originalBio;
 
     protected override void OnInitialized()
     {
@@ -182,11 +168,6 @@
             profilePictureUrl = user.ProfilePictureUrl;
             bio = user.Bio;
         }
-
-        // Store originals for change detection
-        originalDisplayName = displayName;
-        originalProfilePictureUrl = profilePictureUrl;
-        originalBio = bio;
 
         // Server-side subscription count (doesn't need JS)
         if (UserState.Username != null)
@@ -206,6 +187,150 @@
             StateHasChanged();
         }
     }
+
+    private void OnDisplayNameInput(ChangeEventArgs e)
+    {
+        displayName = e.Value?.ToString();
+        DebounceSave();
+    }
+
+    private void OnBioInput(ChangeEventArgs e)
+    {
+        bio = e.Value?.ToString();
+        DebounceSave();
+    }
+
+    private void DebounceSave()
+    {
+        _debounceCts?.Cancel();
+        _debounceCts = new CancellationTokenSource();
+        var token = _debounceCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(800, token);
+                await InvokeAsync(async () =>
+                {
+                    await SaveProfileAsync();
+                    StateHasChanged();
+                });
+            }
+            catch (TaskCanceledException) { }
+        }, token);
+    }
+
+    private async Task SaveProfileAsync()
+    {
+        if (!UserState.UserId.HasValue) return;
+
+        saveStatus = "Saving...";
+        StateHasChanged();
+
+        try
+        {
+            var normalizedDisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim();
+            var normalizedBio = string.IsNullOrWhiteSpace(bio) ? null : bio.Trim();
+            var cleanProfileUrl = profilePictureUrl?.Split('?')[0];
+
+            await UserService.UpdateProfileAsync(
+                UserState.UserId.Value,
+                normalizedDisplayName,
+                cleanProfileUrl,
+                normalizedBio);
+
+            UserState.DisplayName = normalizedDisplayName;
+            UserState.ProfilePictureUrl = cleanProfileUrl;
+
+            saveStatus = "Saved";
+            StateHasChanged();
+
+            // Clear "Saved" after a short delay
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(2000);
+                await InvokeAsync(() =>
+                {
+                    if (saveStatus == "Saved")
+                    {
+                        saveStatus = null;
+                        StateHasChanged();
+                    }
+                });
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to save profile for {Username}", UserState.Username);
+            saveStatus = null;
+        }
+    }
+
+    private async Task HandleProfilePictureUpload(InputFileChangeEventArgs e)
+    {
+        if (isUploading) return;
+
+        var file = e.File;
+        if (file == null) return;
+
+        if (!file.ContentType.StartsWith("image/")) return;
+        if (file.Size > 10 * 1024 * 1024) return;
+
+        isUploading = true;
+        StateHasChanged();
+
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            var url = await ImageService.GenerateProfilePictureAsync(stream, UserState.UserId!.Value);
+            if (url != null)
+            {
+                profilePictureUrl = $"{url}?v={DateTime.UtcNow.Ticks}";
+                await SaveProfileAsync();
+            }
+        }
+        finally
+        {
+            isUploading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RemoveProfilePicture()
+    {
+        if (UserState.UserId.HasValue)
+        {
+            ImageService.DeleteProfilePicture(UserState.UserId.Value);
+        }
+        profilePictureUrl = null;
+        await SaveProfileAsync();
+    }
+
+    private void GoBack()
+    {
+        // Flush any pending debounced save immediately
+        _debounceCts?.Cancel();
+        if (UserState.UserId.HasValue)
+        {
+            var normalizedDisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim();
+            var normalizedBio = string.IsNullOrWhiteSpace(bio) ? null : bio.Trim();
+            var cleanProfileUrl = profilePictureUrl?.Split('?')[0];
+
+            _ = UserService.UpdateProfileAsync(
+                UserState.UserId.Value,
+                normalizedDisplayName,
+                cleanProfileUrl,
+                normalizedBio);
+
+            UserState.DisplayName = normalizedDisplayName;
+            UserState.ProfilePictureUrl = cleanProfileUrl;
+        }
+
+        Navigation.NavigateTo("/lobby");
+    }
+
+    // Push notification methods
 
     private async Task LoadPushStatusAsync()
     {
@@ -238,7 +363,6 @@
 
         try
         {
-            // Request permission
             var permission = await JS.InvokeAsync<string>("requestNotificationPermission");
             pushPermission = permission;
 
@@ -248,7 +372,6 @@
                 return;
             }
 
-            // Get VAPID key and subscribe
             var publicKey = PushService.GetPublicKey();
             if (publicKey == null) return;
 
@@ -292,7 +415,6 @@
 
         try
         {
-            // Unsubscribe browser
             var existingSub = await JS.InvokeAsync<string?>("getPushSubscription");
             if (existingSub != null)
             {
@@ -304,7 +426,6 @@
                 }
             }
 
-            // Remove all server-side subscriptions for this user
             if (UserState.Username != null)
             {
                 await PushStore.RemoveUserSubscriptionsAsync(UserState.Username);
@@ -352,97 +473,9 @@
         };
     }
 
-    private void GoBack()
+    public void Dispose()
     {
-        Navigation.NavigateTo("/lobby");
-    }
-
-    private async Task HandleProfilePictureUpload(InputFileChangeEventArgs e)
-    {
-        if (isUploading) return;
-
-        var file = e.File;
-        if (file == null) return;
-
-        // Validate file type
-        if (!file.ContentType.StartsWith("image/"))
-        {
-            return;
-        }
-
-        // Validate size (10MB max for profile pictures)
-        if (file.Size > 10 * 1024 * 1024)
-        {
-            return;
-        }
-
-        isUploading = true;
-        StateHasChanged();
-
-        try
-        {
-            using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
-            var url = await ImageService.GenerateProfilePictureAsync(stream, UserState.UserId!.Value);
-            if (url != null)
-            {
-                // Add cache-busting query parameter
-                profilePictureUrl = $"{url}?v={DateTime.UtcNow.Ticks}";
-            }
-        }
-        finally
-        {
-            isUploading = false;
-            StateHasChanged();
-        }
-    }
-
-    private void RemoveProfilePicture()
-    {
-        if (UserState.UserId.HasValue)
-        {
-            ImageService.DeleteProfilePicture(UserState.UserId.Value);
-        }
-        profilePictureUrl = null;
-    }
-
-    private async Task SaveSettings()
-    {
-        if (!UserState.UserId.HasValue || isSaving) return;
-
-        isSaving = true;
-        StateHasChanged();
-
-        try
-        {
-            // Normalize empty strings to null
-            var normalizedDisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim();
-            var normalizedBio = string.IsNullOrWhiteSpace(bio) ? null : bio.Trim();
-
-            // Remove cache-busting from URL before saving
-            var cleanProfileUrl = profilePictureUrl?.Split('?')[0];
-
-            await UserService.UpdateProfileAsync(
-                UserState.UserId.Value,
-                normalizedDisplayName,
-                cleanProfileUrl,
-                normalizedBio);
-
-            // Update UserState for immediate UI updates
-            UserState.DisplayName = normalizedDisplayName;
-            UserState.ProfilePictureUrl = cleanProfileUrl;
-
-            // Update originals so hasChanges becomes false
-            originalDisplayName = displayName;
-            originalProfilePictureUrl = profilePictureUrl;
-            originalBio = bio;
-
-            // Navigate back
-            Navigation.NavigateTo("/lobby");
-        }
-        finally
-        {
-            isSaving = false;
-            StateHasChanged();
-        }
+        _debounceCts?.Cancel();
+        _debounceCts?.Dispose();
     }
 }
