@@ -3,6 +3,7 @@
 @inject UserService UserService
 @inject ChatService ChatService
 @inject UserActionLogService ActionLog
+@inject PushSubscriptionStore PushStore
 @inject NavigationManager Navigation
 
 <PageTitle>Admin</PageTitle>
@@ -148,6 +149,23 @@
                     }
                     else
                     {
+                        <div class="detail-tags">
+                            <span class="detail-tag @(detailPushSubCount > 0 ? "tag-green" : "tag-muted")">
+                                @if (detailPushSubCount > 0)
+                                {
+                                    <span>Push @detailPushSubCount sub@(detailPushSubCount != 1 ? "s" : "")</span>
+                                }
+                                else
+                                {
+                                    <span>No push</span>
+                                }
+                            </span>
+                            @if (selectedUser!.PushMuted)
+                            {
+                                <span class="detail-tag tag-orange">Muted</span>
+                            }
+                        </div>
+
                         <div class="detail-tables">
                             <div class="detail-section">
                                 <h5>IP Addresses</h5>
@@ -223,6 +241,7 @@
     // User detail panel
     private Guid? selectedUserId;
     private bool loadingDetail;
+    private int detailPushSubCount;
     private List<(string IP, DateTime LastSeen)> detailIPs = new();
     private List<(string UserAgent, DateTime LastSeen)> detailUserAgents = new();
 
@@ -275,6 +294,9 @@
 
         selectedUserId = userId;
         loadingDetail = true;
+
+        var user = users.First(u => u.Id == userId);
+        detailPushSubCount = PushStore.GetSubscriptions(user.Username).Count();
 
         var (ips, agents) = await ActionLog.GetUserConnectionDetailsAsync(userId.ToString());
         detailIPs = ips;

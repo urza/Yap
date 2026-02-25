@@ -345,6 +345,37 @@
     padding: 1rem 0;
 }
 
+.detail-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+}
+
+.detail-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.625rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.tag-green {
+    background: rgba(59, 165, 92, 0.15);
+    color: var(--status-online);
+}
+
+.tag-orange {
+    background: rgba(250, 166, 26, 0.15);
+    color: var(--status-away);
+}
+
+.tag-muted {
+    background: rgba(116, 127, 141, 0.1);
+    color: var(--text-muted);
+}
+
 .detail-tables {
     display: flex;
     flex-direction: column;
