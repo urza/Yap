@@ -96,6 +96,7 @@ else
     builder.Services.AddSingleton<IPushSubscriptionPersistence, JsonPushSubscriptionPersistence>();
 
 // Chat services
+builder.Services.AddSingleton<GeoLocationService>();
 builder.Services.AddSingleton<CustomEmojiService>();
 builder.Services.AddSingleton<ImageService>();
 builder.Services.AddSingleton<PushSubscriptionStore>();

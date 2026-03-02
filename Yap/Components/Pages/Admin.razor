@@ -4,6 +4,7 @@
 @inject ChatService ChatService
 @inject UserActionLogService ActionLog
 @inject PushSubscriptionStore PushStore
+@inject GeoLocationService GeoLocation
 @inject NavigationManager Navigation
 
 <PageTitle>Admin</PageTitle>
@@ -108,7 +109,8 @@
                                     {
                                         @foreach (var ip in ips)
                                         {
-                                            <span class="ip-tag">@ip</span>
+                                            var geo = GeoLocation.IsAvailable ? GeoLocation.Lookup(ip)?.ToString() : null;
+                                            <span class="ip-tag" title="@(geo ?? "")">@ip</span>
                                         }
                                     }
                                     else
@@ -175,6 +177,10 @@
                                         <thead>
                                             <tr>
                                                 <th>IP Address</th>
+                                                @if (GeoLocation.IsAvailable)
+                                                {
+                                                    <th>Location</th>
+                                                }
                                                 <th>Last Seen</th>
                                             </tr>
                                         </thead>
@@ -183,6 +189,11 @@
                                             {
                                                 <tr>
                                                     <td class="ip-mono">@ip</td>
+                                                    @if (GeoLocation.IsAvailable)
+                                                    {
+                                                        var geoDetail = GeoLocation.Lookup(ip);
+                                                        <td class="geo-cell">@(geoDetail?.ToString() ?? "—")</td>
+                                                    }
                                                     <td class="date-cell">@lastSeen.ToString("yyyy-MM-dd HH:mm")</td>
                                                 </tr>
                                             }

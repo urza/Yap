@@ -371,3 +371,4 @@ uploads/
 /Yap/Data/yap.db-wal
 /Yap/Data/RequestLogs/*
 /Yap/Data/custom-emojis/*
+/Yap/Data/ip2location/*
