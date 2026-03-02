@@ -90,7 +90,7 @@ self.addEventListener('push', (event) => {
 
     const promises = [];
 
-    // Update badge count
+    // Update badge count (always, even when muted)
     if ('setAppBadge' in self.navigator && data.unreadCount > 0) {
         promises.push(
             self.navigator.setAppBadge(data.unreadCount)
@@ -98,18 +98,22 @@ self.addEventListener('push', (event) => {
         );
     }
 
-    // Show notification (server already filters out active users)
-    promises.push(
-        self.registration.showNotification(data.title, {
-            body: data.body,
-            icon: data.icon,
-            badge: data.badge,
-            tag: data.tag,
-            renotify: true,
-            requireInteraction: false,
-            data: { url: data.url }
-        })
-    );
+    // Show notification banner (skip if muted)
+    if (data.muted) {
+        console.log('[SW] Muted — badge only, no banner');
+    } else {
+        promises.push(
+            self.registration.showNotification(data.title, {
+                body: data.body,
+                icon: data.icon,
+                badge: data.badge,
+                tag: data.tag,
+                renotify: true,
+                requireInteraction: false,
+                data: { url: data.url }
+            })
+        );
+    }
 
     event.waitUntil(Promise.all(promises));
 });

@@ -113,9 +113,24 @@
                 }
                 else if (pushSubscribed)
                 {
-                    <button class="remove-button" @onclick="DisablePush" disabled="@pushToggling">
-                        @(pushToggling ? "Disabling..." : "Disable Notifications")
-                    </button>
+                    <span class="form-hint">
+                        @if (pushMuted)
+                        {
+                            <text>Notifications are muted — you'll still see the unread badge on the app icon, but no banners or sounds.</text>
+                        }
+                        else
+                        {
+                            <text>You'll receive banner alerts with message previews and the unread badge on the app icon.</text>
+                        }
+                    </span>
+                    <div class="notification-buttons">
+                        <button class="@(pushMuted ? "upload-button" : "remove-button")" @onclick="ToggleMute" disabled="@pushToggling">
+                            @(pushMuted ? "Unmute Notifications" : "Mute Notifications")
+                        </button>
+                        <button class="remove-button" @onclick="DisablePush" disabled="@pushToggling">
+                            @(pushToggling ? "Disabling..." : "Unsubscribe")
+                        </button>
+                    </div>
                 }
                 else
                 {
@@ -159,6 +174,7 @@
     // Push notification state
     private bool pushSupported = false;
     private bool pushSubscribed = false;
+    private bool pushMuted = false;
     private string? pushPermission;
     private int serverSubscriptionCount = 0;
     private bool isPwa = false;
@@ -179,6 +195,7 @@
             displayName = user.DisplayName;
             profilePictureUrl = user.ProfilePictureUrl;
             bio = user.Bio;
+            pushMuted = user.PushMuted;
         }
 
         // Server-side subscription count (doesn't need JS)
@@ -416,6 +433,23 @@
         {
             pushToggling = false;
             StateHasChanged();
+        }
+    }
+
+    private async Task ToggleMute()
+    {
+        if (!UserState.UserId.HasValue) return;
+
+        try
+        {
+            pushMuted = !pushMuted;
+            await UserService.SetPushMutedAsync(UserState.UserId.Value, pushMuted);
+            Logger.LogDebug("Notifications {State} for {Username} from settings", pushMuted ? "muted" : "unmuted", UserState.Username);
+        }
+        catch (Exception ex)
+        {
+            pushMuted = !pushMuted; // revert
+            Logger.LogError(ex, "Failed to toggle mute for {Username}", UserState.Username);
         }
     }
 

@@ -103,12 +103,12 @@ public class PushNotificationService
             return;
         }
 
-        // Check if user has muted push notifications
+        // Check if user has muted banner notifications (badge still sent)
         var user = _userService.GetByUsername(username);
         if (user?.PushMuted == true)
         {
-            _logger.LogDebug("Push muted for {Username}, skipping notification", username);
-            return;
+            payload = payload with { Muted = true };
+            _logger.LogDebug("Push muted for {Username}, sending badge-only", username);
         }
 
         var subscriptions = _subscriptionStore.GetSubscriptions(username).ToList();
@@ -180,4 +180,5 @@ public record PushPayload
     public string Tag { get; init; } = "chat";
     public string Url { get; init; } = "/";
     public int UnreadCount { get; init; }
+    public bool Muted { get; init; }
 }
