@@ -4,6 +4,37 @@ using WebPush;
 namespace Yap.Services;
 
 /// <summary>
+/// Delegating handler that logs HTTP request/response details for push notifications.
+/// </summary>
+public class PushLogHandler : DelegatingHandler
+{
+    private readonly ILogger _logger;
+
+    public PushLogHandler(ILogger logger) : base(new HttpClientHandler())
+    {
+        _logger = logger;
+    }
+
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        _logger.LogDebug("Push HTTP {Method} {Url}", request.Method, request.RequestUri);
+
+        var response = await base.SendAsync(request, cancellationToken);
+
+        _logger.LogDebug("Push HTTP {StatusCode} ({StatusInt}) from {Url}",
+            response.StatusCode, (int)response.StatusCode, request.RequestUri);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogWarning("Push HTTP error body: {Body}", body);
+        }
+
+        return response;
+    }
+}
+
+/// <summary>
 /// Service for sending push notifications to users.
 /// Used to notify users of DMs when they're not actively using the app.
 /// </summary>
@@ -25,7 +56,9 @@ public class PushNotificationService
         _subscriptionStore = subscriptionStore;
         _userService = userService;
         _logger = logger;
-        _webPushClient = new WebPushClient();
+
+        var httpClient = new HttpClient(new PushLogHandler(logger));
+        _webPushClient = new WebPushClient(httpClient);
 
         // Load VAPID keys from configuration
         var subject = configuration["Vapid:Subject"];
