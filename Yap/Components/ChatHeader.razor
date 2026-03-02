@@ -16,6 +16,11 @@
     {
         var dmUser = UserService.GetByUsername(NavState.CurrentDmUser);
         <div class="dm-header-title">
+            <button class="back-button" @onclick="NavigateBack" title="Back to lobby">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+                </svg>
+            </button>
             <Avatar Username="@(dmUser?.Username ?? NavState.CurrentDmUser)"
                     ProfilePictureUrl="@dmUser?.ProfilePictureUrl"
                     Size="AvatarSize.Small" />
@@ -372,6 +377,11 @@
     private void HandleMailboxClick()
     {
         NavState.OpenSidebar();
+    }
+
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo("/lobby");
     }
 
     private void OpenSettings()

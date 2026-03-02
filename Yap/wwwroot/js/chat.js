@@ -1,3 +1,14 @@
+// Welcome page: attach click handler to #yap-enter element
+window.setupWelcomePage = (dotNetRef) => {
+    const el = document.getElementById('yap-enter');
+    if (el) {
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', () => {
+            dotNetRef.invokeMethodAsync('OnEnterClicked');
+        });
+    }
+};
+
 // Tab notification helpers
 let dotNetRef = null;
 let notificationAudio = null;

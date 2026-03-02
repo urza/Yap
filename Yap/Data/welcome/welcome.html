@@ -1,0 +1,92 @@
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    .welcome-page {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        background: #1e1f22;
+        color: #f2f3f5;
+        font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .welcome-page::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(ellipse at center, rgba(88, 101, 242, 0.12) 0%, transparent 60%);
+        animation: pulse 8s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 0.6; }
+        50% { transform: scale(1.1); opacity: 1; }
+    }
+
+    .welcome-content {
+        position: relative;
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .welcome-logo {
+        font-size: 5rem;
+        font-weight: 800;
+        letter-spacing: -2px;
+        background: linear-gradient(135deg, #5865f2, #eb459e);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 0.5rem;
+    }
+
+    .welcome-tagline {
+        font-size: 1.2rem;
+        color: #b5bac1;
+        margin-bottom: 3rem;
+    }
+
+    #yap-enter {
+        display: inline-block;
+        padding: 1rem 3rem;
+        background: #5865f2;
+        color: #fff;
+        font-size: 1.1rem;
+        font-weight: 600;
+        border-radius: 28px;
+        text-decoration: none;
+        transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+        user-select: none;
+    }
+
+    #yap-enter:hover {
+        background: #4752c4;
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(88, 101, 242, 0.4);
+    }
+
+    #yap-enter:active {
+        transform: translateY(0);
+    }
+
+    @media (max-width: 600px) {
+        .welcome-logo { font-size: 3.5rem; }
+        .welcome-tagline { font-size: 1rem; margin-bottom: 2rem; }
+        #yap-enter { padding: 0.85rem 2.5rem; font-size: 1rem; }
+    }
+</style>
+
+<div class="welcome-page">
+    <div class="welcome-content">
+        <div class="welcome-logo">Yap</div>
+        <p class="welcome-tagline">where conversations happen</p>
+        <div id="yap-enter">Enter</div>
+    </div>
+</div>

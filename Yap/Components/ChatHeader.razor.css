@@ -18,6 +18,25 @@
     white-space: nowrap;
 }
 
+.back-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 4px;
+    transition: background-color 0.2s, color 0.2s;
+    flex-shrink: 0;
+}
+
+.back-button:hover {
+    background: rgba(79, 84, 92, 0.4);
+    color: var(--text-primary);
+}
+
 .dm-header-title {
     display: flex;
     align-items: center;

@@ -169,6 +169,15 @@ app.UseStaticFiles(new StaticFileOptions
     RequestPath = "/custom-emojis"
 });
 
+// Serve welcome page assets from Data/welcome/ folder
+var welcomePath = Path.Combine(app.Environment.ContentRootPath, "Data", "welcome");
+Directory.CreateDirectory(welcomePath);
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(welcomePath),
+    RequestPath = "/welcome-content"
+});
+
 // Custom middlewares - positioned after UseStaticFiles() to skip static file requests
 app.UseMiddleware<AuthMiddleware>();
 app.UseMiddleware<DeviceDetectionMiddleware>();

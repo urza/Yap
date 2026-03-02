@@ -11,6 +11,7 @@ public class ChatConfigService
 
     public string ProjectName => _configuration["ChatSettings:ProjectName"] ?? "Yap";
     public string RoomName => _configuration["ChatSettings:RoomName"] ?? "lobby";
+    public bool WelcomePageEnabled => _configuration.GetValue<bool>("ChatSettings:WelcomePageEnabled", true);
 
     public string GetRandomWelcomeMessage()
         => GetRandomText("WelcomeMessages", "Welcome to {0}!", ProjectName);

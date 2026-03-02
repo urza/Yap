@@ -1,0 +1,111 @@
+@page "/"
+@implements IDisposable
+@inject ChatConfigService ChatConfig
+@inject UserService UserService
+@inject UserStateService UserState
+@inject NavigationManager Navigation
+@inject IWebHostEnvironment Env
+@inject IJSRuntime JS
+
+@if (_welcomeHtml != null)
+{
+    <PageTitle>@ChatConfig.ProjectName</PageTitle>
+    @((MarkupString)_welcomeHtml)
+}
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
+
+    private string? _welcomeHtml;
+    private DotNetObjectReference<Welcome>? _dotNetRef;
+    private bool _shouldRedirectToLobby;
+    private bool _shouldRedirectToLogin;
+
+    private static string? _cachedHtml;
+
+    private string? SafeReturnUrl =>
+        !string.IsNullOrEmpty(ReturnUrl) && ReturnUrl.StartsWith("/") && !ReturnUrl.StartsWith("//")
+            ? ReturnUrl
+            : null;
+
+    protected override void OnInitialized()
+    {
+        // Already authenticated → skip to lobby (or returnUrl)
+        if (UserState.IsLoggedIn && UserState.UserId.HasValue)
+        {
+            var existingUser = UserService.GetById(UserState.UserId.Value);
+            if (existingUser != null)
+            {
+                _shouldRedirectToLobby = true;
+                return;
+            }
+        }
+
+        // Check if welcome page is enabled and HTML exists
+        if (ChatConfig.WelcomePageEnabled)
+        {
+            var html = GetWelcomeHtml();
+            if (html != null)
+            {
+                _welcomeHtml = html;
+                return;
+            }
+        }
+
+        // No welcome page → redirect to login
+        _shouldRedirectToLogin = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        if (_shouldRedirectToLobby)
+        {
+            Navigation.NavigateTo(SafeReturnUrl ?? "/lobby");
+            return;
+        }
+
+        if (_shouldRedirectToLogin)
+        {
+            var loginUrl = SafeReturnUrl != null
+                ? $"/login?returnUrl={Uri.EscapeDataString(SafeReturnUrl)}"
+                : "/login";
+            Navigation.NavigateTo(loginUrl);
+            return;
+        }
+
+        // Welcome page is shown — set up JS interop for #yap-enter
+        if (_welcomeHtml != null)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("setupWelcomePage", _dotNetRef);
+        }
+    }
+
+    [JSInvokable]
+    public void OnEnterClicked()
+    {
+        var loginUrl = SafeReturnUrl != null
+            ? $"/login?returnUrl={Uri.EscapeDataString(SafeReturnUrl)}"
+            : "/login";
+        Navigation.NavigateTo(loginUrl);
+    }
+
+    private string? GetWelcomeHtml()
+    {
+        if (_cachedHtml != null) return _cachedHtml;
+
+        var path = Path.Combine(Env.ContentRootPath, "Data", "welcome", "welcome.html");
+        if (!File.Exists(path)) return null;
+
+        _cachedHtml = File.ReadAllText(path);
+        return _cachedHtml;
+    }
+
+    public void Dispose()
+    {
+        _dotNetRef?.Dispose();
+    }
+}
