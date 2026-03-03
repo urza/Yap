@@ -320,7 +320,7 @@ public class UserService
     /// <summary>
     /// Updates a user's profile (display name, profile picture, bio).
     /// </summary>
-    public async Task UpdateProfileAsync(Guid userId, string? displayName, string? profilePictureUrl, string? bio)
+    public async Task UpdateProfileAsync(Guid userId, string? displayName, string? profilePictureUrl, string? bio, string? country)
     {
         if (!_users.TryGetValue(userId, out var user))
             return;
@@ -329,6 +329,7 @@ public class UserService
         user.DisplayName = displayName;
         user.ProfilePictureUrl = profilePictureUrl;
         user.Bio = bio;
+        user.Country = country;
 
         // Persist to database
         if (_persistenceEnabled)
@@ -341,7 +342,8 @@ public class UserService
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(u => u.DisplayName, displayName)
                         .SetProperty(u => u.ProfilePictureUrl, profilePictureUrl)
-                        .SetProperty(u => u.Bio, bio));
+                        .SetProperty(u => u.Bio, bio)
+                        .SetProperty(u => u.Country, country));
             }
             catch (Exception ex)
             {

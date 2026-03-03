@@ -29,7 +29,7 @@ public class GeoLocationService
             var dir = Path.Combine(env.ContentRootPath, "Data", "ip2location");
             if (!Directory.Exists(dir))
             {
-                _logger.LogDebug("IP2Location directory not found, geolocation disabled");
+                _logger.LogInformation("IP2Location: directory not found, geolocation disabled");
                 return;
             }
 
@@ -37,7 +37,7 @@ public class GeoLocationService
             var binFile = Directory.GetFiles(dir, "*DB3*.BIN").FirstOrDefault();
             if (binFile == null)
             {
-                _logger.LogDebug("No DB3 BIN file found in Data/ip2location/, geolocation disabled");
+                _logger.LogInformation("IP2Location: no *DB3*.BIN file found, geolocation disabled");
                 return;
             }
 
@@ -172,10 +172,6 @@ public class GeoInfo
     public override string ToString()
     {
         if (CountryCode == "-") return "";
-        if (!string.IsNullOrEmpty(City) && City != "-")
-            return $"{City}, {CountryCode}";
-        if (!string.IsNullOrEmpty(Region) && Region != "-")
-            return $"{Region}, {CountryCode}";
         return Country;
     }
 }

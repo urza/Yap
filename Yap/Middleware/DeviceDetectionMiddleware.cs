@@ -29,6 +29,13 @@ public class DeviceDetectionMiddleware
 
         context.Items["IsMobile"] = isMobile;
 
+        // Capture client IP for downstream components (e.g. GeoLocation)
+        var forwardedFor = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+        if (!string.IsNullOrEmpty(forwardedFor))
+            context.Items["ClientIp"] = forwardedFor.Split(',')[0].Trim();
+        else
+            context.Items["ClientIp"] = context.Connection.RemoteIpAddress?.ToString();
+
         await _next(context);
     }
 }

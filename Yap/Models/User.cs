@@ -50,6 +50,11 @@ public class User
     public string? Bio { get; set; }
 
     /// <summary>
+    /// User's location (free text, e.g. "Prague, CZ" or "United States").
+    /// </summary>
+    public string? Country { get; set; }
+
+    /// <summary>
     /// Whether push notifications are muted for this user.
     /// When true, PushNotificationService skips sending (subscription stays intact).
     /// </summary>

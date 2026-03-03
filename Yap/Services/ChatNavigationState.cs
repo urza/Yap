@@ -63,6 +63,7 @@ public class ChatNavigationState
     {
         CurrentRoomId = roomId;
         CurrentDmUser = null;
+        ShowBackButton = false;
         Title = headerTitle;
         NotifyStateChanged();
     }
@@ -71,6 +72,7 @@ public class ChatNavigationState
     {
         CurrentRoomId = null;
         CurrentDmUser = dmUser;
+        ShowBackButton = false;
         Title = $"@{dmUser}";
         NotifyStateChanged();
     }
@@ -87,9 +89,25 @@ public class ChatNavigationState
         NotifyStateChanged();
     }
 
+    /// <summary>
+    /// Whether the header should show a back arrow (e.g. Settings, Admin pages).
+    /// Not persisted — transient UI state.
+    /// </summary>
+    public bool ShowBackButton { get; set; }
+
     public void SetTitle(string title)
     {
         Title = title;
+        ShowBackButton = false;
+        NotifyStateChanged();
+    }
+
+    public void SetTitleWithBack(string title)
+    {
+        Title = title;
+        ShowBackButton = true;
+        CurrentRoomId = null;
+        CurrentDmUser = null;
         NotifyStateChanged();
     }
 

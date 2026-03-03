@@ -8,6 +8,8 @@
 @inject IJSRuntime JS
 @inject PushSubscriptionStore PushStore
 @inject PushNotificationService PushService
+@inject GeoLocationService GeoLocation
+@inject IHttpContextAccessor HttpContextAccessor
 @inject ILogger<Settings> Logger
 @implements IDisposable
 
@@ -15,11 +17,6 @@
 
 <div class="settings-container">
     <div class="settings-header">
-        <button class="back-button" @onclick="GoBack" title="Go back">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
-            </svg>
-        </button>
         <h2>Settings</h2>
         @if (saveStatus != null)
         {
@@ -28,6 +25,7 @@
     </div>
 
     <div class="settings-content">
+        <p class="form-hint" style="margin-bottom: 12px;">Changes are saved automatically.</p>
         <div class="settings-section">
             <h3>Profile</h3>
 
@@ -62,15 +60,31 @@
                 <input type="text" id="display-name" value="@displayName"
                        @oninput="OnDisplayNameInput"
                        placeholder="@(UserState.Username ?? "Username")" maxlength="64" class="form-input" />
-                <span class="form-hint">Leave blank to use your username</span>
+                <span class="form-hint">Your username is UserState.Username, but your display name can be more fun. It can contain symbols and emojis :) </span>
             </div>
 
             <div class="form-group">
                 <label for="bio">Bio</label>
                 <textarea id="bio" value="@bio"
                           @oninput="OnBioInput" maxlength="150"
-                          placeholder="Tell us about yourself..." class="form-textarea"></textarea>
+                          placeholder="Why are you awesome..." class="form-textarea"></textarea>
                 <span class="form-counter">@(bio?.Length ?? 0)/150</span>
+            </div>
+
+            <div class="form-group">
+                <label for="country">Tell us where are you from - we have map!</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="text" id="country" value="@country"
+                           @oninput="OnCountryInput"
+                           placeholder="London" maxlength="100" class="form-input" style="flex: 1;" />
+                    @if (detectedLocation != null)
+                    {
+                        <button class="upload-button" @onclick="FillDetectedLocation" style="white-space: nowrap;">
+                            Detect
+                        </button>
+                    }
+                </div>
+                <span class="form-hint">Your location — used for the user map</span>
             </div>
         </div>
 
@@ -166,6 +180,8 @@
     private string? displayName;
     private string? profilePictureUrl;
     private string? bio;
+    private string? country;
+    private string? detectedLocation;
 
     private bool isUploading = false;
     private string? saveStatus;
@@ -195,7 +211,18 @@
             displayName = user.DisplayName;
             profilePictureUrl = user.ProfilePictureUrl;
             bio = user.Bio;
+            country = user.Country;
             pushMuted = user.PushMuted;
+        }
+
+        // Detect location from IP for the Detect button
+        if (GeoLocation.IsAvailable)
+        {
+            var clientIp = HttpContextAccessor.HttpContext?.Items["ClientIp"]?.ToString();
+            var geo = GeoLocation.Lookup(clientIp);
+            var location = geo?.ToString();
+            if (!string.IsNullOrEmpty(location))
+                detectedLocation = location;
         }
 
         // Server-side subscription count (doesn't need JS)
@@ -205,7 +232,7 @@
         }
 
         // Set nav context
-        NavState.SetTitle("Settings");
+        NavState.SetTitleWithBack("Settings");
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -227,6 +254,21 @@
     {
         bio = e.Value?.ToString();
         DebounceSave();
+    }
+
+    private void OnCountryInput(ChangeEventArgs e)
+    {
+        country = e.Value?.ToString();
+        DebounceSave();
+    }
+
+    private void FillDetectedLocation()
+    {
+        if (detectedLocation != null)
+        {
+            country = detectedLocation;
+            DebounceSave();
+        }
     }
 
     private void DebounceSave()
@@ -261,13 +303,15 @@
         {
             var normalizedDisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim();
             var normalizedBio = string.IsNullOrWhiteSpace(bio) ? null : bio.Trim();
+            var normalizedCountry = string.IsNullOrWhiteSpace(country) ? null : country.Trim();
             var cleanProfileUrl = profilePictureUrl?.Split('?')[0];
 
             await UserService.UpdateProfileAsync(
                 UserState.UserId.Value,
                 normalizedDisplayName,
                 cleanProfileUrl,
-                normalizedBio);
+                normalizedBio,
+                normalizedCountry);
 
             UserState.DisplayName = normalizedDisplayName;
             UserState.ProfilePictureUrl = cleanProfileUrl;
@@ -344,13 +388,15 @@
         {
             var normalizedDisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim();
             var normalizedBio = string.IsNullOrWhiteSpace(bio) ? null : bio.Trim();
+            var normalizedCountry = string.IsNullOrWhiteSpace(country) ? null : country.Trim();
             var cleanProfileUrl = profilePictureUrl?.Split('?')[0];
 
             _ = UserService.UpdateProfileAsync(
                 UserState.UserId.Value,
                 normalizedDisplayName,
                 cleanProfileUrl,
-                normalizedBio);
+                normalizedBio,
+                normalizedCountry);
 
             UserState.DisplayName = normalizedDisplayName;
             UserState.ProfilePictureUrl = cleanProfileUrl;
