@@ -29,27 +29,47 @@
     private string Initial => string.IsNullOrEmpty(Username) ? "?" : Username[0].ToString().ToUpperInvariant();
 
     private string BackgroundStyle => string.IsNullOrEmpty(ProfilePictureUrl)
-        ? $"background-color: {GetColorFromUsername(Username)};"
+        ? GetGradientFromUsername(Username)
         : "";
 
     /// <summary>
-    /// Generates a consistent color from username hash.
-    /// Uses HSL for pleasant colors with good contrast.
+    /// Curated gradient pairs — visually pleasing combos that look good behind white text.
     /// </summary>
-    private static string GetColorFromUsername(string username)
+    private static readonly (string From, string To)[] Gradients =
+    [
+        ("#667eea", "#764ba2"), // indigo → purple
+        ("#f093fb", "#f5576c"), // pink → coral
+        ("#4facfe", "#00f2fe"), // sky → cyan
+        ("#43e97b", "#38f9d7"), // green → mint
+        ("#fa709a", "#fee140"), // rose → gold
+        ("#a18cd1", "#fbc2eb"), // lavender → blush
+        ("#fccb90", "#d57eeb"), // peach → violet
+        ("#e0c3fc", "#8ec5fc"), // lilac → blue
+        ("#f6d365", "#fda085"), // sunshine → salmon
+        ("#96fbc4", "#f9f586"), // mint → lemon
+        ("#ff9a9e", "#fecfef"), // blush → pink
+        ("#a1c4fd", "#c2e9fb"), // periwinkle → ice
+        ("#d4fc79", "#96e6a1"), // lime → sage
+        ("#84fab0", "#8fd3f4"), // aqua → sky
+        ("#fbc2eb", "#a6c1ee"), // cotton candy → steel blue
+        ("#ff6a88", "#ff99ac"), // strawberry → light pink
+        ("#ffd89b", "#19547b"), // gold → deep teal
+        ("#c471f5", "#fa71cd"), // purple → magenta
+        ("#48c6ef", "#6f86d6"), // ocean → slate
+        ("#feada6", "#f5efef"), // nude → snow
+    ];
+
+    private static string GetGradientFromUsername(string username)
     {
         if (string.IsNullOrEmpty(username))
-            return "hsl(0, 0%, 50%)";
+            return "background: linear-gradient(135deg, #667eea, #764ba2);";
 
-        // Simple hash to get a consistent hue
         var hash = 0;
         foreach (var c in username)
-        {
             hash = c + ((hash << 5) - hash);
-        }
 
-        // Use hue from 0-360, keep saturation/lightness for nice colors
-        var hue = Math.Abs(hash) % 360;
-        return $"hsl({hue}, 65%, 45%)";
+        var index = (int)(((uint)hash) % Gradients.Length);
+        var (from, to) = Gradients[index];
+        return $"background: linear-gradient(135deg, {from}, {to});";
     }
 }
