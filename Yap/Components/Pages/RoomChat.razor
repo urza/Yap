@@ -36,7 +36,7 @@
     {
         var message = messages[i];
         var isSystemMessage = message.Username == "System";
-        var showHeader = !isSystemMessage && (i == 0 || messages[i - 1].Username != message.Username || message.ReplyToMessageId != null);
+        var showHeader = !isSystemMessage && ShouldShowHeader(i);
         var replyTarget = GetReplyTarget(message);
 
         <MessageItem Message="@message"

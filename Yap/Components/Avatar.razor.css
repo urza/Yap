@@ -36,4 +36,9 @@
     color: white;
     font-weight: 600;
     text-transform: uppercase;
+    /* The avatar div gets box-shadow since border would cut into the gradient */
+}
+
+.avatar:has(.avatar-initials) {
+    box-shadow: 0 0 0 1px white;
 }

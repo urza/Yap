@@ -26,7 +26,7 @@
     @for (int i = 0; i < messages.Count; i++)
     {
         var message = messages[i];
-        var showHeader = i == 0 || messages[i - 1].Username != message.Username || message.ReplyToMessageId != null;
+        var showHeader = ShouldShowHeader(i);
         var replyTarget = GetReplyTarget(message);
 
         <MessageItem Message="@message"

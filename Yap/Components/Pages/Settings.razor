@@ -60,7 +60,7 @@
                 <input type="text" id="display-name" value="@displayName"
                        @oninput="OnDisplayNameInput"
                        placeholder="@(UserState.Username ?? "Username")" maxlength="64" class="form-input" />
-                <span class="form-hint">Your username is UserState.Username, but your display name can be more fun. It can contain symbols and emojis :) </span>
+                <span class="form-hint">Your username is @UserState.Username, but your display name can be more fun. It can contain symbols and emojis :) </span>
             </div>
 
             <div class="form-group">

@@ -42,6 +42,12 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     protected bool hasMoreMessages = true;
     protected const int PageSize = 50;
 
+    /// <summary>
+    /// If consecutive messages from the same user are more than this apart,
+    /// show the avatar/header again (as if it were a new message group).
+    /// </summary>
+    protected static readonly TimeSpan MessageGroupingTimeout = TimeSpan.FromHours(1);
+
     // Disposable references
     private DotNetObjectReference<ChatBase>? _visibilityRef;
 
@@ -131,6 +137,33 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     /// Called after first render - derived classes load their messages here.
     /// </summary>
     protected virtual Task OnInitializedChatAsync() => Task.CompletedTask;
+
+    #region Message Grouping
+
+    /// <summary>
+    /// Determines whether a message should show its avatar and username header,
+    /// or be visually grouped with the previous message.
+    /// </summary>
+    protected bool ShouldShowHeader(int index)
+    {
+        if (index == 0) return true;
+
+        var message = messages[index];
+        var previous = messages[index - 1];
+
+        // Different author — always show
+        if (previous.Username != message.Username) return true;
+
+        // Replies always start a new group
+        if (message.ReplyToMessageId != null) return true;
+
+        // Too much time passed — start a new group
+        if ((message.Timestamp - previous.Timestamp) >= MessageGroupingTimeout) return true;
+
+        return false;
+    }
+
+    #endregion
 
     #region UI Helpers
 
