@@ -99,7 +99,7 @@
                     {
                         <div style="display: flex; gap: 8px; align-items: center;">
                             <input type="text" value="@passwordInput"
-                                   @oninput="e => passwordInput = e.Value?.ToString() ?? """
+                                   @oninput="@(e => passwordInput = e.Value?.ToString() ?? string.Empty)"
                                    placeholder="Enter new passphrase" maxlength="64" class="form-input" style="flex: 1;" />
                             <button class="upload-button" @onclick="GenerateNewPassphrase" style="white-space: nowrap;">
                                 Generate
@@ -131,7 +131,7 @@
                     <label>Passphrase</label>
                     <div style="display: flex; gap: 8px; align-items: center;">
                         <input type="text" value="@passwordInput"
-                               @oninput="e => passwordInput = e.Value?.ToString() ?? """
+                               @oninput="@(e => passwordInput = e.Value?.ToString() ?? string.Empty)"
                                placeholder="Enter passphrase" maxlength="64" class="form-input" style="flex: 1;" />
                         <button class="upload-button" @onclick="GenerateNewPassphrase" style="white-space: nowrap;">
                             Generate
