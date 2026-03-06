@@ -1,4 +1,3 @@
-@using System.Globalization
 @using Yap.Models
 @using Yap.Services
 @inject EmojiService EmojiService
@@ -206,19 +205,20 @@
     private string FormatTimestamp()
     {
         var tz = UserState.GetTimeZoneInfo();
-        var culture = UserState.GetCultureInfo();
+        var fmt = UserState.GetDateFormatPreset();
+        var ic = System.Globalization.CultureInfo.InvariantCulture;
         var local = TimeZoneInfo.ConvertTime(Message.Timestamp, tz);
         var now = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, tz);
 
-        var time = local.ToString("t", culture);  // culture's short time (e.g. "14:30" or "2:30 PM")
+        var time = local.ToString(fmt.Time, ic);
 
         if (local.Date == now.Date)
             return time;
         if (local.Date == now.Date.AddDays(-1))
             return $"Yesterday {time}";
         if (local.Year == now.Year)
-            return $"{local.ToString("M", culture)} {time}";  // culture's month/day (e.g. "4. březen" or "March 4")
-        return $"{local.ToString("d", culture)} {time}";       // culture's short date (e.g. "04.03.2025" or "3/4/2025")
+            return $"{local.ToString(fmt.DateInYear, ic)} {time}";
+        return $"{local.ToString(fmt.FullDate, ic)} {time}";
     }
 
     private string GetReplyPreviewText()

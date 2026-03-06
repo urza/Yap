@@ -382,13 +382,15 @@ public class UserService
     /// <summary>
     /// Updates the user's timezone and locale (detected from browser).
     /// </summary>
-    public async Task UpdateLocaleAsync(Guid userId, string? timeZone, string? locale)
+    public async Task UpdateLocaleAsync(Guid userId, string? timeZone, string? locale, string? dateFormat = null)
     {
         if (!_users.TryGetValue(userId, out var user))
             return;
 
         user.TimeZone = timeZone;
         user.Locale = locale;
+        if (dateFormat != null)
+            user.DateFormat = dateFormat;
 
         if (_persistenceEnabled)
         {
@@ -399,7 +401,8 @@ public class UserService
                     .Where(u => u.Id == userId)
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(u => u.TimeZone, timeZone)
-                        .SetProperty(u => u.Locale, locale));
+                        .SetProperty(u => u.Locale, locale)
+                        .SetProperty(u => u.DateFormat, dateFormat ?? user.DateFormat));
             }
             catch (Exception ex)
             {

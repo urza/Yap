@@ -89,6 +89,42 @@
         </div>
 
         <div class="settings-section">
+            <h3>Time & Date</h3>
+
+            <div class="form-group">
+                <label>Your time</label>
+                <div class="time-widget">
+                    <button class="time-adjust-btn" @onclick="() => AdjustTimezone(-1)" title="−1 hour">−</button>
+                    <span class="current-time">@GetCurrentTime()</span>
+                    <button class="time-adjust-btn" @onclick="() => AdjustTimezone(1)" title="+1 hour">+</button>
+                    <button class="upload-button" @onclick="DetectTimezone" style="white-space: nowrap; margin-left: 8px;">
+                        Detect
+                    </button>
+                </div>
+                <span class="form-hint">Adjust if the time doesn't match your clock</span>
+            </div>
+
+            <div class="form-group">
+                <label>Date format</label>
+                @{
+                    var previewTime = GetPreviewTime();
+                }
+                <div class="format-options">
+                    @foreach (var preset in LocaleResolver.Presets)
+                    {
+                        var id = preset.Id;
+                        <label class="format-option @(dateFormat == id ? "selected" : "")">
+                            <input type="radio" name="dateFormat" checked="@(dateFormat == id)"
+                                   @onchange="() => SelectDateFormat(id)" />
+                            <span class="format-example">@preset.FormatExample(previewTime)</span>
+                            <span class="format-label">@preset.Label</span>
+                        </label>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-section">
             <h3>Notifications</h3>
 
             <div class="notification-status">
@@ -182,6 +218,8 @@
     private string? bio;
     private string? country;
     private string? detectedLocation;
+    private string? timeZone;
+    private string? dateFormat;
 
     private bool isUploading = false;
     private string? saveStatus;
@@ -212,6 +250,8 @@
             profilePictureUrl = user.ProfilePictureUrl;
             bio = user.Bio;
             country = user.Country;
+            timeZone = user.TimeZone;
+            dateFormat = user.DateFormat ?? LocaleResolver.GuessPresetFromLocale(user.Locale);
             pushMuted = user.PushMuted;
         }
 
@@ -260,6 +300,66 @@
     {
         country = e.Value?.ToString();
         DebounceSave();
+    }
+
+    // --- Time & Date handlers ---
+
+    private string GetCurrentTime()
+    {
+        var tz = LocaleResolver.ResolveTimeZone(timeZone) ?? TimeZoneInfo.Utc;
+        var now = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, tz);
+        var fmt = LocaleResolver.GetPreset(dateFormat);
+        return now.ToString(fmt.Time, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private DateTimeOffset GetPreviewTime()
+    {
+        var tz = LocaleResolver.ResolveTimeZone(timeZone) ?? TimeZoneInfo.Utc;
+        return TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, tz);
+    }
+
+    private async Task AdjustTimezone(int hours)
+    {
+        var tz = LocaleResolver.ResolveTimeZone(timeZone) ?? TimeZoneInfo.Utc;
+        var newOffset = tz.BaseUtcOffset.Add(TimeSpan.FromHours(hours));
+
+        // Clamp to valid range
+        if (newOffset.TotalHours < -14) newOffset = TimeSpan.FromHours(-14);
+        if (newOffset.TotalHours > 14) newOffset = TimeSpan.FromHours(14);
+
+        timeZone = LocaleResolver.FormatOffset(newOffset);
+        await SaveTimeDateAsync();
+    }
+
+    private async Task DetectTimezone()
+    {
+        try
+        {
+            var info = await JS.InvokeAsync<ClientLocaleInfo>("getClientLocaleInfo");
+            if (!string.IsNullOrEmpty(info.TimeZone))
+            {
+                timeZone = info.TimeZone;
+                await SaveTimeDateAsync();
+            }
+        }
+        catch { /* JS not available */ }
+    }
+
+    private async Task SelectDateFormat(string id)
+    {
+        dateFormat = id;
+        await SaveTimeDateAsync();
+    }
+
+    private async Task SaveTimeDateAsync()
+    {
+        if (!UserState.UserId.HasValue) return;
+
+        var normalizedTz = string.IsNullOrWhiteSpace(timeZone) ? null : timeZone.Trim();
+        UserState.TimeZone = normalizedTz;
+        UserState.DateFormat = dateFormat;
+
+        await UserService.UpdateLocaleAsync(UserState.UserId.Value, normalizedTz, UserState.Locale, dateFormat);
     }
 
     private void FillDetectedLocation()
@@ -542,6 +642,8 @@
     {
         await JS.InvokeVoidAsync("showPwaInstallGuide");
     }
+
+    private record ClientLocaleInfo(string? TimeZone, string? Locale);
 
     private record PushSubData(
         [property: System.Text.Json.Serialization.JsonPropertyName("endpoint")] string? Endpoint,

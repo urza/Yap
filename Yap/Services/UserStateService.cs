@@ -1,4 +1,3 @@
-using System.Globalization;
 using Microsoft.AspNetCore.Components;
 using Yap.Models;
 
@@ -79,32 +78,31 @@ public class UserStateService
 
     /// <summary>
     /// Client's browser locale (e.g. "cs-CZ", "en-IN").
-    /// Detected once via JS on first render, used for date formatting.
+    /// Detected once via JS on first render.
     /// </summary>
     [PersistentState]
     public string? Locale { get; set; }
 
     /// <summary>
-    /// Resolved TimeZoneInfo from the client's IANA timezone.
-    /// Falls back to UTC if not detected or invalid.
+    /// Date/time format preset ID (e.g. "czech", "us", "european", "iso").
+    /// Auto-guessed from locale on first connect, can be overridden in Settings.
     /// </summary>
-    public TimeZoneInfo GetTimeZoneInfo()
-    {
-        if (string.IsNullOrEmpty(TimeZone)) return TimeZoneInfo.Utc;
-        try { return TimeZoneInfo.FindSystemTimeZoneById(TimeZone); }
-        catch { return TimeZoneInfo.Utc; }
-    }
+    [PersistentState]
+    public string? DateFormat { get; set; }
 
     /// <summary>
-    /// Resolved CultureInfo from the client's browser locale.
-    /// Falls back to InvariantCulture if not detected or invalid.
+    /// Resolves timezone string (IANA, abbreviation, or UTC offset) to TimeZoneInfo.
+    /// Falls back to UTC if not set or unresolvable.
     /// </summary>
-    public CultureInfo GetCultureInfo()
-    {
-        if (string.IsNullOrEmpty(Locale)) return CultureInfo.InvariantCulture;
-        try { return CultureInfo.GetCultureInfo(Locale); }
-        catch { return CultureInfo.InvariantCulture; }
-    }
+    public TimeZoneInfo GetTimeZoneInfo() =>
+        LocaleResolver.ResolveTimeZone(TimeZone) ?? TimeZoneInfo.Utc;
+
+    /// <summary>
+    /// Gets the user's selected date format preset.
+    /// Falls back to European if not set.
+    /// </summary>
+    public DateFormatPreset GetDateFormatPreset() =>
+        LocaleResolver.GetPreset(DateFormat);
 
     /// <summary>
     /// Gets the name to display in the UI.

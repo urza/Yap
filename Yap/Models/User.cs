@@ -65,6 +65,11 @@ public class User
     public string? Locale { get; set; }
 
     /// <summary>
+    /// Date/time format preset ID (e.g. "czech", "us", "european", "iso").
+    /// </summary>
+    public string? DateFormat { get; set; }
+
+    /// <summary>
     /// Whether push notifications are muted for this user.
     /// When true, PushNotificationService skips sending (subscription stays intact).
     /// </summary>

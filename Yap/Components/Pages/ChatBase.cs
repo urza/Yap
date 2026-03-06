@@ -89,10 +89,11 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
                     var info = await JS.InvokeAsync<ClientLocaleInfo>("getClientLocaleInfo");
                     UserState.TimeZone = info.TimeZone;
                     UserState.Locale = info.Locale;
+                    UserState.DateFormat ??= LocaleResolver.GuessPresetFromLocale(info.Locale);
 
                     // Persist to User model so admin page can see it
                     if (UserState.UserId.HasValue)
-                        await UserService.UpdateLocaleAsync(UserState.UserId.Value, info.TimeZone, info.Locale);
+                        await UserService.UpdateLocaleAsync(UserState.UserId.Value, info.TimeZone, info.Locale, UserState.DateFormat);
                 }
                 catch { /* JS not available yet, will use fallbacks */ }
             }
