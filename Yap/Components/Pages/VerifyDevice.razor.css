@@ -1,0 +1,115 @@
+.verify-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background: var(--bg-header);
+}
+
+.verify-container h2 {
+    color: var(--text-white);
+    margin-bottom: 2rem;
+    font-size: 2rem;
+}
+
+.verify-form {
+    display: flex;
+    gap: 1rem;
+    background: var(--bg-sidebar);
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px 0 rgba(0,0,0,.2);
+    margin: 0 1rem;
+}
+
+@media (max-width: 600px) {
+    .verify-form {
+        flex-direction: column;
+        width: 90%;
+        max-width: 300px;
+    }
+
+    .verify-container h2 {
+        font-size: 1.5rem;
+        text-align: center;
+        padding: 0 1rem;
+    }
+}
+
+.verify-input {
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: 3px;
+    width: 300px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    transition: border-color 0.3s;
+}
+
+@media (max-width: 600px) {
+    .verify-input {
+        width: 100%;
+    }
+}
+
+.verify-input:focus {
+    outline: none;
+    border-color: var(--accent-focus);
+}
+
+.verify-input.invalid {
+    border-color: var(--color-danger);
+}
+
+.verify-button {
+    padding: 0.75rem 2rem;
+    background: var(--accent-primary);
+    color: var(--text-white);
+    border: none;
+    border-radius: 3px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+@media (max-width: 600px) {
+    .verify-button {
+        width: 100%;
+    }
+}
+
+.verify-button:hover:not(:disabled) {
+    background: var(--accent-hover);
+}
+
+.verify-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.input-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.validation-error {
+    color: var(--color-danger);
+    font-size: 0.75rem;
+}
+
+.back-link {
+    margin-top: 1rem;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.85rem;
+    text-decoration: underline;
+}
+
+.back-link:hover {
+    color: var(--text-primary);
+}

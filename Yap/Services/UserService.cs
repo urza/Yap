@@ -412,6 +412,80 @@ public class UserService
     }
 
     /// <summary>
+    /// Sets a passphrase for the user (enables multi-device login).
+    /// </summary>
+    public async Task SetPasswordAsync(Guid userId, string? password)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        user.Password = password;
+
+        if (_persistenceEnabled)
+        {
+            try
+            {
+                await using var db = await _dbFactory!.CreateDbContextAsync();
+                await db.Users
+                    .Where(u => u.Id == userId)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(u => u.Password, password));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update password for user {UserId}", userId);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Verifies a password for an existing user. Returns the user if credentials match.
+    /// </summary>
+    public User? VerifyPassword(string username, string password)
+    {
+        var user = GetByUsername(username);
+        if (user == null || user.Password == null)
+            return null;
+
+        return string.Equals(user.Password, password, StringComparison.Ordinal) ? user : null;
+    }
+
+    /// <summary>
+    /// Checks if a user has a passphrase set.
+    /// </summary>
+    public bool HasPassword(string username)
+    {
+        var user = GetByUsername(username);
+        return user?.Password != null;
+    }
+
+    /// <summary>
+    /// Gets the stored passphrase for a user (for display in Settings).
+    /// </summary>
+    public string? GetPassword(Guid userId)
+    {
+        return _users.TryGetValue(userId, out var user) ? user.Password : null;
+    }
+
+    /// <summary>
+    /// Generates a random passphrase in "color animal NN" format.
+    /// </summary>
+    public static string GeneratePassphrase()
+    {
+        var colors = new[] { "red", "blue", "green", "gold", "pink", "cyan", "lime", "teal",
+            "plum", "mint", "ruby", "jade", "coral", "amber", "ivory", "peach", "sage", "navy", "rust", "wine" };
+        var animals = new[] { "cat", "dog", "fox", "owl", "bee", "bat", "elk", "ant", "emu", "yak",
+            "ape", "cod", "cow", "hen", "jay", "koi", "ram", "rat", "ray", "seal",
+            "wolf", "bear", "deer", "frog", "hawk", "lion", "lynx", "moth", "puma", "swan" };
+
+        var color = colors[RandomNumberGenerator.GetInt32(colors.Length)];
+        var animal = animals[RandomNumberGenerator.GetInt32(animals.Length)];
+        var number = RandomNumberGenerator.GetInt32(10, 100);
+
+        return $"{color} {animal} {number}";
+    }
+
+    /// <summary>
     /// Generates a secure random token.
     /// </summary>
     private static string GenerateToken()

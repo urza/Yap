@@ -39,12 +39,13 @@
     private bool isLengthError = false;
     private bool hasBlurred = false;
     private bool _shouldRedirect = false;
+    private bool _usernameHasPassword = false;
 
     // Username rules: 2-23 chars, lowercase a-z, 0-9, underscore, period, no consecutive periods
     private static readonly System.Text.RegularExpressions.Regex ValidUsernameRegex =
         new(@"^[a-z0-9._]+$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
-    private bool IsValid => !string.IsNullOrWhiteSpace(usernameInput) && !hasError;
+    private bool IsValid => !string.IsNullOrWhiteSpace(usernameInput) && (!hasError || _usernameHasPassword);
 
     // Only show length errors after user has blurred the input (finished typing)
     private bool showError => hasError && (!isLengthError || hasBlurred);
@@ -98,6 +99,7 @@
         hasError = false;
         isLengthError = false;
         errorMessage = "";
+        _usernameHasPassword = false;
 
         if (string.IsNullOrWhiteSpace(usernameInput))
             return;
@@ -134,11 +136,19 @@
             return;
         }
 
-        // Username must be unique (check UserService, not ChatService)
+        // Username taken check — if they have a password, redirect to verify page instead of error
         if (UserService.IsUsernameTaken(usernameInput))
         {
-            hasError = true;
-            errorMessage = "Username is already taken";
+            if (UserService.HasPassword(usernameInput))
+            {
+                // Don't show error — user can proceed to verify page
+                _usernameHasPassword = true;
+            }
+            else
+            {
+                hasError = true;
+                errorMessage = "Username is already taken";
+            }
             return;
         }
     }
@@ -158,9 +168,18 @@
         if (!IsValid) return;
 
         var username = Uri.EscapeDataString(usernameInput.Trim());
-        var returnUrl = Uri.EscapeDataString(SafeReturnUrl ?? "/lobby");
+        var returnUrl = SafeReturnUrl ?? "/lobby";
 
-        // Redirect to signin - server creates user and sets cookie
-        Navigation.NavigateTo($"/auth/signin?username={username}&returnUrl={returnUrl}", forceLoad: true);
+        // Username with password — redirect to verify page (stays in Blazor)
+        if (_usernameHasPassword)
+        {
+            var encodedReturnUrl = Uri.EscapeDataString(returnUrl);
+            Navigation.NavigateTo($"/verify/{username}?returnUrl={encodedReturnUrl}");
+            return;
+        }
+
+        // New user — redirect to signin endpoint (creates user + sets cookie)
+        var encodedReturn = Uri.EscapeDataString(returnUrl);
+        Navigation.NavigateTo($"/auth/signin?username={username}&returnUrl={encodedReturn}", forceLoad: true);
     }
 }

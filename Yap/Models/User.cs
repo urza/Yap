@@ -70,6 +70,13 @@ public class User
     public string? DateFormat { get; set; }
 
     /// <summary>
+    /// Optional passphrase for multi-device login.
+    /// Stored as plaintext so the user can view/copy it in Settings.
+    /// When set, the username can be claimed from any device by entering this passphrase.
+    /// </summary>
+    public string? Password { get; set; }
+
+    /// <summary>
     /// Whether push notifications are muted for this user.
     /// When true, PushNotificationService skips sending (subscription stays intact).
     /// </summary>

@@ -287,14 +287,27 @@ app.MapPost("/api/push/unsubscribe", async (HttpContext context, PushSubscriptio
 // HttpOnly cookies can only be set via HTTP response headers, not from Blazor
 // after SignalR streaming starts. So we redirect here with forceLoad.
 
-app.MapGet("/auth/signin", async (HttpContext context, UserService userService, UserActionLogService actionLog, string username, string? returnUrl) =>
+app.MapGet("/auth/signin", async (HttpContext context, UserService userService, UserActionLogService actionLog, string username, string? password, string? returnUrl) =>
 {
     if (string.IsNullOrEmpty(username))
         return Results.Redirect("/");
 
-    var user = await userService.CreateUserAsync(username);
-    if (user == null)
-        return Results.Redirect("/");
+    User? user;
+
+    if (!string.IsNullOrEmpty(password))
+    {
+        // Existing user with password — verify credentials
+        user = userService.VerifyPassword(username, password);
+        if (user == null)
+            return Results.Redirect("/");
+    }
+    else
+    {
+        // New user — create account
+        user = await userService.CreateUserAsync(username);
+        if (user == null)
+            return Results.Redirect("/");
+    }
 
     AuthMiddleware.SetAuthCookie(context, user.Token);
 

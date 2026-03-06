@@ -72,14 +72,26 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
     {
         _circuitTracker.OnConnectionUp(circuit.Id);
 
-        // User reconnected - restore their previous status
+        // User reconnected - restore their previous status if no other sessions changed it
         if (!string.IsNullOrEmpty(_userState.SessionId) && _statusBeforeDisconnect.HasValue)
         {
-            _logger.LogDebug("Connection restored for {Username}, restoring status to {Status}",
-                _userState.Username, _statusBeforeDisconnect.Value);
+            var currentStatus = _chatService.GetUserStatus(_userState.Username!);
+            // Only restore if user status hasn't been changed by another session
+            if (currentStatus == null || currentStatus == UserStatus.Invisible || currentStatus == _statusBeforeDisconnect.Value)
+            {
+                _logger.LogDebug("Connection restored for {Username}, restoring status to {Status}",
+                    _userState.Username, _statusBeforeDisconnect.Value);
 
-            await _chatService.SetUserStatusAsync(_userState.SessionId, _statusBeforeDisconnect.Value);
-            _userState.Status = _statusBeforeDisconnect.Value;
+                await _chatService.SetUserStatusAsync(_userState.SessionId, _statusBeforeDisconnect.Value);
+                _userState.Status = _statusBeforeDisconnect.Value;
+            }
+            else
+            {
+                // Another session changed the status — sync local state
+                _userState.Status = currentStatus.Value;
+                _logger.LogDebug("Connection restored for {Username}, keeping current status {Status} (changed by another session)",
+                    _userState.Username, currentStatus.Value);
+            }
             _statusBeforeDisconnect = null;
 
             _actionLog.Log(_userState.UserId?.ToString(), UserActionLog.KnownActions.CIRCUIT_RECONNECT,
@@ -95,18 +107,18 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
         _circuitTracker.OnConnectionDown(circuit.Id);
         StopIdleTimer();
 
-        // Mark user as Invisible (grey) when connection drops
-        if (!string.IsNullOrEmpty(_userState.SessionId))
+        // Save status for potential restore on reconnect.
+        // Don't change user status here — circuit close handles cleanup via RemoveUserAsync.
+        if (!string.IsNullOrEmpty(_userState.SessionId) && !string.IsNullOrEmpty(_userState.Username))
         {
-            var currentStatus = _chatService.GetUserStatus(_userState.Username!);
+            var currentStatus = _chatService.GetUserStatus(_userState.Username);
             if (currentStatus.HasValue && currentStatus != UserStatus.Invisible)
             {
                 _statusBeforeDisconnect = currentStatus;
-                _logger.LogDebug("Connection lost for {Username}, marking as Invisible", _userState.Username);
-                await _chatService.SetUserStatusAsync(_userState.SessionId, UserStatus.Invisible);
+                _logger.LogDebug("Connection lost for {Username}, saving status {Status} for restore",
+                    _userState.Username, currentStatus);
             }
 
-            // Update LastSeenAt for the user
             if (_userState.UserId.HasValue)
             {
                 await _userService.UpdateLastSeenAsync(_userState.UserId.Value);
@@ -124,16 +136,14 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
         _circuitTracker.OnCircuitClosed(circuit.Id);
         StopIdleTimer();
 
-        // Circuit fully closed - mark as Invisible (same as disconnect)
-        // Don't remove user - they stay grey in the list
-        if (!string.IsNullOrEmpty(_userState.SessionId))
+        if (!string.IsNullOrEmpty(_userState.SessionId) && !string.IsNullOrEmpty(_userState.Username))
         {
-            var currentStatus = _chatService.GetUserStatus(_userState.Username!);
-            if (currentStatus.HasValue && currentStatus != UserStatus.Invisible)
-            {
-                _logger.LogDebug("Circuit closed for {Username}, marking as Invisible", _userState.Username);
-                await _chatService.SetUserStatusAsync(_userState.SessionId, UserStatus.Invisible);
-            }
+            // Remove this session from ChatService
+            await _chatService.RemoveUserAsync(_userState.SessionId);
+
+            // If no other sessions remain, user status was already cleaned up by RemoveUserAsync.
+            // If other sessions exist, status is preserved.
+            _logger.LogDebug("Circuit closed for {Username}, session removed", _userState.Username);
         }
 
         await base.OnCircuitClosedAsync(circuit, cancellationToken);
@@ -148,6 +158,12 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
     {
         return async context =>
         {
+            // Track activity for this session (used by AreAllSessionsIdle)
+            if (!string.IsNullOrEmpty(_userState.SessionId))
+            {
+                _chatService.TouchSessionActivity(_userState.SessionId);
+            }
+
             // Reset idle timer on any activity (cancels current delay, starts fresh)
             StartIdleTimer();
 
@@ -218,10 +234,17 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
         if (_isAutoAway || currentStatus is UserStatus.Away or UserStatus.Invisible)
             return;
 
+        // Only set auto-away if ALL sessions for this user are idle
+        if (!_chatService.AreAllSessionsIdle(_userState.Username, IdleTimeout))
+        {
+            _logger.LogDebug("Auto-away skipped for {Username}: another session is still active", _userState.Username);
+            return;
+        }
+
         _statusBeforeAway = currentStatus;
         _isAutoAway = true;
 
-        _logger.LogDebug("Auto-away: {Username} idle, setting to Away", _userState.Username);
+        _logger.LogDebug("Auto-away: {Username} idle on all sessions, setting to Away", _userState.Username);
 
         await _chatService.SetUserStatusAsync(_userState.SessionId, UserStatus.Away);
         _userState.Status = UserStatus.Away;

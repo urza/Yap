@@ -89,6 +89,67 @@
         </div>
 
         <div class="settings-section">
+            <h3>Account Security</h3>
+
+            @if (hasPassword)
+            {
+                <div class="form-group">
+                    <label>Your passphrase</label>
+                    @if (isEditingPassword)
+                    {
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="text" value="@passwordInput"
+                                   @oninput="e => passwordInput = e.Value?.ToString() ?? """
+                                   placeholder="Enter new passphrase" maxlength="64" class="form-input" style="flex: 1;" />
+                            <button class="upload-button" @onclick="GenerateNewPassphrase" style="white-space: nowrap;">
+                                Generate
+                            </button>
+                        </div>
+                        <div style="display: flex; gap: 8px; margin-top: 8px;">
+                            <button class="upload-button" @onclick="SavePassword" disabled="@(string.IsNullOrWhiteSpace(passwordInput))">Save</button>
+                            <button class="remove-button" @onclick="CancelEditPassword">Cancel</button>
+                        </div>
+                    }
+                    else
+                    {
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="text" value="@currentPassword" readonly class="form-input" style="flex: 1; opacity: 0.8;" />
+                            <button class="upload-button" @onclick="StartEditPassword" style="white-space: nowrap;">Change</button>
+                            <button class="remove-button" @onclick="RemovePassword">Remove</button>
+                        </div>
+                    }
+                    <span class="form-hint">Anyone with this passphrase can log in as you. Keep it safe.</span>
+                    @if (passwordSaveStatus != null)
+                    {
+                        <span class="save-status saved" style="margin-top: 4px;">@passwordSaveStatus</span>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="form-group">
+                    <label>Passphrase</label>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="text" value="@passwordInput"
+                               @oninput="e => passwordInput = e.Value?.ToString() ?? """
+                               placeholder="Enter passphrase" maxlength="64" class="form-input" style="flex: 1;" />
+                        <button class="upload-button" @onclick="GenerateNewPassphrase" style="white-space: nowrap;">
+                            Generate
+                        </button>
+                    </div>
+                    <div style="margin-top: 8px;">
+                        <button class="upload-button" @onclick="SavePassword" disabled="@(string.IsNullOrWhiteSpace(passwordInput))">Set Passphrase</button>
+                    </div>
+                    <span class="form-hint">Set a passphrase to log in from other devices or after signing out.</span>
+                    @if (passwordSaveStatus != null)
+                    {
+                        <span class="save-status saved" style="margin-top: 4px;">@passwordSaveStatus</span>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="settings-section">
             <h3>Time & Date</h3>
 
             <div class="form-group">
@@ -225,6 +286,13 @@
     private string? saveStatus;
     private CancellationTokenSource? _debounceCts;
 
+    // Account security state
+    private bool hasPassword;
+    private string? currentPassword;
+    private string passwordInput = "";
+    private bool isEditingPassword;
+    private string? passwordSaveStatus;
+
     // Push notification state
     private bool pushSupported = false;
     private bool pushSubscribed = false;
@@ -253,6 +321,12 @@
             timeZone = user.TimeZone;
             dateFormat = user.DateFormat ?? LocaleResolver.GuessPresetFromLocale(user.Locale);
             pushMuted = user.PushMuted;
+
+            // Load password state
+            currentPassword = user.Password;
+            hasPassword = currentPassword != null;
+            if (!hasPassword)
+                passwordInput = UserService.GeneratePassphrase();
         }
 
         // Detect location from IP for the Detect button
@@ -503,6 +577,79 @@
         }
 
         Navigation.NavigateTo("/lobby");
+    }
+
+    // Account security methods
+
+    private void StartEditPassword()
+    {
+        isEditingPassword = true;
+        passwordInput = UserService.GeneratePassphrase();
+    }
+
+    private void CancelEditPassword()
+    {
+        isEditingPassword = false;
+        passwordInput = "";
+    }
+
+    private void GenerateNewPassphrase()
+    {
+        passwordInput = UserService.GeneratePassphrase();
+    }
+
+    private async Task SavePassword()
+    {
+        if (!UserState.UserId.HasValue || string.IsNullOrWhiteSpace(passwordInput)) return;
+
+        await UserService.SetPasswordAsync(UserState.UserId.Value, passwordInput.Trim());
+        currentPassword = passwordInput.Trim();
+        hasPassword = true;
+        isEditingPassword = false;
+        passwordInput = "";
+
+        passwordSaveStatus = "Saved";
+        StateHasChanged();
+
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(2000);
+            await InvokeAsync(() =>
+            {
+                if (passwordSaveStatus == "Saved")
+                {
+                    passwordSaveStatus = null;
+                    StateHasChanged();
+                }
+            });
+        });
+    }
+
+    private async Task RemovePassword()
+    {
+        if (!UserState.UserId.HasValue) return;
+
+        await UserService.SetPasswordAsync(UserState.UserId.Value, null);
+        currentPassword = null;
+        hasPassword = false;
+        isEditingPassword = false;
+        passwordInput = UserService.GeneratePassphrase();
+
+        passwordSaveStatus = "Removed";
+        StateHasChanged();
+
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(2000);
+            await InvokeAsync(() =>
+            {
+                if (passwordSaveStatus == "Removed")
+                {
+                    passwordSaveStatus = null;
+                    StateHasChanged();
+                }
+            });
+        });
     }
 
     // Push notification methods

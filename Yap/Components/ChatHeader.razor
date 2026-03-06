@@ -221,10 +221,17 @@
     {
         showDropdown = false;
 
-        // Log before deletion (user record won't exist after DeleteUserAsync)
+        // Warn if no passphrase set — user won't be able to reclaim this username
+        if (UserState.Username != null && !UserService.HasPassword(UserState.Username))
+        {
+            var confirmed = await JS.InvokeAsync<bool>("confirm",
+                "You haven't set a passphrase. Without one, you won't be able to reclaim this username. Continue signing out?");
+            if (!confirmed) return;
+        }
+
         ActionLog.Log(UserState.UserId?.ToString(), UserActionLog.KnownActions.LOGOUT, info: UserState.Username);
 
-        // Unsubscribe from push notifications (browser + server)
+        // Unsubscribe push for this device only (not all devices)
         try
         {
             var existingSub = await JS.InvokeAsync<string?>("getPushSubscription");
@@ -238,29 +245,19 @@
                 }
                 Logger.LogDebug("Push subscription cleaned up on sign-out for {Username}", UserState.Username);
             }
-            // Also remove all server-side subscriptions for this username
-            if (UserState.Username != null)
-            {
-                await PushStore.RemoveUserSubscriptionsAsync(UserState.Username);
-            }
         }
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Failed to clean up push subscription on sign-out for {Username}", UserState.Username);
         }
 
-        // Remove from chat service
+        // Remove this session from chat service (other sessions stay active)
         if (UserState.SessionId != null)
         {
             await ChatService.RemoveUserAsync(UserState.SessionId);
         }
 
-        // Delete user and their data (allows re-registration with same username)
-        if (UserState.UserId.HasValue)
-        {
-            ChatService.ClearReadStatesForUser(UserState.UserId.Value);
-            await UserService.DeleteUserAsync(UserState.UserId.Value);
-        }
+        // Account stays alive — no DeleteUserAsync, no ClearReadStatesForUser
 
         // Clear cookie and redirect to login
         Navigation.NavigateTo("/auth/signout", forceLoad: true);

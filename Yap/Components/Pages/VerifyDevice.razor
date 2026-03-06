@@ -1,0 +1,84 @@
+@page "/verify/{Username}"
+@inject UserService UserService
+@inject NavigationManager Navigation
+
+<PageTitle>Verify — @Username</PageTitle>
+
+<div class="verify-container">
+    <h2>Welcome back, @Username</h2>
+    <div class="verify-form">
+        <div class="input-wrapper">
+            <input type="text" @bind="passwordInput" @bind:event="oninput"
+                   placeholder="Enter your passphrase" class="verify-input @(showError ? "invalid" : "")"
+                   @onkeypress="HandleKeyPress" />
+            @if (showError)
+            {
+                <span class="validation-error">@errorMessage</span>
+            }
+        </div>
+        <button class="verify-button" @onclick="Submit"
+                disabled="@(string.IsNullOrWhiteSpace(passwordInput))">
+            Sign In
+        </button>
+    </div>
+    <button class="back-link" @onclick="GoBack">Use a different username</button>
+</div>
+
+@code {
+    [Parameter]
+    public string Username { get; set; } = "";
+
+    [SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
+
+    private string passwordInput = "";
+    private string errorMessage = "";
+    private bool showError = false;
+
+    private string? SafeReturnUrl =>
+        !string.IsNullOrEmpty(ReturnUrl) && ReturnUrl.StartsWith("/") && !ReturnUrl.StartsWith("//")
+            ? ReturnUrl
+            : null;
+
+    protected override void OnInitialized()
+    {
+        // If user doesn't exist or has no password, redirect back to login
+        if (!UserService.HasPassword(Username))
+        {
+            Navigation.NavigateTo("/login");
+        }
+    }
+
+    private void HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(passwordInput))
+            Submit();
+    }
+
+    private void Submit()
+    {
+        if (string.IsNullOrWhiteSpace(passwordInput)) return;
+
+        showError = false;
+        errorMessage = "";
+
+        var user = UserService.VerifyPassword(Username, passwordInput.Trim());
+        if (user == null)
+        {
+            showError = true;
+            errorMessage = "Wrong passphrase";
+            return;
+        }
+
+        var encodedUsername = Uri.EscapeDataString(Username);
+        var encodedPassword = Uri.EscapeDataString(passwordInput.Trim());
+        var returnUrl = Uri.EscapeDataString(SafeReturnUrl ?? "/lobby");
+
+        Navigation.NavigateTo($"/auth/signin?username={encodedUsername}&password={encodedPassword}&returnUrl={returnUrl}", forceLoad: true);
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/login");
+    }
+}

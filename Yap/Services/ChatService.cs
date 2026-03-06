@@ -51,7 +51,10 @@ public class ChatService
     // Unread state events
     public event Action<Guid, Guid>? OnUnreadChanged; // userId, channelId
 
-    public record UserSession(Guid UserId, string Username, string SessionId, UserStatus Status = UserStatus.Online, bool? IsMobile = null, bool PageVisible = true);
+    // Per-user status (shared across all sessions for the same user)
+    private readonly ConcurrentDictionary<string, UserStatus> _userStatuses = new(StringComparer.OrdinalIgnoreCase);
+
+    public record UserSession(Guid UserId, string Username, string SessionId, bool? IsMobile = null, bool PageVisible = true, DateTime LastActivity = default);
 
     public ChatService(PushNotificationService pushService, ChatPersistenceService persistence, UserService userService, ILogger<ChatService> logger)
     {
@@ -422,23 +425,28 @@ public class ChatService
 
     public Task AddUserAsync(string sessionId, Guid userId, string username, UserStatus status = UserStatus.Online, bool? isMobile = null)
     {
-        // Remove any existing sessions for this username (stale circuits from page refresh, etc.)
-        var staleSessionIds = _users
-            .Where(kvp => kvp.Value.Username.Equals(username, StringComparison.OrdinalIgnoreCase))
-            .Select(kvp => kvp.Key)
+        // Check if this is the first session for this user
+        var existingSessions = _users.Values
+            .Where(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase))
             .ToList();
+        var isFirstSession = existingSessions.Count == 0;
 
-        foreach (var staleId in staleSessionIds)
+        _users[sessionId] = new UserSession(userId, username, sessionId, isMobile, LastActivity: DateTime.UtcNow);
+
+        // Set status: only if first session (don't override active status from other devices)
+        if (isFirstSession)
         {
-            _users.TryRemove(staleId, out _);
+            _userStatuses[username] = status;
         }
 
-        _users[sessionId] = new UserSession(userId, username, sessionId, status, isMobile);
+        _logger.LogDebug("AddUser {User} session={SessionId} status={Status} isFirst={IsFirst} totalSessions={TotalSessions}",
+            username, sessionId, status, isFirstSession, _users.Count);
 
-        _logger.LogDebug("AddUser {User} session={SessionId} status={Status} staleRemoved={StaleCount} totalSessions={TotalSessions}",
-            username, sessionId, status, staleSessionIds.Count, _users.Count);
-
-        OnUserChanged?.Invoke(username, true);
+        // Only fire user-joined if this is the first session
+        if (isFirstSession)
+        {
+            OnUserChanged?.Invoke(username, true);
+        }
         OnUsersListChanged?.Invoke();
 
         return Task.CompletedTask;
@@ -449,9 +457,8 @@ public class ChatService
         if (!_users.TryGetValue(sessionId, out var session))
             return Task.CompletedTask;
 
-        var oldStatus = session.Status;
-        // Update with new status
-        _users[sessionId] = session with { Status = status };
+        var oldStatus = _userStatuses.GetValueOrDefault(session.Username, UserStatus.Online);
+        _userStatuses[session.Username] = status;
 
         _logger.LogDebug("SetUserStatus {User}: {OldStatus} -> {NewStatus}", session.Username, oldStatus, status);
 
@@ -463,9 +470,7 @@ public class ChatService
 
     public UserStatus? GetUserStatus(string username)
     {
-        var session = _users.Values.FirstOrDefault(u =>
-            u.Username.Equals(username, StringComparison.OrdinalIgnoreCase));
-        return session?.Status;
+        return _userStatuses.TryGetValue(username, out var status) ? status : null;
     }
 
     public void SetPageVisibility(string sessionId, bool visible)
@@ -491,13 +496,19 @@ public class ChatService
                 typingUsers.TryRemove(session.Username, out _);
             }
 
-            _logger.LogDebug("RemoveUser {User} circuit={CircuitId} remainingSessions={TotalSessions}",
-                session.Username, circuitId, _users.Count);
+            // Check if other sessions remain for this user
+            var hasOtherSessions = _users.Values
+                .Any(u => u.Username.Equals(session.Username, StringComparison.OrdinalIgnoreCase));
 
-            // Note: DM channels now persist permanently (like Discord)
-            // They are NOT deleted when user disconnects
+            _logger.LogDebug("RemoveUser {User} circuit={CircuitId} hasOtherSessions={HasOther} remainingSessions={TotalSessions}",
+                session.Username, circuitId, hasOtherSessions, _users.Count);
 
-            OnUserChanged?.Invoke(session.Username, false);
+            // Only fire user-left and clean up status if no other sessions remain
+            if (!hasOtherSessions)
+            {
+                _userStatuses.TryRemove(session.Username, out _);
+                OnUserChanged?.Invoke(session.Username, false);
+            }
             OnUsersListChanged?.Invoke();
         }
 
@@ -517,7 +528,7 @@ public class ChatService
     public List<(string Username, UserStatus Status, bool? IsMobile)> GetAllUsersWithStatus() =>
         _users.Values
             .GroupBy(u => u.Username, StringComparer.OrdinalIgnoreCase)
-            .Select(g => (g.Key, g.First().Status, g.First().IsMobile))
+            .Select(g => (g.Key, _userStatuses.GetValueOrDefault(g.Key, UserStatus.Online), g.First().IsMobile))
             .ToList();
 
     public bool IsUsernameTaken(string username) =>
@@ -528,6 +539,42 @@ public class ChatService
     /// </summary>
     public bool HasSession(string sessionId) =>
         _users.ContainsKey(sessionId);
+
+    /// <summary>
+    /// Updates the last activity timestamp for a session (called on any inbound activity).
+    /// </summary>
+    public void TouchSessionActivity(string sessionId)
+    {
+        if (_users.TryGetValue(sessionId, out var session))
+        {
+            _users[sessionId] = session with { LastActivity = DateTime.UtcNow };
+        }
+    }
+
+    /// <summary>
+    /// Returns true if ALL sessions for a username have been idle longer than the specified timeout.
+    /// Used by ChatCircuitHandler to determine if auto-away should be applied.
+    /// </summary>
+    public bool AreAllSessionsIdle(string username, TimeSpan idleTimeout)
+    {
+        var now = DateTime.UtcNow;
+        var sessions = _users.Values
+            .Where(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (sessions.Count == 0) return true;
+
+        return sessions.All(s => (now - s.LastActivity) > idleTimeout);
+    }
+
+    /// <summary>
+    /// Checks if any session for a user has the page visible.
+    /// </summary>
+    public bool HasActiveSession(string username)
+    {
+        return _users.Values
+            .Any(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase));
+    }
 
     #endregion
 
@@ -882,6 +929,7 @@ public class ChatService
             userIdsToIncrement = _users.Values
                 .Where(s => s.UserId != senderUserId)
                 .Select(s => s.UserId)
+                .Distinct()
                 .ToList();
         }
 
