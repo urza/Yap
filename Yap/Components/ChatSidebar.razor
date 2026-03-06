@@ -5,6 +5,7 @@
 @inject ChatNavigationState NavState
 @inject NavigationManager Navigation
 @inject EmojiService EmojiService
+@inject SystemBotService BotService
 @inject ILogger<ChatSidebar> Logger
 @implements IDisposable
 
@@ -66,6 +67,10 @@
                     @if (isUserAdmin)
                     {
                         <span class="admin-badge" title="Admin">@EmojiService.ConvertEmojisToTwemoji("👑", inline: true)</span>
+                    }
+                    @if (BotService.IsBotUser(user))
+                    {
+                        <span class="bot-badge" title="Bot">@EmojiService.ConvertEmojisToTwemoji("🤖", inline: true)</span>
                     }
                     @if (userUnreadCount > 0)
                     {
@@ -327,10 +332,12 @@
 
         var adminEntry = allUsers
             .Where(u => ChatService.IsAdmin(u.Username));
+        var botEntry = allUsers
+            .Where(u => BotService.IsBotUser(u.Username) && !ChatService.IsAdmin(u.Username));
         var currentUserEntry = allUsers
-            .Where(u => u.Username.Equals(Username, StringComparison.OrdinalIgnoreCase) && !ChatService.IsAdmin(u.Username));
+            .Where(u => u.Username.Equals(Username, StringComparison.OrdinalIgnoreCase) && !ChatService.IsAdmin(u.Username) && !BotService.IsBotUser(u.Username));
         var otherUsers = allUsers
-            .Where(u => !u.Username.Equals(Username, StringComparison.OrdinalIgnoreCase) && !ChatService.IsAdmin(u.Username))
+            .Where(u => !u.Username.Equals(Username, StringComparison.OrdinalIgnoreCase) && !ChatService.IsAdmin(u.Username) && !BotService.IsBotUser(u.Username))
             .ToList();
 
         var sorted = otherUsers
@@ -345,7 +352,7 @@
             .ThenBy(x => x.Entry.Username, StringComparer.OrdinalIgnoreCase)
             .Select(x => x.Entry);
 
-        return adminEntry.Concat(currentUserEntry).Concat(sorted);
+        return adminEntry.Concat(botEntry).Concat(currentUserEntry).Concat(sorted);
     }
 
     #endregion

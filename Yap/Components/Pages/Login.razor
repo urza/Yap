@@ -2,6 +2,7 @@
 @inject ChatConfigService ChatConfig
 @inject UserService UserService
 @inject UserStateService UserState
+@inject SystemBotService BotService
 @inject NavigationManager Navigation
 
 <PageTitle>@ChatConfig.ProjectName</PageTitle>
@@ -139,6 +140,14 @@
         {
             hasError = true;
             errorMessage = "Cannot have consecutive periods";
+            return;
+        }
+
+        // Bot username is reserved
+        if (BotService.IsBotUser(usernameInput))
+        {
+            hasError = true;
+            errorMessage = "Nice try! 🤖";
             return;
         }
 

@@ -13,6 +13,11 @@ public class ChatConfigService
     public string RoomName => _configuration["ChatSettings:RoomName"] ?? "lobby";
     public bool WelcomePageEnabled => _configuration.GetValue<bool>("ChatSettings:WelcomePageEnabled", true);
 
+    // Bot settings
+    public bool BotEnabled => _configuration.GetValue<bool>("ChatSettings:Bot:Enabled", true);
+    public string BotUsername => _configuration["ChatSettings:Bot:Username"] ?? "ping";
+    public string BotDisplayName => _configuration["ChatSettings:Bot:DisplayName"] ?? "Ping";
+
     public string GetRandomWelcomeMessage()
         => GetRandomText("WelcomeMessages", "Welcome to {0}!", ProjectName);
 

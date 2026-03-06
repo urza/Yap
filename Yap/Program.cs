@@ -104,6 +104,7 @@ builder.Services.AddSingleton<PushNotificationService>();
 builder.Services.AddSingleton<CircuitTracker>();  // Circuit diagnostics
 builder.Services.AddSingleton<UserService>();     // User management with token auth
 builder.Services.AddSingleton<ChatService>();
+builder.Services.AddSingleton<SystemBotService>();
 builder.Services.AddScoped<ChatConfigService>();
 builder.Services.AddScoped<EmojiService>();
 builder.Services.AddScoped<UserStateService>();
@@ -131,6 +132,9 @@ await app.Services.GetRequiredService<UserService>().LoadUsersAsync();
 
 // Load push subscriptions from database
 await app.Services.GetRequiredService<PushSubscriptionStore>().InitializeAsync();
+
+// Initialize system bot (must be after UserService + ChatService)
+await app.Services.GetRequiredService<SystemBotService>().InitializeAsync();
 
 // Clean up old action logs (keep last 100 per user, delete older than 6 months)
 await app.Services.GetRequiredService<UserActionLogService>().CleanupAsync();
@@ -287,10 +291,14 @@ app.MapPost("/api/push/unsubscribe", async (HttpContext context, PushSubscriptio
 // HttpOnly cookies can only be set via HTTP response headers, not from Blazor
 // after SignalR streaming starts. So we redirect here with forceLoad.
 
-app.MapGet("/auth/signin", async (HttpContext context, UserService userService, UserActionLogService actionLog, string username, string? password, string? returnUrl) =>
+app.MapGet("/auth/signin", async (HttpContext context, UserService userService, UserActionLogService actionLog, SystemBotService botService, string username, string? password, string? returnUrl) =>
 {
     if (string.IsNullOrEmpty(username))
         return Results.Redirect("/");
+
+    // Block login as bot user
+    if (botService.IsBotUser(username))
+        return Results.Redirect("/login");
 
     User? user;
 

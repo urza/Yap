@@ -35,6 +35,7 @@
                      CurrentUsername="@Username"
                      ProfilePictureUrl="@GetProfilePictureUrl(message.Username)"
                      DisplayName="@GetDisplayName(message.Username)"
+                     IsBot="@BotService.IsBotUser(message.Username)"
                      RecentEmojis="@recentEmojis"
                      QuickReactions="@quickReactions"
                      IsReplyTarget="@(replyingToMessage?.Id == message.Id)"

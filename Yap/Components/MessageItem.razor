@@ -32,6 +32,10 @@
         {
             <div class="message-meta">
                 <strong class="message-username">@EmojiService.ConvertEmojisToTwemoji(DisplayName ?? Message.Username, inline: true)</strong>
+                @if (IsBot)
+                {
+                    <span class="bot-badge" title="Bot">@EmojiService.ConvertEmojisToTwemoji("🤖", inline: true)</span>
+                }
                 <span class="message-time">@FormatTimestamp()</span>
             </div>
         }
@@ -176,6 +180,7 @@
     [Parameter] public string? DisplayName { get; set; }
     [Parameter] public List<string> RecentEmojis { get; set; } = new();  // For full emoji drawer
     [Parameter] public List<string> QuickReactions { get; set; } = new(); // Cached quick reactions
+    [Parameter] public bool IsBot { get; set; }
     [Parameter] public bool IsReplyTarget { get; set; }
 
     // Computed from Message

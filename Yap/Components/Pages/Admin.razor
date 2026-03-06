@@ -5,6 +5,7 @@
 @inject UserActionLogService ActionLog
 @inject PushSubscriptionStore PushStore
 @inject GeoLocationService GeoLocation
+@inject SystemBotService BotService
 @inject NavigationManager Navigation
 
 <PageTitle>Admin</PageTitle>
@@ -35,6 +36,13 @@
             </svg>
             <span>Debug</span>
         </button>
+        <button class="nav-item @(activeSection == "bot" ? "active" : "")"
+                @onclick='() => activeSection = "bot"'>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1.17A7 7 0 0 1 14 22h-4a7 7 0 0 1-6.83-3H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2zM9.5 13a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm5 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/>
+            </svg>
+            <span>Bot</span>
+        </button>
     </nav>
 
     <div class="admin-tabs">
@@ -45,6 +53,10 @@
         <button class="tab-item @(activeSection == "debug" ? "active" : "")"
                 @onclick='() => activeSection = "debug"'>
             Debug
+        </button>
+        <button class="tab-item @(activeSection == "bot" ? "active" : "")"
+                @onclick='() => activeSection = "bot"'>
+            Bot
         </button>
     </div>
 
@@ -317,6 +329,36 @@
                 }
             </div>
         }
+        @if (activeSection == "bot")
+        {
+            <div class="section-header">
+                <h3>Bot Settings</h3>
+                <span class="section-count">System bot configuration</span>
+            </div>
+
+            <div class="bot-settings">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" value="@botUsername" disabled class="form-input disabled" />
+                    <span class="form-hint">Username cannot be changed after creation</span>
+                </div>
+
+                <div class="form-group">
+                    <label>Display Name</label>
+                    <input type="text" @bind="botDisplayName" class="form-input" maxlength="32" />
+                </div>
+
+                <div class="bot-actions">
+                    <button class="save-btn" @onclick="SaveBotSettings" disabled="@botSaving">
+                        @(botSaving ? "Saving..." : "Save")
+                    </button>
+                    @if (botSaveResult != null)
+                    {
+                        <span class="save-result">@botSaveResult</span>
+                    }
+                </div>
+            </div>
+        }
     </main>
 </div>
 
@@ -377,6 +419,11 @@
         var rooms = ChatService.GetRooms();
         if (rooms.Count > 0)
             debugChannelId = rooms[0].Id;
+
+        // Load bot settings
+        botUsername = BotService.BotUsername ?? "";
+        var botUser = BotService.BotUserId.HasValue ? UserService.GetById(BotService.BotUserId.Value) : null;
+        botDisplayName = botUser?.DisplayName ?? botUsername;
     }
 
     private async Task SelectUser(Guid userId)
@@ -398,6 +445,12 @@
         detailUserAgents = agents;
         loadingDetail = false;
     }
+
+    // Bot settings
+    private string botUsername = "";
+    private string botDisplayName = "";
+    private bool botSaving;
+    private string? botSaveResult;
 
     // Debug message generator
     private Guid debugChannelId;
@@ -428,6 +481,27 @@
         finally
         {
             debugGenerating = false;
+        }
+    }
+
+    private async Task SaveBotSettings()
+    {
+        botSaving = true;
+        botSaveResult = null;
+        StateHasChanged();
+
+        try
+        {
+            await BotService.UpdateDisplayNameAsync(botDisplayName.Trim());
+            botSaveResult = "Saved!";
+        }
+        catch (Exception ex)
+        {
+            botSaveResult = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            botSaving = false;
         }
     }
 

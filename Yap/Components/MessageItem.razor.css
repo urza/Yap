@@ -124,6 +124,12 @@
     font-weight: 500;
 }
 
+.bot-badge {
+    margin-left: 0.25rem;
+    opacity: 0.8;
+    font-size: 0.85rem;
+}
+
 .message-time {
     color: var(--text-muted);
     font-size: 0.75rem;

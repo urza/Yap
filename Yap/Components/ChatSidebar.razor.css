@@ -195,6 +195,12 @@
     opacity: 0.8;
 }
 
+/* Bot badge */
+.bot-badge {
+    margin-left: 0.25rem;
+    opacity: 0.8;
+}
+
 /* Room unread dot */
 .room-unread-dot {
     width: 8px;

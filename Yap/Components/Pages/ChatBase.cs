@@ -19,6 +19,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     [Inject] protected NavigationManager Navigation { get; set; } = default!;
     [Inject] protected IJSRuntime JS { get; set; } = default!;
     [Inject] private IHttpContextAccessor HttpContextAccessor { get; set; } = default!;
+    [Inject] protected SystemBotService BotService { get; set; } = default!;
     [Inject] protected ILogger<ChatBase> Logger { get; set; } = default!;
 
     // Common accessors
