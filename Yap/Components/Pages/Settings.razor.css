@@ -372,6 +372,149 @@
     font-size: 0.8125rem;
 }
 
+/* Passphrase field */
+.passphrase-input-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.passphrase-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.passphrase-masked-field {
+    position: relative;
+    flex: 1;
+}
+
+.passphrase-masked-field .form-input {
+    padding-right: 2.5rem;
+}
+
+.passphrase-eye {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.passphrase-eye:hover {
+    color: var(--text-primary);
+}
+
+/* Kicked notice banner */
+.kicked-notice {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    background: rgba(250, 166, 26, 0.12);
+    border: 1px solid rgba(250, 166, 26, 0.35);
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+}
+
+.kicked-notice-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.kicked-notice-text {
+    flex: 1;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.kicked-notice-text strong {
+    color: var(--text-white);
+}
+
+.kicked-notice-dismiss {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.25rem;
+    cursor: pointer;
+    padding: 0 0.25rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.kicked-notice-dismiss:hover {
+    color: var(--text-white);
+}
+
+/* Active sessions */
+.sessions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.session-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    background: var(--bg-input);
+    border-radius: 4px;
+    border: 1px solid transparent;
+}
+
+.session-item.current {
+    border-color: var(--accent-primary);
+}
+
+.session-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.session-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+}
+
+.session-line {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.session-badge {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--accent-primary);
+    background: rgba(88, 101, 242, 0.15);
+    padding: 0.125rem 0.375rem;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
+.session-ip {
+    color: var(--text-primary);
+    font-size: 0.875rem;
+}
+
+.session-activity {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
 /* Mobile adjustments */
 @media (max-width: 600px) {
     .settings-container {
@@ -385,5 +528,10 @@
     .profile-picture-section {
         flex-direction: column;
         align-items: flex-start;
+    }
+
+    .passphrase-input-row {
+        flex-direction: column;
+        align-items: stretch;
     }
 }

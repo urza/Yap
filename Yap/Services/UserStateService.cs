@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Components;
 using Yap.Models;
 
@@ -84,7 +85,7 @@ public class UserStateService
     public string? Locale { get; set; }
 
     /// <summary>
-    /// Date/time format preset ID (e.g. "czech", "us", "european", "iso").
+    /// Date/time format preset ID (e.g. "dmy24", "dmy12", "mdy12", "iso").
     /// Auto-guessed from locale on first connect, can be overridden in Settings.
     /// </summary>
     [PersistentState]
@@ -98,11 +99,28 @@ public class UserStateService
         LocaleResolver.ResolveTimeZone(TimeZone) ?? TimeZoneInfo.Utc;
 
     /// <summary>
-    /// Gets the user's selected date format preset.
-    /// Falls back to European if not set.
+    /// Gets the user's date+time format built from their date order and clock choices.
     /// </summary>
-    public DateFormatPreset GetDateFormatPreset() =>
-        LocaleResolver.GetPreset(DateFormat);
+    public DateTimeFormat GetDateTimeFormat() =>
+        LocaleResolver.GetFormat(DateFormat);
+
+    /// <summary>
+    /// Gets the CultureInfo for formatting (date/time separators, etc.).
+    /// Uses culture override from DateFormat if set, otherwise browser locale.
+    /// </summary>
+    public CultureInfo GetCultureInfo()
+    {
+        // Check for explicit culture override in DateFormat (e.g. "dmy-24h-cs-CZ")
+        var cultureOverride = LocaleResolver.GetCultureOverride(DateFormat);
+        var locale = cultureOverride ?? Locale;
+
+        if (!string.IsNullOrEmpty(locale))
+        {
+            try { return new CultureInfo(locale); }
+            catch { }
+        }
+        return CultureInfo.InvariantCulture;
+    }
 
     /// <summary>
     /// Gets the name to display in the UI.

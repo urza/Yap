@@ -10,12 +10,25 @@
 @inject PushNotificationService PushService
 @inject GeoLocationService GeoLocation
 @inject IHttpContextAccessor HttpContextAccessor
+@inject ChatService ChatService
 @inject ILogger<Settings> Logger
-@implements IDisposable
+@implements IAsyncDisposable
 
 <PageTitle>Settings</PageTitle>
 
 <div class="settings-container">
+    @if (showKickedNotice)
+    {
+        <div class="kicked-notice">
+            <span class="kicked-notice-icon">&#x1f512;</span>
+            <div class="kicked-notice-text">
+                <strong>All other devices have been signed out.</strong>
+                Your passphrase was automatically changed. See your new passphrase below.
+            </div>
+            <button class="kicked-notice-dismiss" @onclick="() => showKickedNotice = false">&times;</button>
+        </div>
+    }
+
     <div class="settings-header">
         <h2>Settings</h2>
         @if (saveStatus != null)
@@ -72,7 +85,7 @@
             </div>
 
             <div class="form-group">
-                <label for="country">Tell us where are you from - we have map!</label>
+                <label for="country">Tell us where are you from - map is in the making!</label>
                 <div style="display: flex; gap: 8px; align-items: center;">
                     <input type="text" id="country" value="@country"
                            @oninput="OnCountryInput"
@@ -95,9 +108,10 @@
             {
                 <div class="form-group">
                     <label>Your passphrase</label>
+                    <span class="form-hint" style="margin-bottom: 8px;">This passphrase lets you log in other devices. Anyone who knows it can access your account.</span>
                     @if (isEditingPassword)
                     {
-                        <div style="display: flex; gap: 8px; align-items: center;">
+                        <div class="passphrase-input-row">
                             <input type="text" value="@passwordInput"
                                    @oninput="@(e => passwordInput = e.Value?.ToString() ?? string.Empty)"
                                    placeholder="Enter new passphrase" maxlength="64" class="form-input" style="flex: 1;" />
@@ -105,20 +119,33 @@
                                 Generate
                             </button>
                         </div>
-                        <div style="display: flex; gap: 8px; margin-top: 8px;">
+                        <div class="passphrase-actions">
                             <button class="upload-button" @onclick="SavePassword" disabled="@(string.IsNullOrWhiteSpace(passwordInput))">Save</button>
                             <button class="remove-button" @onclick="CancelEditPassword">Cancel</button>
                         </div>
                     }
                     else
                     {
-                        <div style="display: flex; gap: 8px; align-items: center;">
-                            <input type="text" value="@currentPassword" readonly class="form-input" style="flex: 1; opacity: 0.8;" />
-                            <button class="upload-button" @onclick="StartEditPassword" style="white-space: nowrap;">Change</button>
+                        <div class="passphrase-input-row">
+                            <div class="passphrase-masked-field">
+                                <input type="@(showPassphrase ? "text" : "password")" value="@currentPassword" readonly class="form-input" />
+                                <button class="passphrase-eye" @onclick="() => showPassphrase = !showPassphrase" title="@(showPassphrase ? "Hide" : "Show")">
+                                    @if (showPassphrase)
+                                    {
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                                    }
+                                    else
+                                    {
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                    }
+                                </button>
+                            </div>
+                        </div>
+                        <div class="passphrase-actions">
+                            <button class="upload-button" @onclick="StartEditPassword">Change</button>
                             <button class="remove-button" @onclick="RemovePassword">Remove</button>
                         </div>
                     }
-                    <span class="form-hint">Anyone with this passphrase can log in as you. Keep it safe.</span>
                     @if (passwordSaveStatus != null)
                     {
                         <span class="save-status saved" style="margin-top: 4px;">@passwordSaveStatus</span>
@@ -129,18 +156,8 @@
             {
                 <div class="form-group">
                     <label>Passphrase</label>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <input type="text" value="@passwordInput"
-                               @oninput="@(e => passwordInput = e.Value?.ToString() ?? string.Empty)"
-                               placeholder="Enter passphrase" maxlength="64" class="form-input" style="flex: 1;" />
-                        <button class="upload-button" @onclick="GenerateNewPassphrase" style="white-space: nowrap;">
-                            Generate
-                        </button>
-                    </div>
-                    <div style="margin-top: 8px;">
-                        <button class="upload-button" @onclick="SavePassword" disabled="@(string.IsNullOrWhiteSpace(passwordInput))">Set Passphrase</button>
-                    </div>
-                    <span class="form-hint">Set a passphrase to log in from other devices or after signing out.</span>
+                    <p class="form-hint" style="margin-bottom: 10px;">This account is tied to this device only. Enable a passphrase to log in from other devices or browsers.</p>
+                    <button class="upload-button" @onclick="EnablePassphrase">Enable Passphrase</button>
                     @if (passwordSaveStatus != null)
                     {
                         <span class="save-status saved" style="margin-top: 4px;">@passwordSaveStatus</span>
@@ -150,39 +167,68 @@
         </div>
 
         <div class="settings-section">
-            <h3>Time & Date</h3>
+            <h3>Active Sessions</h3>
 
-            <div class="form-group">
-                <label>Your time</label>
-                <div class="time-widget">
-                    <button class="time-adjust-btn" @onclick="() => AdjustTimezone(-1)" title="−1 hour">−</button>
-                    <span class="current-time">@GetCurrentTime()</span>
-                    <button class="time-adjust-btn" @onclick="() => AdjustTimezone(1)" title="+1 hour">+</button>
-                    <button class="upload-button" @onclick="DetectTimezone" style="white-space: nowrap; margin-left: 8px;">
-                        Detect
-                    </button>
-                </div>
-                <span class="form-hint">Adjust if the time doesn't match your clock</span>
-            </div>
-
-            <div class="form-group">
-                <label>Date format</label>
-                @{
-                    var previewTime = GetPreviewTime();
-                }
-                <div class="format-options">
-                    @foreach (var preset in LocaleResolver.Presets)
+            @if (sessions.Count > 0)
+            {
+                <div class="sessions-list">
+                    @foreach (var session in sessions)
                     {
-                        var id = preset.Id;
-                        <label class="format-option @(dateFormat == id ? "selected" : "")">
-                            <input type="radio" name="dateFormat" checked="@(dateFormat == id)"
-                                   @onchange="() => SelectDateFormat(id)" />
-                            <span class="format-example">@preset.FormatExample(previewTime)</span>
-                            <span class="format-label">@preset.Label</span>
-                        </label>
+                        var isCurrentDevice = session.SessionId == UserState.SessionId;
+                        <div class="session-item @(isCurrentDevice ? "current" : "")">
+                            <span class="session-icon">@(session.IsMobile == true ? "📱" : "🖥️")</span>
+                            <div class="session-details">
+                                <div class="session-line">
+                                    @if (isCurrentDevice)
+                                    {
+                                        <span class="session-badge">This device</span>
+                                    }
+                                    <span class="session-ip">@(session.ClientIp ?? "Unknown IP")</span>
+                                </div>
+                                <span class="session-activity">Active @FormatRelativeTime(session.LastActivity)</span>
+                            </div>
+                        </div>
                     }
                 </div>
-            </div>
+
+                @if (sessions.Count > 1)
+                {
+                    <div style="margin-top: 12px;">
+                        <button class="remove-button" @onclick="SignOutOtherDevices" disabled="@isSigningOutOthers">
+                            @(isSigningOutOthers ? "Signing out..." : "Sign out all other devices")
+                        </button>
+                    </div>
+                    @if (signOutStatus != null)
+                    {
+                        <span class="save-status saved" style="margin-top: 4px;">@signOutStatus</span>
+                    }
+                }
+            }
+            else
+            {
+                <span class="form-hint">No active sessions.</span>
+            }
+        </div>
+
+        
+
+        <div class="settings-section">
+            <h3>Install as App</h3>
+
+            @if (isPwa)
+            {
+                <div class="pwa-installed-info">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="pwa-check-icon">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                    </svg>
+                    <span>Yap is installed as an app on this device.</span>
+                </div>
+            }
+            else
+            {
+                <p class="pwa-description">Install Yap to your home screen for a full-screen experience with push notifications and quick access.</p>
+                <button class="upload-button" @onclick="InstallPwa">Install Yap</button>
+            }
         </div>
 
         <div class="settings-section">
@@ -253,23 +299,85 @@
         </div>
 
         <div class="settings-section">
-            <h3>Install as App</h3>
+            <h3>Time & Date</h3>
 
-            @if (isPwa)
+            <div class="form-group">
+                <label>Your time</label>
+                <div class="time-widget">
+                    <button class="time-adjust-btn" @onclick="() => AdjustTimezone(-1)" title="−1 hour">−</button>
+                    <span class="current-time">@GetCurrentTime()</span>
+                    <button class="time-adjust-btn" @onclick="() => AdjustTimezone(1)" title="+1 hour">+</button>
+                    <button class="upload-button" @onclick="DetectTimezone" style="white-space: nowrap; margin-left: 8px;">
+                        Detect
+                    </button>
+                </div>
+                <span class="form-hint">Adjust if the time doesn't match your clock</span>
+            </div>
+
+            @{
+                var previewTime = GetPreviewTime();
+                var activeCulture = GetActiveCulture();
+                var availableCultures = LocaleResolver.GetAvailableCultures(UserState.Locale, timeZone);
+            }
+
+            <div class="form-group">
+                <label>Clock</label>
+                <div class="format-options">
+                    @foreach (var clk in LocaleResolver.GetOrderedClockStyles(UserState.Locale))
+                    {
+                        var id = clk.Id;
+                        <label class="format-option @(clockStyle == id ? "selected" : "")">
+                            <input type="radio" name="clock" checked="@(clockStyle == id)"
+                                   @onchange="() => SelectClock(id)" />
+                            <span class="format-example">@previewTime.ToString(clk.TimeFormat, activeCulture)</span>
+                        </label>
+                    }
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Date order</label>
+                <div class="format-options">
+                    @foreach (var order in LocaleResolver.GetOrderedDateOrders(UserState.Locale))
+                    {
+                        var id = order.Id;
+                        <label class="format-option @(dateOrder == id ? "selected" : "")">
+                            <input type="radio" name="dateOrder" checked="@(dateOrder == id)"
+                                   @onchange="() => SelectDateOrder(id)" />
+                            <span class="format-example">@previewTime.ToString(order.FullDate, activeCulture)</span>
+                        </label>
+                    }
+                </div>
+            </div>
+
+            @if (availableCultures.Count > 1)
             {
-                <div class="pwa-installed-info">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="pwa-check-icon">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                    </svg>
-                    <span>Yap is installed as an app on this device.</span>
+                <div class="form-group">
+                    <label>Separators</label>
+                    <div class="format-options">
+                        @foreach (var c in availableCultures)
+                        {
+                            var name = c.Name;
+                            var isSelected = (cultureOverride == null && name == availableCultures[0].Name)
+                                          || cultureOverride == name;
+                            var fmt = LocaleResolver.BuildFormat(dateOrder, clockStyle);
+                            <label class="format-option @(isSelected ? "selected" : "")">
+                                <input type="radio" name="separators" checked="@isSelected"
+                                       @onchange="() => SelectCulture(name)" />
+                                <span class="format-example">@fmt.FormatExample(previewTime, c)</span>
+                                <span class="format-label">@c.NativeName</span>
+                            </label>
+                        }
+                    </div>
                 </div>
             }
-            else
+
+            @if (!string.IsNullOrEmpty(UserState.TimeZone) || !string.IsNullOrEmpty(UserState.Locale))
             {
-                <p class="pwa-description">Install Yap to your home screen for a full-screen experience with push notifications and quick access.</p>
-                <button class="upload-button" @onclick="InstallPwa">Install Yap</button>
+                <span class="form-hint">Detected: @(UserState.TimeZone ?? "—") · @(UserState.Locale ?? "—")</span>
             }
         </div>
+       
     </div>
 </div>
 
@@ -280,7 +388,9 @@
     private string? country;
     private string? detectedLocation;
     private string? timeZone;
-    private string? dateFormat;
+    private string dateOrder = "dmy";
+    private string clockStyle = "24h";
+    private string? cultureOverride;
 
     private bool isUploading = false;
     private string? saveStatus;
@@ -291,7 +401,14 @@
     private string? currentPassword;
     private string passwordInput = "";
     private bool isEditingPassword;
+    private bool showPassphrase;
     private string? passwordSaveStatus;
+
+    // Active sessions state
+    private List<ChatService.UserSession> sessions = new();
+    private bool isSigningOutOthers = false;
+    private string? signOutStatus;
+    private bool showKickedNotice;
 
     // Push notification state
     private bool pushSupported = false;
@@ -319,14 +436,20 @@
             bio = user.Bio;
             country = user.Country;
             timeZone = user.TimeZone;
-            dateFormat = user.DateFormat ?? LocaleResolver.GuessPresetFromLocale(user.Locale);
+            if (user.DateFormat != null)
+            {
+                (dateOrder, clockStyle, cultureOverride) = LocaleResolver.ParseDateFormat(user.DateFormat);
+            }
+            else
+            {
+                dateOrder = LocaleResolver.GuessDateOrderFromLocale(user.Locale);
+                clockStyle = LocaleResolver.GuessClockFromLocale(user.Locale);
+            }
             pushMuted = user.PushMuted;
 
             // Load password state
             currentPassword = user.Password;
             hasPassword = currentPassword != null;
-            if (!hasPassword)
-                passwordInput = UserService.GeneratePassphrase();
         }
 
         // Detect location from IP for the Detect button
@@ -343,6 +466,21 @@
         if (UserState.Username != null)
         {
             serverSubscriptionCount = PushStore.GetSubscriptions(UserState.Username).Count();
+        }
+
+        // Load active sessions
+        if (UserState.Username != null)
+        {
+            sessions = ChatService.GetSessionsForUser(UserState.Username);
+            ChatService.OnUsersListChanged += HandleUsersListChanged;
+        }
+
+        // Check if we just kicked other devices (query param from redirect)
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        if (Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query).TryGetValue("kicked", out var kicked) && kicked == "1")
+        {
+            showKickedNotice = true;
+            showPassphrase = true; // reveal so user sees the new passphrase
         }
 
         // Set nav context
@@ -382,8 +520,8 @@
     {
         var tz = LocaleResolver.ResolveTimeZone(timeZone) ?? TimeZoneInfo.Utc;
         var now = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, tz);
-        var fmt = LocaleResolver.GetPreset(dateFormat);
-        return now.ToString(fmt.Time, System.Globalization.CultureInfo.InvariantCulture);
+        var clk = LocaleResolver.ClockStyles.FirstOrDefault(c => c.Id == clockStyle) ?? LocaleResolver.ClockStyles[0];
+        return now.ToString(clk.TimeFormat, GetActiveCulture());
     }
 
     private DateTimeOffset GetPreviewTime()
@@ -419,10 +557,36 @@
         catch { /* JS not available */ }
     }
 
-    private async Task SelectDateFormat(string id)
+    private async Task SelectDateOrder(string id)
     {
-        dateFormat = id;
+        dateOrder = id;
         await SaveTimeDateAsync();
+    }
+
+    private async Task SelectClock(string id)
+    {
+        clockStyle = id;
+        await SaveTimeDateAsync();
+    }
+
+    private async Task SelectCulture(string cultureName)
+    {
+        var available = LocaleResolver.GetAvailableCultures(UserState.Locale, timeZone);
+        // If selecting the browser default (first in list), clear the override
+        cultureOverride = available.Count > 0 && available[0].Name == cultureName
+            ? null
+            : cultureName;
+        await SaveTimeDateAsync();
+    }
+
+    private System.Globalization.CultureInfo GetActiveCulture()
+    {
+        if (!string.IsNullOrEmpty(cultureOverride))
+        {
+            try { return new System.Globalization.CultureInfo(cultureOverride); }
+            catch { }
+        }
+        return UserState.GetCultureInfo();
     }
 
     private async Task SaveTimeDateAsync()
@@ -430,6 +594,9 @@
         if (!UserState.UserId.HasValue) return;
 
         var normalizedTz = string.IsNullOrWhiteSpace(timeZone) ? null : timeZone.Trim();
+        var dateFormat = cultureOverride != null
+            ? $"{dateOrder}-{clockStyle}-{cultureOverride}"
+            : $"{dateOrder}-{clockStyle}";
         UserState.TimeZone = normalizedTz;
         UserState.DateFormat = dateFormat;
 
@@ -581,6 +748,33 @@
 
     // Account security methods
 
+    private async Task EnablePassphrase()
+    {
+        if (!UserState.UserId.HasValue) return;
+
+        var passphrase = UserService.GeneratePassphrase();
+        await UserService.SetPasswordAsync(UserState.UserId.Value, passphrase);
+        currentPassword = passphrase;
+        hasPassword = true;
+        showPassphrase = true; // reveal immediately so user sees it
+
+        passwordSaveStatus = "Passphrase enabled";
+        StateHasChanged();
+
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(3000);
+            await InvokeAsync(() =>
+            {
+                if (passwordSaveStatus == "Passphrase enabled")
+                {
+                    passwordSaveStatus = null;
+                    StateHasChanged();
+                }
+            });
+        });
+    }
+
     private void StartEditPassword()
     {
         isEditingPassword = true;
@@ -606,6 +800,7 @@
         currentPassword = passwordInput.Trim();
         hasPassword = true;
         isEditingPassword = false;
+        showPassphrase = true; // reveal so user can verify
         passwordInput = "";
 
         passwordSaveStatus = "Saved";
@@ -633,7 +828,8 @@
         currentPassword = null;
         hasPassword = false;
         isEditingPassword = false;
-        passwordInput = UserService.GeneratePassphrase();
+        showPassphrase = false;
+        passwordInput = "";
 
         passwordSaveStatus = "Removed";
         StateHasChanged();
@@ -650,6 +846,96 @@
                 }
             });
         });
+    }
+
+    // Active sessions methods
+
+    private async void HandleUsersListChanged()
+    {
+        try
+        {
+            await InvokeAsync(() =>
+            {
+                if (UserState.Username != null)
+                    sessions = ChatService.GetSessionsForUser(UserState.Username);
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex)
+        {
+            if (ex is ObjectDisposedException or InvalidOperationException)
+                Logger.LogWarning("HandleUsersListChanged: {Message}", ex.Message);
+            else
+                Logger.LogError(ex, "Error in HandleUsersListChanged");
+        }
+    }
+
+    private async Task SignOutOtherDevices()
+    {
+        if (isSigningOutOthers || !UserState.UserId.HasValue || UserState.SessionId == null) return;
+
+        isSigningOutOthers = true;
+        StateHasChanged();
+
+        try
+        {
+            // Remove other sessions from ChatService
+            await ChatService.RemoveAllSessionsExcept(UserState.Username!, UserState.SessionId);
+
+            // Rotate token to invalidate cookies on other devices
+            var newToken = await UserService.RotateTokenAsync(UserState.UserId.Value);
+
+            // Auto-rotate passphrase so kicked devices can't immediately re-login
+            if (hasPassword)
+            {
+                var newPassphrase = UserService.GeneratePassphrase();
+                await UserService.SetPasswordAsync(UserState.UserId.Value, newPassphrase);
+            }
+
+            if (newToken != null)
+            {
+                // Navigate to set the new cookie on this device, then return to settings with notice
+                Navigation.NavigateTo($"/auth/refresh-token?token={Uri.EscapeDataString(newToken)}&returnUrl=/settings%3Fkicked=1", forceLoad: true);
+                return;
+            }
+
+            // Token rotation failed but sessions were still removed
+            sessions = ChatService.GetSessionsForUser(UserState.Username!);
+            signOutStatus = "Other devices signed out";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to sign out other devices");
+            signOutStatus = "Failed";
+        }
+        finally
+        {
+            isSigningOutOthers = false;
+            StateHasChanged();
+        }
+
+        // Clear status after delay
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(3000);
+            await InvokeAsync(() =>
+            {
+                signOutStatus = null;
+                StateHasChanged();
+            });
+        });
+    }
+
+    private static string FormatRelativeTime(DateTime utcTime)
+    {
+        if (utcTime == default) return "unknown";
+
+        var elapsed = DateTime.UtcNow - utcTime;
+        if (elapsed.TotalSeconds < 30) return "just now";
+        if (elapsed.TotalMinutes < 1) return $"{(int)elapsed.TotalSeconds}s ago";
+        if (elapsed.TotalHours < 1) return $"{(int)elapsed.TotalMinutes}m ago";
+        if (elapsed.TotalDays < 1) return $"{(int)elapsed.TotalHours}h ago";
+        return $"{(int)elapsed.TotalDays}d ago";
     }
 
     // Push notification methods
@@ -822,9 +1108,11 @@
         };
     }
 
-    public void Dispose()
+    public ValueTask DisposeAsync()
     {
+        ChatService.OnUsersListChanged -= HandleUsersListChanged;
         _debounceCts?.Cancel();
         _debounceCts?.Dispose();
+        return ValueTask.CompletedTask;
     }
 }

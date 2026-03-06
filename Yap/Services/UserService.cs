@@ -486,6 +486,49 @@ public class UserService
     }
 
     /// <summary>
+    /// Rotates the auth token for a user. Invalidates the old token and returns the new one.
+    /// Used when signing out all other devices — caller sets the new token on the current device's cookie.
+    /// </summary>
+    public async Task<string?> RotateTokenAsync(Guid userId)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return null;
+
+        var oldToken = user.Token;
+        var newToken = GenerateToken();
+
+        // Update in-memory
+        _tokenToId.TryRemove(oldToken, out _);
+        _tokenToId[newToken] = userId;
+        user.Token = newToken;
+
+        // Persist to database
+        if (_persistenceEnabled)
+        {
+            try
+            {
+                await using var db = await _dbFactory!.CreateDbContextAsync();
+                await db.Users
+                    .Where(u => u.Id == userId)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(u => u.Token, newToken));
+                _logger.LogInformation("Rotated token for user {Username}", user.Username);
+            }
+            catch (Exception ex)
+            {
+                // Rollback in-memory on failure
+                _tokenToId.TryRemove(newToken, out _);
+                _tokenToId[oldToken] = userId;
+                user.Token = oldToken;
+                _logger.LogError(ex, "Failed to rotate token for user {UserId}", userId);
+                return null;
+            }
+        }
+
+        return newToken;
+    }
+
+    /// <summary>
     /// Generates a secure random token.
     /// </summary>
     private static string GenerateToken()

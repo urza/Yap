@@ -89,7 +89,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
                     var info = await JS.InvokeAsync<ClientLocaleInfo>("getClientLocaleInfo");
                     UserState.TimeZone = info.TimeZone;
                     UserState.Locale = info.Locale;
-                    UserState.DateFormat ??= LocaleResolver.GuessPresetFromLocale(info.Locale);
+                    UserState.DateFormat ??= LocaleResolver.GuessDateFormatFromLocale(info.Locale);
 
                     // Persist to User model so admin page can see it
                     if (UserState.UserId.HasValue)
@@ -119,7 +119,8 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
                 if (needsRejoin)
                 {
                     UserState.SessionId = Guid.NewGuid().ToString();
-                    await ChatService.AddUserAsync(UserState.SessionId, UserState.UserId.Value, Username, UserState.Status, UserState.IsMobile);
+                    var clientIp = HttpContextAccessor.HttpContext?.Items["ClientIp"]?.ToString();
+                    await ChatService.AddUserAsync(UserState.SessionId, UserState.UserId.Value, Username, UserState.Status, UserState.IsMobile, clientIp);
                 }
                 else
                 {

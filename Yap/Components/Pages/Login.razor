@@ -12,7 +12,7 @@
         <div class="input-wrapper">
             <input type="text" @bind="usernameInput" @bind:event="oninput" @bind:after="ValidateUsername"
                    placeholder="@usernamePlaceholder" class="username-input @(showError ? "invalid" : "")"
-                   @onkeypress="HandleUsernameKeyPress" @onblur="OnInputBlur" maxlength="23" />
+                   @onkeypress="HandleUsernameKeyPress" @onfocus="ValidateUsername" @onblur="OnInputBlur" maxlength="23" />
             @if (showError)
             {
                 <span class="validation-error">@errorMessage</span>
@@ -147,7 +147,7 @@
             else
             {
                 hasError = true;
-                errorMessage = "Username is already taken";
+                errorMessage = "This account doesn't have a passphrase yet. Go to Settings on your original device and enable one, then come back here.";
             }
             return;
         }

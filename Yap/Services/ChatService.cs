@@ -51,10 +51,13 @@ public class ChatService
     // Unread state events
     public event Action<Guid, Guid>? OnUnreadChanged; // userId, channelId
 
+    // Session kicked event (sessionId) - used to force-disconnect remote circuits
+    public event Action<string>? OnSessionKicked;
+
     // Per-user status (shared across all sessions for the same user)
     private readonly ConcurrentDictionary<string, UserStatus> _userStatuses = new(StringComparer.OrdinalIgnoreCase);
 
-    public record UserSession(Guid UserId, string Username, string SessionId, bool? IsMobile = null, bool PageVisible = true, DateTime LastActivity = default);
+    public record UserSession(Guid UserId, string Username, string SessionId, bool? IsMobile = null, bool PageVisible = true, DateTime LastActivity = default, string? ClientIp = null);
 
     public ChatService(PushNotificationService pushService, ChatPersistenceService persistence, UserService userService, ILogger<ChatService> logger)
     {
@@ -423,7 +426,7 @@ public class ChatService
 
     #region User Management
 
-    public Task AddUserAsync(string sessionId, Guid userId, string username, UserStatus status = UserStatus.Online, bool? isMobile = null)
+    public Task AddUserAsync(string sessionId, Guid userId, string username, UserStatus status = UserStatus.Online, bool? isMobile = null, string? clientIp = null)
     {
         // Check if this is the first session for this user
         var existingSessions = _users.Values
@@ -431,7 +434,7 @@ public class ChatService
             .ToList();
         var isFirstSession = existingSessions.Count == 0;
 
-        _users[sessionId] = new UserSession(userId, username, sessionId, isMobile, LastActivity: DateTime.UtcNow);
+        _users[sessionId] = new UserSession(userId, username, sessionId, isMobile, LastActivity: DateTime.UtcNow, ClientIp: clientIp);
 
         // Set status: only if first session (don't override active status from other devices)
         if (isFirstSession)
@@ -576,6 +579,57 @@ public class ChatService
             .Any(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// Gets all active sessions for a user.
+    /// </summary>
+    public List<UserSession> GetSessionsForUser(string username)
+    {
+        return _users.Values
+            .Where(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Removes all sessions for a user except the specified one.
+    /// Used for "sign out all other devices". Does NOT fire OnUserChanged(left)
+    /// since the user remains online via the kept session.
+    /// </summary>
+    public Task RemoveAllSessionsExcept(string username, string keepSessionId)
+    {
+        var sessionsToRemove = _users.Values
+            .Where(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase)
+                        && u.SessionId != keepSessionId)
+            .ToList();
+
+        foreach (var session in sessionsToRemove)
+        {
+            if (_users.TryRemove(session.SessionId, out _))
+            {
+                // Remove from typing indicators
+                foreach (var typingUsers in _channelTypingUsers.Values)
+                {
+                    typingUsers.TryRemove(session.Username, out _);
+                }
+            }
+        }
+
+        if (sessionsToRemove.Count > 0)
+        {
+            _logger.LogInformation("RemoveAllSessionsExcept: removed {Count} sessions for {User}, kept {KeptSession}",
+                sessionsToRemove.Count, username, keepSessionId);
+
+            // Notify each kicked session so their circuit can force-navigate to login
+            foreach (var session in sessionsToRemove)
+            {
+                OnSessionKicked?.Invoke(session.SessionId);
+            }
+
+            OnUsersListChanged?.Invoke();
+        }
+
+        return Task.CompletedTask;
+    }
+
     #endregion
 
     #region Messaging
@@ -654,6 +708,104 @@ public class ChatService
             }
         }
     }
+
+    /// <summary>
+    /// Generates test messages spread across a time span for debugging scroll and history limits.
+    /// Messages are inserted directly into memory and DB without firing events.
+    /// </summary>
+    public async Task<int> GenerateTestMessagesAsync(Guid channelId, Guid userId, string username, int count, TimeSpan timeSpan)
+    {
+        if (!_channels.TryGetValue(channelId, out var channel))
+            return 0;
+        if (!_channelMessages.TryGetValue(channelId, out var messages))
+            return 0;
+
+        // Build participant list: real user + fake users
+        var participants = new List<(Guid Id, string Name)> { (userId, username) };
+        foreach (var fake in _fakeUsers)
+            participants.Add((fake.Id, fake.Name));
+
+        var now = DateTime.UtcNow;
+        var start = now - timeSpan;
+        var cursor = start;
+        var avgInterval = timeSpan.TotalSeconds / count;
+
+        var testMessages = new List<ChatMessage>(count);
+        var rng = Random.Shared;
+        var currentSpeaker = rng.Next(participants.Count);
+        var burstRemaining = rng.Next(1, 6); // messages left in current speaker's "burst"
+
+        for (int i = 0; i < count; i++)
+        {
+            // Advance time with some jitter (0.5x - 1.5x avg interval)
+            cursor = cursor.AddSeconds(avgInterval * (0.5 + rng.NextDouble()));
+            if (cursor > now) cursor = now;
+
+            var (speakerId, speakerName) = participants[currentSpeaker];
+            var content = $"[Test #{i + 1}/{count}] {_testPhrases[rng.Next(_testPhrases.Length)]}";
+            testMessages.Add(new ChatMessage(channelId, speakerId, speakerName, content, cursor));
+
+            burstRemaining--;
+            if (burstRemaining <= 0)
+            {
+                // Switch to a different speaker
+                var next = rng.Next(participants.Count - 1);
+                if (next >= currentSpeaker) next++;
+                currentSpeaker = next;
+                burstRemaining = rng.Next(1, 6);
+            }
+        }
+
+        // Insert into memory (sorted by timestamp, before any newer messages)
+        lock (GetChannelLock(channelId))
+        {
+            messages.AddRange(testMessages);
+            messages.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
+        }
+
+        // Persist all to DB in one batch
+        await _persistence.PersistMessagesInBulkAsync(testMessages);
+
+        _logger.LogInformation("Generated {Count} test messages in channel {ChannelId} spanning {TimeSpan}", count, channelId, timeSpan);
+
+        // Fire event so open chat pages refresh
+        OnMessageReceived?.Invoke(testMessages[^1]);
+
+        return count;
+    }
+
+    private static readonly string[] _testPhrases =
+    [
+        "The quick brown fox jumps over the lazy dog",
+        "Hello world! This is a test message",
+        "Lorem ipsum dolor sit amet, consectetur adipiscing elit",
+        "Testing 1, 2, 3... Is this thing on?",
+        "All your base are belong to us",
+        "I'm sorry Dave, I'm afraid I can't do that",
+        "To be or not to be, that is the question",
+        "May the force be with you",
+        "Here's looking at you, kid",
+        "Life is like a box of chocolates",
+        "Houston, we have a problem",
+        "Elementary, my dear Watson",
+        "That's one small step for man, one giant leap for mankind",
+        "Winter is coming",
+        "I'll be back",
+        "Do or do not, there is no try",
+        "Just keep swimming",
+        "Bazinga!",
+        "It's dangerous to go alone! Take this.",
+        "The cake is a lie",
+    ];
+
+    private static readonly (Guid Id, string Name)[] _fakeUsers =
+    [
+        (Guid.Parse("aa000000-0000-0000-0000-000000000001"), "Alice"),
+        (Guid.Parse("aa000000-0000-0000-0000-000000000002"), "Bob"),
+        (Guid.Parse("aa000000-0000-0000-0000-000000000003"), "Charlie"),
+        (Guid.Parse("aa000000-0000-0000-0000-000000000004"), "Diana"),
+        (Guid.Parse("aa000000-0000-0000-0000-000000000005"), "Eve"),
+    ];
 
     public List<ChatMessage> GetMessages(Guid channelId, int count = 50)
     {

@@ -119,6 +119,31 @@ public class ChatPersistenceService
         }
     }
 
+    public async Task PersistMessagesInBulkAsync(IReadOnlyList<ChatMessage> messages)
+    {
+        if (!IsEnabled || messages.Count == 0) return;
+
+        try
+        {
+            await using var db = await _dbFactory!.CreateDbContextAsync();
+
+            var detached = messages.Select(m => new ChatMessage(
+                m.ChannelId, m.UserId, m.Username, m.Content, m.Timestamp, m.ImageUrls.ToList())
+            {
+                Id = m.Id,
+                IsEdited = m.IsEdited,
+                ReplyToMessageId = m.ReplyToMessageId
+            });
+
+            db.Messages.AddRange(detached);
+            await db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to bulk persist {Count} messages", messages.Count);
+        }
+    }
+
     public async Task PersistMessageEditAsync(Guid messageId, string newContent)
     {
         if (!IsEnabled) return;

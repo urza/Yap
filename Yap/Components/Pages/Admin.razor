@@ -28,12 +28,23 @@
             </svg>
             <span>Users</span>
         </button>
+        <button class="nav-item @(activeSection == "debug" ? "active" : "")"
+                @onclick='() => activeSection = "debug"'>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20 8h-2.81c-.45-.78-1.07-1.45-1.82-1.96L17 4.41 15.59 3l-2.17 2.17C12.96 5.06 12.49 5 12 5s-.96.06-1.41.17L8.41 3 7 4.41l1.62 1.63C7.88 6.55 7.26 7.22 6.81 8H4v2h2.09c-.05.33-.09.66-.09 1v1H4v2h2v1c0 .34.04.67.09 1H4v2h2.81c1.04 1.79 2.97 3 5.19 3s4.15-1.21 5.19-3H20v-2h-2.09c.05-.33.09-.66.09-1v-1h2v-2h-2v-1c0-.34-.04-.67-.09-1H20V8zm-6 8h-4v-2h4v2zm0-4h-4v-2h4v2z"/>
+            </svg>
+            <span>Debug</span>
+        </button>
     </nav>
 
     <div class="admin-tabs">
         <button class="tab-item @(activeSection == "users" ? "active" : "")"
                 @onclick='() => activeSection = "users"'>
             Users
+        </button>
+        <button class="tab-item @(activeSection == "debug" ? "active" : "")"
+                @onclick='() => activeSection = "debug"'>
+            Debug
         </button>
     </div>
 
@@ -250,6 +261,62 @@
                 </div>
             }
         }
+
+        @if (activeSection == "debug")
+        {
+            <div class="section-header">
+                <h3>Message Generator</h3>
+                <span class="section-count">Generate test messages for debugging</span>
+            </div>
+
+            <div class="debug-form">
+                <div class="form-group">
+                    <label>Channel</label>
+                    <select @bind="debugChannelId">
+                        @foreach (var room in ChatService.GetRooms())
+                        {
+                            <option value="@room.Id">@room.Name</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Number of messages</label>
+                    <input type="number" @bind="debugMessageCount" min="1" max="5000" />
+                </div>
+
+                <div class="form-group">
+                    <label>Spread across</label>
+                    <select @bind="debugTimeSpan">
+                        <option value="1">Last 1 hour</option>
+                        <option value="6">Last 6 hours</option>
+                        <option value="24">Last 1 day</option>
+                        <option value="72">Last 3 days</option>
+                        <option value="168">Last 1 week</option>
+                        <option value="336">Last 2 weeks</option>
+                        <option value="720">Last 1 month</option>
+                        <option value="2160">Last 3 months</option>
+                        <option value="8760">Last 1 year</option>
+                    </select>
+                </div>
+
+                <button class="generate-btn" @onclick="GenerateMessages" disabled="@debugGenerating">
+                    @if (debugGenerating)
+                    {
+                        <span>Generating...</span>
+                    }
+                    else
+                    {
+                        <span>Generate @debugMessageCount messages</span>
+                    }
+                </button>
+
+                @if (debugResult != null)
+                {
+                    <div class="debug-result">@debugResult</div>
+                }
+            </div>
+        }
     </main>
 </div>
 
@@ -305,6 +372,11 @@
 
         lastActions = lastActionsTask.Result;
         recentIPs = recentIPsTask.Result;
+
+        // Default debug channel to first room
+        var rooms = ChatService.GetRooms();
+        if (rooms.Count > 0)
+            debugChannelId = rooms[0].Id;
     }
 
     private async Task SelectUser(Guid userId)
@@ -325,6 +397,38 @@
         detailIPs = ips;
         detailUserAgents = agents;
         loadingDetail = false;
+    }
+
+    // Debug message generator
+    private Guid debugChannelId;
+    private int debugMessageCount = 200;
+    private int debugTimeSpan = 168; // hours
+    private bool debugGenerating;
+    private string? debugResult;
+
+    private async Task GenerateMessages()
+    {
+        if (!UserState.UserId.HasValue) return;
+
+        debugGenerating = true;
+        debugResult = null;
+        StateHasChanged();
+
+        try
+        {
+            var span = TimeSpan.FromHours(debugTimeSpan);
+            var generated = await ChatService.GenerateTestMessagesAsync(
+                debugChannelId, UserState.UserId.Value, UserState.Username!, debugMessageCount, span);
+            debugResult = $"Generated {generated} messages spread across {span.TotalHours}h";
+        }
+        catch (Exception ex)
+        {
+            debugResult = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            debugGenerating = false;
+        }
     }
 
     private void GoBack()

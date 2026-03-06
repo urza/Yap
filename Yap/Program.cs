@@ -343,6 +343,22 @@ app.MapGet("/auth/signout", (HttpContext context, UserService userService, UserA
     return Results.Redirect("/");
 });
 
+app.MapGet("/auth/refresh-token", (HttpContext context, UserService userService, string token, string? returnUrl) =>
+{
+    // Validate token exists — only set cookie if it maps to a real user
+    var user = userService.AuthenticateByToken(token);
+    if (user == null)
+        return Results.Redirect("/");
+
+    AuthMiddleware.SetAuthCookie(context, token);
+
+    var destination = "/settings";
+    if (!string.IsNullOrEmpty(returnUrl) && returnUrl.StartsWith("/") && !returnUrl.StartsWith("//"))
+        destination = returnUrl;
+
+    return Results.Redirect(destination);
+});
+
 // =============================================================================
 // ONE-TIME MIGRATION: Generate thumbnails for existing images
 // Runs in background to avoid timeout - check console for progress

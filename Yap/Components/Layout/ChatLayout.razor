@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @inject UserStateService UserState
 @inject ChatNavigationState NavState
+@inject ChatService ChatService
 @inject NavigationManager Navigation
 @implements IDisposable
 
@@ -39,6 +40,7 @@
     protected override void OnInitialized()
     {
         NavState.OnChange += StateHasChanged;
+        ChatService.OnSessionKicked += HandleSessionKicked;
     }
 
     protected override void OnAfterRender(bool firstRender)
@@ -53,6 +55,24 @@
         }
     }
 
+    private async void HandleSessionKicked(string sessionId)
+    {
+        if (sessionId != UserState.SessionId) return;
+
+        try
+        {
+            await InvokeAsync(() =>
+            {
+                // Force full HTTP redirect to signout — clears cookie and lands on login
+                Navigation.NavigateTo("/auth/signout", forceLoad: true);
+            });
+        }
+        catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException)
+        {
+            // Circuit already dead, nothing to do
+        }
+    }
+
     private void Recover()
     {
         errorBoundary?.Recover();
@@ -61,5 +81,6 @@
     public void Dispose()
     {
         NavState.OnChange -= StateHasChanged;
+        ChatService.OnSessionKicked -= HandleSessionKicked;
     }
 }

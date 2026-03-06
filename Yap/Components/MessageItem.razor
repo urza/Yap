@@ -205,8 +205,8 @@
     private string FormatTimestamp()
     {
         var tz = UserState.GetTimeZoneInfo();
-        var fmt = UserState.GetDateFormatPreset();
-        var ic = System.Globalization.CultureInfo.InvariantCulture;
+        var fmt = UserState.GetDateTimeFormat();
+        var ic = UserState.GetCultureInfo();
         var local = TimeZoneInfo.ConvertTime(Message.Timestamp, tz);
         var now = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, tz);
 
