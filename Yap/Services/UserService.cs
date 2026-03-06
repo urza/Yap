@@ -380,6 +380,35 @@ public class UserService
     }
 
     /// <summary>
+    /// Updates the user's timezone and locale (detected from browser).
+    /// </summary>
+    public async Task UpdateLocaleAsync(Guid userId, string? timeZone, string? locale)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        user.TimeZone = timeZone;
+        user.Locale = locale;
+
+        if (_persistenceEnabled)
+        {
+            try
+            {
+                await using var db = await _dbFactory!.CreateDbContextAsync();
+                await db.Users
+                    .Where(u => u.Id == userId)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(u => u.TimeZone, timeZone)
+                        .SetProperty(u => u.Locale, locale));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update locale for user {UserId}", userId);
+            }
+        }
+    }
+
+    /// <summary>
     /// Generates a secure random token.
     /// </summary>
     private static string GenerateToken()

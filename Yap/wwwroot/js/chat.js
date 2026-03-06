@@ -1,3 +1,9 @@
+// Client locale detection (timezone + language)
+window.getClientLocaleInfo = () => ({
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    locale: navigator.language
+});
+
 // Welcome page: attach click handler to #yap-enter element
 window.setupWelcomePage = (dotNetRef) => {
     const el = document.getElementById('yap-enter');

@@ -55,6 +55,16 @@ public class User
     public string? Country { get; set; }
 
     /// <summary>
+    /// Client's IANA timezone (e.g. "Europe/Prague"). Updated on each connect.
+    /// </summary>
+    public string? TimeZone { get; set; }
+
+    /// <summary>
+    /// Client's browser locale (e.g. "cs-CZ"). Updated on each connect.
+    /// </summary>
+    public string? Locale { get; set; }
+
+    /// <summary>
     /// Whether push notifications are muted for this user.
     /// When true, PushNotificationService skips sending (subscription stays intact).
     /// </summary>

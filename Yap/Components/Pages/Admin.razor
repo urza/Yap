@@ -53,6 +53,7 @@
                             <th>Status</th>
                             <th>Created</th>
                             <th>Last Action</th>
+                            <th>Locale</th>
                             <th>Recent IPs</th>
                         </tr>
                     </thead>
@@ -98,6 +99,17 @@
                                     {
                                         <span class="action-type">@lastAction.Action</span>
                                         <span class="action-date">@lastAction.Date.ToString("yyyy-MM-dd HH:mm")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="no-data">—</span>
+                                    }
+                                </td>
+                                <td class="locale-cell">
+                                    @if (user.TimeZone != null)
+                                    {
+                                        <span class="locale-tz" title="@user.TimeZone">@user.TimeZone</span>
+                                        <span class="locale-lang">@user.Locale</span>
                                     }
                                     else
                                     {

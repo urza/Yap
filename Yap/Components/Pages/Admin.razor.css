@@ -275,6 +275,23 @@
     margin: 0.125rem 0.25rem 0.125rem 0;
 }
 
+/* Locale cell */
+.locale-cell {
+    white-space: nowrap;
+}
+
+.locale-tz {
+    display: block;
+    color: var(--text-primary);
+    font-size: 0.8125rem;
+}
+
+.locale-lang {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
 .no-data {
     color: var(--text-muted);
 }

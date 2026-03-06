@@ -1,6 +1,8 @@
+@using System.Globalization
 @using Yap.Models
 @using Yap.Services
 @inject EmojiService EmojiService
+@inject UserStateService UserState
 @inject IJSRuntime JS
 
 <div class="message-group @(IsSystem ? "system-message" : "") @(ShowHeader ? "has-header" : "") @(showEmojiPicker ? "picker-open" : "") @(ReplyToMessage != null ? "has-reply" : "") @(IsReplyTarget ? "reply-target" : "")"
@@ -31,7 +33,7 @@
         {
             <div class="message-meta">
                 <strong class="message-username">@EmojiService.ConvertEmojisToTwemoji(DisplayName ?? Message.Username, inline: true)</strong>
-                <span class="message-time">@Message.Timestamp.ToLocalTime().ToString("HH:mm")</span>
+                <span class="message-time">@FormatTimestamp()</span>
             </div>
         }
 
@@ -200,6 +202,24 @@
     [Parameter] public EventCallback OnCancelEdit { get; set; }
     [Parameter] public EventCallback OnDelete { get; set; }
     [Parameter] public EventCallback<(List<string> Images, int Index)> OnImageClick { get; set; }
+
+    private string FormatTimestamp()
+    {
+        var tz = UserState.GetTimeZoneInfo();
+        var culture = UserState.GetCultureInfo();
+        var local = TimeZoneInfo.ConvertTime(Message.Timestamp, tz);
+        var now = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, tz);
+
+        var time = local.ToString("t", culture);  // culture's short time (e.g. "14:30" or "2:30 PM")
+
+        if (local.Date == now.Date)
+            return time;
+        if (local.Date == now.Date.AddDays(-1))
+            return $"Yesterday {time}";
+        if (local.Year == now.Year)
+            return $"{local.ToString("M", culture)} {time}";  // culture's month/day (e.g. "4. březen" or "March 4")
+        return $"{local.ToString("d", culture)} {time}";       // culture's short date (e.g. "04.03.2025" or "3/4/2025")
+    }
 
     private string GetReplyPreviewText()
     {

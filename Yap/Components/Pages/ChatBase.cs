@@ -80,6 +80,22 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
                 }
             }
 
+            // Detect client timezone and locale (once per session)
+            if (UserState.TimeZone == null)
+            {
+                try
+                {
+                    var info = await JS.InvokeAsync<ClientLocaleInfo>("getClientLocaleInfo");
+                    UserState.TimeZone = info.TimeZone;
+                    UserState.Locale = info.Locale;
+
+                    // Persist to User model so admin page can see it
+                    if (UserState.UserId.HasValue)
+                        await UserService.UpdateLocaleAsync(UserState.UserId.Value, info.TimeZone, info.Locale);
+                }
+                catch { /* JS not available yet, will use fallbacks */ }
+            }
+
             // Auth guard - layout also checks, but this is a fallback
             // UserState is populated by AuthMiddleware before Blazor starts
             if (!UserState.IsLoggedIn)
@@ -657,4 +673,6 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
         await CleanupScrollDismissAsync();
         _visibilityRef?.Dispose();
     }
+
+    private record ClientLocaleInfo(string? TimeZone, string? Locale);
 }

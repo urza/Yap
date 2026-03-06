@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Components;
 using Yap.Models;
 
@@ -68,6 +69,42 @@ public class UserStateService
     /// </summary>
     [PersistentState]
     public string? ProfilePictureUrl { get; set; }
+
+    /// <summary>
+    /// Client's IANA timezone (e.g. "Europe/Prague", "Asia/Kolkata").
+    /// Detected once via JS on first render, used for timestamp conversion.
+    /// </summary>
+    [PersistentState]
+    public string? TimeZone { get; set; }
+
+    /// <summary>
+    /// Client's browser locale (e.g. "cs-CZ", "en-IN").
+    /// Detected once via JS on first render, used for date formatting.
+    /// </summary>
+    [PersistentState]
+    public string? Locale { get; set; }
+
+    /// <summary>
+    /// Resolved TimeZoneInfo from the client's IANA timezone.
+    /// Falls back to UTC if not detected or invalid.
+    /// </summary>
+    public TimeZoneInfo GetTimeZoneInfo()
+    {
+        if (string.IsNullOrEmpty(TimeZone)) return TimeZoneInfo.Utc;
+        try { return TimeZoneInfo.FindSystemTimeZoneById(TimeZone); }
+        catch { return TimeZoneInfo.Utc; }
+    }
+
+    /// <summary>
+    /// Resolved CultureInfo from the client's browser locale.
+    /// Falls back to InvariantCulture if not detected or invalid.
+    /// </summary>
+    public CultureInfo GetCultureInfo()
+    {
+        if (string.IsNullOrEmpty(Locale)) return CultureInfo.InvariantCulture;
+        try { return CultureInfo.GetCultureInfo(Locale); }
+        catch { return CultureInfo.InvariantCulture; }
+    }
 
     /// <summary>
     /// Gets the name to display in the UI.
