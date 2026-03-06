@@ -373,11 +373,24 @@
 }
 
 /* Passphrase field */
-.passphrase-input-row {
+.passphrase-display {
     display: flex;
-    gap: 8px;
     align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 0.75rem;
+    background: var(--bg-input);
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
     margin-bottom: 8px;
+}
+
+.passphrase-value {
+    flex: 1;
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-family: inherit;
+    letter-spacing: 0.02em;
+    user-select: all;
 }
 
 .passphrase-actions {
@@ -385,20 +398,7 @@
     gap: 8px;
 }
 
-.passphrase-masked-field {
-    position: relative;
-    flex: 1;
-}
-
-.passphrase-masked-field .form-input {
-    padding-right: 2.5rem;
-}
-
 .passphrase-eye {
-    position: absolute;
-    right: 0.5rem;
-    top: 50%;
-    transform: translateY(-50%);
     background: none;
     border: none;
     color: var(--text-muted);
@@ -407,6 +407,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
 }
 
 .passphrase-eye:hover {
@@ -528,10 +529,5 @@
     .profile-picture-section {
         flex-direction: column;
         align-items: flex-start;
-    }
-
-    .passphrase-input-row {
-        flex-direction: column;
-        align-items: stretch;
     }
 }

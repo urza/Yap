@@ -12,10 +12,14 @@
         <div class="input-wrapper">
             <input type="text" @bind="usernameInput" @bind:event="oninput" @bind:after="ValidateUsername"
                    placeholder="@usernamePlaceholder" class="username-input @(showError ? "invalid" : "")"
-                   @onkeypress="HandleUsernameKeyPress" @onfocus="ValidateUsername" @onblur="OnInputBlur" maxlength="23" />
+                   @onkeypress="HandleUsernameKeyPress" @onblur="OnInputBlur" maxlength="23" />
             @if (showError)
             {
                 <span class="validation-error">@errorMessage</span>
+                @if (_showRetryLink)
+                {
+                    <button type="button" @onclick="ValidateUsername" class="retry-link">Done, try again</button>
+                }
             }
         </div>
         <button class="join-button" @onclick="JoinChat"
@@ -40,6 +44,7 @@
     private bool hasBlurred = false;
     private bool _shouldRedirect = false;
     private bool _usernameHasPassword = false;
+    private bool _showRetryLink = false;
 
     // Username rules: 2-23 chars, lowercase a-z, 0-9, underscore, period, no consecutive periods
     private static readonly System.Text.RegularExpressions.Regex ValidUsernameRegex =
@@ -100,6 +105,7 @@
         isLengthError = false;
         errorMessage = "";
         _usernameHasPassword = false;
+        _showRetryLink = false;
 
         if (string.IsNullOrWhiteSpace(usernameInput))
             return;
@@ -147,6 +153,7 @@
             else
             {
                 hasError = true;
+                _showRetryLink = true;
                 errorMessage = "This account doesn't have a passphrase yet. Go to Settings on your original device and enable one, then come back here.";
             }
             return;

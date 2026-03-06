@@ -105,7 +105,8 @@ public class UserStateService
         LocaleResolver.GetFormat(DateFormat);
 
     /// <summary>
-    /// Gets the CultureInfo for formatting (date/time separators, etc.).
+    /// Gets a formatting-safe CultureInfo (separators from user's culture,
+    /// but forced Gregorian calendar and Western digits).
     /// Uses culture override from DateFormat if set, otherwise browser locale.
     /// </summary>
     public CultureInfo GetCultureInfo()
@@ -116,7 +117,7 @@ public class UserStateService
 
         if (!string.IsNullOrEmpty(locale))
         {
-            try { return new CultureInfo(locale); }
+            try { return LocaleResolver.SanitizeCulture(new CultureInfo(locale)); }
             catch { }
         }
         return CultureInfo.InvariantCulture;

@@ -105,6 +105,19 @@
     font-size: 0.75rem;
 }
 
+.retry-link {
+    display: block;
+    margin-top: 6px;
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--accent-primary);
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-family: inherit;
+}
+
 .build-info {
     position: absolute;
     bottom: 1rem;

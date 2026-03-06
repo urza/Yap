@@ -102,67 +102,41 @@
         </div>
 
         <div class="settings-section">
-            <h3>Account Security</h3>
+            <h3>Multi-Device Login</h3>
 
             @if (hasPassword)
             {
-                <div class="form-group">
-                    <label>Your passphrase</label>
-                    <span class="form-hint" style="margin-bottom: 8px;">This passphrase lets you log in other devices. Anyone who knows it can access your account.</span>
-                    @if (isEditingPassword)
-                    {
-                        <div class="passphrase-input-row">
-                            <input type="text" value="@passwordInput"
-                                   @oninput="@(e => passwordInput = e.Value?.ToString() ?? string.Empty)"
-                                   placeholder="Enter new passphrase" maxlength="64" class="form-input" style="flex: 1;" />
-                            <button class="upload-button" @onclick="GenerateNewPassphrase" style="white-space: nowrap;">
-                                Generate
-                            </button>
-                        </div>
-                        <div class="passphrase-actions">
-                            <button class="upload-button" @onclick="SavePassword" disabled="@(string.IsNullOrWhiteSpace(passwordInput))">Save</button>
-                            <button class="remove-button" @onclick="CancelEditPassword">Cancel</button>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="passphrase-input-row">
-                            <div class="passphrase-masked-field">
-                                <input type="@(showPassphrase ? "text" : "password")" value="@currentPassword" readonly class="form-input" />
-                                <button class="passphrase-eye" @onclick="() => showPassphrase = !showPassphrase" title="@(showPassphrase ? "Hide" : "Show")">
-                                    @if (showPassphrase)
-                                    {
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                                    }
-                                    else
-                                    {
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                                    }
-                                </button>
-                            </div>
-                        </div>
-                        <div class="passphrase-actions">
-                            <button class="upload-button" @onclick="StartEditPassword">Change</button>
-                            <button class="remove-button" @onclick="RemovePassword">Remove</button>
-                        </div>
-                    }
-                    @if (passwordSaveStatus != null)
-                    {
-                        <span class="save-status saved" style="margin-top: 4px;">@passwordSaveStatus</span>
-                    }
+                <span class="form-hint" style="margin-bottom: 12px;">Use this passphrase to log in as <strong>@UserState.Username</strong> on another device or browser.</span>
+                <div class="passphrase-display">
+                    <span class="passphrase-value">@(showPassphrase ? currentPassword : "••••••••••")</span>
+                    <button class="passphrase-eye" @onclick="() => showPassphrase = !showPassphrase" title="@(showPassphrase ? "Hide" : "Reveal")">
+                        @if (showPassphrase)
+                        {
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                        }
+                        else
+                        {
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        }
+                    </button>
                 </div>
+                <div class="passphrase-actions">
+                    <button class="remove-button" @onclick="RegeneratePassphrase">New Passphrase</button>
+                    <button class="remove-button" @onclick="RemovePassword">Disable</button>
+                </div>
+                @if (passwordSaveStatus != null)
+                {
+                    <span class="save-status saved" style="margin-top: 4px;">@passwordSaveStatus</span>
+                }
             }
             else
             {
-                <div class="form-group">
-                    <label>Passphrase</label>
-                    <p class="form-hint" style="margin-bottom: 10px;">This account is tied to this device only. Enable a passphrase to log in from other devices or browsers.</p>
-                    <button class="upload-button" @onclick="EnablePassphrase">Enable Passphrase</button>
-                    @if (passwordSaveStatus != null)
-                    {
-                        <span class="save-status saved" style="margin-top: 4px;">@passwordSaveStatus</span>
-                    }
-                </div>
+                <span class="form-hint" style="margin-bottom: 12px;">This account is tied to this device only. Enable a passphrase to log in from other devices or browsers.</span>
+                <button class="upload-button" @onclick="EnablePassphrase">Enable Passphrase</button>
+                @if (passwordSaveStatus != null)
+                {
+                    <span class="save-status saved" style="margin-top: 4px;">@passwordSaveStatus</span>
+                }
             }
         </div>
 
@@ -399,8 +373,6 @@
     // Account security state
     private bool hasPassword;
     private string? currentPassword;
-    private string passwordInput = "";
-    private bool isEditingPassword;
     private bool showPassphrase;
     private string? passwordSaveStatus;
 
@@ -583,7 +555,7 @@
     {
         if (!string.IsNullOrEmpty(cultureOverride))
         {
-            try { return new System.Globalization.CultureInfo(cultureOverride); }
+            try { return LocaleResolver.SanitizeCulture(new System.Globalization.CultureInfo(cultureOverride)); }
             catch { }
         }
         return UserState.GetCultureInfo();
@@ -756,68 +728,19 @@
         await UserService.SetPasswordAsync(UserState.UserId.Value, passphrase);
         currentPassword = passphrase;
         hasPassword = true;
-        showPassphrase = true; // reveal immediately so user sees it
-
-        passwordSaveStatus = "Passphrase enabled";
-        StateHasChanged();
-
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(3000);
-            await InvokeAsync(() =>
-            {
-                if (passwordSaveStatus == "Passphrase enabled")
-                {
-                    passwordSaveStatus = null;
-                    StateHasChanged();
-                }
-            });
-        });
+        showPassphrase = true;
+        ShowPasswordStatus("Passphrase enabled");
     }
 
-    private void StartEditPassword()
+    private async Task RegeneratePassphrase()
     {
-        isEditingPassword = true;
-        passwordInput = UserService.GeneratePassphrase();
-    }
+        if (!UserState.UserId.HasValue) return;
 
-    private void CancelEditPassword()
-    {
-        isEditingPassword = false;
-        passwordInput = "";
-    }
-
-    private void GenerateNewPassphrase()
-    {
-        passwordInput = UserService.GeneratePassphrase();
-    }
-
-    private async Task SavePassword()
-    {
-        if (!UserState.UserId.HasValue || string.IsNullOrWhiteSpace(passwordInput)) return;
-
-        await UserService.SetPasswordAsync(UserState.UserId.Value, passwordInput.Trim());
-        currentPassword = passwordInput.Trim();
-        hasPassword = true;
-        isEditingPassword = false;
-        showPassphrase = true; // reveal so user can verify
-        passwordInput = "";
-
-        passwordSaveStatus = "Saved";
-        StateHasChanged();
-
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(2000);
-            await InvokeAsync(() =>
-            {
-                if (passwordSaveStatus == "Saved")
-                {
-                    passwordSaveStatus = null;
-                    StateHasChanged();
-                }
-            });
-        });
+        var passphrase = UserService.GeneratePassphrase();
+        await UserService.SetPasswordAsync(UserState.UserId.Value, passphrase);
+        currentPassword = passphrase;
+        showPassphrase = true;
+        ShowPasswordStatus("Passphrase changed");
     }
 
     private async Task RemovePassword()
@@ -827,19 +750,21 @@
         await UserService.SetPasswordAsync(UserState.UserId.Value, null);
         currentPassword = null;
         hasPassword = false;
-        isEditingPassword = false;
         showPassphrase = false;
-        passwordInput = "";
+        ShowPasswordStatus("Passphrase disabled");
+    }
 
-        passwordSaveStatus = "Removed";
+    private void ShowPasswordStatus(string message)
+    {
+        passwordSaveStatus = message;
         StateHasChanged();
 
         _ = Task.Run(async () =>
         {
-            await Task.Delay(2000);
+            await Task.Delay(3000);
             await InvokeAsync(() =>
             {
-                if (passwordSaveStatus == "Removed")
+                if (passwordSaveStatus == message)
                 {
                     passwordSaveStatus = null;
                     StateHasChanged();

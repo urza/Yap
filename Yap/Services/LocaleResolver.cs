@@ -97,6 +97,31 @@ public static class LocaleResolver
             : $"UTC{sign}{abs.Hours}:{abs.Minutes:D2}";
     }
 
+    // --- Culture sanitization ---
+
+    private static readonly ConcurrentDictionary<string, CultureInfo> SanitizedCultureCache = new();
+    private static readonly string[] WesternDigits = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+
+    /// <summary>
+    /// Creates a formatting-safe copy of a culture.
+    /// Keeps separators but forces Gregorian calendar and Western digits.
+    /// This prevents Hijri dates, Buddhist years, and Eastern Arabic numerals.
+    /// </summary>
+    public static CultureInfo SanitizeCulture(CultureInfo culture)
+    {
+        if (culture == CultureInfo.InvariantCulture)
+            return culture;
+
+        return SanitizedCultureCache.GetOrAdd(culture.Name, _ =>
+        {
+            var safe = (CultureInfo)culture.Clone();
+            safe.DateTimeFormat.Calendar = new GregorianCalendar();
+            safe.NumberFormat.NativeDigits = WesternDigits;
+            safe.NumberFormat.DigitSubstitution = DigitShapes.None;
+            return CultureInfo.ReadOnly(safe);
+        });
+    }
+
     // --- Timezone → local culture mapping ---
 
     private static readonly Dictionary<string, string> TimezoneToCountry = new(StringComparer.OrdinalIgnoreCase)
@@ -178,7 +203,7 @@ public static class LocaleResolver
     }
 
     /// <summary>
-    /// Returns the available formatting cultures for a user.
+    /// Returns the available formatting cultures for a user (sanitized: Gregorian + Western digits).
     /// Always includes the browser locale; adds the timezone's local culture if different.
     /// </summary>
     public static List<CultureInfo> GetAvailableCultures(string? browserLocale, string? timezone)
@@ -189,7 +214,7 @@ public static class LocaleResolver
         CultureInfo? browserCulture = null;
         if (!string.IsNullOrEmpty(browserLocale))
         {
-            try { browserCulture = new CultureInfo(browserLocale); }
+            try { browserCulture = SanitizeCulture(new CultureInfo(browserLocale)); }
             catch { }
         }
         browserCulture ??= CultureInfo.InvariantCulture;
@@ -199,7 +224,7 @@ public static class LocaleResolver
         var tzCulture = GuessCultureFromTimezone(timezone);
         if (tzCulture != null && !tzCulture.Name.Equals(browserCulture.Name, StringComparison.OrdinalIgnoreCase))
         {
-            result.Add(tzCulture);
+            result.Add(SanitizeCulture(tzCulture));
         }
 
         return result;
