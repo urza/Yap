@@ -72,6 +72,7 @@ public class ChatDbContext : DbContext
 
             entity.Property(c => c.Description).HasMaxLength(500);
             entity.Property(c => c.WritePermission).HasConversion<int>();
+            entity.Property(c => c.HistoryLimit).HasConversion<int>();
 
             // Ignore computed property
             entity.Ignore(c => c.IsDirectMessage);

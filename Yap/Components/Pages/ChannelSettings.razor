@@ -87,6 +87,25 @@
             </div>
         </div>
 
+        @* History Visibility Section *@
+        <div class="settings-section">
+            <h3>History Visibility</h3>
+            <span class="section-hint">How far back non-admin users can scroll through message history</span>
+
+            <div class="form-group">
+                <select class="form-input" @bind="historyLimit">
+                    <option value="@HistoryLimit.Unlimited">Unlimited</option>
+                    <option value="@HistoryLimit.OneDay">1 Day</option>
+                    <option value="@HistoryLimit.ThreeDays">3 Days</option>
+                    <option value="@HistoryLimit.OneWeek">1 Week</option>
+                    <option value="@HistoryLimit.TwoWeeks">2 Weeks</option>
+                    <option value="@HistoryLimit.OneMonth">1 Month</option>
+                    <option value="@HistoryLimit.ThreeMonths">3 Months</option>
+                </select>
+                <span class="form-hint">Admin always sees full history. Messages are not deleted — they are just hidden from non-admin users.</span>
+            </div>
+        </div>
+
         @* Channel Order Section (edit mode only) *@
         @if (isEditMode)
         {
@@ -182,11 +201,13 @@
     private string channelName = "";
     private string? description;
     private ChannelPermission writePermission = ChannelPermission.Everyone;
+    private HistoryLimit historyLimit = HistoryLimit.Unlimited;
 
     // Original values for change detection
     private string originalName = "";
     private string? originalDescription;
     private ChannelPermission originalWritePermission;
+    private HistoryLimit originalHistoryLimit;
 
     // Reorder list
     private List<Channel> orderedRooms = new();
@@ -200,7 +221,7 @@
         $"This is the beginning of #{(string.IsNullOrWhiteSpace(channelName) ? "channel-name" : channelName.Trim().ToLowerInvariant())}";
 
     private bool hasChanges => isEditMode
-        ? channelName != originalName || (description ?? "") != (originalDescription ?? "") || writePermission != originalWritePermission
+        ? channelName != originalName || (description ?? "") != (originalDescription ?? "") || writePermission != originalWritePermission || historyLimit != originalHistoryLimit
         : !string.IsNullOrWhiteSpace(channelName);
 
     protected override void OnInitialized()
@@ -224,10 +245,12 @@
             channelName = channel.Name;
             description = channel.Description;
             writePermission = channel.WritePermission;
+            historyLimit = channel.HistoryLimit;
 
             originalName = channelName;
             originalDescription = description;
             originalWritePermission = writePermission;
+            originalHistoryLimit = historyLimit;
 
             RefreshOrderedRooms();
         }
@@ -261,7 +284,7 @@
             try
             {
                 var error = await ChatService.UpdateChannelAsync(UserId, ChannelId!.Value,
-                    channelName, description, writePermission);
+                    channelName, description, writePermission, historyLimit);
 
                 if (error == null)
                 {
@@ -295,7 +318,8 @@
             {
                 var newChannel = await ChatService.CreateRoomAsync(UserId, Username, name,
                     description: string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
-                    writePermission: writePermission);
+                    writePermission: writePermission,
+                    historyLimit: historyLimit);
 
                 if (newChannel != null)
                 {

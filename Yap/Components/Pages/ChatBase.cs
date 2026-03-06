@@ -40,6 +40,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     // Infinite scroll state
     protected bool isLoadingMore = false;
     protected bool hasMoreMessages = true;
+    protected bool historyLimited = false;
     protected const int PageSize = 50;
 
     /// <summary>
@@ -232,7 +233,8 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     /// </summary>
     protected void LoadInitialMessages()
     {
-        var (msgs, hasMore) = ChatService.GetMessagesPaginated(channelId, PageSize);
+        var isAdmin = ChatService.IsAdmin(UserId);
+        var (msgs, hasMore) = ChatService.GetMessagesPaginated(channelId, PageSize, isAdmin: isAdmin);
         messages = msgs;
         hasMoreMessages = hasMore;
     }
@@ -279,8 +281,9 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
             // Get messages older than our oldest
             var oldestTimestamp = messages.First().Timestamp;
+            var isAdmin = ChatService.IsAdmin(UserId);
             var (olderMessages, hasMore) = ChatService.GetMessagesPaginated(
-                channelId, PageSize, beforeTimestamp: oldestTimestamp);
+                channelId, PageSize, beforeTimestamp: oldestTimestamp, isAdmin: isAdmin);
 
             if (olderMessages.Count > 0)
             {

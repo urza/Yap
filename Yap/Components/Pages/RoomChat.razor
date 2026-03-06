@@ -17,7 +17,11 @@
     else if (!hasMoreMessages)
     {
         <div class="history-start">
-            @if (!string.IsNullOrEmpty(channelDescription))
+            @if (historyLimited)
+            {
+                <span>Older messages are not available in this channel</span>
+            }
+            else if (!string.IsNullOrEmpty(channelDescription))
             {
                 @foreach (var line in channelDescription.Split('\n'))
                 {
@@ -115,6 +119,7 @@
         currentContext = room?.Name ?? "lobby";
         channelDescription = room?.Description;
         canWrite = ChatService.CanUserWrite(channelId, UserId);
+        historyLimited = room?.HistoryLimit != Models.HistoryLimit.Unlimited && !ChatService.IsAdmin(UserId);
         NavState.SetRoomContext(channelId, currentContext, ChatConfig.GetRandomRoomHeader(currentContext));
 
         await UpdatePageTitleAsync();
@@ -144,6 +149,7 @@
         currentContext = room?.Name ?? "lobby";
         channelDescription = room?.Description;
         canWrite = ChatService.CanUserWrite(channelId, UserId);
+        historyLimited = room?.HistoryLimit != Models.HistoryLimit.Unlimited && !ChatService.IsAdmin(UserId);
         NavState.SetRoomContext(channelId, currentContext, ChatConfig.GetRandomRoomHeader(currentContext));
 
         await UpdatePageTitleAsync();

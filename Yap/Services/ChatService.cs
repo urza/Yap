@@ -209,7 +209,8 @@ public class ChatService
         _channels.TryGetValue(channelId, out var channel) ? channel : null;
 
     public async Task<Channel?> CreateRoomAsync(Guid adminUserId, string adminUsername, string roomName,
-        string? description = null, ChannelPermission writePermission = ChannelPermission.Everyone)
+        string? description = null, ChannelPermission writePermission = ChannelPermission.Everyone,
+        HistoryLimit historyLimit = HistoryLimit.Unlimited)
     {
         if (!IsAdmin(adminUserId))
             return null;
@@ -232,7 +233,8 @@ public class ChatService
             .Max();
 
         var channel = Channel.CreateRoom(roomName, adminUserId, adminUsername,
-            description: description, sortOrder: maxSortOrder + 1, writePermission: writePermission);
+            description: description, sortOrder: maxSortOrder + 1, writePermission: writePermission,
+            historyLimit: historyLimit);
         _channels[channel.Id] = channel;
         _channelMessages[channel.Id] = new List<ChatMessage>();
         _channelTypingUsers[channel.Id] = new ConcurrentDictionary<string, DateTime>();
@@ -280,7 +282,7 @@ public class ChatService
     /// Updates a channel's name, description and write permission. Admin only.
     /// Returns null on success, or an error message string on failure.
     /// </summary>
-    public async Task<string?> UpdateChannelAsync(Guid adminUserId, Guid channelId, string name, string? description, ChannelPermission writePermission)
+    public async Task<string?> UpdateChannelAsync(Guid adminUserId, Guid channelId, string name, string? description, ChannelPermission writePermission, HistoryLimit historyLimit = HistoryLimit.Unlimited)
     {
         if (!IsAdmin(adminUserId))
             return "Not authorized.";
@@ -305,6 +307,7 @@ public class ChatService
         channel.Name = name;
         channel.Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
         channel.WritePermission = writePermission;
+        channel.HistoryLimit = historyLimit;
 
         var sw = Stopwatch.StartNew();
         await _persistence.PersistChannelAsync(channel);
@@ -619,15 +622,18 @@ public class ChatService
     /// <summary>
     /// Gets messages with pagination support for infinite scroll.
     /// Returns messages in chronological order (oldest first).
+    /// When isAdmin is false, applies the channel's HistoryLimit cutoff.
     /// </summary>
     /// <param name="channelId">The channel ID</param>
     /// <param name="count">Number of messages to return</param>
     /// <param name="beforeTimestamp">Return messages older than this timestamp. Null = most recent.</param>
+    /// <param name="isAdmin">If true, bypasses history limit and returns all messages.</param>
     /// <returns>Messages and whether there are more older messages available</returns>
     public (List<ChatMessage> Messages, bool HasMore) GetMessagesPaginated(
         Guid channelId,
         int count = 20,
-        DateTime? beforeTimestamp = null)
+        DateTime? beforeTimestamp = null,
+        bool isAdmin = false)
     {
         if (!_channelMessages.TryGetValue(channelId, out var messages))
             return (new List<ChatMessage>(), false);
@@ -636,9 +642,20 @@ public class ChatService
         {
             IEnumerable<ChatMessage> filtered = messages;
 
+            // Apply history limit cutoff for non-admin users
+            DateTime? historyCutoff = null;
+            if (!isAdmin && _channels.TryGetValue(channelId, out var channel))
+            {
+                historyCutoff = channel.GetHistoryCutoff();
+                if (historyCutoff.HasValue)
+                {
+                    filtered = filtered.Where(m => m.Timestamp >= historyCutoff.Value);
+                }
+            }
+
             if (beforeTimestamp.HasValue)
             {
-                filtered = messages.Where(m => m.Timestamp < beforeTimestamp.Value);
+                filtered = filtered.Where(m => m.Timestamp < beforeTimestamp.Value);
             }
 
             var result = filtered
@@ -647,10 +664,20 @@ public class ChatService
                 .OrderBy(m => m.Timestamp)
                 .ToList();
 
-            // Check if there are older messages
+            // Check if there are older messages (within the visible range)
             var oldestReturned = result.FirstOrDefault()?.Timestamp;
-            var hasMore = oldestReturned.HasValue &&
-                          messages.Any(m => m.Timestamp < oldestReturned.Value);
+            bool hasMore;
+            if (oldestReturned.HasValue)
+            {
+                if (historyCutoff.HasValue)
+                    hasMore = messages.Any(m => m.Timestamp < oldestReturned.Value && m.Timestamp >= historyCutoff.Value);
+                else
+                    hasMore = messages.Any(m => m.Timestamp < oldestReturned.Value);
+            }
+            else
+            {
+                hasMore = false;
+            }
 
             return (result, hasMore);
         }

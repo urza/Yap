@@ -34,6 +34,12 @@ public class Channel
     /// </summary>
     public ChannelPermission WritePermission { get; set; } = ChannelPermission.Everyone;
 
+    /// <summary>
+    /// How far back non-admin users can scroll through message history.
+    /// Admin always sees full history. Value in hours.
+    /// </summary>
+    public HistoryLimit HistoryLimit { get; set; } = HistoryLimit.Unlimited;
+
     // DM-specific: the two participants (by UserId)
     public Guid? Participant1Id { get; set; }
     public Guid? Participant2Id { get; set; }
@@ -60,7 +66,8 @@ public class Channel
     /// Factory method to create a room channel
     /// </summary>
     public static Channel CreateRoom(string name, Guid? createdById = null, string? createdBy = null, bool isDefault = false,
-        string? description = null, int sortOrder = 0, ChannelPermission writePermission = ChannelPermission.Everyone)
+        string? description = null, int sortOrder = 0, ChannelPermission writePermission = ChannelPermission.Everyone,
+        HistoryLimit historyLimit = HistoryLimit.Unlimited)
         => new Channel
         {
             Type = ChannelType.Room,
@@ -70,7 +77,8 @@ public class Channel
             IsDefault = isDefault,
             Description = description,
             SortOrder = sortOrder,
-            WritePermission = writePermission
+            WritePermission = writePermission,
+            HistoryLimit = historyLimit
         };
 
     /// <summary>
@@ -143,4 +151,10 @@ public class Channel
         Type == ChannelType.DirectMessage ||
         WritePermission == ChannelPermission.Everyone ||
         isAdmin;
+
+    /// <summary>
+    /// Returns the UTC cutoff timestamp for history visibility, or null if unlimited.
+    /// </summary>
+    public DateTime? GetHistoryCutoff() =>
+        HistoryLimit == HistoryLimit.Unlimited ? null : DateTime.UtcNow.AddHours(-(int)HistoryLimit);
 }
