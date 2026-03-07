@@ -1,18 +1,20 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using Yap.Models;
 
 namespace Yap.Services;
 
 /// <summary>
 /// Singleton service that manages the system bot user.
-/// The bot appears as a regular user in the sidebar, sends DMs to admin when users join,
-/// and auto-replies with a placeholder when users DM it.
+/// The bot appears as a regular user in the sidebar, sends welcome DMs to new users,
+/// notifies admin when users join, and auto-replies with a placeholder when users DM it.
 /// </summary>
 public class SystemBotService
 {
     private readonly UserService _userService;
     private readonly ChatService _chatService;
     private readonly IConfiguration _configuration;
+    private readonly IWebHostEnvironment _env;
     private readonly ILogger<SystemBotService> _logger;
 
     private Guid _botUserId;
@@ -23,24 +25,57 @@ public class SystemBotService
     private readonly ConcurrentDictionary<string, DateTime> _lastReplyTimes = new(StringComparer.OrdinalIgnoreCase);
     private static readonly TimeSpan ReplyDebounce = TimeSpan.FromSeconds(30);
 
+    // Track users who have already received a welcome DM (prevents duplicates)
+    private readonly HashSet<string> _welcomedUsers = new(StringComparer.OrdinalIgnoreCase);
+
+    // Welcome message loaded from file (persisted) or config (default)
+    private string? _welcomeMessageFromFile;
+
     private const string BotSessionId = "system-bot-session";
     private const string BotAvatarUrl = "/images/bot-avatar.svg";
+    private const string DefaultWelcomeMessage = "👋 Hey! Welcome to {0}! We have custom emojis — check them out in the emoji picker 😎";
 
     public SystemBotService(
         UserService userService,
         ChatService chatService,
         IConfiguration configuration,
+        IWebHostEnvironment env,
         ILogger<SystemBotService> logger)
     {
         _userService = userService;
         _chatService = chatService;
         _configuration = configuration;
+        _env = env;
         _logger = logger;
     }
+
+    private string SettingsFilePath => Path.Combine(_env.ContentRootPath, "Data", "bot-settings.json");
 
     private bool BotEnabled => _configuration.GetValue<bool>("ChatSettings:Bot:Enabled", true);
     private string BotUsernameConfig => _configuration["ChatSettings:Bot:Username"] ?? "ping";
     private string BotDisplayNameConfig => _configuration["ChatSettings:Bot:DisplayName"] ?? "Ping";
+    private string ProjectName => _configuration["ChatSettings:ProjectName"] ?? "Yap";
+
+    /// <summary>
+    /// Gets the current welcome message template.
+    /// Priority: file override → appsettings.json → hardcoded default.
+    /// {0} is replaced with the project name when sent.
+    /// </summary>
+    public string WelcomeMessage
+    {
+        get => _welcomeMessageFromFile
+               ?? _configuration["ChatSettings:Bot:WelcomeMessage"]
+               ?? DefaultWelcomeMessage;
+    }
+
+    /// <summary>
+    /// Updates the welcome message and persists it to Data/bot-settings.json.
+    /// </summary>
+    public async Task UpdateWelcomeMessageAsync(string message)
+    {
+        _welcomeMessageFromFile = message;
+        await SaveSettingsAsync();
+    }
 
     /// <summary>
     /// Initializes the bot user and subscribes to events.
@@ -48,6 +83,9 @@ public class SystemBotService
     /// </summary>
     public async Task InitializeAsync()
     {
+        // Load persisted settings (welcome message override)
+        LoadSettings();
+
         if (!BotEnabled)
         {
             _logger.LogInformation("System bot is disabled");
@@ -164,8 +202,52 @@ public class SystemBotService
         _logger.LogInformation("Bot display name updated to '{DisplayName}'", newDisplayName);
     }
 
+    #region Settings File (Data/bot-settings.json)
+
+    private void LoadSettings()
+    {
+        try
+        {
+            if (File.Exists(SettingsFilePath))
+            {
+                var json = File.ReadAllText(SettingsFilePath);
+                var settings = JsonSerializer.Deserialize<BotSettings>(json);
+                if (settings?.WelcomeMessage != null)
+                    _welcomeMessageFromFile = settings.WelcomeMessage;
+
+                _logger.LogInformation("Loaded bot settings from {Path}", SettingsFilePath);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load bot settings from {Path}", SettingsFilePath);
+        }
+    }
+
+    private async Task SaveSettingsAsync()
+    {
+        try
+        {
+            var settings = new BotSettings { WelcomeMessage = _welcomeMessageFromFile };
+            var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+            await File.WriteAllTextAsync(SettingsFilePath, json);
+            _logger.LogInformation("Saved bot settings to {Path}", SettingsFilePath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save bot settings to {Path}", SettingsFilePath);
+        }
+    }
+
+    private class BotSettings
+    {
+        public string? WelcomeMessage { get; set; }
+    }
+
+    #endregion
+
     /// <summary>
-    /// When a new user joins, DM the admin about it.
+    /// When a new user joins: send them a welcome DM, and notify admin.
     /// </summary>
     private async void HandleUserChanged(string username, bool joined)
     {
@@ -174,30 +256,63 @@ public class SystemBotService
 
         try
         {
-            var adminUsername = _chatService.GetAdmin();
-            if (adminUsername == null) return;
-
-            // Don't DM admin about their own join
-            if (adminUsername.Equals(username, StringComparison.OrdinalIgnoreCase)) return;
-
-            var adminUser = _userService.GetByUsername(adminUsername);
-            if (adminUser == null) return;
-
-            // Get display name for the joining user
             var joiningUser = _userService.GetByUsername(username);
-            var displayName = joiningUser?.EffectiveDisplayName ?? username;
+            if (joiningUser == null) return;
 
-            // Get or create DM channel between bot and admin
-            var channel = _chatService.GetOrCreateDMChannel(_botUserId, _botUsername, adminUser.Id, adminUser.Username);
+            // Send welcome DM to the new user (once per user while app runs)
+            await SendWelcomeDmAsync(joiningUser);
 
-            // Send notification message
-            await _chatService.SendMessageAsync(channel.Id, _botUserId, _botUsername,
-                $"👋 {displayName} just joined the chat!");
+            // Notify admin about the new user
+            await NotifyAdminOfJoinAsync(joiningUser);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in bot HandleUserChanged for {Username}", username);
         }
+    }
+
+    private async Task SendWelcomeDmAsync(User user)
+    {
+        // Only welcome once per user
+        lock (_welcomedUsers)
+        {
+            if (!_welcomedUsers.Add(user.Username))
+                return;
+        }
+
+        // Small delay so the user has time to land on the page
+        await Task.Delay(2000);
+
+        var channel = _chatService.GetOrCreateDMChannel(_botUserId, _botUsername, user.Id, user.Username);
+
+        // Build welcome message: base message + PWA install line for mobile users
+        var message = string.Format(WelcomeMessage, ProjectName);
+
+        if (_chatService.IsUserMobile(user.Username))
+        {
+            message += "\n\n📱 You can also [pwa-install] to your homescreen for the best experience!";
+        }
+
+        await _chatService.SendMessageAsync(channel.Id, _botUserId, _botUsername, message);
+        _logger.LogInformation("Sent welcome DM to {Username} (mobile={IsMobile})", user.Username, _chatService.IsUserMobile(user.Username));
+    }
+
+    private async Task NotifyAdminOfJoinAsync(User joiningUser)
+    {
+        var adminUsername = _chatService.GetAdmin();
+        if (adminUsername == null) return;
+
+        // Don't DM admin about their own join
+        if (adminUsername.Equals(joiningUser.Username, StringComparison.OrdinalIgnoreCase)) return;
+
+        var adminUser = _userService.GetByUsername(adminUsername);
+        if (adminUser == null) return;
+
+        var displayName = joiningUser.EffectiveDisplayName;
+        var channel = _chatService.GetOrCreateDMChannel(_botUserId, _botUsername, adminUser.Id, adminUser.Username);
+
+        await _chatService.SendMessageAsync(channel.Id, _botUserId, _botUsername,
+            $"👋 {displayName} just joined the chat!");
     }
 
     /// <summary>

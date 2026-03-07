@@ -30,7 +30,7 @@
 
     <div class="sidebar-backdrop @(NavState.SidebarOpen ? "show" : "")" @onclick="NavState.ToggleSidebar"></div>
 
-    <PwaInstallBanner />
+    @* <PwaInstallBanner /> — PWA nudge now handled by Ping bot welcome DM *@
     <PushPermissionPrompt />
 </div>
 

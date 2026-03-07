@@ -538,6 +538,12 @@ public class ChatService
         _users.Values.Any(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
+    /// Checks if any session for the given user is on mobile.
+    /// </summary>
+    public bool IsUserMobile(string username) =>
+        _users.Values.Any(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase) && u.IsMobile == true);
+
+    /// <summary>
     /// Checks if a session ID exists in the active users list.
     /// </summary>
     public bool HasSession(string sessionId) =>

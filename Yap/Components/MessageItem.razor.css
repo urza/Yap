@@ -130,6 +130,18 @@
     font-size: 0.85rem;
 }
 
+/* Clickable action links in bot messages (e.g., PWA install) */
+.bot-action-link {
+    color: var(--accent-primary);
+    text-decoration: underline;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.bot-action-link:hover {
+    color: var(--accent-hover);
+}
+
 .message-time {
     color: var(--text-muted);
     font-size: 0.75rem;

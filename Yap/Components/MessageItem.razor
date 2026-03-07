@@ -87,6 +87,12 @@
                 }
             </div>
         }
+        else if (IsBot && Message.Content.Contains("[pwa-install]"))
+        {
+            @EmojiService.ConvertEmojisToTwemoji(GetTextBefore("[pwa-install]"))
+            <span class="bot-action-link" @onclick="HandlePwaInstall" @ontouchend="HandlePwaInstall" @ontouchend:preventDefault>install it</span>
+            @EmojiService.ConvertEmojisToTwemoji(GetTextAfter("[pwa-install]"))
+        }
         else
         {
             @EmojiService.ConvertEmojisToTwemoji(Message.Content)
@@ -339,5 +345,23 @@
     {
         showEmojiPicker = false;
         await OnReaction.InvokeAsync(emoji);
+    }
+
+    private async Task HandlePwaInstall()
+    {
+        try { await JS.InvokeVoidAsync("showPwaInstallGuide"); }
+        catch { /* Ignore JS errors during disconnect */ }
+    }
+
+    private string GetTextBefore(string marker)
+    {
+        var idx = Message.Content.IndexOf(marker);
+        return idx >= 0 ? Message.Content[..idx] : Message.Content;
+    }
+
+    private string GetTextAfter(string marker)
+    {
+        var idx = Message.Content.IndexOf(marker);
+        return idx >= 0 ? Message.Content[(idx + marker.Length)..] : "";
     }
 }

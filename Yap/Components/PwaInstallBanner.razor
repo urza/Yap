@@ -1,23 +1,23 @@
-@inject IHttpContextAccessor HttpContextAccessor
+@* =============================================================================
+   PWA Install Banner — commented out.
+   PWA install nudge is now handled by Ping bot welcome DM (SystemBotService).
+   The bot appends a [pwa-install] link for mobile users automatically.
+   Keeping this file so we can restore the banner approach later if needed.
+   ============================================================================= *@
+
+@* @inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JS
 
 @if (_visible)
 {
     <div class="pwa-install-banner @(_hiding ? "hiding" : "")">
         <div class="pwa-banner-content">
-            <!-- Phone with Yap icon illustration -->
             <svg class="pwa-banner-illustration" viewBox="0 0 64 96" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <!-- Phone body -->
                 <rect x="4" y="2" width="56" height="92" rx="10" fill="#2f3136" stroke="#4f545c" stroke-width="2"/>
-                <!-- Screen -->
                 <rect x="8" y="14" width="48" height="68" rx="2" fill="#1a1a2e"/>
-                <!-- Notch -->
                 <rect x="22" y="5" width="20" height="4" rx="2" fill="#1a1a2e"/>
-                <!-- Home indicator -->
                 <rect x="20" y="87" width="24" height="3" rx="1.5" fill="#4f545c"/>
-                <!-- Yap chat bubble (scaled from icon.svg) -->
                 <path d="M32 26c-10.75 0-19.5 7.25-19.5 16.25 0 5 2.75 9.5 7.25 12.5l-2.25 7.75 9-4.5c1.75.5 3.5.75 5.5.75 10.75 0 19.5-7.25 19.5-16.25S42.75 26 32 26z" fill="#7c3aed"/>
-                <!-- Chat dots -->
                 <circle cx="22.5" cy="42.25" r="3" fill="#1a1a2e"/>
                 <circle cx="32" cy="42.25" r="3" fill="#1a1a2e"/>
                 <circle cx="41.5" cy="42.25" r="3" fill="#1a1a2e"/>
@@ -57,7 +57,6 @@
 
             await Task.Delay(45_000);
 
-            // Wait for user to finish typing before interrupting
             while (await JS.InvokeAsync<bool>("isMessageInputFocused"))
                 await Task.Delay(5000);
 
@@ -74,11 +73,10 @@
     {
         _hiding = true;
         StateHasChanged();
-        await Task.Delay(300); // match slideDown animation duration
+        await Task.Delay(300);
         _visible = false;
         _hiding = false;
         StateHasChanged();
-
         if (afterHide != null)
             await afterHide();
     }
@@ -98,4 +96,4 @@
             await JS.InvokeVoidAsync("dismissPwaInstallBanner");
         });
     }
-}
+} *@
