@@ -277,6 +277,22 @@ public class UserService
     }
 
     /// <summary>
+    /// Revokes admin status from a user (e.g., bot user that was created first).
+    /// </summary>
+    public void RevokeAdmin(Guid userId)
+    {
+        lock (_adminLock)
+        {
+            if (_adminUserId == userId)
+            {
+                _adminUserId = null;
+                if (_users.TryGetValue(userId, out var user))
+                    user.IsAdmin = false;
+            }
+        }
+    }
+
+    /// <summary>
     /// Deletes a user (used when signing out).
     /// </summary>
     public async Task DeleteUserAsync(Guid userId)

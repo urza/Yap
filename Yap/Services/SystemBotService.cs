@@ -109,7 +109,7 @@ public class SystemBotService
             // Bot should never be admin — if it was made admin (first user), revoke it
             if (botUser.IsAdmin)
             {
-                botUser.IsAdmin = false;
+                _userService.RevokeAdmin(botUser.Id);
                 _logger.LogWarning("Bot was created as admin (first user) — revoking admin status");
             }
 
