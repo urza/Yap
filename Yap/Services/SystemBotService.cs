@@ -259,11 +259,11 @@ public class SystemBotService
             var joiningUser = _userService.GetByUsername(username);
             if (joiningUser == null) return;
 
-            // Send welcome DM to the new user (once per user while app runs)
-            await SendWelcomeDmAsync(joiningUser);
-
-            // Notify admin about the new user
+            // Notify admin about the new user (immediately)
             await NotifyAdminOfJoinAsync(joiningUser);
+
+            // Send welcome DM to the new user (delayed, once per user while app runs)
+            await SendWelcomeDmAsync(joiningUser);
         }
         catch (Exception ex)
         {
@@ -273,12 +273,17 @@ public class SystemBotService
 
     private async Task SendWelcomeDmAsync(User user)
     {
-        // Only welcome once per user
+        // Only welcome once per user (in-memory guard for current app lifetime)
         lock (_welcomedUsers)
         {
             if (!_welcomedUsers.Add(user.Username))
                 return;
         }
+
+        // Skip if bot already has a DM channel with this user (survives app restarts)
+        var existingDms = _chatService.GetDMChannels(_botUsername);
+        if (existingDms.Any(c => c.CanAccess(user.Username)))
+            return;
 
         // Delay so the user has time to settle in before getting a notification
         await Task.Delay(TimeSpan.FromMinutes(1));
