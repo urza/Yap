@@ -163,12 +163,22 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 app.UseHttpsRedirection();
 app.UseAntiforgery();
 
-// Serve custom branding overrides from Data/branding/ (checked BEFORE wwwroot defaults)
-// Drop icon.svg, icon-192.png, icon-512.png here to customize favicon
+// Serve custom branding overrides from Data/branding/ (favicon, PWA icons, manifest, etc.)
+// Files here override same-named files from wwwroot — no rebuild needed.
 var brandingPath = Path.Combine(app.Environment.ContentRootPath, "Data", "branding");
 Directory.CreateDirectory(brandingPath);
+var brandingProvider = new PhysicalFileProvider(brandingPath);
+
+// 1) Explicit middleware: intercepts requests before MapStaticAssets endpoints (production)
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = brandingProvider,
+    RequestPath = ""
+});
+
+// 2) Override WebRootFileProvider so UseStaticFiles() also sees branding files (development)
 app.Environment.WebRootFileProvider = new CompositeFileProvider(
-    new PhysicalFileProvider(brandingPath),
+    brandingProvider,
     app.Environment.WebRootFileProvider);
 
 app.UseStaticFiles();
