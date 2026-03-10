@@ -163,7 +163,17 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 app.UseHttpsRedirection();
 app.UseAntiforgery();
 
-app.UseStaticFiles(); // Serve uploaded images from wwwroot/uploads
+// Serve custom branding overrides from Data/branding/ (checked BEFORE wwwroot defaults)
+// Drop icon.svg, icon-192.png, icon-512.png here to customize favicon
+var brandingPath = Path.Combine(app.Environment.ContentRootPath, "Data", "branding");
+Directory.CreateDirectory(brandingPath);
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(brandingPath),
+    RequestPath = ""
+});
+
+app.UseStaticFiles(); // Default wwwroot (fallback)
 
 // Serve custom emojis from Data/custom-emojis/ folder
 var customEmojisPath = Path.Combine(app.Environment.ContentRootPath, "Data", "custom-emojis");
