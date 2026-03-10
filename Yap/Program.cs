@@ -165,21 +165,24 @@ app.UseAntiforgery();
 
 // Serve custom branding overrides from Data/branding/ (favicon, PWA icons, manifest, etc.)
 // Files here override same-named files from wwwroot — no rebuild needed.
+// Uses raw middleware to guarantee priority over MapStaticAssets in production.
 var brandingPath = Path.Combine(app.Environment.ContentRootPath, "Data", "branding");
 Directory.CreateDirectory(brandingPath);
 var brandingProvider = new PhysicalFileProvider(brandingPath);
-
-// 1) Explicit middleware: intercepts requests before MapStaticAssets endpoints (production)
-app.UseStaticFiles(new StaticFileOptions
+var brandingContentTypes = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+app.Use(async (context, next) =>
 {
-    FileProvider = brandingProvider,
-    RequestPath = ""
+    var fileInfo = brandingProvider.GetFileInfo(context.Request.Path.Value ?? "");
+    if (fileInfo.Exists && !fileInfo.IsDirectory && fileInfo.PhysicalPath != null
+        && brandingContentTypes.TryGetContentType(fileInfo.Name, out var contentType))
+    {
+        context.Response.ContentType = contentType;
+        context.Response.ContentLength = fileInfo.Length;
+        await context.Response.SendFileAsync(fileInfo.PhysicalPath);
+        return;
+    }
+    await next();
 });
-
-// 2) Override WebRootFileProvider so UseStaticFiles() also sees branding files (development)
-app.Environment.WebRootFileProvider = new CompositeFileProvider(
-    brandingProvider,
-    app.Environment.WebRootFileProvider);
 
 app.UseStaticFiles();
 
