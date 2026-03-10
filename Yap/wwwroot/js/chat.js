@@ -370,6 +370,29 @@ window.dismissPushPermissionPrompt = () => {
     localStorage.setItem('push-prompt-dismiss-count', String(count + 1));
 };
 
+// Submit signin via hidden POST form (avoids password in URL)
+window.submitSigninForm = (username, password, returnUrl) => {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/auth/signin';
+    form.style.display = 'none';
+
+    const addField = (name, value) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value;
+        form.appendChild(input);
+    };
+
+    addField('username', username);
+    addField('password', password);
+    addField('returnUrl', returnUrl);
+
+    document.body.appendChild(form);
+    form.submit();
+};
+
 // Capture native install prompt (Chrome/Edge on desktop & Android)
 let _deferredInstallPrompt = null;
 window.addEventListener('beforeinstallprompt', (e) => {

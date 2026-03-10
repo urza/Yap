@@ -1,6 +1,7 @@
 @page "/verify/{Username}"
 @inject UserService UserService
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <PageTitle>Verify — @Username</PageTitle>
 
@@ -55,7 +56,7 @@
             Submit();
     }
 
-    private void Submit()
+    private async Task Submit()
     {
         if (string.IsNullOrWhiteSpace(passwordInput)) return;
 
@@ -70,11 +71,9 @@
             return;
         }
 
-        var encodedUsername = Uri.EscapeDataString(Username);
-        var encodedPassword = Uri.EscapeDataString(passwordInput.Trim());
-        var returnUrl = Uri.EscapeDataString(SafeReturnUrl ?? "/lobby");
-
-        Navigation.NavigateTo($"/auth/signin?username={encodedUsername}&password={encodedPassword}&returnUrl={returnUrl}", forceLoad: true);
+        // POST via hidden form to avoid password in URL (browser history, logs, encoding issues)
+        var returnUrl = SafeReturnUrl ?? "/lobby";
+        await JS.InvokeVoidAsync("submitSigninForm", Username, passwordInput.Trim(), returnUrl);
     }
 
     private void GoBack()

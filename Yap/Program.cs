@@ -312,7 +312,21 @@ app.MapPost("/api/push/unsubscribe", async (HttpContext context, PushSubscriptio
 // HttpOnly cookies can only be set via HTTP response headers, not from Blazor
 // after SignalR streaming starts. So we redirect here with forceLoad.
 
+// GET: new user signup (from Login.razor)
 app.MapGet("/auth/signin", async (HttpContext context, UserService userService, UserActionLogService actionLog, SystemBotService botService, string username, string? password, string? returnUrl) =>
+    await HandleSignIn(context, userService, actionLog, botService, username, password, returnUrl));
+
+// POST: existing user with passphrase (from VerifyDevice.razor — avoids password in URL)
+app.MapPost("/auth/signin", async (HttpContext context, UserService userService, UserActionLogService actionLog, SystemBotService botService) =>
+{
+    var form = await context.Request.ReadFormAsync();
+    var username = form["username"].ToString();
+    var password = form["password"].ToString();
+    var returnUrl = form["returnUrl"].ToString();
+    return await HandleSignIn(context, userService, actionLog, botService, username, password, returnUrl);
+}).DisableAntiforgery();
+
+async Task<IResult> HandleSignIn(HttpContext context, UserService userService, UserActionLogService actionLog, SystemBotService botService, string username, string? password, string? returnUrl)
 {
     if (string.IsNullOrEmpty(username))
         return Results.Redirect("/");
@@ -352,7 +366,7 @@ app.MapGet("/auth/signin", async (HttpContext context, UserService userService, 
     }
 
     return Results.Redirect(destination);
-});
+}
 
 app.MapGet("/auth/signout", (HttpContext context, UserService userService, UserActionLogService actionLog) =>
 {
