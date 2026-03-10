@@ -167,13 +167,11 @@ app.UseAntiforgery();
 // Drop icon.svg, icon-192.png, icon-512.png here to customize favicon
 var brandingPath = Path.Combine(app.Environment.ContentRootPath, "Data", "branding");
 Directory.CreateDirectory(brandingPath);
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new PhysicalFileProvider(brandingPath),
-    RequestPath = ""
-});
+app.Environment.WebRootFileProvider = new CompositeFileProvider(
+    new PhysicalFileProvider(brandingPath),
+    app.Environment.WebRootFileProvider);
 
-app.UseStaticFiles(); // Default wwwroot (fallback)
+app.UseStaticFiles();
 
 // Serve custom emojis from Data/custom-emojis/ folder
 var customEmojisPath = Path.Combine(app.Environment.ContentRootPath, "Data", "custom-emojis");
