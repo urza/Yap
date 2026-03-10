@@ -267,8 +267,8 @@ window.setupEnterKeyHandler = (textareaId) => {
 window.setAppBadge = async (count) => {
     if ('setAppBadge' in navigator) {
         try {
-            // iOS requires notification permission for badges
-            if ('Notification' in window && Notification.permission === 'default') {
+            // iOS requires notification permission for badges (only prompt inside PWA)
+            if (window.isPwaInstalled() && 'Notification' in window && Notification.permission === 'default') {
                 await Notification.requestPermission();
             }
 
