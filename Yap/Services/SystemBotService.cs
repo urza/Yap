@@ -33,7 +33,7 @@ public class SystemBotService
 
     private const string BotSessionId = "system-bot-session";
     private const string BotAvatarUrl = "/images/bot-avatar.svg";
-    private const string DefaultWelcomeMessage = "👋 Hey! Welcome to {0}! We have custom emojis — check them out in the emoji picker 😎";
+    private const string DefaultWelcomeMessage = "👋 Hey! Welcome to {0}! I am bot for sending system messages.";
 
     public SystemBotService(
         UserService userService,
@@ -280,8 +280,8 @@ public class SystemBotService
                 return;
         }
 
-        // Small delay so the user has time to land on the page
-        await Task.Delay(2000);
+        // Delay so the user has time to settle in before getting a notification
+        await Task.Delay(TimeSpan.FromMinutes(1));
 
         var channel = _chatService.GetOrCreateDMChannel(_botUserId, _botUsername, user.Id, user.Username);
 
@@ -290,7 +290,7 @@ public class SystemBotService
 
         if (_chatService.IsUserMobile(user.Username))
         {
-            message += "\n\n📱 You can also [pwa-install] to your homescreen for the best experience!";
+            message += "\n\n📱 I noticed you're on a phone. It's a much better experience if you [pwa-install] to your homescreen — it will look and feel like a normal app. Please also allow notifications when prompted so you don't miss messages. You can change this anytime in Settings.";
         }
 
         await _chatService.SendMessageAsync(channel.Id, _botUserId, _botUsername, message);
