@@ -5,14 +5,25 @@ window.getClientLocaleInfo = () => ({
 });
 
 // Welcome page: attach click handler to #yap-enter element
+// Supports optional .welcome-bg transition (grayscale → color) before navigating
 window.setupWelcomePage = (dotNetRef) => {
     const el = document.getElementById('yap-enter');
-    if (el) {
-        el.style.cursor = 'pointer';
-        el.addEventListener('click', () => {
+    if (!el) return;
+
+    el.style.cursor = 'pointer';
+    const handleClick = () => {
+        el.removeEventListener('click', handleClick);
+
+        const bg = document.querySelector('.welcome-bg');
+        if (bg) {
+            el.classList.add('lit');
+            bg.classList.add('awaken');
+            setTimeout(() => dotNetRef.invokeMethodAsync('OnEnterClicked'), 2200);
+        } else {
             dotNetRef.invokeMethodAsync('OnEnterClicked');
-        });
-    }
+        }
+    };
+    el.addEventListener('click', handleClick);
 };
 
 // Tab notification helpers
