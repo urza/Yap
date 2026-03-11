@@ -237,7 +237,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     protected void LoadInitialMessages()
     {
         var isAdmin = ChatService.IsAdmin(UserId);
-        var (msgs, hasMore) = ChatService.GetMessagesPaginated(channelId, PageSize, isAdmin: isAdmin);
+        var (msgs, hasMore) = ChatService.GetMessagesPaginated(channelId, PageSize, isAdmin: isAdmin, userId: UserId);
         messages = msgs;
         hasMoreMessages = hasMore;
     }
@@ -286,7 +286,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
             var oldestTimestamp = messages.First().Timestamp;
             var isAdmin = ChatService.IsAdmin(UserId);
             var (olderMessages, hasMore) = ChatService.GetMessagesPaginated(
-                channelId, PageSize, beforeTimestamp: oldestTimestamp, isAdmin: isAdmin);
+                channelId, PageSize, beforeTimestamp: oldestTimestamp, isAdmin: isAdmin, userId: UserId);
 
             if (olderMessages.Count > 0)
             {
@@ -442,8 +442,8 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
     protected async Task ToggleReaction(Guid messageId, string emoji)
     {
-        await AddRecentEmojiAsync(emoji);
-        await IncrementEmojiCountAsync(emoji);
+        AddRecentEmoji(emoji);
+        IncrementEmojiCount(emoji);
         await ChatService.ToggleReactionAsync(messageId, channelId, UserId, Username, emoji);
         // Scroll handling is done in HandleReactionChanged for all viewers
     }
@@ -474,10 +474,10 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
         await ChatService.DeleteMessageAsync(messageId, channelId, Username);
     }
 
-    protected async Task HandleInputEmojiUsed(string emoji)
+    protected void HandleInputEmojiUsed(string emoji)
     {
-        await AddRecentEmojiAsync(emoji);
-        await IncrementEmojiCountAsync(emoji);
+        AddRecentEmoji(emoji);
+        IncrementEmojiCount(emoji);
     }
 
     protected void StartReply(ChatMessage message)
@@ -577,22 +577,14 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     #region Recent Emojis
 
     private const int MaxRecentEmojis = 20;
-    private string RecentEmojisKey => $"recentEmojis_{Username}";
 
-    protected async Task LoadRecentEmojisAsync()
+    protected Task LoadRecentEmojisAsync()
     {
-        try
-        {
-            var json = await JS.InvokeAsync<string?>("localStorage.getItem", RecentEmojisKey);
-            if (!string.IsNullOrEmpty(json))
-            {
-                recentEmojis = System.Text.Json.JsonSerializer.Deserialize<List<string>>(json) ?? new();
-            }
-        }
-        catch (Exception ex) { Console.WriteLine($"[ChatBase] Failed to load recent emojis: {ex.Message}"); }
+        recentEmojis = UserService.GetRecentEmojis(Username);
+        return Task.CompletedTask;
     }
 
-    protected async Task AddRecentEmojiAsync(string emoji)
+    protected void AddRecentEmoji(string emoji)
     {
         // Remove if already exists (to move to front)
         recentEmojis.Remove(emoji);
@@ -606,13 +598,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
             recentEmojis = recentEmojis.Take(MaxRecentEmojis).ToList();
         }
 
-        // Save to localStorage
-        try
-        {
-            var json = System.Text.Json.JsonSerializer.Serialize(recentEmojis);
-            await JS.InvokeVoidAsync("localStorage.setItem", RecentEmojisKey, json);
-        }
-        catch (Exception ex) { Console.WriteLine($"[ChatBase] Failed to save recent emojis: {ex.Message}"); }
+        UserService.UpdateRecentEmojis(UserId, recentEmojis);
     }
 
     #endregion
@@ -620,23 +606,10 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     #region Emoji Counts (Quick Reactions)
 
     private static readonly string[] DefaultQuickEmojis = ["❤️", "😂", "👍"];
-    private string EmojiCountsKey => $"emojiCounts_{Username}";
 
-    private async Task LoadEmojiCountsAsync()
+    private Task LoadEmojiCountsAsync()
     {
-        try
-        {
-            var json = await JS.InvokeAsync<string?>("localStorage.getItem", EmojiCountsKey);
-            if (!string.IsNullOrEmpty(json))
-            {
-                emojiCounts = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(json) ?? new();
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[ChatBase] Failed to load emoji counts: {ex.Message}");
-            emojiCounts = new();
-        }
+        emojiCounts = UserService.GetEmojiCounts(Username);
 
         // Compute quick reactions once (cached for session)
         quickReactions = emojiCounts
@@ -652,9 +625,11 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
             if (!quickReactions.Contains(emoji))
                 quickReactions.Add(emoji);
         }
+
+        return Task.CompletedTask;
     }
 
-    private async Task IncrementEmojiCountAsync(string emoji)
+    private void IncrementEmojiCount(string emoji)
     {
         // Update count in memory
         emojiCounts.TryGetValue(emoji, out var count);
@@ -662,13 +637,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
         // Note: quickReactions is NOT updated here - it stays cached for the session
 
-        // Save to localStorage
-        try
-        {
-            var json = System.Text.Json.JsonSerializer.Serialize(emojiCounts);
-            await JS.InvokeVoidAsync("localStorage.setItem", EmojiCountsKey, json);
-        }
-        catch (Exception ex) { Console.WriteLine($"[ChatBase] Failed to save emoji counts: {ex.Message}"); }
+        UserService.UpdateEmojiCounts(UserId, emojiCounts);
     }
 
     #endregion

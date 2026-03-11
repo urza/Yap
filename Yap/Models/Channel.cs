@@ -67,7 +67,7 @@ public class Channel
     /// </summary>
     public static Channel CreateRoom(string name, Guid? createdById = null, string? createdBy = null, bool isDefault = false,
         string? description = null, int sortOrder = 0, ChannelPermission writePermission = ChannelPermission.Everyone,
-        HistoryLimit historyLimit = HistoryLimit.Unlimited)
+        HistoryLimit historyLimit = HistoryLimit.Unlimited, bool sinceJoined = false)
         => new Channel
         {
             Type = ChannelType.Room,
@@ -78,7 +78,8 @@ public class Channel
             Description = description,
             SortOrder = sortOrder,
             WritePermission = writePermission,
-            HistoryLimit = historyLimit
+            HistoryLimit = historyLimit,
+            SinceJoined = sinceJoined
         };
 
     /// <summary>
@@ -155,6 +156,12 @@ public class Channel
     /// <summary>
     /// Returns the UTC cutoff timestamp for history visibility, or null if unlimited.
     /// </summary>
+    /// <summary>
+    /// Whether non-admin users can only see messages posted after they joined.
+    /// Combined with HistoryLimit — the more restrictive cutoff wins.
+    /// </summary>
+    public bool SinceJoined { get; set; }
+
     public DateTime? GetHistoryCutoff() =>
         HistoryLimit == HistoryLimit.Unlimited ? null : DateTime.UtcNow.AddHours(-(int)HistoryLimit);
 }

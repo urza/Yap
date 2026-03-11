@@ -83,6 +83,16 @@ public class User
     public bool PushMuted { get; set; }
 
     /// <summary>
+    /// JSON-serialized List&lt;string&gt; of recently used emojis (most recent first, max 20).
+    /// </summary>
+    public string? RecentEmojis { get; set; }
+
+    /// <summary>
+    /// JSON-serialized Dictionary&lt;string, int&gt; of emoji usage counts (for quick reaction buttons).
+    /// </summary>
+    public string? EmojiCounts { get; set; }
+
+    /// <summary>
     /// Gets the name to display in the UI.
     /// Returns DisplayName if set, otherwise Username.
     /// </summary>

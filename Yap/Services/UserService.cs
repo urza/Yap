@@ -25,11 +25,19 @@ public class UserService
     private Guid? _adminUserId;
     private readonly object _adminLock = new();
 
+    // Dirty tracking for emoji data (flushed periodically, like UserActionLogService pattern)
+    private readonly ConcurrentDictionary<Guid, byte> _dirtyEmojiUsers = new();
+    private CancellationTokenSource? _flushCts;
+
     public UserService(IServiceProvider serviceProvider, ILogger<UserService> logger)
     {
         _logger = logger;
         _dbFactory = serviceProvider.GetService<IDbContextFactory<ChatDbContext>>();
         _persistenceEnabled = _dbFactory != null;
+
+        // Register shutdown callback for final flush
+        var lifetime = serviceProvider.GetService<IHostApplicationLifetime>();
+        lifetime?.ApplicationStopping.Register(() => FlushDirtyEmojiDataAsync().GetAwaiter().GetResult());
     }
 
     /// <summary>
@@ -62,6 +70,9 @@ public class UserService
         {
             _logger.LogError(ex, "Failed to load users from database");
         }
+
+        // Start periodic flush for dirty emoji data
+        StartEmojiFlushLoop();
     }
 
     /// <summary>
@@ -543,6 +554,123 @@ public class UserService
 
         return newToken;
     }
+
+    /// <summary>
+    /// Gets the recent emojis list for a user (deserialized from in-memory User).
+    /// </summary>
+    public List<string> GetRecentEmojis(string username)
+    {
+        var user = GetByUsername(username);
+        if (user?.RecentEmojis == null) return new();
+
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<List<string>>(user.RecentEmojis) ?? new();
+        }
+        catch
+        {
+            return new();
+        }
+    }
+
+    /// <summary>
+    /// Gets the emoji usage counts for a user (deserialized from in-memory User).
+    /// </summary>
+    public Dictionary<string, int> GetEmojiCounts(string username)
+    {
+        var user = GetByUsername(username);
+        if (user?.EmojiCounts == null) return new();
+
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(user.EmojiCounts) ?? new();
+        }
+        catch
+        {
+            return new();
+        }
+    }
+
+    /// <summary>
+    /// Updates the recent emojis list for a user. In-memory only; DB write is batched.
+    /// </summary>
+    public void UpdateRecentEmojis(Guid userId, List<string> emojis)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        user.RecentEmojis = System.Text.Json.JsonSerializer.Serialize(emojis);
+        _dirtyEmojiUsers.TryAdd(userId, 0);
+    }
+
+    /// <summary>
+    /// Updates the emoji usage counts for a user. In-memory only; DB write is batched.
+    /// </summary>
+    public void UpdateEmojiCounts(Guid userId, Dictionary<string, int> counts)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        user.EmojiCounts = System.Text.Json.JsonSerializer.Serialize(counts);
+        _dirtyEmojiUsers.TryAdd(userId, 0);
+    }
+
+    #region Emoji Flush
+
+    private static readonly TimeSpan EmojiFlushInterval = TimeSpan.FromSeconds(10);
+
+    private void StartEmojiFlushLoop()
+    {
+        if (!_persistenceEnabled) return;
+
+        _flushCts = new CancellationTokenSource();
+        _ = EmojiFlushLoopAsync(_flushCts.Token);
+    }
+
+    private async Task EmojiFlushLoopAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(EmojiFlushInterval);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                await FlushDirtyEmojiDataAsync();
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task FlushDirtyEmojiDataAsync()
+    {
+        if (_dirtyEmojiUsers.IsEmpty || !_persistenceEnabled) return;
+
+        // Snapshot and clear dirty set
+        var dirtyIds = _dirtyEmojiUsers.Keys.ToList();
+        foreach (var id in dirtyIds)
+            _dirtyEmojiUsers.TryRemove(id, out _);
+
+        try
+        {
+            await using var db = await _dbFactory!.CreateDbContextAsync();
+
+            foreach (var userId in dirtyIds)
+            {
+                if (!_users.TryGetValue(userId, out var user)) continue;
+
+                await db.Users
+                    .Where(u => u.Id == userId)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(u => u.RecentEmojis, user.RecentEmojis)
+                        .SetProperty(u => u.EmojiCounts, user.EmojiCounts));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to flush emoji data for {Count} users", dirtyIds.Count);
+        }
+    }
+
+    #endregion
 
     /// <summary>
     /// Generates a secure random token.

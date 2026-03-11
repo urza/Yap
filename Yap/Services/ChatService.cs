@@ -216,7 +216,7 @@ public class ChatService
 
     public async Task<Channel?> CreateRoomAsync(Guid adminUserId, string adminUsername, string roomName,
         string? description = null, ChannelPermission writePermission = ChannelPermission.Everyone,
-        HistoryLimit historyLimit = HistoryLimit.Unlimited)
+        HistoryLimit historyLimit = HistoryLimit.OneMonth, bool sinceJoined = true)
     {
         if (!IsAdmin(adminUserId))
             return null;
@@ -240,7 +240,7 @@ public class ChatService
 
         var channel = Channel.CreateRoom(roomName, adminUserId, adminUsername,
             description: description, sortOrder: maxSortOrder + 1, writePermission: writePermission,
-            historyLimit: historyLimit);
+            historyLimit: historyLimit, sinceJoined: sinceJoined);
         _channels[channel.Id] = channel;
         _channelMessages[channel.Id] = new List<ChatMessage>();
         _channelTypingUsers[channel.Id] = new ConcurrentDictionary<string, DateTime>();
@@ -288,7 +288,7 @@ public class ChatService
     /// Updates a channel's name, description and write permission. Admin only.
     /// Returns null on success, or an error message string on failure.
     /// </summary>
-    public async Task<string?> UpdateChannelAsync(Guid adminUserId, Guid channelId, string name, string? description, ChannelPermission writePermission, HistoryLimit historyLimit = HistoryLimit.Unlimited)
+    public async Task<string?> UpdateChannelAsync(Guid adminUserId, Guid channelId, string name, string? description, ChannelPermission writePermission, HistoryLimit historyLimit = HistoryLimit.Unlimited, bool sinceJoined = false)
     {
         if (!IsAdmin(adminUserId))
             return "Not authorized.";
@@ -314,6 +314,7 @@ public class ChatService
         channel.Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
         channel.WritePermission = writePermission;
         channel.HistoryLimit = historyLimit;
+        channel.SinceJoined = sinceJoined;
 
         var sw = Stopwatch.StartNew();
         await _persistence.PersistChannelAsync(channel);
@@ -838,7 +839,8 @@ public class ChatService
         Guid channelId,
         int count = 20,
         DateTime? beforeTimestamp = null,
-        bool isAdmin = false)
+        bool isAdmin = false,
+        Guid? userId = null)
     {
         if (!_channelMessages.TryGetValue(channelId, out var messages))
             return (new List<ChatMessage>(), false);
@@ -851,7 +853,20 @@ public class ChatService
             DateTime? historyCutoff = null;
             if (!isAdmin && _channels.TryGetValue(channelId, out var channel))
             {
+                // Time-based cutoff (e.g. 1 month)
                 historyCutoff = channel.GetHistoryCutoff();
+
+                // "Since Joined" cutoff (user's signup date)
+                if (channel.SinceJoined && userId.HasValue)
+                {
+                    var user = _userService.GetById(userId.Value);
+                    var joinedAt = user?.CreatedAt ?? DateTime.UtcNow;
+                    // Take the more restrictive (later) of the two
+                    historyCutoff = historyCutoff.HasValue
+                        ? (joinedAt > historyCutoff.Value ? joinedAt : historyCutoff.Value)
+                        : joinedAt;
+                }
+
                 if (historyCutoff.HasValue)
                 {
                     filtered = filtered.Where(m => m.Timestamp >= historyCutoff.Value);

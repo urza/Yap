@@ -84,20 +84,7 @@ public static class PersistenceServiceExtensions
             }
         }
 
-        // Apply migrations if they exist, otherwise create database from model
-        var appliedMigrations = await db.Database.GetAppliedMigrationsAsync();
-        var pendingMigrations = await db.Database.GetPendingMigrationsAsync();
-
-        if (appliedMigrations.Any() || pendingMigrations.Any())
-        {
-            // Migrations exist - use migration system
-            await db.Database.MigrateAsync();
-        }
-        else
-        {
-            // No migrations defined - create database directly from model (dev scenario)
-            await db.Database.EnsureCreatedAsync();
-        }
+        await db.Database.MigrateAsync();
 
         // Initialize ChatService with data from DB
         var chatService = services.GetRequiredService<ChatService>();
