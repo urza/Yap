@@ -247,6 +247,24 @@ public class SystemBotService
     #endregion
 
     /// <summary>
+    /// Notifies admin via bot DM that a user is requesting to join (approval mode).
+    /// </summary>
+    public async Task NotifyAdminOfPendingUserAsync(string username)
+    {
+        if (!_initialized) return;
+
+        var adminUsername = _chatService.GetAdmin();
+        if (adminUsername == null) return;
+
+        var adminUser = _userService.GetByUsername(adminUsername);
+        if (adminUser == null) return;
+
+        var channel = _chatService.GetOrCreateDMChannel(_botUserId, _botUsername, adminUser.Id, adminUser.Username);
+        await _chatService.SendMessageAsync(channel.Id, _botUserId, _botUsername,
+            $"👋 **{username}** is requesting to join. Go to the Admin panel to approve or reject.");
+    }
+
+    /// <summary>
     /// When a new user joins: send them a welcome DM, and notify admin.
     /// </summary>
     private async void HandleUserChanged(string username, bool joined)

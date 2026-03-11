@@ -120,6 +120,71 @@
     font-family: inherit;
 }
 
+/* Closed registration state */
+.closed-message {
+    background: var(--bg-sidebar);
+    padding: 1.5rem 2rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px 0 rgba(0,0,0,.2);
+    text-align: center;
+    margin: 0 1rem;
+    max-width: 400px;
+}
+
+.closed-message p {
+    color: var(--text-secondary);
+    font-size: 0.9375rem;
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* Waiting for approval state */
+.waiting-message {
+    background: var(--bg-sidebar);
+    padding: 1.5rem 2rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px 0 rgba(0,0,0,.2);
+    text-align: center;
+    margin: 0 1rem;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.waiting-message p {
+    color: var(--text-primary);
+    font-size: 0.9375rem;
+    margin: 0;
+    line-height: 1.5;
+}
+
+.waiting-hint {
+    color: var(--text-muted) !important;
+    font-size: 0.8125rem !important;
+}
+
+.waiting-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border-dark);
+    border-top-color: var(--accent-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 0.5rem;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.rejection-notice {
+    color: var(--color-danger) !important;
+    font-size: 0.875rem !important;
+    margin-top: 0.5rem !important;
+}
+
 .build-info {
     position: absolute;
     bottom: 1rem;

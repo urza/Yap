@@ -105,6 +105,7 @@ builder.Services.AddSingleton<CircuitTracker>();  // Circuit diagnostics
 builder.Services.AddSingleton<UserService>();     // User management with token auth
 builder.Services.AddSingleton<ChatService>();
 builder.Services.AddSingleton<SystemBotService>();
+builder.Services.AddSingleton<RegistrationGateService>();
 builder.Services.AddScoped<ChatConfigService>();
 builder.Services.AddScoped<EmojiService>();
 builder.Services.AddScoped<UserStateService>();
@@ -335,6 +336,8 @@ async Task<IResult> HandleSignIn(HttpContext context, UserService userService, U
     if (botService.IsBotUser(username))
         return Results.Redirect("/login");
 
+    var registrationGate = context.RequestServices.GetRequiredService<RegistrationGateService>();
+
     User? user;
 
     if (!string.IsNullOrEmpty(password))
@@ -346,6 +349,14 @@ async Task<IResult> HandleSignIn(HttpContext context, UserService userService, U
     }
     else
     {
+        // Safety net: block new user creation if registration is closed
+        if (registrationGate.RegistrationClosed)
+            return Results.Redirect("/login");
+
+        // Safety net: if approval required, only allow approved users through
+        if (registrationGate.RequireApproval && !registrationGate.ConsumeApproval(username))
+            return Results.Redirect("/login");
+
         // New user — create account
         user = await userService.CreateUserAsync(username);
         if (user == null)

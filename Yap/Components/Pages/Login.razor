@@ -3,37 +3,68 @@
 @inject UserService UserService
 @inject UserStateService UserState
 @inject SystemBotService BotService
+@inject RegistrationGateService RegistrationGate
 @inject NavigationManager Navigation
+@implements IDisposable
 
 <PageTitle>@ChatConfig.ProjectName</PageTitle>
 
 <div class="username-container">
-    <h2>@welcomeMessage</h2>
-    <div class="username-form">
-        <div class="input-wrapper">
-            <input type="text" @bind="usernameInput" @bind:event="oninput" @bind:after="ValidateUsername"
-                   placeholder="@usernamePlaceholder" class="username-input @(showError ? "invalid" : "")"
-                   @onkeypress="HandleUsernameKeyPress" @onblur="OnInputBlur" maxlength="23" />
-            @if (showError)
+    @if (_state == LoginState.Closed)
+    {
+        <h2>Registration is temporarily closed</h2>
+        <div class="closed-message">
+            <p>New signups are not being accepted right now. Please check back later.</p>
+        </div>
+        <div class="build-info">@BuildInfo.Time</div>
+    }
+    else if (_state == LoginState.WaitingApproval)
+    {
+        <h2>Waiting for approval</h2>
+        <div class="waiting-message">
+            <div class="waiting-spinner"></div>
+            <p>Your request to join as <strong>@usernameInput</strong> has been submitted.</p>
+            <p class="waiting-hint">An admin will review your request shortly. This page will update automatically.</p>
+            @if (_wasRejected)
             {
-                <span class="validation-error">@errorMessage</span>
-                @if (_showRetryLink)
-                {
-                    <button type="button" @onclick="ValidateUsername" class="retry-link">Done, try again</button>
-                }
+                <p class="rejection-notice">Your previous request was not approved. You can try a different username.</p>
+                <button class="join-button" @onclick="ResetToForm">Try again</button>
             }
         </div>
-        <button class="join-button" @onclick="JoinChat"
-                disabled="@(!IsValid)">
-            @joinButtonText
-        </button>
-    </div>
-    <div class="build-info">@BuildInfo.Time</div>
+        <div class="build-info">@BuildInfo.Time</div>
+    }
+    else
+    {
+        <h2>@welcomeMessage</h2>
+        <div class="username-form">
+            <div class="input-wrapper">
+                <input type="text" @bind="usernameInput" @bind:event="oninput" @bind:after="ValidateUsername"
+                       placeholder="@usernamePlaceholder" class="username-input @(showError ? "invalid" : "")"
+                       @onkeypress="HandleUsernameKeyPress" @onblur="OnInputBlur" maxlength="23" />
+                @if (showError)
+                {
+                    <span class="validation-error">@errorMessage</span>
+                    @if (_showRetryLink)
+                    {
+                        <button type="button" @onclick="ValidateUsername" class="retry-link">Done, try again</button>
+                    }
+                }
+            </div>
+            <button class="join-button" @onclick="JoinChat"
+                    disabled="@(!IsValid)">
+                @joinButtonText
+            </button>
+        </div>
+        <div class="build-info">@BuildInfo.Time</div>
+    }
 </div>
 
 @code {
     [SupplyParameterFromQuery]
     public string? ReturnUrl { get; set; }
+
+    private enum LoginState { Normal, Closed, WaitingApproval }
+    private LoginState _state = LoginState.Normal;
 
     private string usernameInput = "";
     private string welcomeMessage = "";
@@ -46,6 +77,9 @@
     private bool _shouldRedirect = false;
     private bool _usernameHasPassword = false;
     private bool _showRetryLink = false;
+    private bool _wasRejected = false;
+
+    private Timer? _pollTimer;
 
     // Username rules: 2-23 chars, lowercase a-z, 0-9, underscore, period, no consecutive periods
     private static readonly System.Text.RegularExpressions.Regex ValidUsernameRegex =
@@ -84,6 +118,13 @@
                 UserState.SessionId = null;
                 UserState.Status = UserStatus.Online;
             }
+        }
+
+        // Check if registration is closed (new visitors only)
+        if (RegistrationGate.RegistrationClosed)
+        {
+            _state = LoginState.Closed;
+            return;
         }
 
         welcomeMessage = ChatConfig.GetRandomWelcomeMessage();
@@ -194,8 +235,87 @@
             return;
         }
 
-        // New user — redirect to signin endpoint (creates user + sets cookie)
+        // Approval mode — add to pending set and wait
+        if (RegistrationGate.RequireApproval)
+        {
+            var trimmed = usernameInput.Trim();
+            if (!RegistrationGate.AddPendingUser(trimmed))
+            {
+                // Already pending
+                hasError = true;
+                errorMessage = "This username is already waiting for approval";
+                return;
+            }
+
+            _state = LoginState.WaitingApproval;
+            _wasRejected = false;
+
+            // Notify admin via bot
+            _ = BotService.NotifyAdminOfPendingUserAsync(trimmed);
+
+            // Start polling for approval/rejection
+            StartPolling();
+            return;
+        }
+
+        // Normal mode — redirect to signin endpoint (creates user + sets cookie)
         var encodedReturn = Uri.EscapeDataString(returnUrl);
         Navigation.NavigateTo($"/auth/signin?username={username}&returnUrl={encodedReturn}", forceLoad: true);
+    }
+
+    private void StartPolling()
+    {
+        _pollTimer?.Dispose();
+        _pollTimer = new Timer(async _ =>
+        {
+            try
+            {
+                await InvokeAsync(() =>
+                {
+                    var username = usernameInput.Trim();
+
+                    if (RegistrationGate.IsApproved(username))
+                    {
+                        // Approved! Redirect to create the account (HandleSignIn will consume the approval)
+                        _pollTimer?.Dispose();
+                        _pollTimer = null;
+                        var encodedUsername = Uri.EscapeDataString(username);
+                        var returnUrl = SafeReturnUrl ?? "/lobby";
+                        var encodedReturn = Uri.EscapeDataString(returnUrl);
+                        Navigation.NavigateTo($"/auth/signin?username={encodedUsername}&returnUrl={encodedReturn}", forceLoad: true);
+                        return;
+                    }
+
+                    if (RegistrationGate.IsRejected(username))
+                    {
+                        // Rejected — consume so it doesn't show again
+                        RegistrationGate.ConsumeRejection(username);
+                        _pollTimer?.Dispose();
+                        _pollTimer = null;
+                        _wasRejected = true;
+                        StateHasChanged();
+                        return;
+                    }
+                });
+            }
+            catch (ObjectDisposedException) { }
+            catch (InvalidOperationException) { }
+        }, null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
+    }
+
+    private void ResetToForm()
+    {
+        _state = LoginState.Normal;
+        _wasRejected = false;
+        usernameInput = "";
+        hasError = false;
+        welcomeMessage = ChatConfig.GetRandomWelcomeMessage();
+        joinButtonText = ChatConfig.GetRandomJoinButtonText();
+        usernamePlaceholder = ChatConfig.GetRandomUsernamePlaceholder();
+    }
+
+    public void Dispose()
+    {
+        _pollTimer?.Dispose();
     }
 }
