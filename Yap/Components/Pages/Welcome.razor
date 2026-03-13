@@ -63,7 +63,8 @@
 
         if (_shouldRedirectToLobby)
         {
-            var lastRoute = await JS.InvokeAsync<string>("getLastPwaRoute");
+            string? lastRoute = null;
+            try { lastRoute = await JS.InvokeAsync<string>("getLastPwaRoute"); } catch { }
             Navigation.NavigateTo(SafeReturnUrl ?? lastRoute ?? "/lobby");
             return;
         }

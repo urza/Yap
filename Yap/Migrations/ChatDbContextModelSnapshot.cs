@@ -80,7 +80,7 @@ namespace Yap.Migrations
 
                     b.HasIndex("Type", "Name");
 
-                    b.ToTable("Channels");
+                    b.ToTable("Channels", (string)null);
                 });
 
             modelBuilder.Entity("Yap.Models.ChannelReadState", b =>
@@ -101,7 +101,7 @@ namespace Yap.Migrations
 
                     b.HasIndex("ChannelId");
 
-                    b.ToTable("ChannelReadStates");
+                    b.ToTable("ChannelReadStates", (string)null);
                 });
 
             modelBuilder.Entity("Yap.Models.ChatMessage", b =>
@@ -147,7 +147,7 @@ namespace Yap.Migrations
 
                     b.HasIndex("ChannelId", "Timestamp");
 
-                    b.ToTable("Messages");
+                    b.ToTable("Messages", (string)null);
                 });
 
             modelBuilder.Entity("Yap.Models.PushSubscription", b =>
@@ -175,7 +175,7 @@ namespace Yap.Migrations
 
                     b.HasIndex("Username");
 
-                    b.ToTable("PushSubscriptions");
+                    b.ToTable("PushSubscriptions", (string)null);
                 });
 
             modelBuilder.Entity("Yap.Models.Reaction", b =>
@@ -205,7 +205,7 @@ namespace Yap.Migrations
                     b.HasIndex("MessageId", "Emoji", "UserId")
                         .IsUnique();
 
-                    b.ToTable("Reactions");
+                    b.ToTable("Reactions", (string)null);
                 });
 
             modelBuilder.Entity("Yap.Models.User", b =>
@@ -280,7 +280,7 @@ namespace Yap.Migrations
                     b.HasIndex("Username")
                         .IsUnique();
 
-                    b.ToTable("Users");
+                    b.ToTable("Users", (string)null);
                 });
 
             modelBuilder.Entity("Yap.Models.UserActionLog", b =>
@@ -326,7 +326,7 @@ namespace Yap.Migrations
 
                     b.HasIndex("UserUid");
 
-                    b.ToTable("UserActionLogs");
+                    b.ToTable("UserActionLogs", (string)null);
                 });
 
             modelBuilder.Entity("Yap.Models.UserNote", b =>
@@ -351,7 +351,7 @@ namespace Yap.Migrations
                     b.HasIndex("AuthorId", "TargetId")
                         .IsUnique();
 
-                    b.ToTable("UserNotes");
+                    b.ToTable("UserNotes", (string)null);
                 });
 
             modelBuilder.Entity("Yap.Models.Channel", b =>
