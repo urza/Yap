@@ -215,6 +215,8 @@ else
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup send button focus"); }
             try { await JS.InvokeVoidAsync("setupEmojiToggle", EmojiIconId, SpriteCols, SpriteTotalEmojis); }
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup emoji toggle"); }
+            try { await JS.InvokeVoidAsync("setupPasteUpload", TextareaId, FileInputId); }
+            catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup paste upload"); }
         }
     }
 

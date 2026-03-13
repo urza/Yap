@@ -754,6 +754,39 @@ window.scrollToMessage = (messageId) => {
 };
 
 // ==========================================
+// Clipboard Paste Upload
+// ==========================================
+
+window.setupPasteUpload = (textareaId, fileInputId) => {
+    const textarea = document.getElementById(textareaId);
+    const fileInput = document.getElementById(fileInputId);
+    if (!textarea || !fileInput) return;
+
+    textarea.addEventListener('paste', (e) => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+
+        const imageFiles = [];
+        for (const item of items) {
+            if (item.type.startsWith('image/')) {
+                const file = item.getAsFile();
+                if (file) imageFiles.push(file);
+            }
+        }
+
+        if (imageFiles.length === 0) return;
+
+        // Prevent the default paste (don't paste image as text)
+        e.preventDefault();
+
+        const dt = new DataTransfer();
+        imageFiles.forEach(f => dt.items.add(f));
+        fileInput.files = dt.files;
+        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+};
+
+// ==========================================
 // Parallel File Upload via HTTP
 // ==========================================
 
