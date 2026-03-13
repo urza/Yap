@@ -17,9 +17,16 @@ builder.WebHost.ConfigureKestrel(options =>
 });
 
 // Load config from Data folder if exists (for Docker deployment)
+// Replaces the default appsettings.json entirely to avoid .NET's array merge behavior
 var dataConfigPath = Path.Combine(builder.Environment.ContentRootPath, "Data", "appsettings.json");
 if (File.Exists(dataConfigPath))
 {
+    var defaultSource = builder.Configuration.Sources
+        .OfType<Microsoft.Extensions.Configuration.Json.JsonConfigurationSource>()
+        .FirstOrDefault(s => s.Path == "appsettings.json");
+    if (defaultSource != null)
+        builder.Configuration.Sources.Remove(defaultSource);
+
     builder.Configuration.AddJsonFile(dataConfigPath, optional: false, reloadOnChange: true);
 }
 
