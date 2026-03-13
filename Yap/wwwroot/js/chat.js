@@ -338,6 +338,16 @@ window.isPwaInstalled = () => {
            window.navigator.standalone === true;
 };
 
+// PWA last-route persistence (resume where you left off)
+window.saveLastRoute = (route) => {
+    localStorage.setItem('yap-last-route', route);
+};
+
+window.getLastPwaRoute = () => {
+    if (!window.isPwaInstalled()) return null;
+    return localStorage.getItem('yap-last-route');
+};
+
 // PWA Install Banner helpers
 window.isMessageInputFocused = () => {
     return document.activeElement?.classList.contains('message-input') === true;

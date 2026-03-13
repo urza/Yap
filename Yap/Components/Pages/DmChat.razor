@@ -110,6 +110,7 @@
         // Set navigation context
         currentContext = DmUser;
         NavState.SetDmContext(DmUser);
+        await JS.InvokeVoidAsync("saveLastRoute", $"/dm/{Uri.EscapeDataString(DmUser)}");
 
         await UpdatePageTitleAsync();
 
@@ -147,6 +148,7 @@
         // Update context
         currentContext = DmUser;
         NavState.SetDmContext(DmUser);
+        await JS.InvokeVoidAsync("saveLastRoute", $"/dm/{Uri.EscapeDataString(DmUser)}");
 
         await UpdatePageTitleAsync();
         await InvokeAsync(StateHasChanged);

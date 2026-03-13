@@ -122,6 +122,8 @@
         canWrite = ChatService.CanUserWrite(channelId, UserId);
         historyLimited = (room?.HistoryLimit != Models.HistoryLimit.Unlimited || room?.SinceJoined == true) && !ChatService.IsAdmin(UserId);
         NavState.SetRoomContext(channelId, currentContext, ChatConfig.GetRandomRoomHeader(currentContext));
+        var route = channelId == ChatService.GetLobbyId() ? "/lobby" : $"/room/{channelId}";
+        await JS.InvokeVoidAsync("saveLastRoute", route);
 
         await UpdatePageTitleAsync();
 
@@ -152,6 +154,8 @@
         canWrite = ChatService.CanUserWrite(channelId, UserId);
         historyLimited = (room?.HistoryLimit != Models.HistoryLimit.Unlimited || room?.SinceJoined == true) && !ChatService.IsAdmin(UserId);
         NavState.SetRoomContext(channelId, currentContext, ChatConfig.GetRandomRoomHeader(currentContext));
+        var route = channelId == ChatService.GetLobbyId() ? "/lobby" : $"/room/{channelId}";
+        await JS.InvokeVoidAsync("saveLastRoute", route);
 
         await UpdatePageTitleAsync();
         await InvokeAsync(StateHasChanged);
