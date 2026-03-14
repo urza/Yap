@@ -63,6 +63,11 @@ public class UserActionLog
         /// </summary>
         public const string HTTP_REQUEST = "HTTP_REQUEST";
 
+        /// <summary>
+        /// Smart login: user auto-authenticated via IP match (no passphrase)
+        /// </summary>
+        public const string SMART_LOGIN = "SMART_LOGIN";
+
     }
 
 }

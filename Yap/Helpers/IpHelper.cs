@@ -1,0 +1,28 @@
+namespace Yap.Helpers;
+
+public static class IpHelper
+{
+    /// <summary>
+    /// Gets the client IP address from the HTTP context.
+    /// Priority: CF-Connecting-IP (Cloudflare) → X-Forwarded-For → RemoteIpAddress.
+    /// Returns null when IP cannot be determined (prevents false matches in smart login).
+    /// </summary>
+    public static string? GetClientIp(HttpContext context)
+    {
+        // Cloudflare sets this header and overwrites any client-sent value
+        var cfIp = context.Request.Headers["CF-Connecting-IP"].FirstOrDefault();
+        if (!string.IsNullOrEmpty(cfIp))
+            return cfIp.Trim();
+
+        // Fallback: X-Forwarded-For (first entry — can be spoofed without trusted proxy)
+        var xff = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+        if (!string.IsNullOrEmpty(xff))
+        {
+            var first = xff.Split(',')[0].Trim();
+            if (!string.IsNullOrEmpty(first))
+                return first;
+        }
+
+        return context.Connection.RemoteIpAddress?.ToString();
+    }
+}

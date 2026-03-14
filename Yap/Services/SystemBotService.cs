@@ -339,6 +339,32 @@ public class SystemBotService
     }
 
     /// <summary>
+    /// Notifies a user via bot DM that a new device login occurred.
+    /// Called for both smart login (IP match) and passphrase login.
+    /// </summary>
+    public async Task NotifyNewDeviceLoginAsync(string username, string loginMethod, string ip)
+    {
+        if (!_initialized) return;
+
+        try
+        {
+            var user = _userService.GetByUsername(username);
+            if (user == null) return;
+
+            var channel = _chatService.GetOrCreateDMChannel(_botUserId, _botUsername, user.Id, user.Username);
+
+            var methodLabel = loginMethod == "smart" ? "smart login (same network)" : "passphrase";
+            var message = $"🔐 New device sign-in detected for your account using **{methodLabel}** from IP `{ip}`. If this wasn't you, open **Settings** and use **Sign out all other devices** immediately.";
+
+            await _chatService.SendMessageAsync(channel.Id, _botUserId, _botUsername, message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error notifying {Username} of new device login", username);
+        }
+    }
+
+    /// <summary>
     /// When someone DMs the bot, auto-reply with a placeholder (debounced).
     /// </summary>
     private async void HandleMessageReceived(ChatMessage message)

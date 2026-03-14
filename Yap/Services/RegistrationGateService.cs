@@ -18,6 +18,7 @@ public class RegistrationGateService
 
     private bool _registrationClosed;
     private bool _requireApproval;
+    private bool _smartMode;
 
     // Pending usernames waiting for admin approval: username -> request time
     private readonly ConcurrentDictionary<string, DateTime> _pendingUsers = new(StringComparer.OrdinalIgnoreCase);
@@ -39,6 +40,7 @@ public class RegistrationGateService
 
     public bool RegistrationClosed => _registrationClosed;
     public bool RequireApproval => _requireApproval;
+    public bool SmartMode => _smartMode;
 
     public async Task SetRegistrationClosedAsync(bool closed)
     {
@@ -52,6 +54,13 @@ public class RegistrationGateService
         _requireApproval = require;
         await SaveSettingsAsync();
         _logger.LogInformation("Require approval set to {Require}", require);
+    }
+
+    public async Task SetSmartModeAsync(bool enabled)
+    {
+        _smartMode = enabled;
+        await SaveSettingsAsync();
+        _logger.LogInformation("Smart mode set to {Enabled}", enabled);
     }
 
     /// <summary>
@@ -134,6 +143,7 @@ public class RegistrationGateService
                 {
                     _registrationClosed = settings.RegistrationClosed;
                     _requireApproval = settings.RequireApproval;
+                    _smartMode = settings.SmartMode;
                 }
                 _logger.LogInformation("Loaded registration settings: Closed={Closed}, Approval={Approval}",
                     _registrationClosed, _requireApproval);
@@ -152,7 +162,8 @@ public class RegistrationGateService
             var settings = new RegistrationSettings
             {
                 RegistrationClosed = _registrationClosed,
-                RequireApproval = _requireApproval
+                RequireApproval = _requireApproval,
+                SmartMode = _smartMode
             };
             var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(SettingsFilePath, json);
@@ -167,6 +178,7 @@ public class RegistrationGateService
     {
         public bool RegistrationClosed { get; set; }
         public bool RequireApproval { get; set; }
+        public bool SmartMode { get; set; }
     }
 
     #endregion

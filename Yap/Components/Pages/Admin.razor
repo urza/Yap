@@ -51,6 +51,13 @@
             </svg>
             <span>Settings</span>
         </button>
+        <button class="nav-item @(activeSection == "logs" ? "active" : "")"
+                @onclick="SelectLogsTab">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 9h-2v2H9v-2H7v-2h2V7h2v2h2v2zm-3 8H8v-6h2v6zm4 0h-2v-4h2v4zm4 0h-2v-8h2v8zm-2-14V3.5L18.5 9H13z"/>
+            </svg>
+            <span>Logs</span>
+        </button>
     </nav>
 
     <div class="admin-tabs">
@@ -69,6 +76,10 @@
         <button class="tab-item @(activeSection == "settings" ? "active" : "")"
                 @onclick='() => activeSection = "settings"'>
             Settings
+        </button>
+        <button class="tab-item @(activeSection == "logs" ? "active" : "")"
+                @onclick="SelectLogsTab">
+            Logs
         </button>
     </div>
 
@@ -406,6 +417,17 @@
                         <span class="toggle-slider"></span>
                     </label>
                 </label>
+
+                <label class="toggle-row">
+                    <div class="toggle-info">
+                        <span class="toggle-label">Smart login</span>
+                        <span class="toggle-hint">Auto-login returning users from the same IP address without passphrase.</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" checked="@smartMode" @onchange="ToggleSmartMode" />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </label>
             </div>
 
             @if (pendingUsersList.Count > 0)
@@ -436,6 +458,67 @@
                         </div>
                     }
                 </div>
+            }
+        }
+
+        @if (activeSection == "logs")
+        {
+            <div class="section-header">
+                <h3>Action Logs</h3>
+                <span class="section-count">@logEntries.Count loaded</span>
+            </div>
+
+            <div class="log-filters">
+                <select class="log-filter-select" @onchange="OnActionFilterChanged">
+                    <option value="">All actions</option>
+                    <option value="LOGIN" selected="@(logFilterAction == "LOGIN")">LOGIN</option>
+                    <option value="LOGOUT" selected="@(logFilterAction == "LOGOUT")">LOGOUT</option>
+                    <option value="SMART_LOGIN" selected="@(logFilterAction == "SMART_LOGIN")">SMART_LOGIN</option>
+                    <option value="CIRCUIT_RECONNECT" selected="@(logFilterAction == "CIRCUIT_RECONNECT")">CIRCUIT_RECONNECT</option>
+                    <option value="CIRCUIT_DISCONNECT" selected="@(logFilterAction == "CIRCUIT_DISCONNECT")">CIRCUIT_DISCONNECT</option>
+                </select>
+                <input type="text" class="log-filter-input" placeholder="Filter by username..."
+                       @bind="logFilterUsername" @bind:event="oninput" @bind:after="OnUsernameFilterChanged" />
+            </div>
+
+            <div class="table-wrapper">
+                <table class="users-table logs-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>User</th>
+                            <th>Action</th>
+                            <th>IP</th>
+                            <th>Info</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var entry in logEntries)
+                        {
+                            <tr>
+                                <td class="date-cell">@FormatLogDate(entry.Date)</td>
+                                <td>@ResolveUsername(entry.UserUid)</td>
+                                <td><span class="action-pill @GetActionClass(entry.Action)">@entry.Action</span></td>
+                                <td class="ip-mono">@(entry.IP ?? "-")</td>
+                                <td class="info-cell">@(entry.Info ?? "-")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (logEntries.Count > 0 && logEntries.Count % 100 == 0)
+            {
+                <div class="log-load-more">
+                    <button class="upload-button" @onclick="LoadMoreLogs" disabled="@logLoading">
+                        @(logLoading ? "Loading..." : "Load more")
+                    </button>
+                </div>
+            }
+
+            @if (!logLoading && logEntries.Count == 0)
+            {
+                <div class="log-empty">No log entries found.</div>
             }
         }
     </main>
@@ -508,6 +591,7 @@
         // Load registration settings
         regClosed = RegistrationGate.RegistrationClosed;
         regApproval = RegistrationGate.RequireApproval;
+        smartMode = RegistrationGate.SmartMode;
         pendingUsersList = RegistrationGate.GetPendingUsers();
     }
 
@@ -595,6 +679,7 @@
     // Registration settings
     private bool regClosed;
     private bool regApproval;
+    private bool smartMode;
     private List<(string Username, DateTime RequestedAt)> pendingUsersList = new();
 
     private async Task ToggleRegistrationClosed(ChangeEventArgs e)
@@ -607,6 +692,12 @@
     {
         regApproval = (bool)(e.Value ?? false);
         await RegistrationGate.SetRequireApprovalAsync(regApproval);
+    }
+
+    private async Task ToggleSmartMode(ChangeEventArgs e)
+    {
+        smartMode = (bool)(e.Value ?? false);
+        await RegistrationGate.SetSmartModeAsync(smartMode);
     }
 
     private void ApprovePending(string username)
@@ -625,6 +716,114 @@
     {
         pendingUsersList = RegistrationGate.GetPendingUsers();
     }
+
+    // Logs tab
+    private List<UserActionLog> logEntries = new();
+    private string? logFilterAction;
+    private string logFilterUsername = "";
+    private bool logLoading;
+    private bool logLoaded;
+    private CancellationTokenSource? _logFilterCts;
+    private Dictionary<string, string> _uidToUsername = new();
+
+    private async Task SelectLogsTab()
+    {
+        activeSection = "logs";
+        if (!logLoaded)
+            await LoadLogs();
+    }
+
+    private async Task LoadLogs()
+    {
+        logLoading = true;
+        StateHasChanged();
+
+        string? userUid = null;
+        if (!string.IsNullOrWhiteSpace(logFilterUsername))
+        {
+            var user = UserService.GetByUsername(logFilterUsername.Trim());
+            userUid = user?.Id.ToString();
+            if (user == null)
+            {
+                logEntries = new();
+                logLoading = false;
+                logLoaded = true;
+                return;
+            }
+        }
+
+        logEntries = await ActionLog.GetLogsAsync(userUid, logFilterAction, 0, 100);
+        logLoading = false;
+        logLoaded = true;
+    }
+
+    private async Task LoadMoreLogs()
+    {
+        logLoading = true;
+        StateHasChanged();
+
+        string? userUid = null;
+        if (!string.IsNullOrWhiteSpace(logFilterUsername))
+        {
+            var user = UserService.GetByUsername(logFilterUsername.Trim());
+            userUid = user?.Id.ToString();
+        }
+
+        var more = await ActionLog.GetLogsAsync(userUid, logFilterAction, logEntries.Count, 100);
+        logEntries.AddRange(more);
+        logLoading = false;
+    }
+
+    private async Task OnActionFilterChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        logFilterAction = string.IsNullOrEmpty(val) ? null : val;
+        await LoadLogs();
+    }
+
+    private void OnUsernameFilterChanged()
+    {
+        _logFilterCts?.Cancel();
+        _logFilterCts = new CancellationTokenSource();
+        var token = _logFilterCts.Token;
+        _ = Task.Delay(500, token).ContinueWith(async _ =>
+        {
+            if (!token.IsCancellationRequested)
+                await InvokeAsync(async () => { await LoadLogs(); StateHasChanged(); });
+        }, token);
+    }
+
+    private string ResolveUsername(string userUid)
+    {
+        if (_uidToUsername.TryGetValue(userUid, out var cached))
+            return cached;
+
+        if (Guid.TryParse(userUid, out var guid))
+        {
+            var user = UserService.GetById(guid);
+            var name = user?.Username ?? userUid;
+            _uidToUsername[userUid] = name;
+            return name;
+        }
+
+        _uidToUsername[userUid] = userUid;
+        return userUid;
+    }
+
+    private static string FormatLogDate(DateTime utcTime)
+    {
+        return utcTime.ToString("yyyy-MM-dd HH:mm:ss");
+    }
+
+    private static string GetActionClass(string action) => action switch
+    {
+        "LOGIN" => "action-login",
+        "LOGOUT" => "action-logout",
+        "SMART_LOGIN" => "action-smart",
+        "CIRCUIT_RECONNECT" => "action-circuit",
+        "CIRCUIT_DISCONNECT" => "action-circuit",
+        _ => "action-default"
+    };
 
     private static string FormatTimeAgo(DateTime utcTime)
     {

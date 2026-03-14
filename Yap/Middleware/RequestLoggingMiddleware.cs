@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
+using Yap.Helpers;
 using Yap.Models;
 using Yap.Services;
 
@@ -46,7 +47,7 @@ public class RequestLoggingMiddleware
         {
             stopwatch.Stop();
 
-            var clientIp = GetClientIp(context);
+            var clientIp = IpHelper.GetClientIp(context) ?? "unknown";
 
             var entry = new RequestLogEntry
             {
@@ -91,21 +92,6 @@ public class RequestLoggingMiddleware
         return false;
     }
 
-    private static string GetClientIp(HttpContext context)
-    {
-        // Check X-Forwarded-For header first (for proxies/load balancers)
-        var forwardedFor = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(forwardedFor))
-        {
-            // X-Forwarded-For can contain multiple IPs; take the first (original client)
-            var firstIp = forwardedFor.Split(',')[0].Trim();
-            if (!string.IsNullOrEmpty(firstIp))
-                return firstIp;
-        }
-
-        // Fall back to direct connection IP
-        return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-    }
 }
 
 /// <summary>

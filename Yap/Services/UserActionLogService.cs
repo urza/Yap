@@ -230,6 +230,41 @@ public class UserActionLogService : BackgroundService
         }
     }
 
+    /// <summary>
+    /// Gets paginated, filtered action logs. Excludes HTTP_REQUEST unless explicitly requested.
+    /// </summary>
+    public async Task<List<UserActionLog>> GetLogsAsync(string? userUid = null, string? action = null, int skip = 0, int take = 100)
+    {
+        if (!IsEnabled || _dbFactory == null)
+            return new();
+
+        try
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync();
+            IQueryable<UserActionLog> query = db.UserActionLogs
+                .Where(l => l.UserUid != "");
+
+            if (!string.IsNullOrEmpty(userUid))
+                query = query.Where(l => l.UserUid == userUid);
+
+            if (!string.IsNullOrEmpty(action))
+                query = query.Where(l => l.Action == action);
+            else
+                query = query.Where(l => l.Action != UserActionLog.KnownActions.HTTP_REQUEST);
+
+            return await query
+                .OrderByDescending(l => l.Date)
+                .Skip(skip)
+                .Take(take)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get action logs");
+            return new();
+        }
+    }
+
     private async Task FlushAsync()
     {
         if (_queue.IsEmpty || _dbFactory == null) return;

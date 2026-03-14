@@ -83,6 +83,12 @@ public class User
     public bool PushMuted { get; set; }
 
     /// <summary>
+    /// Whether this user has opted out of smart login (IP-based auto-login).
+    /// Default false = smart login allowed. When true, passphrase is always required.
+    /// </summary>
+    public bool SmartLoginOptOut { get; set; }
+
+    /// <summary>
     /// JSON-serialized List&lt;string&gt; of recently used emojis (most recent first, max 20).
     /// </summary>
     public string? RecentEmojis { get; set; }

@@ -4,6 +4,8 @@
 @inject UserStateService UserState
 @inject SystemBotService BotService
 @inject RegistrationGateService RegistrationGate
+@inject ChatService ChatService
+@inject IHttpContextAccessor HttpContextAccessor
 @inject NavigationManager Navigation
 @implements IDisposable
 
@@ -37,23 +39,25 @@
     {
         <h2>@welcomeMessage</h2>
         <div class="username-form">
-            <div class="input-wrapper">
+            <div class="username-form-row">
                 <input type="text" @bind="usernameInput" @bind:event="oninput" @bind:after="ValidateUsername"
                        placeholder="@usernamePlaceholder" class="username-input @(showError ? "invalid" : "")"
                        @onkeypress="HandleUsernameKeyPress" @onblur="OnInputBlur" maxlength="23" />
-                @if (showError)
-                {
-                    <span class="validation-error">@errorMessage</span>
+                <button class="join-button" @onclick="JoinChat"
+                        disabled="@(!IsValid)">
+                    @joinButtonText
+                </button>
+            </div>
+            @if (showError)
+            {
+                <div class="validation-error">
+                    @errorMessage
                     @if (_showRetryLink)
                     {
                         <button type="button" @onclick="ValidateUsername" class="retry-link">Done, try again</button>
                     }
-                }
-            </div>
-            <button class="join-button" @onclick="JoinChat"
-                    disabled="@(!IsValid)">
-                @joinButtonText
-            </button>
+                </div>
+            }
         </div>
         <div class="build-info">@BuildInfo.Time</div>
     }
@@ -76,6 +80,7 @@
     private bool hasBlurred = false;
     private bool _shouldRedirect = false;
     private bool _usernameHasPassword = false;
+    private bool _smartModeMatch = false;
     private bool _showRetryLink = false;
     private bool _wasRejected = false;
 
@@ -85,7 +90,7 @@
     private static readonly System.Text.RegularExpressions.Regex ValidUsernameRegex =
         new(@"^[a-z0-9._]+$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
-    private bool IsValid => !string.IsNullOrWhiteSpace(usernameInput) && (!hasError || _usernameHasPassword);
+    private bool IsValid => !string.IsNullOrWhiteSpace(usernameInput) && (!hasError || _usernameHasPassword || _smartModeMatch);
 
     // Only show length errors after user has blurred the input (finished typing)
     private bool showError => hasError && (!isLengthError || hasBlurred);
@@ -147,6 +152,7 @@
         isLengthError = false;
         errorMessage = "";
         _usernameHasPassword = false;
+        _smartModeMatch = false;
         _showRetryLink = false;
 
         if (string.IsNullOrWhiteSpace(usernameInput))
@@ -192,9 +198,24 @@
             return;
         }
 
-        // Username taken check — if they have a password, redirect to verify page instead of error
+        // Username taken check — smart mode, passphrase, or error
         if (UserService.IsUsernameTaken(usernameInput))
         {
+            // Smart mode: auto-login if same IP as an active session (unless user opted out)
+            if (RegistrationGate.SmartMode)
+            {
+                var targetUser = UserService.GetByUsername(usernameInput);
+                if (targetUser != null && !targetUser.SmartLoginOptOut)
+                {
+                    var clientIp = HttpContextAccessor.HttpContext?.Items["ClientIp"]?.ToString();
+                    if (ChatService.HasActiveSessionFromIp(usernameInput, clientIp))
+                    {
+                        _smartModeMatch = true;
+                        return;
+                    }
+                }
+            }
+
             if (UserService.HasPassword(usernameInput))
             {
                 // Don't show error — user can proceed to verify page
@@ -226,6 +247,13 @@
 
         var username = Uri.EscapeDataString(usernameInput.Trim());
         var returnUrl = SafeReturnUrl ?? "/lobby";
+
+        // Smart mode match — same IP as active session, auto-login
+        if (_smartModeMatch)
+        {
+            Navigation.NavigateTo($"/auth/signin?username={username}&returnUrl={Uri.EscapeDataString(returnUrl)}", forceLoad: true);
+            return;
+        }
 
         // Username with password — redirect to verify page (stays in Blazor)
         if (_usernameHasPassword)

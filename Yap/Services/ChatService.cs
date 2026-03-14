@@ -597,6 +597,18 @@ public class ChatService
     }
 
     /// <summary>
+    /// Checks if a user has any active session from the given IP address.
+    /// Used by Smart Mode to auto-login from same network.
+    /// </summary>
+    public bool HasActiveSessionFromIp(string username, string? ipAddress)
+    {
+        if (string.IsNullOrEmpty(ipAddress)) return false;
+        return _users.Values.Any(u =>
+            u.Username.Equals(username, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(u.ClientIp, ipAddress, StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// Removes all sessions for a user except the specified one.
     /// Used for "sign out all other devices". Does NOT fire OnUserChanged(left)
     /// since the user remains online via the kept session.

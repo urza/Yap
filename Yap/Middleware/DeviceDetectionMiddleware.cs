@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Yap.Helpers;
 
 namespace Yap.Middleware;
 
@@ -29,12 +30,8 @@ public class DeviceDetectionMiddleware
 
         context.Items["IsMobile"] = isMobile;
 
-        // Capture client IP for downstream components (e.g. GeoLocation)
-        var forwardedFor = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(forwardedFor))
-            context.Items["ClientIp"] = forwardedFor.Split(',')[0].Trim();
-        else
-            context.Items["ClientIp"] = context.Connection.RemoteIpAddress?.ToString();
+        // Capture client IP for downstream components
+        context.Items["ClientIp"] = IpHelper.GetClientIp(context);
 
         await _next(context);
     }

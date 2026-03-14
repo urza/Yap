@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components.Server.Circuits;
+using Yap.Helpers;
 using Yap.Models;
 
 namespace Yap.Services;
@@ -57,10 +58,7 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
         var httpContext = _httpContextAccessor.HttpContext;
         if (httpContext != null)
         {
-            var forwarded = httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-            _clientIp = !string.IsNullOrEmpty(forwarded)
-                ? forwarded.Split(',')[0].Trim()
-                : httpContext.Connection.RemoteIpAddress?.ToString();
+            _clientIp = IpHelper.GetClientIp(httpContext);
         }
 
         _logger.LogDebug("Circuit {CircuitId} opened, starting idle timer ({Timeout})", circuit.Id, IdleTimeout);

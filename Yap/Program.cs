@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.FileProviders;
 using Yap.Components;
 using Yap.Extensions;
+using Yap.Helpers;
 using Yap.Middleware;
 using Yap.Models;
 using Yap.Services;
@@ -354,6 +355,7 @@ async Task<IResult> HandleSignIn(HttpContext context, UserService userService, U
     var registrationGate = context.RequestServices.GetRequiredService<RegistrationGateService>();
 
     User? user;
+    string? newDeviceMethod = null; // set when this is a returning-user login from a new device
 
     if (!string.IsNullOrEmpty(password))
     {
@@ -361,28 +363,63 @@ async Task<IResult> HandleSignIn(HttpContext context, UserService userService, U
         user = userService.VerifyPassword(username, password);
         if (user == null)
             return Results.Redirect("/");
+        newDeviceMethod = "passphrase";
     }
     else
     {
-        // Safety net: block new user creation if registration is closed
-        if (registrationGate.RegistrationClosed)
-            return Results.Redirect("/login");
+        // Check if username already exists
+        var existingUser = userService.GetByUsername(username);
+        if (existingUser != null)
+        {
+            // Smart mode: auto-login if same IP as an active session (unless user opted out)
+            if (registrationGate.SmartMode && !existingUser.SmartLoginOptOut)
+            {
+                var chatService = context.RequestServices.GetRequiredService<ChatService>();
+                var requestIp = IpHelper.GetClientIp(context);
+                if (chatService.HasActiveSessionFromIp(username, requestIp))
+                {
+                    user = existingUser;
+                    newDeviceMethod = "smart";
+                    actionLog.Log(user.Id.ToString(), UserActionLog.KnownActions.SMART_LOGIN,
+                        info: username, ip: requestIp ?? "unknown");
+                }
+                else
+                {
+                    return Results.Redirect("/login");
+                }
+            }
+            else
+            {
+                // Existing user, no smart mode — can't create duplicate
+                return Results.Redirect("/login");
+            }
+        }
+        else
+        {
+            // Safety net: block new user creation if registration is closed
+            if (registrationGate.RegistrationClosed)
+                return Results.Redirect("/login");
 
-        // Safety net: if approval required, only allow approved users through
-        if (registrationGate.RequireApproval && !registrationGate.ConsumeApproval(username))
-            return Results.Redirect("/login");
+            // Safety net: if approval required, only allow approved users through
+            if (registrationGate.RequireApproval && !registrationGate.ConsumeApproval(username))
+                return Results.Redirect("/login");
 
-        // New user — create account
-        user = await userService.CreateUserAsync(username);
-        if (user == null)
-            return Results.Redirect("/");
+            // New user — create account
+            user = await userService.CreateUserAsync(username);
+            if (user == null)
+                return Results.Redirect("/");
+        }
     }
 
     AuthMiddleware.SetAuthCookie(context, user.Token);
 
-    var ip = GetClientIp(context);
+    var ip = IpHelper.GetClientIp(context) ?? "unknown";
     var ua = context.Request.Headers.UserAgent.ToString();
     actionLog.Log(user.Id.ToString(), UserActionLog.KnownActions.LOGIN, info: username, ip: ip, userAgent: ua);
+
+    // Notify user of new device login via bot DM (fire-and-forget)
+    if (newDeviceMethod != null)
+        _ = botService.NotifyNewDeviceLoginAsync(username, newDeviceMethod, ip);
 
     // Validate returnUrl is relative (prevent open redirect)
     var destination = "/lobby";
@@ -403,7 +440,7 @@ app.MapGet("/auth/signout", (HttpContext context, UserService userService, UserA
         var user = userService.AuthenticateByToken(token);
         if (user != null)
         {
-            var ip = GetClientIp(context);
+            var ip = IpHelper.GetClientIp(context) ?? "unknown";
             actionLog.Log(user.Id.ToString(), UserActionLog.KnownActions.LOGOUT, info: user.Username, ip: ip);
         }
     }
@@ -522,19 +559,6 @@ app.MapGet("/api/test-exception", () =>
 });
 
 app.Run();
-
-// Helper to extract client IP (same logic as RequestLoggingMiddleware)
-static string GetClientIp(HttpContext context)
-{
-    var forwardedFor = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-    if (!string.IsNullOrEmpty(forwardedFor))
-    {
-        var firstIp = forwardedFor.Split(',')[0].Trim();
-        if (!string.IsNullOrEmpty(firstIp))
-            return firstIp;
-    }
-    return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-}
 
 // Request DTOs for push API
 record PushSubscribeRequest(string Username, string Endpoint, string? P256dh, string? Auth);

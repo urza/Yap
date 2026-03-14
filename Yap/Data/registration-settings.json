@@ -1,4 +1,5 @@
 {
   "RegistrationClosed": false,
-  "RequireApproval": false
+  "RequireApproval": false,
+  "SmartMode": true
 }

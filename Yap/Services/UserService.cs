@@ -406,6 +406,30 @@ public class UserService
         }
     }
 
+    public async Task SetSmartLoginOptOutAsync(Guid userId, bool optOut)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        user.SmartLoginOptOut = optOut;
+
+        if (_persistenceEnabled)
+        {
+            try
+            {
+                await using var db = await _dbFactory!.CreateDbContextAsync();
+                await db.Users
+                    .Where(u => u.Id == userId)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(u => u.SmartLoginOptOut, optOut));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update SmartLoginOptOut for user {UserId}", userId);
+            }
+        }
+    }
+
     /// <summary>
     /// Updates the user's timezone and locale (detected from browser).
     /// </summary>
