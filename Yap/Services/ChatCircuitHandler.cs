@@ -11,6 +11,7 @@ namespace Yap.Services;
 public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
 {
     private static readonly TimeSpan IdleTimeout = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan DisconnectGracePeriod = TimeSpan.FromSeconds(30);
 
     private readonly ChatService _chatService;
     private readonly UserStateService _userState;
@@ -103,7 +104,11 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
     public override async Task OnConnectionDownAsync(Circuit circuit, CancellationToken cancellationToken)
     {
         _circuitTracker.OnConnectionDown(circuit.Id);
-        StopIdleTimer();
+
+        // Don't stop the idle timer — start a shorter disconnect grace period instead.
+        // If the user doesn't reconnect within 30 seconds, they'll be set to Away.
+        // This avoids the bug where users stay green for hours after disconnecting.
+        StartIdleTimer(DisconnectGracePeriod);
 
         // Save status for potential restore on reconnect.
         // Don't change user status here — circuit close handles cleanup via RemoveUserAsync.
@@ -187,17 +192,17 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
     /// Cancels any pending idle timeout and starts a fresh one.
     /// Called on circuit open, connection up, and any user activity.
     /// </summary>
-    private void StartIdleTimer()
+    private void StartIdleTimer(TimeSpan? timeout = null)
     {
         _idleCts?.Cancel();
         _idleCts?.Dispose();
         _idleCts = new CancellationTokenSource();
-        _ = IdleTimeoutAsync(_idleCts.Token);
+        _ = IdleTimeoutAsync(_idleCts.Token, timeout ?? IdleTimeout);
     }
 
     /// <summary>
     /// Cancels any pending idle timeout without starting a new one.
-    /// Called on connection down and circuit close.
+    /// Called on circuit close.
     /// </summary>
     private void StopIdleTimer()
     {
@@ -207,14 +212,14 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
     }
 
     /// <summary>
-    /// Waits for the idle timeout, then sets user to Away if not cancelled.
+    /// Waits for the specified timeout, then sets user to Away if not cancelled.
     /// </summary>
-    private async Task IdleTimeoutAsync(CancellationToken token)
+    private async Task IdleTimeoutAsync(CancellationToken token, TimeSpan timeout)
     {
         try
         {
-            await Task.Delay(IdleTimeout, token);
-            await SetAutoAwayAsync();
+            await Task.Delay(timeout, token);
+            await SetAutoAwayAsync(timeout);
         }
         catch (OperationCanceledException)
         {
@@ -222,7 +227,7 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
         }
     }
 
-    private async Task SetAutoAwayAsync()
+    private async Task SetAutoAwayAsync(TimeSpan idleThreshold)
     {
         if (string.IsNullOrEmpty(_userState.SessionId) || string.IsNullOrEmpty(_userState.Username))
             return;
@@ -233,7 +238,8 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
             return;
 
         // Only set auto-away if ALL sessions for this user are idle
-        if (!_chatService.AreAllSessionsIdle(_userState.Username, IdleTimeout))
+        // Uses the same threshold as the timer that triggered this (5 min for idle, 30s for disconnect)
+        if (!_chatService.AreAllSessionsIdle(_userState.Username, idleThreshold))
         {
             _logger.LogDebug("Auto-away skipped for {Username}: another session is still active", _userState.Username);
             return;
