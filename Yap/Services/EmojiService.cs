@@ -78,19 +78,24 @@ public partial class EmojiService
                 var seqStart = emojiMatches[i].Index;
                 var seqEnd = seqStart + emojiMatches[i].Length;
 
-                // Merge consecutive emoji matches connected by ZWJ (U+200D)
+                // Merge consecutive emoji matches that form a single visual emoji
+                // (ZWJ sequences like 👨‍💻, skin tone modifiers like 👋🏻, combined like 👩🏻‍♀️)
                 var next = i + 1;
                 while (next < emojiMatches.Count)
                 {
                     var gapStart = seqEnd;
                     var gapLength = emojiMatches[next].Index - gapStart;
-                    if (gapLength > 0 && IsZwjGap(result, gapStart, gapLength))
+                    if (ShouldMergeEmoji(result, gapStart, gapLength, emojiMatches[next].Index))
                     {
                         seqEnd = emojiMatches[next].Index + emojiMatches[next].Length;
                         next++;
                     }
                     else break;
                 }
+
+                // Consume trailing variation selectors (FE0F) that follow the sequence
+                while (seqEnd < result.Length && result[seqEnd] == '\uFE0F')
+                    seqEnd++;
 
                 // Append text before this emoji/sequence
                 sb.Append(result, lastEnd, seqStart - lastEnd);
@@ -150,18 +155,34 @@ public partial class EmojiService
     }
 
     /// <summary>
-    /// Checks if a gap between two emoji matches contains only ZWJ (U+200D) and
-    /// variation selectors (U+FE0F), with at least one ZWJ present.
+    /// Determines whether two adjacent emoji regex matches should be merged into a
+    /// single emoji sequence. Handles ZWJ sequences (👨‍💻) and skin tone modifiers (👋🏻).
     /// </summary>
-    private static bool IsZwjGap(string text, int start, int length)
+    private static bool ShouldMergeEmoji(string text, int gapStart, int gapLength, int nextMatchIndex)
     {
+        // Check what's in the gap between the two matches
         var hasZwj = false;
-        for (var i = start; i < start + length; i++)
+        for (var i = gapStart; i < gapStart + gapLength; i++)
         {
             if (text[i] == '\u200D') hasZwj = true;
-            else if (text[i] != '\uFE0F') return false;
+            else if (text[i] == '\uFE0F') continue;
+            else return false; // Non-combining character in gap — don't merge
         }
-        return hasZwj;
+
+        // ZWJ present → always merge (ZWJ sequences like 👨‍💻, 🏳️‍🌈)
+        if (hasZwj) return true;
+
+        // Adjacent (gap=0) or FE0F-separated → merge only if next is a skin tone modifier
+        return IsSkinToneModifier(text, nextMatchIndex);
+    }
+
+    /// <summary>
+    /// Checks if the character at the given index is a Fitzpatrick skin tone modifier (U+1F3FB–U+1F3FF).
+    /// </summary>
+    private static bool IsSkinToneModifier(string text, int index)
+    {
+        if (index + 1 >= text.Length) return false;
+        return text[index] == '\uD83C' && text[index + 1] is >= '\uDFFB' and <= '\uDFFF';
     }
 
     private static string GetCodePoint(string emoji)
