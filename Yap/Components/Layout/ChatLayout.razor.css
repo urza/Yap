@@ -7,6 +7,15 @@
     overflow: hidden;
 }
 
+.header-line {
+    width: 100%;
+    height: 3px;
+    display: block;
+    flex-shrink: 0;
+    image-rendering: auto;
+    object-fit: fill;
+}
+
 .chat-main {
     flex: 1;
     display: flex;

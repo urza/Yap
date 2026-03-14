@@ -8,6 +8,9 @@
 <div class="chat-container">
     <ChatHeader />
 
+    <img src="images/@(NavState.CurrentDmUser != null ? "purpleline01_3px.png" : "turqline01_3px.png")"
+         class="header-line" alt="" />
+
     <div class="chat-main">
         <div class="messages-container">
             <ErrorBoundary @ref="errorBoundary">
