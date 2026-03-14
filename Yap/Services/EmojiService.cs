@@ -7,10 +7,47 @@ namespace Yap.Services;
 public partial class EmojiService
 {
     private readonly CustomEmojiService _customEmojiService;
+    private readonly Dictionary<string, MarkupString> _pickerEmojiCache = new();
 
     public EmojiService(CustomEmojiService customEmojiService)
     {
         _customEmojiService = customEmojiService;
+
+        // Precompute <img> HTML for all known emojis used in the picker.
+        // This eliminates ~1400 regex operations per render cycle.
+        CachePickerEmoji("🕐"); // Recent tab icon
+        foreach (var category in EmojiData.Categories)
+        {
+            CachePickerEmoji(category.Value.Icon);
+            foreach (var emoji in category.Value.Emojis)
+                CachePickerEmoji(emoji);
+        }
+    }
+
+    private void CachePickerEmoji(string emoji)
+    {
+        if (_pickerEmojiCache.ContainsKey(emoji))
+            return;
+
+        var codePoint = GetCodePoint(emoji);
+        if (!string.IsNullOrEmpty(codePoint) && codePoint != "fffd")
+        {
+            _pickerEmojiCache[emoji] = new MarkupString(
+                $"<img src=\"https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/svg/{codePoint}.svg\" " +
+                $"alt=\"{emoji}\" class=\"emoji\" style=\"width: 18px; height: 18px; vertical-align: -3px; display: inline-block;\" />");
+        }
+    }
+
+    /// <summary>
+    /// Returns precomputed Twemoji HTML for a single emoji, optimized for the emoji picker.
+    /// Falls back to full regex-based conversion for unknown emojis.
+    /// </summary>
+    public MarkupString GetPickerEmojiHtml(string emoji)
+    {
+        if (_pickerEmojiCache.TryGetValue(emoji, out var cached))
+            return cached;
+
+        return ConvertEmojisToTwemoji(emoji, forceSmall: true);
     }
 
     // More precise emoji regex - common emojis only

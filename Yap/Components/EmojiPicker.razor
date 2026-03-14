@@ -10,7 +10,7 @@
         <button class="category-btn" data-category="recent"
                 @onclick="() => ScrollToCategory(RecentCategory)"
                 title="Recent">
-            @EmojiService.ConvertEmojisToTwemoji("🕐", forceSmall: true)
+            @EmojiService.GetPickerEmojiHtml("🕐")
         </button>
         @* Custom tab (if custom emojis exist) *@
         @if (CustomEmojiService.HasCustomEmojis)
@@ -27,7 +27,7 @@
             <button class="category-btn" data-category="@category.Key"
                     @onclick="() => ScrollToCategory(category.Key)"
                     title="@CapitalizeFirst(category.Key)">
-                @EmojiService.ConvertEmojisToTwemoji(category.Value.Icon, forceSmall: true)
+                @EmojiService.GetPickerEmojiHtml(category.Value.Icon)
             </button>
         }
     </div>
@@ -59,7 +59,7 @@
                                 }
                                 else
                                 {
-                                    @EmojiService.ConvertEmojisToTwemoji(e, forceSmall: true)
+                                    @EmojiService.GetPickerEmojiHtml(e)
                                 }
                             </button>
                         }
@@ -97,7 +97,7 @@
                                 }
                                 else
                                 {
-                                    @EmojiService.ConvertEmojisToTwemoji(e, forceSmall: true)
+                                    @EmojiService.GetPickerEmojiHtml(e)
                                 }
                             </button>
                         }
@@ -135,7 +135,7 @@
                         @foreach (var emoji in category.Value.Emojis)
                         {
                             var e = emoji;
-                            <button class="emoji-btn" @onclick="() => SelectEmoji(e)">@EmojiService.ConvertEmojisToTwemoji(e, forceSmall: true)</button>
+                            <button class="emoji-btn" @onclick="() => SelectEmoji(e)">@EmojiService.GetPickerEmojiHtml(e)</button>
                         }
                     </div>
                 </div>
