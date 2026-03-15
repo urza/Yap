@@ -127,7 +127,7 @@ else
 
     // Emoji drawer parameters
     [Parameter] public List<string> RecentEmojis { get; set; } = new();
-    [Parameter] public EventCallback<string> OnEmojiUsed { get; set; }
+    [Parameter] public Action<string>? OnEmojiUsed { get; set; }
 
     // Read-only mode (channel write permissions)
     [Parameter] public bool ReadOnly { get; set; }
@@ -428,10 +428,7 @@ else
         try { await JS.InvokeVoidAsync("insertTextAtCursor", TextareaId, emoji); }
         catch (Exception ex) { Logger.LogWarning(ex, "Failed to insert emoji at cursor"); }
 
-        if (OnEmojiUsed.HasDelegate)
-        {
-            await OnEmojiUsed.InvokeAsync(emoji);
-        }
+        OnEmojiUsed?.Invoke(emoji);
     }
 
     #endregion
