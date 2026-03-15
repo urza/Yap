@@ -11,7 +11,8 @@
     z-index: 1000;
 }
 
-.image-modal img {
+.image-modal img,
+.image-modal .modal-video {
     max-width: 85%;
     max-height: 85%;
     object-fit: contain;

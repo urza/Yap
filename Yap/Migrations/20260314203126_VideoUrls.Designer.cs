@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Yap.Data;
 
@@ -10,9 +11,11 @@ using Yap.Data;
 namespace Yap.Migrations
 {
     [DbContext(typeof(ChatDbContext))]
-    partial class ChatDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260314203126_VideoUrls")]
+    partial class VideoUrls
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.2");
@@ -152,60 +155,6 @@ namespace Yap.Migrations
                     b.HasIndex("ChannelId", "Timestamp");
 
                     b.ToTable("Messages");
-                });
-
-            modelBuilder.Entity("Yap.Models.MediaUploadLog", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<long?>("CompressDurationMs")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("Date")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Extension")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("TEXT");
-
-                    b.Property<long>("FileSize")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("FileType")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("OriginalFileName")
-                        .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("StoredFileName")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Username")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Date");
-
-                    b.HasIndex("FileType");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("MediaUploadLogs");
                 });
 
             modelBuilder.Entity("Yap.Models.PushSubscription", b =>

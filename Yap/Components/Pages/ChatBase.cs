@@ -53,9 +53,10 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     // Disposable references
     private DotNetObjectReference<ChatBase>? _visibilityRef;
 
-    // Image modal state
+    // Media modal state
     protected bool showImageModal = false;
     protected List<string> modalGallery = new();
+    protected List<string> modalVideoGallery = new();
     protected int modalImageIndex = 0;
 
     // Reply state
@@ -214,6 +215,15 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     protected void ShowGallery(List<string> gallery, int startIndex)
     {
         modalGallery = gallery;
+        modalVideoGallery = new();
+        modalImageIndex = startIndex;
+        showImageModal = true;
+    }
+
+    protected void ShowVideoGallery(List<string> videos, int startIndex)
+    {
+        modalGallery = new();
+        modalVideoGallery = videos;
         modalImageIndex = startIndex;
         showImageModal = true;
     }
@@ -222,6 +232,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     {
         showImageModal = false;
         modalGallery = new();
+        modalVideoGallery = new();
         modalImageIndex = 0;
     }
 

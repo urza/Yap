@@ -653,7 +653,7 @@ public class ChatService
 
     #region Messaging
 
-    public async Task SendMessageAsync(Guid channelId, Guid userId, string username, string content, List<string>? imageUrls = null, Guid? replyToMessageId = null)
+    public async Task SendMessageAsync(Guid channelId, Guid userId, string username, string content, List<string>? imageUrls = null, Guid? replyToMessageId = null, List<string>? videoUrls = null)
     {
         var totalSw = Stopwatch.StartNew();
         if (!_channels.TryGetValue(channelId, out var channel))
@@ -663,7 +663,7 @@ public class ChatService
         if (!channel.CanWrite(userId, IsAdmin(userId)))
             return;
 
-        var message = new ChatMessage(channelId, userId, username, content, DateTime.UtcNow, imageUrls, replyToMessageId);
+        var message = new ChatMessage(channelId, userId, username, content, DateTime.UtcNow, imageUrls, replyToMessageId, videoUrls);
 
         lock (GetChannelLock(channelId))
         {
@@ -686,8 +686,8 @@ public class ChatService
         // Clear typing state in memory (fast, no event dispatch)
         var wasTyping = _channelTypingUsers.TryGetValue(channelId, out var typingUsers) && typingUsers.TryRemove(username, out _);
 
-        _logger.LogDebug("SendMessage by {User} to channel {ChannelId}: persist={PersistMs}ms unread={UnreadMs}ms ({AffectedUsers} users) callerTotal={TotalMs}ms images={HasImages}",
-            username, channelId, persistMs, unreadMs, affectedUserIds.Count, totalSw.ElapsedMilliseconds, imageUrls?.Count > 0);
+        _logger.LogDebug("SendMessage by {User} to channel {ChannelId}: persist={PersistMs}ms unread={UnreadMs}ms ({AffectedUsers} users) callerTotal={TotalMs}ms media={HasMedia}",
+            username, channelId, persistMs, unreadMs, affectedUserIds.Count, totalSw.ElapsedMilliseconds, message.HasMedia);
 
         // Notify all subscribers
         if (wasTyping)
@@ -717,7 +717,7 @@ public class ChatService
                     var totalUnread = recipientUser != null
                         ? GetTotalUnreadDMCount(recipientUser.Id)
                         : 1;
-                    var preview = imageUrls?.Count > 0 ? "[Image]" : content;
+                    var preview = message.HasMedia ? "[Attachment]" : content;
 
                     _logger.LogDebug("Push DM: from={From} to={To} totalUnread={UnreadCount} status={Status} pageVisible={PageVisible}",
                         username, recipient, totalUnread, recipientStatus, pageVisible);
@@ -939,8 +939,8 @@ public class ChatService
         if (message == null || message.Username != username)
             return false;
 
-        if (message.HasImages)
-            return false; // Can't edit image messages
+        if (message.HasMedia)
+            return false; // Can't edit media messages
 
         message.Content = newContent;
         message.IsEdited = true;

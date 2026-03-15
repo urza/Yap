@@ -18,7 +18,7 @@ public class RequestLoggingMiddleware
     private readonly UserActionLogService _actionLog;
 
     private static readonly string[] SkipPrefixes = ["/_framework", "/_blazor", "/uploads"];
-    private static readonly string[] SkipExtensions = [".js", ".css", ".webp", ".png", ".jpg", ".jpeg", ".gif", ".webmanifest"];
+    private static readonly string[] SkipExtensions = [".js", ".css", ".webp", ".png", ".jpg", ".jpeg", ".gif", ".webmanifest", ".mp4", ".webm", ".mov", ".avi", ".mkv"];
 
     public RequestLoggingMiddleware(RequestDelegate next, RequestLogQueue logQueue, UserActionLogService actionLog)
     {

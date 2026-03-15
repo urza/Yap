@@ -2,20 +2,32 @@
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
-@if (Visible)
+@if (Visible && TotalCount > 0)
 {
     <div class="image-modal" @onclick="Close">
-        @if (Images.Count > 1)
+        @if (TotalCount > 1)
         {
-            <button class="modal-nav prev" @onclick="PrevImage" @onclick:stopPropagation="true" title="Previous">‹</button>
+            <button class="modal-nav prev" @onclick="PrevItem" @onclick:stopPropagation="true" title="Previous">‹</button>
         }
-        <img src="@ImageService.GetLargeUrl(Images[currentIndex])"
-             onerror="this.onerror=null; this.src='@ImageService.GetMediumUrl(Images[currentIndex])'"
-             alt="Full size image" @onclick:stopPropagation="true" />
-        @if (Images.Count > 1)
+
+        @if (IsCurrentVideo)
         {
-            <button class="modal-nav next" @onclick="NextImage" @onclick:stopPropagation="true" title="Next">›</button>
-            <div class="modal-counter">@(currentIndex + 1) / @Images.Count</div>
+            <video class="modal-video" controls autoplay @onclick:stopPropagation="true">
+                <source src="@VideoService.GetCompressedUrl(CurrentUrl)" type="video/mp4" />
+                <source src="@CurrentUrl" />
+            </video>
+        }
+        else
+        {
+            <img src="@ImageService.GetLargeUrl(CurrentUrl)"
+                 onerror="this.onerror=null; this.src='@ImageService.GetMediumUrl(CurrentUrl)'"
+                 alt="Full size image" @onclick:stopPropagation="true" />
+        }
+
+        @if (TotalCount > 1)
+        {
+            <button class="modal-nav next" @onclick="NextItem" @onclick:stopPropagation="true" title="Next">›</button>
+            <div class="modal-counter">@(currentIndex + 1) / @TotalCount</div>
         }
         <button class="modal-close" @onclick="Close" @onclick:stopPropagation="true" title="Close">×</button>
     </div>
@@ -27,14 +39,26 @@
 
     [Parameter] public bool Visible { get; set; }
     [Parameter] public List<string> Images { get; set; } = new();
+    [Parameter] public List<string> Videos { get; set; } = new();
     [Parameter] public int StartIndex { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
+    /// <summary>
+    /// Combined media items: images first, then videos.
+    /// </summary>
+    private int TotalCount => Images.Count + Videos.Count;
+
+    private string CurrentUrl => currentIndex < Images.Count
+        ? Images[currentIndex]
+        : Videos[currentIndex - Images.Count];
+
+    private bool IsCurrentVideo => currentIndex >= Images.Count;
+
     protected override async Task OnParametersSetAsync()
     {
-        if (Visible && Images.Count > 0)
+        if (Visible && TotalCount > 0)
         {
-            currentIndex = StartIndex;
+            currentIndex = Math.Min(StartIndex, TotalCount - 1);
             await SetupKeyboard();
         }
     }
@@ -61,16 +85,16 @@
         await OnClose.InvokeAsync();
     }
 
-    private void NextImage()
+    private void NextItem()
     {
-        if (Images.Count > 0)
-            currentIndex = (currentIndex + 1) % Images.Count;
+        if (TotalCount > 0)
+            currentIndex = (currentIndex + 1) % TotalCount;
     }
 
-    private void PrevImage()
+    private void PrevItem()
     {
-        if (Images.Count > 0)
-            currentIndex = (currentIndex - 1 + Images.Count) % Images.Count;
+        if (TotalCount > 0)
+            currentIndex = (currentIndex - 1 + TotalCount) % TotalCount;
     }
 
     [JSInvokable]
@@ -80,10 +104,10 @@
     }
 
     [JSInvokable]
-    public void NextImageFromJs() => InvokeAsync(() => { NextImage(); StateHasChanged(); });
+    public void NextImageFromJs() => InvokeAsync(() => { NextItem(); StateHasChanged(); });
 
     [JSInvokable]
-    public void PrevImageFromJs() => InvokeAsync(() => { PrevImage(); StateHasChanged(); });
+    public void PrevImageFromJs() => InvokeAsync(() => { PrevItem(); StateHasChanged(); });
 
     public async ValueTask DisposeAsync()
     {

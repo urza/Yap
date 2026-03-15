@@ -243,6 +243,51 @@
     opacity: 0.85;
 }
 
+/* Video gallery styles */
+.video-gallery {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 0.25rem;
+    max-width: 400px;
+}
+
+.video-container {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.video-player {
+    width: 100%;
+    height: auto;
+    max-height: 350px;
+    display: block;
+    object-fit: contain;
+    background: var(--bg-sidebar);
+}
+
+.video-play-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.3);
+    transition: background 0.2s;
+}
+
+.video-play-overlay:hover {
+    background: rgba(0,0,0,0.15);
+}
+
+.play-icon {
+    width: 64px;
+    height: 64px;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+}
+
 /* Message actions popup - hidden by default, shown via CSS :hover */
 .message-actions {
     position: absolute;
@@ -484,8 +529,9 @@
         white-space: normal;
     }
 
-    /* Mobile: full-width galleries with taller single images */
-    .image-gallery {
+    /* Mobile: full-width galleries with taller single images/videos */
+    .image-gallery,
+    .video-gallery {
         max-width: 100%;
     }
 

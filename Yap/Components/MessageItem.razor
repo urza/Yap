@@ -3,6 +3,7 @@
 @inject EmojiService EmojiService
 @inject UserStateService UserState
 @inject IJSRuntime JS
+@inject VideoService VideoService
 
 <div class="message-group @(IsSystem ? "system-message" : "") @(ShowHeader ? "has-header" : "") @(showEmojiPicker ? "picker-open" : "") @(ReplyToMessage != null ? "has-reply" : "") @(IsReplyTarget ? "reply-target" : "")"
      id="msg-@Message.Id"
@@ -52,40 +53,66 @@
                 </div>
             </div>
         }
-        else if (Message.HasImages)
+        else if (Message.HasMedia)
         {
-            var imageCount = Message.ImageUrls.Count;
-            var isSingle = imageCount == 1;
+            @if (Message.HasImages)
+            {
+                var imageCount = Message.ImageUrls.Count;
+                var isSingle = imageCount == 1;
 
-            <div class="image-gallery @(isSingle ? "gallery-single" : "")">
-                @* Lazy load with dimensions for proper space reservation before image loads *@
-                @if (isSingle)
-                {
-                    <div class="gallery-item"
-                         @onclick="() => OnImageClick.InvokeAsync((Message.ImageUrls, 0))">
-                        <img src="@ImageService.GetMediumUrl(Message.ImageUrls[0])" alt="Uploaded image" class="gallery-image"
-                             loading="lazy" width="800" height="600" />
-                    </div>
-                }
-                else
-                {
-                    @* Multi-image: rows of max 3 *@
-                    @foreach (var row in GetImageRows())
+                <div class="image-gallery @(isSingle ? "gallery-single" : "")">
+                    @* Lazy load with dimensions for proper space reservation before image loads *@
+                    @if (isSingle)
                     {
-                        <div class="gallery-row">
-                            @foreach (var (imageUrl, globalIndex) in row)
-                            {
-                                var idx = globalIndex;
-                                <div class="gallery-item"
-                                     @onclick="() => OnImageClick.InvokeAsync((Message.ImageUrls, idx))">
-                                    <img src="@ImageService.GetMediumUrl(imageUrl)" alt="Uploaded image" class="gallery-image"
-                                         loading="lazy" width="800" height="800" />
-                                </div>
-                            }
+                        <div class="gallery-item"
+                             @onclick="() => OnImageClick.InvokeAsync((Message.ImageUrls, 0))">
+                            <img src="@ImageService.GetMediumUrl(Message.ImageUrls[0])" alt="Uploaded image" class="gallery-image"
+                                 loading="lazy" width="800" height="600" />
                         </div>
                     }
+                    else
+                    {
+                        @* Multi-image: rows of max 3 *@
+                        @foreach (var row in GetImageRows())
+                        {
+                            <div class="gallery-row">
+                                @foreach (var (imageUrl, globalIndex) in row)
+                                {
+                                    var idx = globalIndex;
+                                    <div class="gallery-item"
+                                         @onclick="() => OnImageClick.InvokeAsync((Message.ImageUrls, idx))">
+                                        <img src="@ImageService.GetMediumUrl(imageUrl)" alt="Uploaded image" class="gallery-image"
+                                             loading="lazy" width="800" height="800" />
+                                    </div>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+            }
+            @if (Message.HasVideos)
+            {
+                <div class="video-gallery">
+                @for (int vi = 0; vi < Message.VideoUrls.Count; vi++)
+                {
+                    var url = Message.VideoUrls[vi];
+                    var idx = vi;
+                    <div class="video-container" @ref="videoContainerRefs[idx]">
+                        <video preload="none" poster="@VideoService.GetPosterUrl(url)"
+                               class="video-player">
+                            <source src="@VideoService.GetCompressedUrl(url)" type="video/mp4" />
+                            <source src="@url" />
+                        </video>
+                        <div class="video-play-overlay" @onclick="() => PlayVideoByIndex(idx)" @onclick:stopPropagation="true">
+                            <svg class="play-icon" viewBox="0 0 64 64" fill="white">
+                                <circle cx="32" cy="32" r="30" fill="rgba(0,0,0,0.5)" />
+                                <polygon points="26,20 26,44 46,32" />
+                            </svg>
+                        </div>
+                    </div>
                 }
-            </div>
+                </div>
+            }
         }
         else if (IsBot && Message.Content.Contains("[pwa-install]"))
         {
@@ -148,7 +175,7 @@
                     <path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/>
                 </svg>
             </button>
-            @if (IsOwn && !Message.HasImages)
+            @if (IsOwn && !Message.HasMedia)
             {
                 <button class="action-btn action-edit" @onclick="() => OnStartEdit.InvokeAsync()" title="Edit">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -235,7 +262,7 @@
     private string GetReplyPreviewText()
     {
         if (ReplyToMessage == null) return "";
-        if (ReplyToMessage.HasImages && string.IsNullOrEmpty(ReplyToMessage.Content))
+        if (ReplyToMessage.HasMedia && string.IsNullOrEmpty(ReplyToMessage.Content))
             return "Click to see attachment";
         return ReplyToMessage.Content;
     }
@@ -288,6 +315,24 @@
         }
 
         return rows;
+    }
+
+    // Video player state - dynamically sized to match video count
+    private ElementReference[] videoContainerRefs = Array.Empty<ElementReference>();
+
+    protected override void OnParametersSet()
+    {
+        if (Message.HasVideos && Message.VideoUrls.Count != videoContainerRefs.Length)
+            videoContainerRefs = new ElementReference[Message.VideoUrls.Count];
+    }
+
+    private async Task PlayVideoByIndex(int index)
+    {
+        if (index < videoContainerRefs.Length)
+        {
+            try { await JS.InvokeVoidAsync("playVideo", videoContainerRefs[index]); }
+            catch { /* Ignore JS errors during disconnect */ }
+        }
     }
 
     // Emoji picker state

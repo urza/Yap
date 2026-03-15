@@ -115,6 +115,7 @@ else
 builder.Services.AddSingleton<GeoLocationService>();
 builder.Services.AddSingleton<CustomEmojiService>();
 builder.Services.AddSingleton<ImageService>();
+builder.Services.AddSingleton<VideoService>();
 builder.Services.AddSingleton<PushSubscriptionStore>();
 builder.Services.AddSingleton<PushNotificationService>();
 builder.Services.AddSingleton<CircuitTracker>();  // Circuit diagnostics
@@ -138,6 +139,10 @@ builder.Services.AddHostedService<RequestLogWriter>();
 // User action logging (queued, flushed to database periodically)
 builder.Services.AddSingleton<UserActionLogService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<UserActionLogService>());
+
+// Media upload logging (queued, flushed to database periodically)
+builder.Services.AddSingleton<MediaUploadLogService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<MediaUploadLogService>());
 
 var app = builder.Build();
 
@@ -233,7 +238,8 @@ app.MapRazorComponents<App>()
 // =============================================================================
 // FILE UPLOAD ENDPOINT (for parallel HTTP uploads)
 // =============================================================================
-app.MapPost("/api/upload", async (IFormFile file, IWebHostEnvironment env, ILogger<Program> logger) =>
+app.MapPost("/api/upload", async (HttpContext context, IFormFile file, IWebHostEnvironment env,
+    UserService userService, MediaUploadLogService mediaLog, ILogger<Program> logger) =>
 {
     if (file == null || file.Length == 0)
         return Results.BadRequest(new { error = "No file provided" });
@@ -241,9 +247,15 @@ app.MapPost("/api/upload", async (IFormFile file, IWebHostEnvironment env, ILogg
     if (file.Length > 100 * 1024 * 1024)
         return Results.BadRequest(new { error = "File too large" });
 
-    var allowedExtensions = new HashSet<string> { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+    var imageExtensions = new HashSet<string> { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
     var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-    if (!allowedExtensions.Contains(extension))
+
+    string type;
+    if (imageExtensions.Contains(extension))
+        type = "image";
+    else if (VideoService.IsVideoFile(extension))
+        type = "video";
+    else
         return Results.BadRequest(new { error = "Invalid file type" });
 
     var uploadsFolder = Path.Combine(env.WebRootPath, "uploads");
@@ -257,9 +269,17 @@ app.MapPost("/api/upload", async (IFormFile file, IWebHostEnvironment env, ILogg
         await file.CopyToAsync(stream);
     }
 
-    logger.LogDebug("File uploaded via HTTP: {FileName}", uniqueFileName);
+    logger.LogDebug("File uploaded via HTTP: {FileName} (type: {Type})", uniqueFileName, type);
 
-    return Results.Ok(new { url = $"/uploads/{uniqueFileName}", path = filePath });
+    // Log upload for admin media stats
+    var token = context.Request.Cookies[AuthMiddleware.CookieName];
+    var user = !string.IsNullOrEmpty(token) ? userService.AuthenticateByToken(token) : null;
+    if (user != null)
+    {
+        mediaLog.Log(user.Id, user.Username, file.FileName, uniqueFileName, file.Length, type, extension);
+    }
+
+    return Results.Ok(new { url = $"/uploads/{uniqueFileName}", path = filePath, type });
 }).DisableAntiforgery();
 
 // =============================================================================

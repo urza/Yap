@@ -140,12 +140,13 @@ window.setupDropZone = (dropZoneElement, fileInputId) => {
 
         const files = e.dataTransfer?.files;
         if (files && files.length > 0) {
-            // Filter for image files only
-            const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
-            if (imageFiles.length > 0) {
+            // Filter for image and video files
+            const mediaFiles = Array.from(files).filter(f =>
+                f.type.startsWith('image/') || f.type.startsWith('video/'));
+            if (mediaFiles.length > 0) {
                 // Create a DataTransfer object and add the files
                 const dt = new DataTransfer();
-                imageFiles.forEach(f => dt.items.add(f));
+                mediaFiles.forEach(f => dt.items.add(f));
 
                 // Set the files on the input and trigger change
                 fileInput.files = dt.files;
@@ -766,21 +767,21 @@ window.setupPasteUpload = (textareaId, fileInputId) => {
         const items = e.clipboardData?.items;
         if (!items) return;
 
-        const imageFiles = [];
+        const mediaFiles = [];
         for (const item of items) {
-            if (item.type.startsWith('image/')) {
+            if (item.type.startsWith('image/') || item.type.startsWith('video/')) {
                 const file = item.getAsFile();
-                if (file) imageFiles.push(file);
+                if (file) mediaFiles.push(file);
             }
         }
 
-        if (imageFiles.length === 0) return;
+        if (mediaFiles.length === 0) return;
 
-        // Prevent the default paste (don't paste image as text)
+        // Prevent the default paste (don't paste media as text)
         e.preventDefault();
 
         const dt = new DataTransfer();
-        imageFiles.forEach(f => dt.items.add(f));
+        mediaFiles.forEach(f => dt.items.add(f));
         fileInput.files = dt.files;
         fileInput.dispatchEvent(new Event('change', { bubbles: true }));
     });
@@ -799,20 +800,33 @@ window.uploadFilesParallel = async (fileInputId) => {
     }
 
     const files = Array.from(fileInput.files);
-    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.webm', '.mov', '.avi', '.mkv'];
     const maxSize = 100 * 1024 * 1024; // 100MB
 
-    // Filter valid files
-    const validFiles = files.filter(f => {
+    // Check each file and collect rejection reasons
+    const validFiles = [];
+    const rejections = [];
+    for (const f of files) {
         const ext = '.' + f.name.split('.').pop().toLowerCase();
-        return allowedExtensions.includes(ext) && f.size <= maxSize;
-    });
+        const isAllowedExt = allowedExtensions.includes(ext);
+        const isAllowedMime = f.type.startsWith('image/') || f.type.startsWith('video/');
+
+        if (!isAllowedExt && !isAllowedMime) {
+            rejections.push(`"${f.name}" — unsupported file type`);
+        } else if (f.size > maxSize) {
+            const sizeMB = (f.size / 1024 / 1024).toFixed(0);
+            rejections.push(`"${f.name}" — too large (${sizeMB} MB, max 100 MB)`);
+        } else {
+            validFiles.push(f);
+        }
+    }
 
     if (validFiles.length === 0) {
-        return { success: false, error: 'No valid image files' };
+        return { success: false, error: rejections.join('\n') || 'No valid files selected' };
     }
 
     // Upload all files in parallel
+    const errors = [...rejections]; // carry over any pre-upload rejections
     const uploadPromises = validFiles.map(async (file) => {
         const formData = new FormData();
         formData.append('file', file);
@@ -824,14 +838,22 @@ window.uploadFilesParallel = async (fileInputId) => {
             });
 
             if (!response.ok) {
-                const err = await response.json();
-                console.error('[Upload] Failed:', file.name, err);
+                let msg;
+                try {
+                    const err = await response.json();
+                    msg = err.error || `Server error ${response.status}`;
+                } catch {
+                    msg = response.status === 413
+                        ? 'File too large for server'
+                        : `Server error ${response.status}`;
+                }
+                errors.push(`"${file.name}" — ${msg}`);
                 return null;
             }
 
             return await response.json();
         } catch (e) {
-            console.error('[Upload] Error:', file.name, e);
+            errors.push(`"${file.name}" — upload failed (network error)`);
             return null;
         }
     });
@@ -844,10 +866,39 @@ window.uploadFilesParallel = async (fileInputId) => {
 
     return {
         success: successful.length > 0,
+        error: errors.length > 0 ? errors.join('\n') : null,
         files: successful,
-        totalCount: validFiles.length,
+        totalCount: files.length,
         successCount: successful.length
     };
+};
+
+// ==========================================
+// Video Player Controls
+// ==========================================
+
+window.playVideo = (containerElement) => {
+    if (!containerElement) return;
+    const video = containerElement.querySelector('video');
+    const overlay = containerElement.querySelector('.video-play-overlay');
+    if (!video) return;
+
+    video.controls = true;
+    if (overlay) overlay.style.display = 'none';
+    video.play().catch(() => {});
+
+    // Show overlay again when video ends or pauses
+    const showOverlay = () => {
+        if (overlay) overlay.style.display = '';
+        video.controls = false;
+    };
+    video.addEventListener('ended', showOverlay, { once: true });
+    video.addEventListener('pause', () => {
+        // Only show overlay if video is not seeking (user might be scrubbing)
+        if (video.ended || video.currentTime === 0) {
+            showOverlay();
+        }
+    }, { once: true });
 };
 
 // ==========================================

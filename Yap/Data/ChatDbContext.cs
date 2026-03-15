@@ -14,6 +14,7 @@ public class ChatDbContext : DbContext
     public DbSet<PushSubscription> PushSubscriptions { get; set; } = null!;
     public DbSet<UserActionLog> UserActionLogs { get; set; } = null!;
     public DbSet<UserNote> UserNotes { get; set; } = null!;
+    public DbSet<MediaUploadLog> MediaUploadLogs { get; set; } = null!;
 
     public ChatDbContext(DbContextOptions<ChatDbContext> options) : base(options)
     {
@@ -96,6 +97,12 @@ public class ChatDbContext : DbContext
                 v => JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null) ?? new List<string>()
             );
 
+            // Store VideoUrls as JSON (guard null/empty for existing rows before migration)
+            entity.Property(m => m.VideoUrls).HasConversion(
+                v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => string.IsNullOrEmpty(v) ? new List<string>() : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null) ?? new List<string>()
+            );
+
             entity.HasMany(m => m.Reactions)
                   .WithOne(r => r.Message)
                   .HasForeignKey(r => r.MessageId)
@@ -108,8 +115,10 @@ public class ChatDbContext : DbContext
 
             entity.Property(m => m.ReplyToMessageId);
 
-            // Ignore computed property
+            // Ignore computed properties
             entity.Ignore(m => m.HasImages);
+            entity.Ignore(m => m.HasVideos);
+            entity.Ignore(m => m.HasMedia);
         });
 
         // Reaction configuration
@@ -163,6 +172,20 @@ public class ChatDbContext : DbContext
             entity.Property(e => e.Info).HasMaxLength(1024);
             entity.Property(e => e.IP).HasMaxLength(45); // IPv6 max
             entity.Property(e => e.UserAgent).HasMaxLength(512);
+        });
+
+        // MediaUploadLog configuration
+        modelBuilder.Entity<MediaUploadLog>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.Date);
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.FileType);
+            entity.Property(e => e.Username).HasMaxLength(32);
+            entity.Property(e => e.OriginalFileName).HasMaxLength(512);
+            entity.Property(e => e.StoredFileName).HasMaxLength(256);
+            entity.Property(e => e.FileType).HasMaxLength(16);
+            entity.Property(e => e.Extension).HasMaxLength(16);
         });
     }
 }

@@ -102,12 +102,13 @@ public class ChatPersistenceService
                 message.Username,
                 message.Content,
                 message.Timestamp,
-                message.ImageUrls.ToList()
+                message.ImageUrls.ToList(),
+                message.ReplyToMessageId,
+                message.VideoUrls.ToList()
             )
             {
                 Id = message.Id,
-                IsEdited = message.IsEdited,
-                ReplyToMessageId = message.ReplyToMessageId
+                IsEdited = message.IsEdited
             };
 
             db.Messages.Add(newMessage);
@@ -128,11 +129,11 @@ public class ChatPersistenceService
             await using var db = await _dbFactory!.CreateDbContextAsync();
 
             var detached = messages.Select(m => new ChatMessage(
-                m.ChannelId, m.UserId, m.Username, m.Content, m.Timestamp, m.ImageUrls.ToList())
+                m.ChannelId, m.UserId, m.Username, m.Content, m.Timestamp, m.ImageUrls.ToList(),
+                m.ReplyToMessageId, m.VideoUrls.ToList())
             {
                 Id = m.Id,
-                IsEdited = m.IsEdited,
-                ReplyToMessageId = m.ReplyToMessageId
+                IsEdited = m.IsEdited
             });
 
             db.Messages.AddRange(detached);
