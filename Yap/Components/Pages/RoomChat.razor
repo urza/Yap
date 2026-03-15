@@ -71,6 +71,7 @@
 </div>
 
 <MessageInput RoomId="@channelId" RecentEmojis="@recentEmojis" OnEmojiUsed="HandleInputEmojiUsed"
+              UploadUrl="@ChatConfig.UploadUrl"
               ReadOnly="@(!canWrite)"
               ReplyingToMessage="@replyingToMessage"
               ReplyingToDisplayName="@(replyingToMessage != null ? GetDisplayName(replyingToMessage.Username) : null)"

@@ -791,15 +791,16 @@ window.setupPasteUpload = (textareaId, fileInputId) => {
 // Parallel File Upload via HTTP
 // ==========================================
 
-// Upload multiple files in parallel via HTTP POST
-// Returns array of { url, path } for successful uploads
-window.uploadFilesParallel = async (fileInputId, maxSizeMB) => {
+// Resumable file upload via tus.io protocol
+// Returns same shape as old uploadFilesParallel: { success, error, files, totalCount, successCount }
+window.uploadFilesWithTus = async (fileInputId, maxSizeMB, tusEndpoint, dotNetRef) => {
     const fileInput = document.getElementById(fileInputId);
     if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
         return { success: false, error: 'No files selected' };
     }
 
     maxSizeMB = maxSizeMB || 100;
+    tusEndpoint = tusEndpoint || '/api/tus';
     const files = Array.from(fileInput.files);
     const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.webm', '.mov', '.avi', '.mkv'];
     const maxSize = maxSizeMB * 1024 * 1024;
@@ -826,37 +827,78 @@ window.uploadFilesParallel = async (fileInputId, maxSizeMB) => {
         return { success: false, error: rejections.join('\n') || 'No valid files selected' };
     }
 
-    // Upload all files in parallel
-    const errors = [...rejections]; // carry over any pre-upload rejections
-    const uploadPromises = validFiles.map(async (file) => {
-        const formData = new FormData();
-        formData.append('file', file);
+    // Track aggregate progress across all files
+    const totalBytes = validFiles.reduce((sum, f) => sum + f.size, 0);
+    const fileProgress = new Array(validFiles.length).fill(0);
+    let completedFiles = 0;
 
-        try {
-            const response = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData
+    const updateProgress = () => {
+        const uploadedBytes = fileProgress.reduce((sum, b) => sum + b, 0);
+        const percent = totalBytes > 0 ? Math.round((uploadedBytes / totalBytes) * 100) : 0;
+        if (dotNetRef) {
+            dotNetRef.invokeMethodAsync('OnUploadProgress', percent, completedFiles, validFiles.length)
+                .catch(() => {}); // ignore if circuit is dead
+        }
+    };
+
+    // Upload all files via tus (parallel — browser limits concurrency naturally)
+    const errors = [...rejections];
+    const uploadPromises = validFiles.map((file, index) => {
+        return new Promise((resolve) => {
+            const upload = new tus.Upload(file, {
+                endpoint: tusEndpoint,
+                chunkSize: 5 * 1024 * 1024, // 5 MB chunks
+                retryDelays: [0, 1000, 3000, 5000],
+                withCredentials: true, // send cookies cross-origin
+                metadata: {
+                    filename: file.name,
+                    filetype: file.type
+                },
+                onProgress: (bytesUploaded, bytesTotal) => {
+                    fileProgress[index] = bytesUploaded;
+                    updateProgress();
+                },
+                onSuccess: async () => {
+                    completedFiles++;
+                    fileProgress[index] = file.size;
+                    updateProgress();
+
+                    // Extract file ID from tus upload URL
+                    const fileId = upload.url.split('/').pop();
+                    try {
+                        // Fetch the processed file info from server
+                        // Server may still be processing (thumbnails/posters), retry briefly
+                        let info = null;
+                        const infoUrl = tusEndpoint.replace(/\/+$/, '') + '/info/' + fileId;
+                        for (let attempt = 0; attempt < 10; attempt++) {
+                            const resp = await fetch(infoUrl, { credentials: 'include' });
+                            if (resp.ok) {
+                                info = await resp.json();
+                                break;
+                            }
+                            // Not ready yet, wait and retry
+                            await new Promise(r => setTimeout(r, 1000));
+                        }
+                        if (info) {
+                            resolve(info);
+                        } else {
+                            errors.push(`"${file.name}" — server processing timeout`);
+                            resolve(null);
+                        }
+                    } catch (e) {
+                        errors.push(`"${file.name}" — failed to get upload result`);
+                        resolve(null);
+                    }
+                },
+                onError: (error) => {
+                    const msg = error.message || 'Upload failed';
+                    errors.push(`"${file.name}" — ${msg}`);
+                    resolve(null);
+                }
             });
 
-            if (!response.ok) {
-                let msg;
-                try {
-                    const err = await response.json();
-                    msg = err.error || `Server error ${response.status}`;
-                } catch {
-                    msg = response.status === 413
-                        ? 'File too large for server'
-                        : `Server error ${response.status}`;
-                }
-                errors.push(`"${file.name}" — ${msg}`);
-                return null;
-            }
-
-            return await response.json();
-        } catch (e) {
-            errors.push(`"${file.name}" — upload failed (network error)`);
-            return null;
-        }
+            upload.start();
+        });
     });
 
     const results = await Promise.all(uploadPromises);

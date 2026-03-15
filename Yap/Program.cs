@@ -1,7 +1,13 @@
+using System.Collections.Concurrent;
+using System.Net;
 using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.FileProviders;
+using tusdotnet;
+using tusdotnet.Models;
+using tusdotnet.Models.Configuration;
+using tusdotnet.Stores;
 using Yap.Components;
 using Yap.Extensions;
 using Yap.Helpers;
@@ -148,6 +154,19 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<UserActionLogServi
 builder.Services.AddSingleton<MediaUploadLogService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<MediaUploadLogService>());
 
+// CORS for upload subdomain (tus uploads may come from a different origin)
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("TusUpload", policy =>
+    {
+        policy.SetIsOriginAllowed(_ => true) // Allow any origin (app serves both domains)
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials()
+              .WithExposedHeaders("Upload-Offset", "Upload-Length", "Tus-Resumable", "Location");
+    });
+});
+
 var app = builder.Build();
 
 // Initialize persistence (migrations + load data) if enabled
@@ -186,6 +205,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+app.UseCors();
 app.UseHttpsRedirection();
 app.UseAntiforgery();
 
@@ -240,53 +260,149 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 // =============================================================================
-// FILE UPLOAD ENDPOINT (for parallel HTTP uploads)
+// RESUMABLE FILE UPLOAD (tus.io protocol)
 // =============================================================================
-app.MapPost("/api/upload", async (HttpContext context, IFormFile file, IWebHostEnvironment env,
-    IConfiguration config, UserService userService, MediaUploadLogService mediaLog, ILogger<Program> logger) =>
+// Completed upload results stored here, keyed by tus file ID.
+// JS fetches result via /api/tus/info/{fileId} after upload completes.
+var tusCompletedFiles = new ConcurrentDictionary<string, object>();
+
+var tusStorePath = Path.Combine(app.Environment.WebRootPath, "uploads", "tus-temp");
+Directory.CreateDirectory(tusStorePath);
+
+var imageExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+
+app.MapTus("/api/tus", async httpContext => new()
 {
-    if (file == null || file.Length == 0)
-        return Results.BadRequest(new { error = "No file provided" });
-
-    var maxSizeMB = config.GetValue<int>("ChatSettings:MaxUploadSizeMB", 100);
-    var maxSizeBytes = (long)maxSizeMB * 1024 * 1024;
-    if (file.Length > maxSizeBytes)
-        return Results.BadRequest(new { error = $"File too large (max {maxSizeMB} MB)" });
-
-    var imageExtensions = new HashSet<string> { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
-    var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-
-    string type;
-    if (imageExtensions.Contains(extension))
-        type = "image";
-    else if (VideoService.IsVideoFile(extension))
-        type = "video";
-    else
-        return Results.BadRequest(new { error = "Invalid file type" });
-
-    var uploadsFolder = Path.Combine(env.WebRootPath, "uploads");
-    Directory.CreateDirectory(uploadsFolder);
-
-    var uniqueFileName = $"{Guid.NewGuid()}{extension}";
-    var filePath = Path.Combine(uploadsFolder, uniqueFileName);
-
-    await using (var stream = new FileStream(filePath, FileMode.Create))
+    Store = new TusDiskStore(tusStorePath),
+    MaxAllowedUploadSizeInBytesLong = (long)httpContext.RequestServices.GetRequiredService<IConfiguration>()
+        .GetValue<int>("ChatSettings:MaxUploadSizeMB", 100) * 1024 * 1024,
+    Events = new()
     {
-        await file.CopyToAsync(stream);
+        OnAuthorizeAsync = eventContext =>
+        {
+            // Allow OPTIONS (CORS preflight) without auth
+            if (eventContext.HttpContext.Request.Method == "OPTIONS")
+                return Task.CompletedTask;
+
+            var token = eventContext.HttpContext.Request.Cookies[AuthMiddleware.CookieName];
+            var userService = eventContext.HttpContext.RequestServices.GetRequiredService<UserService>();
+            var user = !string.IsNullOrEmpty(token) ? userService.AuthenticateByToken(token) : null;
+            if (user == null)
+            {
+                eventContext.FailRequest(HttpStatusCode.Unauthorized, "Authentication required");
+            }
+            return Task.CompletedTask;
+        },
+
+        OnFileCompleteAsync = async eventContext =>
+        {
+            var logger = eventContext.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("TusUpload");
+            var imageService = eventContext.HttpContext.RequestServices.GetRequiredService<ImageService>();
+            var videoService = eventContext.HttpContext.RequestServices.GetRequiredService<VideoService>();
+            var mediaLog = eventContext.HttpContext.RequestServices.GetRequiredService<MediaUploadLogService>();
+            var userService = eventContext.HttpContext.RequestServices.GetRequiredService<UserService>();
+
+            var file = await eventContext.GetFileAsync();
+            var metadata = await file.GetMetadataAsync(eventContext.CancellationToken);
+
+            // Extract original filename from metadata
+            var originalFileName = metadata.TryGetValue("filename", out var fName)
+                ? fName.GetString(System.Text.Encoding.UTF8) : "unknown";
+            var extension = Path.GetExtension(originalFileName).ToLowerInvariant();
+
+            // Determine file type
+            string type;
+            if (imageExtensions.Contains(extension))
+                type = "image";
+            else if (VideoService.IsVideoFile(extension))
+                type = "video";
+            else
+            {
+                logger.LogWarning("Unsupported file type uploaded via tus: {Extension}", extension);
+                return;
+            }
+
+            // Move from tus temp store to uploads folder
+            var uploadsFolder = Path.Combine(app.Environment.WebRootPath, "uploads");
+            var uniqueFileName = $"{Guid.NewGuid()}{extension}";
+            var filePath = Path.Combine(uploadsFolder, uniqueFileName);
+            var tusFilePath = Path.Combine(tusStorePath, file.Id);
+
+            File.Move(tusFilePath, filePath);
+            // Clean up tus metadata files
+            foreach (var metaFile in Directory.GetFiles(tusStorePath, $"{file.Id}.*"))
+                try { File.Delete(metaFile); } catch { }
+
+            var fileSize = new FileInfo(filePath).Length;
+            logger.LogDebug("Tus upload complete: {FileName} ({Type}, {Size}KB)", uniqueFileName, type, fileSize / 1024);
+
+            // Resolve user for logging
+            var token = eventContext.HttpContext.Request.Cookies[AuthMiddleware.CookieName];
+            var user = !string.IsNullOrEmpty(token) ? userService.AuthenticateByToken(token) : null;
+            if (user != null)
+            {
+                mediaLog.Log(user.Id, user.Username, originalFileName, uniqueFileName, fileSize, type, extension);
+            }
+
+            // Blocking: generate medium thumbnail (images) or poster (videos)
+            if (type == "image")
+            {
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                await imageService.GenerateMediumThumbnailAsync(filePath);
+                var mediumMs = sw.ElapsedMilliseconds;
+
+                // Background: large thumbnail + update processing time
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var swLarge = System.Diagnostics.Stopwatch.StartNew();
+                        await imageService.GenerateLargeThumbnailAsync(filePath);
+                        swLarge.Stop();
+                        await mediaLog.SetCompressDurationAsync(uniqueFileName, mediumMs + swLarge.ElapsedMilliseconds);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "Error generating large thumbnail for {FileName}", uniqueFileName);
+                    }
+                });
+            }
+            else // video
+            {
+                if (VideoService.IsAvailable)
+                {
+                    await videoService.GeneratePosterAsync(filePath);
+
+                    // Background: compress video
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var (compressedPath, durationMs) = await videoService.CompressVideoAsync(filePath);
+                            if (compressedPath != null && durationMs > 0)
+                                await mediaLog.SetCompressDurationAsync(uniqueFileName, durationMs);
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogError(ex, "Error compressing video {FileName}", uniqueFileName);
+                        }
+                    });
+                }
+            }
+
+            // Store result for JS to fetch
+            tusCompletedFiles[file.Id] = new { url = $"/uploads/{uniqueFileName}", path = filePath, type };
+        }
     }
+}).RequireCors("TusUpload");
 
-    logger.LogDebug("File uploaded via HTTP: {FileName} (type: {Type})", uniqueFileName, type);
-
-    // Log upload for admin media stats
-    var token = context.Request.Cookies[AuthMiddleware.CookieName];
-    var user = !string.IsNullOrEmpty(token) ? userService.AuthenticateByToken(token) : null;
-    if (user != null)
-    {
-        mediaLog.Log(user.Id, user.Username, file.FileName, uniqueFileName, file.Length, type, extension);
-    }
-
-    return Results.Ok(new { url = $"/uploads/{uniqueFileName}", path = filePath, type });
-}).DisableAntiforgery();
+// Endpoint for JS to fetch completed file info after tus upload
+app.MapGet("/api/tus/info/{fileId}", (string fileId) =>
+{
+    if (tusCompletedFiles.TryRemove(fileId, out var result))
+        return Results.Ok(result);
+    return Results.NotFound(new { error = "File not found or still processing" });
+}).RequireCors("TusUpload");
 
 // =============================================================================
 // PUSH NOTIFICATION API ENDPOINTS

@@ -57,6 +57,7 @@
 </div>
 
 <MessageInput DmUser="@DmUser" RecentEmojis="@recentEmojis" OnEmojiUsed="HandleInputEmojiUsed"
+              UploadUrl="@ChatConfig.UploadUrl"
               ReplyingToMessage="@replyingToMessage"
               ReplyingToDisplayName="@(replyingToMessage != null ? GetDisplayName(replyingToMessage.Username) : null)"
               OnCancelReply="CancelReply" />

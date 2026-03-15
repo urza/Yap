@@ -26,6 +26,7 @@
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.2" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+    <PackageReference Include="tusdotnet" Version="2.11.0" />
   </ItemGroup>
 
   <!-- Generate BuildInfo.g.cs with build timestamp -->

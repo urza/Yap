@@ -12,6 +12,8 @@ public class ChatConfigService
     public string ProjectName => _configuration["ChatSettings:ProjectName"] ?? "Yap";
     public string RoomName => _configuration["ChatSettings:RoomName"] ?? "lobby";
     public bool WelcomePageEnabled => _configuration.GetValue<bool>("ChatSettings:WelcomePageEnabled", true);
+    public string UploadUrl => _configuration["ChatSettings:UploadUrl"] ?? "";
+    public int MaxUploadSizeMB => _configuration.GetValue<int>("ChatSettings:MaxUploadSizeMB", 100);
 
     // Bot settings
     public bool BotEnabled => _configuration.GetValue<bool>("ChatSettings:Bot:Enabled", true);

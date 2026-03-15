@@ -270,9 +270,27 @@
     animation-delay: 0s;
 }
 
-/* Upload indicator - blue dots */
-.upload-indicator .upload-dot {
-    background-color: var(--accent-primary);
+/* Upload progress bar */
+.upload-progress-track {
+    height: 4px;
+    background: var(--bg-muted);
+    border-radius: 2px;
+    overflow: hidden;
+    flex: 1;
+    min-width: 60px;
+}
+
+.upload-progress-fill {
+    height: 100%;
+    background: var(--accent-primary);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+}
+
+.upload-progress-text {
+    color: var(--accent-primary);
+    font-size: 0.8125rem;
+    white-space: nowrap;
 }
 
 @keyframes discordBounce {

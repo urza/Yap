@@ -2,12 +2,7 @@
 @inject ChatConfigService ChatConfig
 @inject UserStateService UserState
 @inject UserService UserService
-@inject ImageService ImageService
-@inject VideoService VideoService
-@inject MediaUploadLogService MediaLog
 @inject IJSRuntime JS
-@inject IWebHostEnvironment Environment
-@inject IConfiguration Configuration
 @inject ILogger<MessageInput> Logger
 @implements IAsyncDisposable
 
@@ -40,13 +35,20 @@ else
     @if (isUploading)
     {
         <div class="typing-indicator upload-indicator">
-            <span style="display: flex; align-items: center; gap: 0.5rem; color: #5865f2;">
-                <span class="typing-dots">
-                    <span class="dot upload-dot"></span>
-                    <span class="dot upload-dot"></span>
-                    <span class="dot upload-dot"></span>
+            <span style="display: flex; align-items: center; gap: 0.5rem; color: #5865f2; width: 100%;">
+                <span class="upload-progress-track">
+                    <span class="upload-progress-fill" style="width: @uploadPercent%"></span>
                 </span>
-                <span>Uploading @uploadingCount file@(uploadingCount > 1 ? "s" : "")...</span>
+                <span class="upload-progress-text">
+                    @if (uploadingCount > 1)
+                    {
+                        @($"{uploadedFileCount}/{uploadingCount} files {uploadPercent}%")
+                    }
+                    else
+                    {
+                        @($"Uploading... {uploadPercent}%")
+                    }
+                </span>
             </span>
         </div>
     }
@@ -133,6 +135,9 @@ else
     // Read-only mode (channel write permissions)
     [Parameter] public bool ReadOnly { get; set; }
 
+    // Upload endpoint URL (empty = relative /api/tus, or full URL for upload subdomain)
+    [Parameter] public string UploadUrl { get; set; } = "";
+
     // Reply parameters
     [Parameter] public ChatMessage? ReplyingToMessage { get; set; }
     [Parameter] public string? ReplyingToDisplayName { get; set; }
@@ -157,6 +162,9 @@ else
     private bool isTyping = false;
     private bool isUploading = false;
     private int uploadingCount = 0;
+    private int uploadedFileCount = 0;
+    private int uploadPercent = 0;
+    private DotNetObjectReference<MessageInput>? _uploadRef;
     // Typing timeout uses CancellationTokenSource + Task.Delay pattern:
     // - On each keystroke, cancel current delay and start new 3s delay
     // - If user stops typing for 3s, delay completes and calls StopTypingAsync
@@ -440,7 +448,6 @@ else
     {
         if (!channelId.HasValue) return;
 
-        // Get file count for UI (validation happens in JS/controller)
         var fileCount = e.GetMultipleFiles(10).Count;
         if (fileCount == 0) return;
 
@@ -449,16 +456,23 @@ else
             // Show upload indicator
             isUploading = true;
             uploadingCount = fileCount;
+            uploadedFileCount = 0;
+            uploadPercent = 0;
             StateHasChanged();
 
-            Logger.LogInformation("Upload started: {Count} file(s) via HTTP", fileCount);
+            Logger.LogInformation("Upload started: {Count} file(s) via tus", fileCount);
 
-            // Step 1: Upload all files in parallel via HTTP (browser opens 6 connections)
-            // Use a generous timeout — large files can take minutes over slow connections
-            using var uploadCts = new CancellationTokenSource(TimeSpan.FromMinutes(10));
-            var maxSizeMB = Configuration.GetValue<int>("ChatSettings:MaxUploadSizeMB", 100);
-            var result = await JS.InvokeAsync<UploadResult>("uploadFilesParallel", uploadCts.Token,
-                new object[] { FileInputId, maxSizeMB });
+            // Create DotNetObjectReference for progress callbacks from JS
+            _uploadRef?.Dispose();
+            _uploadRef = DotNetObjectReference.Create(this);
+
+            // Upload via tus with resumability and progress tracking
+            using var uploadCts = new CancellationTokenSource(TimeSpan.FromMinutes(30));
+            var maxSizeMB = ChatConfig.MaxUploadSizeMB;
+            var tusEndpoint = string.IsNullOrEmpty(UploadUrl) ? "/api/tus" : UploadUrl;
+
+            var result = await JS.InvokeAsync<UploadResult>("uploadFilesWithTus", uploadCts.Token,
+                new object[] { FileInputId, maxSizeMB, tusEndpoint, _uploadRef });
 
             if (!result.Success)
             {
@@ -466,60 +480,21 @@ else
                 return;
             }
 
-            // Show warning for partial failures (some files uploaded, some failed)
+            // Show warning for partial failures
             if (!string.IsNullOrEmpty(result.Error))
             {
                 ShowWarning($"{result.SuccessCount} of {result.TotalCount} files uploaded", result.Error);
             }
 
-            Logger.LogInformation("HTTP upload complete: {Success}/{Total} files", result.SuccessCount, result.TotalCount);
+            Logger.LogInformation("Upload complete: {Success}/{Total} files", result.SuccessCount, result.TotalCount);
 
-            // Separate into images and videos by type returned from server
-            var imageFiles = result.Files.Where(f => f.Type == "image").ToList();
-            var videoFiles = result.Files.Where(f => f.Type == "video").ToList();
-
-            // Check FFmpeg availability for video files
-            if (videoFiles.Count > 0 && !VideoService.IsAvailable)
-            {
-                ShowWarning("Video processing unavailable", "FFmpeg is not installed on the server. Video uploads require FFmpeg.");
-                // Clean up uploaded video files
-                foreach (var vf in videoFiles)
-                    try { File.Delete(vf.Path); } catch { }
-                videoFiles.Clear();
-            }
-
-            // Step 2a: Generate image thumbnails (800px) in parallel, track time per file
-            var imageTimes = new System.Collections.Concurrent.ConcurrentDictionary<string, long>();
-            if (imageFiles.Count > 0)
-            {
-                await Parallel.ForEachAsync(imageFiles, new ParallelOptions { MaxDegreeOfParallelism = 4 },
-                    async (file, _) =>
-                    {
-                        var sw = System.Diagnostics.Stopwatch.StartNew();
-                        await ImageService.GenerateMediumThumbnailAsync(file.Path);
-                        imageTimes[Path.GetFileName(file.Path)] = sw.ElapsedMilliseconds;
-                        Logger.LogDebug("Medium thumbnail generated: {FileName}", Path.GetFileName(file.Path));
-                    });
-            }
-
-            // Step 2b: Generate video poster frames (blocking, fast)
-            if (videoFiles.Count > 0)
-            {
-                foreach (var vf in videoFiles)
-                {
-                    await VideoService.GeneratePosterAsync(vf.Path);
-                    Logger.LogDebug("Video poster generated: {FileName}", Path.GetFileName(vf.Path));
-                }
-            }
-
-            // Upload complete - hide indicator BEFORE message send.
-            uploadingCount = 0;
+            // Hide indicator before message send
             isUploading = false;
             StateHasChanged();
 
-            // Step 3: Send message (event dispatch to all circuits happens here)
-            var imageUrls = imageFiles.Select(f => f.Url).ToList();
-            var videoUrls = videoFiles.Select(f => f.Url).ToList();
+            // Separate into images and videos by type (server already did thumbnails/posters)
+            var imageUrls = result.Files.Where(f => f.Type == "image").Select(f => f.Url).ToList();
+            var videoUrls = result.Files.Where(f => f.Type == "video").Select(f => f.Url).ToList();
 
             if (imageUrls.Count > 0 || videoUrls.Count > 0)
             {
@@ -527,66 +502,6 @@ else
                     imageUrls.Count > 0 ? imageUrls : null,
                     videoUrls: videoUrls.Count > 0 ? videoUrls : null);
                 Logger.LogInformation("Message posted with {ImageCount} image(s), {VideoCount} video(s)", imageUrls.Count, videoUrls.Count);
-            }
-
-            // Step 4: Background processing
-            var logger = Logger;
-
-            // 4a: Generate large image thumbnails in background + update processing time
-            if (imageFiles.Count > 0)
-            {
-                var mediaLog = MediaLog; // Capture for background task
-                var imgTimes = imageTimes;
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await Parallel.ForEachAsync(imageFiles, new ParallelOptions { MaxDegreeOfParallelism = 4 },
-                            async (file, _) =>
-                            {
-                                var sw = System.Diagnostics.Stopwatch.StartNew();
-                                await ImageService.GenerateLargeThumbnailAsync(file.Path);
-                                sw.Stop();
-
-                                var storedFileName = Path.GetFileName(file.Path);
-                                var mediumMs = imgTimes.GetValueOrDefault(storedFileName, 0);
-                                var totalMs = mediumMs + sw.ElapsedMilliseconds;
-                                await mediaLog.SetCompressDurationAsync(storedFileName, totalMs);
-
-                                logger.LogDebug("Large thumbnail generated: {FileName}", storedFileName);
-                            });
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogError(ex, "Error generating large thumbnails");
-                    }
-                });
-            }
-
-            // 4b: Compress videos in background (fire-and-forget)
-            if (videoFiles.Count > 0)
-            {
-                var mediaLog = MediaLog; // Capture for background task
-                _ = Task.Run(async () =>
-                {
-                    foreach (var vf in videoFiles)
-                    {
-                        try
-                        {
-                            var (compressedPath, durationMs) = await VideoService.CompressVideoAsync(vf.Path);
-                            if (compressedPath != null && durationMs > 0)
-                            {
-                                var storedFileName = Path.GetFileName(vf.Path);
-                                await mediaLog.SetCompressDurationAsync(storedFileName, durationMs);
-                            }
-                            logger.LogInformation("Video compressed: {FileName}", Path.GetFileName(vf.Path));
-                        }
-                        catch (Exception ex)
-                        {
-                            logger.LogError(ex, "Error compressing video {FileName}", Path.GetFileName(vf.Path));
-                        }
-                    }
-                });
             }
         }
         catch (Exception ex)
@@ -596,20 +511,34 @@ else
         }
         finally
         {
-            // Safety net - ensure indicator is always hidden even on error paths
             if (isUploading)
             {
-                uploadingCount = 0;
                 await InvokeAsync(() =>
                 {
                     isUploading = false;
                     StateHasChanged();
                 });
             }
+            uploadingCount = 0;
+            uploadedFileCount = 0;
+            uploadPercent = 0;
         }
     }
 
-    // DTOs for JS interop
+    /// <summary>
+    /// Called from JS to update upload progress bar.
+    /// </summary>
+    [JSInvokable]
+    public async Task OnUploadProgress(int percent, int completed, int total)
+    {
+        uploadPercent = percent;
+        uploadedFileCount = completed;
+        uploadingCount = total;
+        try { await InvokeAsync(StateHasChanged); }
+        catch { /* circuit may be dead */ }
+    }
+
+    // DTOs for JS interop (same shape as before)
     private record UploadResult(bool Success, string? Error, UploadedFile[] Files, int TotalCount, int SuccessCount);
     private record UploadedFile(string Url, string Path, string Type);
 
@@ -640,6 +569,7 @@ else
     {
         typingCts?.Cancel();
         typingCts?.Dispose();
+        _uploadRef?.Dispose();
 
         // Unsubscribe from events
         ChatService.OnTypingUsersChanged -= HandleTypingUsersChanged;
