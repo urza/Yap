@@ -454,8 +454,11 @@ else
             Logger.LogInformation("Upload started: {Count} file(s) via HTTP", fileCount);
 
             // Step 1: Upload all files in parallel via HTTP (browser opens 6 connections)
+            // Use a generous timeout — large files can take minutes over slow connections
+            using var uploadCts = new CancellationTokenSource(TimeSpan.FromMinutes(10));
             var maxSizeMB = Configuration.GetValue<int>("ChatSettings:MaxUploadSizeMB", 100);
-            var result = await JS.InvokeAsync<UploadResult>("uploadFilesParallel", FileInputId, maxSizeMB);
+            var result = await JS.InvokeAsync<UploadResult>("uploadFilesParallel", uploadCts.Token,
+                new object[] { FileInputId, maxSizeMB });
 
             if (!result.Success)
             {
