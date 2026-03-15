@@ -7,6 +7,7 @@
 @inject MediaUploadLogService MediaLog
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Environment
+@inject IConfiguration Configuration
 @inject ILogger<MessageInput> Logger
 @implements IAsyncDisposable
 
@@ -453,7 +454,8 @@ else
             Logger.LogInformation("Upload started: {Count} file(s) via HTTP", fileCount);
 
             // Step 1: Upload all files in parallel via HTTP (browser opens 6 connections)
-            var result = await JS.InvokeAsync<UploadResult>("uploadFilesParallel", FileInputId);
+            var maxSizeMB = Configuration.GetValue<int>("ChatSettings:MaxUploadSizeMB", 100);
+            var result = await JS.InvokeAsync<UploadResult>("uploadFilesParallel", FileInputId, maxSizeMB);
 
             if (!result.Success)
             {

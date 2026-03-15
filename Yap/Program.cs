@@ -11,10 +11,10 @@ using Yap.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Allow large file uploads (100 MB) - matches app-level limit
+// Kestrel body size limit — set generously, actual limit enforced in upload endpoint via config
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.Limits.MaxRequestBodySize = 100 * 1024 * 1024;
+    options.Limits.MaxRequestBodySize = null; // No Kestrel limit; app-level check handles it
 });
 
 // Load config from Data folder if exists (for Docker deployment)
@@ -239,13 +239,15 @@ app.MapRazorComponents<App>()
 // FILE UPLOAD ENDPOINT (for parallel HTTP uploads)
 // =============================================================================
 app.MapPost("/api/upload", async (HttpContext context, IFormFile file, IWebHostEnvironment env,
-    UserService userService, MediaUploadLogService mediaLog, ILogger<Program> logger) =>
+    IConfiguration config, UserService userService, MediaUploadLogService mediaLog, ILogger<Program> logger) =>
 {
     if (file == null || file.Length == 0)
         return Results.BadRequest(new { error = "No file provided" });
 
-    if (file.Length > 100 * 1024 * 1024)
-        return Results.BadRequest(new { error = "File too large" });
+    var maxSizeMB = config.GetValue<int>("ChatSettings:MaxUploadSizeMB", 100);
+    var maxSizeBytes = (long)maxSizeMB * 1024 * 1024;
+    if (file.Length > maxSizeBytes)
+        return Results.BadRequest(new { error = $"File too large (max {maxSizeMB} MB)" });
 
     var imageExtensions = new HashSet<string> { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
     var extension = Path.GetExtension(file.FileName).ToLowerInvariant();

@@ -793,15 +793,16 @@ window.setupPasteUpload = (textareaId, fileInputId) => {
 
 // Upload multiple files in parallel via HTTP POST
 // Returns array of { url, path } for successful uploads
-window.uploadFilesParallel = async (fileInputId) => {
+window.uploadFilesParallel = async (fileInputId, maxSizeMB) => {
     const fileInput = document.getElementById(fileInputId);
     if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
         return { success: false, error: 'No files selected' };
     }
 
+    maxSizeMB = maxSizeMB || 100;
     const files = Array.from(fileInput.files);
     const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.webm', '.mov', '.avi', '.mkv'];
-    const maxSize = 100 * 1024 * 1024; // 100MB
+    const maxSize = maxSizeMB * 1024 * 1024;
 
     // Check each file and collect rejection reasons
     const validFiles = [];
@@ -815,7 +816,7 @@ window.uploadFilesParallel = async (fileInputId) => {
             rejections.push(`"${f.name}" — unsupported file type`);
         } else if (f.size > maxSize) {
             const sizeMB = (f.size / 1024 / 1024).toFixed(0);
-            rejections.push(`"${f.name}" — too large (${sizeMB} MB, max 100 MB)`);
+            rejections.push(`"${f.name}" — too large (${sizeMB} MB, max ${maxSizeMB} MB)`);
         } else {
             validFiles.push(f);
         }
