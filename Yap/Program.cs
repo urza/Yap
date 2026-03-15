@@ -11,10 +11,14 @@ using Yap.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Kestrel body size limit — set generously, actual limit enforced in upload endpoint via config
+// No framework-level size limits — actual limit enforced in upload endpoint via ChatSettings:MaxUploadSizeMB
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.Limits.MaxRequestBodySize = null; // No Kestrel limit; app-level check handles it
+    options.Limits.MaxRequestBodySize = null;
+});
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = long.MaxValue;
 });
 
 // Load config from Data folder if exists (for Docker deployment)
