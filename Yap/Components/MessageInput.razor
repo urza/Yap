@@ -39,7 +39,7 @@ else
                 <span class="upload-progress-text">
                     @if (uploadingCount > 1)
                     {
-                        @($"{uploadedFileCount}/{uploadingCount} files {uploadPercent}%")
+                        @($"File {uploadedFileCount + 1}/{uploadingCount} — {uploadPercent}%")
                     }
                     else
                     {
