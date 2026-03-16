@@ -640,6 +640,8 @@ window.initEmojiPickerScroll = (contentElement) => {
 
 // Client-side click handler for emoji picker — inserts emoji into textarea instantly
 // without waiting for Blazor server round-trip. Blazor @onclick still fires for bookkeeping.
+// Note: intentionally does NOT focus the textarea — on mobile, focus() within a user gesture
+// triggers the keyboard, which we don't want while the emoji picker is open.
 window.setupEmojiPickerClick = (pickerElement, textareaId) => {
     if (!pickerElement || !textareaId) return;
 
@@ -648,9 +650,23 @@ window.setupEmojiPickerClick = (pickerElement, textareaId) => {
         if (!btn) return;
 
         const emoji = btn.getAttribute('data-emoji');
-        if (emoji) {
-            window.insertTextAtCursor(textareaId, emoji);
-        }
+        if (!emoji) return;
+
+        const textarea = document.getElementById(textareaId);
+        if (!textarea) return;
+
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const value = textarea.value;
+
+        textarea.value = value.substring(0, start) + emoji + value.substring(end);
+
+        const newPos = start + emoji.length;
+        textarea.selectionStart = newPos;
+        textarea.selectionEnd = newPos;
+
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        window.autoResizeTextarea(textareaId);
     });
 };
 
