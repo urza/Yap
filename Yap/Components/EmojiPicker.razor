@@ -35,6 +35,10 @@
     <div class="emoji-content" @ref="contentElement">
         <div class="emoji-search">
             <input type="text" @bind="searchText" @bind:event="oninput" placeholder="Search emojis..." />
+            @if (!string.IsNullOrEmpty(searchText))
+            {
+                <button class="emoji-search-clear" @onclick="ClearSearch" title="Clear search">✕</button>
+            }
         </div>
 
         @if (!string.IsNullOrEmpty(searchText))
@@ -185,6 +189,7 @@
 
     private async Task ScrollToCategory(string key)
     {
+        searchText = "";
         try
         {
             await JS.InvokeVoidAsync("scrollEmojiPickerToSection", contentElement, key);
@@ -194,8 +199,12 @@
 
     private async Task SelectEmoji(string emoji)
     {
-        searchText = "";
         await OnEmojiSelected.InvokeAsync(emoji);
+    }
+
+    private void ClearSearch()
+    {
+        searchText = "";
     }
 
     private List<string> GetSearchResults()
