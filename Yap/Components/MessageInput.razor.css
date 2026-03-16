@@ -109,6 +109,8 @@
 }
 
 .send-button {
+    position: relative;
+    z-index: 1000; /* Above emoji-picker-backdrop (999) so send works with picker open */
     flex: 0 0 44px;
     display: flex;
     align-items: center;

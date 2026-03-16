@@ -107,7 +107,7 @@ else
         {
             <div class="emoji-picker-backdrop" @onclick="CloseEmojiPicker"></div>
             <div class="emoji-picker-container">
-                <EmojiPicker RecentEmojis="@RecentEmojis" OnEmojiSelected="HandleEmojiSelected" />
+                <EmojiPicker RecentEmojis="@RecentEmojis" OnEmojiSelected="HandleEmojiSelected" TextareaId="@TextareaId" />
             </div>
         }
     </div>
@@ -391,6 +391,8 @@ else
     {
         if (string.IsNullOrWhiteSpace(messageText) || !channelId.HasValue) return;
 
+        showEmojiPicker = false;
+
         var content = messageText;
         messageText = "";
 
@@ -432,11 +434,10 @@ else
         showEmojiPicker = false;
     }
 
-    private async Task HandleEmojiSelected(string emoji)
+    private void HandleEmojiSelected(string emoji)
     {
-        try { await JS.InvokeVoidAsync("insertTextAtCursor", TextareaId, emoji); }
-        catch (Exception ex) { Logger.LogWarning(ex, "Failed to insert emoji at cursor"); }
-
+        // Emoji insertion into textarea is handled client-side by setupEmojiPickerClick
+        // for instant feedback. This handler only does server-side bookkeeping.
         OnEmojiUsed?.Invoke(emoji);
     }
 

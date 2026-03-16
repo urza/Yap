@@ -4,7 +4,7 @@
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
-<div class="emoji-picker">
+<div class="emoji-picker" @ref="pickerElement">
     <div class="emoji-sidebar">
         @* Recent tab *@
         <button class="category-btn" data-category="recent"
@@ -48,7 +48,7 @@
                         @foreach (var result in results)
                         {
                             var e = result;
-                            <button class="emoji-btn" @onclick="() => SelectEmoji(e)">
+                            <button class="emoji-btn" data-emoji="@e" @onclick="() => SelectEmoji(e)">
                                 @if (IsCustomEmojiString(e))
                                 {
                                     var ce = GetCustomEmojiFromString(e);
@@ -82,7 +82,7 @@
                         @foreach (var emoji in frozenRecents)
                         {
                             var e = emoji;
-                            <button class="emoji-btn" @onclick="() => SelectEmoji(e)">
+                            <button class="emoji-btn" data-emoji="@e" @onclick="() => SelectEmoji(e)">
                                 @if (IsCustomEmojiString(e))
                                 {
                                     var ce = GetCustomEmojiFromString(e);
@@ -118,7 +118,7 @@
                         @foreach (var emoji in CustomEmojiService.GetAll())
                         {
                             var shortcode = $":{emoji.Shortcode}:";
-                            <button class="emoji-btn" @onclick="() => SelectEmoji(shortcode)" title="@shortcode">
+                            <button class="emoji-btn" data-emoji="@shortcode" @onclick="() => SelectEmoji(shortcode)" title="@shortcode">
                                 @EmojiService.RenderCustomEmoji(emoji, "22px")
                             </button>
                         }
@@ -135,7 +135,7 @@
                         @foreach (var emoji in category.Value.Emojis)
                         {
                             var e = emoji;
-                            <button class="emoji-btn" @onclick="() => SelectEmoji(e)">@EmojiService.GetPickerEmojiHtml(e)</button>
+                            <button class="emoji-btn" data-emoji="@e" @onclick="() => SelectEmoji(e)">@EmojiService.GetPickerEmojiHtml(e)</button>
                         }
                     </div>
                 </div>
@@ -147,9 +147,11 @@
 @code {
     [Parameter] public List<string> RecentEmojis { get; set; } = new();
     [Parameter] public EventCallback<string> OnEmojiSelected { get; set; }
+    [Parameter] public string TextareaId { get; set; } = "";
 
     private const string RecentCategory = "recent";
     private const string CustomCategory = "custom";
+    private ElementReference pickerElement;
     private ElementReference contentElement;
     private IJSObjectReference? scrollTracker;
     private string searchText = "";
@@ -169,6 +171,13 @@
             try
             {
                 scrollTracker = await JS.InvokeAsync<IJSObjectReference>("initEmojiPickerScroll", contentElement);
+            }
+            catch { /* Ignore JS errors */ }
+
+            // Set up client-side click handler for instant emoji insertion (no server round-trip)
+            try
+            {
+                await JS.InvokeVoidAsync("setupEmojiPickerClick", pickerElement, TextareaId);
             }
             catch { /* Ignore JS errors */ }
         }

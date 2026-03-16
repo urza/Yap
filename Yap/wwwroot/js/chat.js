@@ -638,6 +638,22 @@ window.initEmojiPickerScroll = (contentElement) => {
     };
 };
 
+// Client-side click handler for emoji picker — inserts emoji into textarea instantly
+// without waiting for Blazor server round-trip. Blazor @onclick still fires for bookkeeping.
+window.setupEmojiPickerClick = (pickerElement, textareaId) => {
+    if (!pickerElement || !textareaId) return;
+
+    pickerElement.addEventListener('click', (e) => {
+        const btn = e.target.closest('.emoji-btn[data-emoji]');
+        if (!btn) return;
+
+        const emoji = btn.getAttribute('data-emoji');
+        if (emoji) {
+            window.insertTextAtCursor(textareaId, emoji);
+        }
+    });
+};
+
 // Smooth-scroll emoji picker content to a specific category section.
 window.scrollEmojiPickerToSection = (contentElement, categoryKey) => {
     if (!contentElement) return;
