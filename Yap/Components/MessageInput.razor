@@ -35,10 +35,7 @@ else
     @if (isUploading)
     {
         <div class="typing-indicator upload-indicator">
-            <span style="display: flex; align-items: center; gap: 0.5rem; color: #5865f2; width: 100%;">
-                <span class="upload-progress-track">
-                    <span class="upload-progress-fill" style="width: @uploadPercent%"></span>
-                </span>
+            <div class="upload-progress-row">
                 <span class="upload-progress-text">
                     @if (uploadingCount > 1)
                     {
@@ -49,7 +46,10 @@ else
                         @($"Uploading... {uploadPercent}%")
                     }
                 </span>
-            </span>
+                <div class="upload-progress-track">
+                    <div class="upload-progress-fill" style="width: @uploadPercent%"></div>
+                </div>
+            </div>
         </div>
     }
     else if (!string.IsNullOrEmpty(typingIndicatorText))

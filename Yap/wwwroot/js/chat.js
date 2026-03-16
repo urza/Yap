@@ -865,13 +865,17 @@ window.uploadFilesWithTus = async (fileInputId, maxSizeMB, tusEndpoint, dotNetRe
 
                     // Extract file ID from tus upload URL
                     const fileId = upload.url.split('/').pop();
+                    console.log('[Tus] Upload complete:', file.name, 'fileId=' + fileId, 'url=' + upload.url);
                     try {
                         // Fetch the processed file info from server
                         // Server may still be processing (thumbnails/posters), retry briefly
                         let info = null;
-                        const infoUrl = tusEndpoint.replace(/\/+$/, '') + '/info/' + fileId;
-                        for (let attempt = 0; attempt < 10; attempt++) {
+                        const infoBaseUrl = upload.url.substring(0, upload.url.lastIndexOf('/'));
+                        const infoUrl = infoBaseUrl + '/info/' + fileId;
+                        console.log('[Tus] Fetching info from:', infoUrl);
+                        for (let attempt = 0; attempt < 30; attempt++) {
                             const resp = await fetch(infoUrl, { credentials: 'include' });
+                            console.log('[Tus] Info attempt', attempt + 1, 'status:', resp.status);
                             if (resp.ok) {
                                 info = await resp.json();
                                 break;
@@ -880,6 +884,7 @@ window.uploadFilesWithTus = async (fileInputId, maxSizeMB, tusEndpoint, dotNetRe
                             await new Promise(r => setTimeout(r, 1000));
                         }
                         if (info) {
+                            console.log('[Tus] Got file info:', info);
                             resolve(info);
                         } else {
                             errors.push(`"${file.name}" — server processing timeout`);

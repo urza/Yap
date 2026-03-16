@@ -27,8 +27,6 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
     // - This avoids threading issues with System.Timers.Timer (which fires on ThreadPool)
     private CancellationTokenSource? _idleCts;
     private UserStatus? _statusBeforeDisconnect;
-    private bool _isAutoAway;
-    private UserStatus? _statusBeforeAway;
     private string? _circuitId;
     private string? _clientIp;
 
@@ -170,18 +168,16 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
             // Reset idle timer on any activity (cancels current delay, starts fresh)
             StartIdleTimer();
 
-            // Restore from auto-away if user becomes active again
-            if (_isAutoAway && _statusBeforeAway.HasValue && !string.IsNullOrEmpty(_userState.SessionId))
+            // Restore from auto-away if user becomes active again.
+            // TryRestoreFromAutoAway is per-user (in ChatService), so ANY circuit can restore —
+            // works across new tabs, page refreshes, and multi-device.
+            if (!string.IsNullOrEmpty(_userState.SessionId))
             {
-                _isAutoAway = false;
-                var restoreTo = _statusBeforeAway.Value;
-                _statusBeforeAway = null;
-
-                _logger.LogDebug("Auto-away: {Username} is back, restoring to {Status}",
-                    _userState.Username, restoreTo);
-
-                await _chatService.SetUserStatusAsync(_userState.SessionId, restoreTo);
-                _userState.Status = restoreTo;
+                var restoredStatus = _chatService.TryRestoreFromAutoAway(_userState.SessionId);
+                if (restoredStatus.HasValue)
+                {
+                    _userState.Status = restoredStatus.Value;
+                }
             }
 
             await next(context);
@@ -232,9 +228,9 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
         if (string.IsNullOrEmpty(_userState.SessionId) || string.IsNullOrEmpty(_userState.Username))
             return;
 
-        // Don't override if already auto-away, Away, or Invisible
+        // Don't override if already Away or Invisible
         var currentStatus = _chatService.GetUserStatus(_userState.Username);
-        if (_isAutoAway || currentStatus is UserStatus.Away or UserStatus.Invisible)
+        if (currentStatus is UserStatus.Away or UserStatus.Invisible)
             return;
 
         // Only set auto-away if ALL sessions for this user are idle
@@ -245,12 +241,11 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
             return;
         }
 
-        _statusBeforeAway = currentStatus;
-        _isAutoAway = true;
-
         _logger.LogDebug("Auto-away: {Username} idle on all sessions, setting to Away", _userState.Username);
 
-        await _chatService.SetUserStatusAsync(_userState.SessionId, UserStatus.Away);
+        // Pass current status as autoAwayPreviousStatus — ChatService records it for restoration
+        await _chatService.SetUserStatusAsync(_userState.SessionId, UserStatus.Away,
+            autoAwayPreviousStatus: currentStatus ?? UserStatus.Online);
         _userState.Status = UserStatus.Away;
     }
 

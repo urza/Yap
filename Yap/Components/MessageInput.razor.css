@@ -271,6 +271,14 @@
 }
 
 /* Upload progress bar */
+.upload-progress-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    color: var(--accent-primary);
+}
+
 .upload-progress-track {
     height: 4px;
     background: var(--bg-muted);
@@ -281,14 +289,16 @@
 }
 
 .upload-progress-fill {
+    display: block;
     height: 100%;
+    width: 0;
     background: var(--accent-primary);
     border-radius: 2px;
     transition: width 0.3s ease;
 }
 
 .upload-progress-text {
-    color: var(--accent-primary);
+    color: var(--accent-light, #b0b6fc);
     font-size: 0.8125rem;
     white-space: nowrap;
 }

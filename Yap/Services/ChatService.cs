@@ -57,6 +57,11 @@ public class ChatService
     // Per-user status (shared across all sessions for the same user)
     private readonly ConcurrentDictionary<string, UserStatus> _userStatuses = new(StringComparer.OrdinalIgnoreCase);
 
+    // Auto-away tracking: username -> status to restore when user becomes active again.
+    // Present in this dictionary = user was auto-away'd (by idle timer or disconnect timer).
+    // Cleared on manual status change or when restored.
+    private readonly ConcurrentDictionary<string, UserStatus> _statusBeforeAutoAway = new(StringComparer.OrdinalIgnoreCase);
+
     public record UserSession(Guid UserId, string Username, string SessionId, bool? IsMobile = null, bool PageVisible = true, DateTime LastActivity = default, string? ClientIp = null);
 
     public ChatService(PushNotificationService pushService, ChatPersistenceService persistence, UserService userService, ILogger<ChatService> logger)
@@ -456,7 +461,12 @@ public class ChatService
         return Task.CompletedTask;
     }
 
-    public Task SetUserStatusAsync(string sessionId, UserStatus status)
+    /// <summary>
+    /// Sets user status. When autoAwayPreviousStatus is provided, this is an auto-away change
+    /// (records previous status for restoration). When null (default), this is a manual change
+    /// (clears any auto-away state so activity won't restore it).
+    /// </summary>
+    public Task SetUserStatusAsync(string sessionId, UserStatus status, UserStatus? autoAwayPreviousStatus = null)
     {
         if (!_users.TryGetValue(sessionId, out var session))
             return Task.CompletedTask;
@@ -464,7 +474,19 @@ public class ChatService
         var oldStatus = _userStatuses.GetValueOrDefault(session.Username, UserStatus.Online);
         _userStatuses[session.Username] = status;
 
-        _logger.LogDebug("SetUserStatus {User}: {OldStatus} -> {NewStatus}", session.Username, oldStatus, status);
+        if (autoAwayPreviousStatus.HasValue)
+        {
+            // Auto-away: record what to restore to when user becomes active
+            _statusBeforeAutoAway[session.Username] = autoAwayPreviousStatus.Value;
+        }
+        else
+        {
+            // Manual status change: clear any auto-away state
+            _statusBeforeAutoAway.TryRemove(session.Username, out _);
+        }
+
+        _logger.LogDebug("SetUserStatus {User}: {OldStatus} -> {NewStatus} (autoAway={IsAutoAway})",
+            session.Username, oldStatus, status, autoAwayPreviousStatus.HasValue);
 
         OnUserStatusChanged?.Invoke(session.Username, status);
         OnUsersListChanged?.Invoke();
@@ -475,6 +497,29 @@ public class ChatService
     public UserStatus? GetUserStatus(string username)
     {
         return _userStatuses.TryGetValue(username, out var status) ? status : null;
+    }
+
+    /// <summary>
+    /// Attempts to restore a user from auto-away to their previous status.
+    /// Returns the restored status if successful, null if user wasn't auto-away.
+    /// Can be called from any circuit/session for the user.
+    /// </summary>
+    public UserStatus? TryRestoreFromAutoAway(string sessionId)
+    {
+        if (!_users.TryGetValue(sessionId, out var session))
+            return null;
+
+        if (!_statusBeforeAutoAway.TryRemove(session.Username, out var restoreTo))
+            return null;
+
+        _userStatuses[session.Username] = restoreTo;
+
+        _logger.LogDebug("Auto-away restored: {User} -> {Status}", session.Username, restoreTo);
+
+        OnUserStatusChanged?.Invoke(session.Username, restoreTo);
+        OnUsersListChanged?.Invoke();
+
+        return restoreTo;
     }
 
     public void SetPageVisibility(string sessionId, bool visible)
@@ -511,6 +556,7 @@ public class ChatService
             if (!hasOtherSessions)
             {
                 _userStatuses.TryRemove(session.Username, out _);
+                _statusBeforeAutoAway.TryRemove(session.Username, out _);
                 OnUserChanged?.Invoke(session.Username, false);
             }
             OnUsersListChanged?.Invoke();
