@@ -353,7 +353,7 @@ public class SystemBotService
 
             var channel = _chatService.GetOrCreateDMChannel(_botUserId, _botUsername, user.Id, user.Username);
 
-            var methodLabel = loginMethod == "smart" ? "smart login (same network)" : "passphrase";
+            var methodLabel = loginMethod == "smart" ? "smart login (same network)" : "secret code";
             var message = $"🔐 New device sign-in detected for your account using **{methodLabel}** from IP `{ip}`. If this wasn't you, open **Settings** and use **Sign out all other devices** immediately.";
 
             await _chatService.SendMessageAsync(channel.Id, _botUserId, _botUsername, message);

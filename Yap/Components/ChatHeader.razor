@@ -221,11 +221,11 @@
     {
         showDropdown = false;
 
-        // Warn if no passphrase set — user won't be able to reclaim this username
+        // Warn if no secret code set — user won't be able to reclaim this username
         if (UserState.Username != null && !UserService.HasPassword(UserState.Username))
         {
             var confirmed = await JS.InvokeAsync<bool>("confirm",
-                "You haven't set a passphrase. Without one, you won't be able to reclaim this username. Continue signing out?");
+                "You haven't set a secret code. Without one, you won't be able to reclaim this username. Continue signing out?");
             if (!confirmed) return;
         }
 

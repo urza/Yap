@@ -48,14 +48,23 @@
                     @joinButtonText
                 </button>
             </div>
-            @if (showError)
+            @if (showError && !_showMultiDeviceGuide)
             {
                 <div class="validation-error">
                     @errorMessage
-                    @if (_showRetryLink)
-                    {
-                        <button type="button" @onclick="ValidateUsername" class="retry-link">Done, try again</button>
-                    }
+                </div>
+            }
+            @if (_showMultiDeviceGuide)
+            {
+                <div class="multidevice-guide">
+                    <strong>Almost there!</strong> To log in as <strong>@usernameInput</strong> on this device:
+                    <ol>
+                        <li>Open the app on your original device</li>
+                        <li>Go to <strong>Settings</strong></li>
+                        <li>Under <strong>Multi-Device Login</strong>, tap <strong>Enable Secret Code</strong></li>
+                        <li>Come back here and try again</li>
+                    </ol>
+                    <button type="button" @onclick="RetryMultiDevice" class="retry-link">Done, try again</button>
                 </div>
             }
         </div>
@@ -81,7 +90,7 @@
     private bool _shouldRedirect = false;
     private bool _usernameHasPassword = false;
     private bool _smartModeMatch = false;
-    private bool _showRetryLink = false;
+    private bool _showMultiDeviceGuide = false;
     private bool _wasRejected = false;
 
     private Timer? _pollTimer;
@@ -90,7 +99,7 @@
     private static readonly System.Text.RegularExpressions.Regex ValidUsernameRegex =
         new(@"^[a-z0-9._]+$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
-    private bool IsValid => !string.IsNullOrWhiteSpace(usernameInput) && (!hasError || _usernameHasPassword || _smartModeMatch);
+    private bool IsValid => !string.IsNullOrWhiteSpace(usernameInput) && !_showMultiDeviceGuide && (!hasError || _usernameHasPassword || _smartModeMatch);
 
     // Only show length errors after user has blurred the input (finished typing)
     private bool showError => hasError && (!isLengthError || hasBlurred);
@@ -153,7 +162,7 @@
         errorMessage = "";
         _usernameHasPassword = false;
         _smartModeMatch = false;
-        _showRetryLink = false;
+        _showMultiDeviceGuide = false;
 
         if (string.IsNullOrWhiteSpace(usernameInput))
             return;
@@ -197,37 +206,54 @@
             errorMessage = "Nice try! 🤖";
             return;
         }
+    }
 
-        // Username taken check — smart mode, passphrase, or error
-        if (UserService.IsUsernameTaken(usernameInput))
+    /// <summary>
+    /// Checks username-taken scenarios (smart mode, secret code, multi-device guide).
+    /// Called on submit, not on every keystroke — avoids premature prompts while typing.
+    /// </summary>
+    private void CheckExistingUsername()
+    {
+        _usernameHasPassword = false;
+        _smartModeMatch = false;
+        _showMultiDeviceGuide = false;
+
+        if (!UserService.IsUsernameTaken(usernameInput))
+            return;
+
+        // Smart mode: auto-login if same IP as an active session (unless user opted out)
+        if (RegistrationGate.SmartMode)
         {
-            // Smart mode: auto-login if same IP as an active session (unless user opted out)
-            if (RegistrationGate.SmartMode)
+            var targetUser = UserService.GetByUsername(usernameInput);
+            if (targetUser != null && !targetUser.SmartLoginOptOut)
             {
-                var targetUser = UserService.GetByUsername(usernameInput);
-                if (targetUser != null && !targetUser.SmartLoginOptOut)
+                var clientIp = HttpContextAccessor.HttpContext?.Items["ClientIp"]?.ToString();
+                if (ChatService.HasActiveSessionFromIp(usernameInput, clientIp))
                 {
-                    var clientIp = HttpContextAccessor.HttpContext?.Items["ClientIp"]?.ToString();
-                    if (ChatService.HasActiveSessionFromIp(usernameInput, clientIp))
-                    {
-                        _smartModeMatch = true;
-                        return;
-                    }
+                    _smartModeMatch = true;
+                    return;
                 }
             }
+        }
 
-            if (UserService.HasPassword(usernameInput))
-            {
-                // Don't show error — user can proceed to verify page
-                _usernameHasPassword = true;
-            }
-            else
-            {
-                hasError = true;
-                _showRetryLink = true;
-                errorMessage = "This account doesn't have a passphrase yet. Go to Settings on your original device and enable one, then come back here.";
-            }
-            return;
+        if (UserService.HasPassword(usernameInput))
+        {
+            _usernameHasPassword = true;
+        }
+        else
+        {
+            _showMultiDeviceGuide = true;
+        }
+    }
+
+    private void RetryMultiDevice()
+    {
+        CheckExistingUsername();
+
+        // If secret code is now enabled, go straight to verify page
+        if (_usernameHasPassword || _smartModeMatch)
+        {
+            JoinChat();
         }
     }
 
@@ -244,6 +270,10 @@
     private void JoinChat()
     {
         if (!IsValid) return;
+
+        // Check existing username on submit (not during typing)
+        CheckExistingUsername();
+        if (_showMultiDeviceGuide) return;
 
         var username = Uri.EscapeDataString(usernameInput.Trim());
         var returnUrl = SafeReturnUrl ?? "/lobby";

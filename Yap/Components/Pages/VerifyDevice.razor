@@ -7,10 +7,11 @@
 
 <div class="verify-container">
     <h2>Welcome back, @Username</h2>
+    <p class="verify-hint">Enter your secret code to verify it's you.</p>
     <div class="verify-form">
         <div class="input-wrapper">
             <input type="text" @bind="passwordInput" @bind:event="oninput"
-                   placeholder="Enter your passphrase" class="verify-input @(showError ? "invalid" : "")"
+                   placeholder="Enter your secret code" class="verify-input @(showError ? "invalid" : "")"
                    @onkeypress="HandleKeyPress" />
             @if (showError)
             {
@@ -67,7 +68,7 @@
         if (user == null)
         {
             showError = true;
-            errorMessage = "Wrong passphrase";
+            errorMessage = "Wrong secret code";
             return;
         }
 

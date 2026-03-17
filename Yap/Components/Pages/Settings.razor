@@ -24,7 +24,7 @@
             <span class="kicked-notice-icon">&#x1f512;</span>
             <div class="kicked-notice-text">
                 <strong>All other devices have been signed out.</strong>
-                Your passphrase was automatically changed. See your new passphrase below.
+                Your secret code was automatically changed. See your new secret code below.
             </div>
             <button class="kicked-notice-dismiss" @onclick="() => showKickedNotice = false">&times;</button>
         </div>
@@ -109,7 +109,7 @@
 
             @if (hasPassword)
             {
-                <span class="form-hint" style="margin-bottom: 12px;">Use this passphrase to log in as <strong>@UserState.Username</strong> on another device or browser.</span>
+                <span class="form-hint" style="margin-bottom: 12px;">Use this secret code to log in as <strong>@UserState.Username</strong> on another device or browser.</span>
                 <div class="passphrase-display">
                     <span class="passphrase-value">@(showPassphrase ? currentPassword : "••••••••••")</span>
                     <button class="passphrase-eye" @onclick="() => showPassphrase = !showPassphrase" title="@(showPassphrase ? "Hide" : "Reveal")">
@@ -134,7 +134,7 @@
                     </button>
                 </div>
                 <div class="passphrase-actions">
-                    <button class="remove-button" @onclick="RegeneratePassphrase">New Passphrase</button>
+                    <button class="remove-button" @onclick="RegeneratePassphrase">New Code</button>
                     <button class="remove-button" @onclick="RemovePassword">Disable</button>
                 </div>
                 @if (passwordSaveStatus != null)
@@ -144,8 +144,8 @@
             }
             else
             {
-                <span class="form-hint" style="margin-bottom: 12px;">Enable a passphrase to log in from other devices or browsers.</span>
-                <button class="upload-button" @onclick="EnablePassphrase">Enable Passphrase</button>
+                <span class="form-hint" style="margin-bottom: 12px;">Enable a secret code to log in from other devices or browsers.</span>
+                <button class="upload-button" @onclick="EnablePassphrase">Enable Secret Code</button>
                 @if (passwordSaveStatus != null)
                 {
                     <span class="save-status saved" style="margin-top: 4px;">@passwordSaveStatus</span>
@@ -158,7 +158,7 @@
                     <label class="toggle-row">
                         <div class="toggle-info">
                             <span class="toggle-label">Allow smart login</span>
-                            <span class="toggle-hint">Log in from new devices on the same network without a passphrase.</span>
+                            <span class="toggle-hint">Log in from new devices on the same network without a secret code.</span>
                         </div>
                         <label class="toggle-switch">
                             <input type="checkbox" checked="@smartLoginAllowed" @onchange="ToggleSmartLogin" />
@@ -413,9 +413,9 @@
         {
             var smartEnabled = RegistrationGate.SmartMode && smartLoginAllowed;
             if (hasPassword && smartEnabled)
-                return "You can log in from other devices using your passphrase or automatically from the same network.";
+                return "You can log in from other devices using your secret code or automatically from the same network.";
             if (hasPassword)
-                return "You can log in from other devices using your passphrase.";
+                return "You can log in from other devices using your secret code.";
             if (smartEnabled)
                 return "You can log in from other devices automatically when on the same network.";
             return "This account is tied to this device only.";
@@ -776,7 +776,7 @@
         currentPassword = passphrase;
         hasPassword = true;
         showPassphrase = true;
-        ShowPasswordStatus("Passphrase enabled");
+        ShowPasswordStatus("Secret code enabled");
     }
 
     private async Task RegeneratePassphrase()
@@ -787,7 +787,7 @@
         await UserService.SetPasswordAsync(UserState.UserId.Value, passphrase);
         currentPassword = passphrase;
         showPassphrase = true;
-        ShowPasswordStatus("Passphrase changed");
+        ShowPasswordStatus("Secret code changed");
     }
 
     private async Task RemovePassword()
@@ -798,7 +798,7 @@
         currentPassword = null;
         hasPassword = false;
         showPassphrase = false;
-        ShowPasswordStatus("Passphrase disabled");
+        ShowPasswordStatus("Secret code disabled");
     }
 
     private async Task CopyPassphrase()

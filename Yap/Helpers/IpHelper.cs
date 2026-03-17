@@ -23,6 +23,11 @@ public static class IpHelper
                 return first;
         }
 
-        return context.Connection.RemoteIpAddress?.ToString();
+        var ip = context.Connection.RemoteIpAddress?.ToString();
+
+        // Normalize IPv6 loopback to IPv4 (localhost: some browsers use ::1, others 127.0.0.1)
+        if (ip == "::1") ip = "127.0.0.1";
+
+        return ip;
     }
 }
