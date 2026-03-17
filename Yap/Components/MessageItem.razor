@@ -17,7 +17,7 @@
                     ProfilePictureUrl="@ReplyToProfilePictureUrl"
                     Size="AvatarSize.Small" />
             <span class="reply-author">@(ReplyToDisplayName ?? ReplyToMessage.Username)</span>
-            <span class="reply-text">@GetReplyPreviewText()</span>
+            <span class="reply-text">@EmojiService.ConvertEmojisToTwemoji(GetReplyPreviewText(), forceSmall: true)</span>
         </div>
     }
 
