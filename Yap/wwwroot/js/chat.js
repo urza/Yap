@@ -79,10 +79,22 @@ window.scrollToBottom = () => {
     // Scroll immediately
     requestAnimationFrame(doScroll);
 
-    // Re-scroll after short delays to catch lazy-loaded images
-    // Images with loading="lazy" load asynchronously after initial render
-    setTimeout(doScroll, 100);
-    setTimeout(doScroll, 300);
+    // Wait for ALL pending images to finish loading, then do one
+    // final scroll. Handles lazy-loaded images whose real dimensions
+    // differ from the width/height placeholder, causing layout shifts.
+    const pending = Array.from(element.querySelectorAll('img')).filter(img => !img.complete);
+    if (pending.length > 0) {
+        let remaining = pending.length;
+        const onSettled = () => {
+            if (--remaining === 0) {
+                requestAnimationFrame(doScroll);
+            }
+        };
+        pending.forEach(img => {
+            img.addEventListener('load', onSettled, { once: true });
+            img.addEventListener('error', onSettled, { once: true });
+        });
+    }
 };
 
 // Check if user is scrolled near the bottom of messages
