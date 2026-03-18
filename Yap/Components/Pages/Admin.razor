@@ -10,7 +10,9 @@
 @inject MediaUploadLogService MediaLog
 @inject VideoService VideoService
 @inject NavigationManager Navigation
-@implements IDisposable
+@inject DiagnosticsCollectorService DiagCollector
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
 <PageTitle>Admin</PageTitle>
 
@@ -68,6 +70,13 @@
             </svg>
             <span>Media</span>
         </button>
+        <button class="nav-item @(activeSection == "diagnostics" ? "active" : "")"
+                @onclick="SelectDiagnosticsTab">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/>
+            </svg>
+            <span>Diagnostics</span>
+        </button>
     </nav>
 
     <div class="admin-tabs">
@@ -94,6 +103,10 @@
         <button class="tab-item @(activeSection == "media" ? "active" : "")"
                 @onclick="SelectMediaTab">
             Media
+        </button>
+        <button class="tab-item @(activeSection == "diagnostics" ? "active" : "")"
+                @onclick="SelectDiagnosticsTab">
+            Diagnostics
         </button>
     </div>
 
@@ -617,6 +630,65 @@
                 <div class="log-empty">No media uploads found.</div>
             }
         }
+
+        @if (activeSection == "diagnostics")
+        {
+            <div class="section-header">
+                <h3>Diagnostics</h3>
+                <span class="section-count">Live system metrics</span>
+            </div>
+
+            @if (diagLatest != null)
+            {
+                <div class="diag-stats">
+                    <div class="diag-stat-card">
+                        <span class="media-stat-label">Users</span>
+                        <span class="media-stat-value">@diagLatest.UniqueUsers</span>
+                    </div>
+                    <div class="diag-stat-card">
+                        <span class="media-stat-label">Sessions</span>
+                        <span class="media-stat-value">@diagLatest.UserSessions</span>
+                    </div>
+                    <div class="diag-stat-card">
+                        <span class="media-stat-label">Messages</span>
+                        <span class="media-stat-value">@diagLatest.TotalMessages</span>
+                    </div>
+                    <div class="diag-stat-card">
+                        <span class="media-stat-label">Circuits</span>
+                        <span class="media-stat-value">@(diagLatest.ActiveCircuits + diagLatest.DisconnectedCircuits)</span>
+                    </div>
+                    <div class="diag-stat-card">
+                        <span class="media-stat-label">Channels</span>
+                        <span class="media-stat-value">@diagLatest.Channels</span>
+                    </div>
+                    <div class="diag-stat-card">
+                        <span class="media-stat-label">Event Subs</span>
+                        <span class="media-stat-value">@diagLatest.TotalEventSubscribers</span>
+                    </div>
+                </div>
+            }
+
+            <div class="diag-charts">
+                <div class="diag-chart-card">
+                    <h4>Users & Sessions</h4>
+                    <div class="diag-chart-wrapper">
+                        <canvas id="diag-chart-users"></canvas>
+                    </div>
+                </div>
+                <div class="diag-chart-card">
+                    <h4>Circuits: Active vs Disconnected</h4>
+                    <div class="diag-chart-wrapper">
+                        <canvas id="diag-chart-circuits"></canvas>
+                    </div>
+                </div>
+                <div class="diag-chart-card">
+                    <h4>Messages</h4>
+                    <div class="diag-chart-wrapper">
+                        <canvas id="diag-chart-messages"></canvas>
+                    </div>
+                </div>
+            </div>
+        }
     </main>
 </div>
 
@@ -943,12 +1015,24 @@
         catch (ObjectDisposedException) { }
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         _logFilterCts?.Cancel();
         _logFilterCts?.Dispose();
         _mediaFilterCts?.Cancel();
         _mediaFilterCts?.Dispose();
+        _diagTimer?.Dispose();
+
+        if (_jsModule != null)
+        {
+            try
+            {
+                await _jsModule.InvokeVoidAsync("destroyAllCharts");
+                await _jsModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException) { }
+            catch (ObjectDisposedException) { }
+        }
     }
 
     // Media tab state
@@ -1015,5 +1099,88 @@
         if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
         if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
         return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
+    }
+
+    // Diagnostics tab
+    private IJSObjectReference? _jsModule;
+    private DiagnosticsSnapshot? diagLatest;
+    private System.Threading.Timer? _diagTimer;
+    private bool diagLoaded;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _jsModule = await JS.InvokeAsync<IJSObjectReference>("import",
+                "./Components/Pages/Admin.razor.js");
+        }
+    }
+
+    private async Task SelectDiagnosticsTab()
+    {
+        activeSection = "diagnostics";
+        if (!diagLoaded)
+        {
+            diagLoaded = true;
+            await LoadDiagnostics();
+            _diagTimer = new System.Threading.Timer(async _ =>
+            {
+                if (activeSection != "diagnostics") return;
+                await InvokeAsync(async () =>
+                {
+                    try
+                    {
+                        await LoadDiagnostics();
+                        StateHasChanged();
+                    }
+                    catch (ObjectDisposedException) { }
+                    catch (InvalidOperationException) { }
+                });
+            }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+        }
+        else
+        {
+            await LoadDiagnostics();
+        }
+    }
+
+    private async Task LoadDiagnostics()
+    {
+        var snapshots = DiagCollector.GetSnapshots();
+        diagLatest = DiagCollector.GetLatest();
+
+        if (_jsModule == null || snapshots.Count == 0) return;
+
+        var labels = snapshots.Select(s => s.Timestamp.ToString("HH:mm")).ToArray();
+
+        try
+        {
+            // Users & Sessions chart
+            await _jsModule.InvokeVoidAsync("createOrUpdateChart", "diag-chart-users", labels, new[]
+            {
+                new { label = "Unique Users", data = snapshots.Select(s => s.UniqueUsers).ToArray(),
+                      borderColor = "#3ba55c", backgroundColor = "rgba(59,165,92,0.1)" },
+                new { label = "Sessions", data = snapshots.Select(s => s.UserSessions).ToArray(),
+                      borderColor = "#5865f2", backgroundColor = "rgba(88,101,242,0.1)" }
+            });
+
+            // Circuits chart
+            await _jsModule.InvokeVoidAsync("createOrUpdateChart", "diag-chart-circuits", labels, new[]
+            {
+                new { label = "Active", data = snapshots.Select(s => s.ActiveCircuits).ToArray(),
+                      borderColor = "#3ba55c", backgroundColor = "rgba(59,165,92,0.1)" },
+                new { label = "Disconnected", data = snapshots.Select(s => s.DisconnectedCircuits).ToArray(),
+                      borderColor = "#faa61a", backgroundColor = "rgba(250,166,26,0.1)" }
+            });
+
+            // Messages chart
+            await _jsModule.InvokeVoidAsync("createOrUpdateChart", "diag-chart-messages", labels, new[]
+            {
+                new { label = "Total Messages", data = snapshots.Select(s => s.TotalMessages).ToArray(),
+                      borderColor = "#5865f2", backgroundColor = "rgba(88,101,242,0.15)", fill = true }
+            });
+        }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
     }
 }

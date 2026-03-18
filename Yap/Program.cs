@@ -147,6 +147,10 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<UserActionLogServi
 builder.Services.AddSingleton<MediaUploadLogService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<MediaUploadLogService>());
 
+// Diagnostics collector (captures snapshots every 30s for admin charts)
+builder.Services.AddSingleton<DiagnosticsCollectorService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<DiagnosticsCollectorService>());
+
 // CORS for upload subdomain (tus uploads may come from a different origin)
 builder.Services.AddCors(options =>
 {

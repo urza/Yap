@@ -645,6 +645,10 @@ window.initEmojiPickerScroll = (contentElement) => {
 window.setupEmojiPickerClick = (pickerElement, textareaId) => {
     if (!pickerElement || !textareaId) return;
 
+    // Track cursor position ourselves — Blazor re-renders reset selectionStart to 0
+    // when the textarea doesn't have focus.
+    let cursorPos = null;
+
     pickerElement.addEventListener('click', (e) => {
         const btn = e.target.closest('.emoji-btn[data-emoji]');
         if (!btn) return;
@@ -655,15 +659,16 @@ window.setupEmojiPickerClick = (pickerElement, textareaId) => {
         const textarea = document.getElementById(textareaId);
         if (!textarea) return;
 
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
+        // Use tracked position, or fall back to end of text
+        const pos = cursorPos !== null ? cursorPos : textarea.value.length;
         const value = textarea.value;
 
-        textarea.value = value.substring(0, start) + emoji + value.substring(end);
+        textarea.value = value.substring(0, pos) + emoji + value.substring(pos);
 
-        const newPos = start + emoji.length;
+        const newPos = pos + emoji.length;
         textarea.selectionStart = newPos;
         textarea.selectionEnd = newPos;
+        cursorPos = newPos;
 
         textarea.dispatchEvent(new Event('input', { bubbles: true }));
         window.autoResizeTextarea(textareaId);
