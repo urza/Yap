@@ -661,6 +661,17 @@ window.setupEmojiPickerClick = (pickerElement, textareaId) => {
     // when the textarea doesn't have focus.
     let cursorPos = null;
 
+    // Blur search input on pointerdown to dismiss mobile keyboard early,
+    // so the click event fires without keyboard dismissal delay.
+    pickerElement.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('.emoji-btn[data-emoji]')) {
+            const searchInput = pickerElement.querySelector('.emoji-search input');
+            if (searchInput && document.activeElement === searchInput) {
+                searchInput.blur();
+            }
+        }
+    });
+
     pickerElement.addEventListener('click', (e) => {
         const btn = e.target.closest('.emoji-btn[data-emoji]');
         if (!btn) return;
