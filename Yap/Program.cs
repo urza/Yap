@@ -125,6 +125,7 @@ builder.Services.AddHttpClient("LinkPreview", client =>
 // Chat services
 builder.Services.AddSingleton<LinkPreviewSettingsService>();
 builder.Services.AddSingleton<LinkPreviewService>();
+builder.Services.AddSingleton<MediaCacheService>();
 builder.Services.AddSingleton<GeoLocationService>();
 builder.Services.AddSingleton<CustomEmojiService>();
 builder.Services.AddSingleton<ImageService>();
@@ -255,6 +256,15 @@ app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(welcomePath),
     RequestPath = "/welcome-content"
+});
+
+// Serve cached media from Data/media-cache/ folder
+var mediaCachePath = Path.Combine(app.Environment.ContentRootPath, "Data", "media-cache");
+Directory.CreateDirectory(mediaCachePath);
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(mediaCachePath),
+    RequestPath = "/media-cache"
 });
 
 // Custom middlewares - positioned after UseStaticFiles() to skip static file requests

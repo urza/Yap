@@ -18,6 +18,7 @@ public class ChatService
     private readonly UserService _userService;
     private readonly LinkPreviewService _linkPreviewService;
     private readonly LinkPreviewSettingsService _linkPreviewSettings;
+    private readonly MediaCacheService _mediaCacheService;
     private readonly ILogger<ChatService> _logger;
 
     // Channels (rooms and DMs)
@@ -59,6 +60,9 @@ public class ChatService
     // Link preview ready (messageId) - fired when OG data is fetched for a message's URL
     public event Action<Guid>? OnLinkPreviewReady;
 
+    // Media cache ready (messageId) - fired when yt-dlp download completes
+    public event Action<Guid>? OnMediaCacheReady;
+
     // Per-user status (shared across all sessions for the same user)
     private readonly ConcurrentDictionary<string, UserStatus> _userStatuses = new(StringComparer.OrdinalIgnoreCase);
 
@@ -70,17 +74,29 @@ public class ChatService
     public record UserSession(Guid UserId, string Username, string SessionId, bool? IsMobile = null, bool PageVisible = true, DateTime LastActivity = default, string? ClientIp = null);
 
     public ChatService(PushNotificationService pushService, ChatPersistenceService persistence, UserService userService,
-        LinkPreviewService linkPreviewService, LinkPreviewSettingsService linkPreviewSettings, ILogger<ChatService> logger)
+        LinkPreviewService linkPreviewService, LinkPreviewSettingsService linkPreviewSettings,
+        MediaCacheService mediaCacheService, ILogger<ChatService> logger)
     {
         _pushService = pushService;
         _persistence = persistence;
         _userService = userService;
         _linkPreviewService = linkPreviewService;
         _linkPreviewSettings = linkPreviewSettings;
+        _mediaCacheService = mediaCacheService;
         _logger = logger;
 
         // Wire link preview callback
         _linkPreviewService.OnPreviewFetched = (msgId, url, preview) => OnLinkPreviewReady?.Invoke(msgId);
+
+        // Wire media cache callback: attach media info to LinkPreview, then fire event
+        _mediaCacheService.OnMediaCached = (msgId, url, entry) =>
+        {
+            var preview = _linkPreviewService.GetOrCreatePreview(url);
+            preview.CachedMediaUrl = entry.LocalUrl;
+            preview.MediaType = entry.MediaType;
+            preview.MediaDurationSeconds = entry.DurationSeconds;
+            OnMediaCacheReady?.Invoke(msgId);
+        };
 
         // Create default lobby channel (will be replaced if loading from DB)
         var lobby = Channel.CreateRoom("lobby", createdById: null, createdBy: null, isDefault: true);
@@ -760,6 +776,10 @@ public class ChatService
             foreach (var url in urls.Take(5))
             {
                 _linkPreviewService.QueueFetch(message.Id, url);
+
+                // Also queue media caching (yt-dlp determines if URL is supported)
+                if (_linkPreviewSettings.MediaCachingEnabled)
+                    _mediaCacheService.QueueDownload(message.Id, url);
             }
         }
 

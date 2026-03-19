@@ -1,0 +1,39 @@
+@using Yap.Models
+
+@if (!string.IsNullOrEmpty(Preview.CachedMediaUrl))
+{
+    <div class="media-player-container">
+        @if (Preview.MediaType == CachedMediaType.Video)
+        {
+            <video controls preload="auto" class="cached-video-player">
+                <source src="@Preview.CachedMediaUrl" type="video/mp4" />
+            </video>
+        }
+        else if (Preview.MediaType == CachedMediaType.Audio)
+        {
+            <div class="cached-audio-player">
+                @if (!string.IsNullOrEmpty(Preview.ImageUrl))
+                {
+                    <img src="@Preview.ImageUrl" alt="" class="audio-thumbnail" loading="lazy" />
+                }
+                <div class="audio-info">
+                    @if (!string.IsNullOrEmpty(Preview.Title))
+                    {
+                        <span class="audio-title">@Preview.Title</span>
+                    }
+                    @if (!string.IsNullOrEmpty(Preview.SiteName))
+                    {
+                        <span class="audio-site">@Preview.SiteName</span>
+                    }
+                    <audio controls preload="metadata" class="audio-element">
+                        <source src="@Preview.CachedMediaUrl" type="audio/ogg" />
+                    </audio>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public LinkPreview Preview { get; set; } = default!;
+}

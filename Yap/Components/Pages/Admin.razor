@@ -8,6 +8,7 @@
 @inject SystemBotService BotService
 @inject RegistrationGateService RegistrationGate
 @inject LinkPreviewSettingsService LinkPreviewSettings
+@inject MediaCacheService MediaCacheService
 @inject MediaUploadLogService MediaLog
 @inject VideoService VideoService
 @inject NavigationManager Navigation
@@ -474,6 +475,24 @@
                         <span class="toggle-slider"></span>
                     </label>
                 </label>
+
+                <label class="toggle-row">
+                    <div class="toggle-info">
+                        <span class="toggle-label">Enable media caching</span>
+                        <span class="toggle-hint">
+                            Auto-download videos/audio from YouTube, Spotify, SoundCloud (under 10 min) for inline playback.
+                            @if (!MediaCacheService.IsAvailable)
+                            {
+                                <br /><strong style="color: var(--status-away);">yt-dlp not found on this system.</strong>
+                            }
+                        </span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" checked="@mediaCachingEnabled" @onchange="ToggleMediaCaching"
+                               disabled="@(!MediaCacheService.IsAvailable)" />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </label>
             </div>
 
             @if (pendingUsersList.Count > 0)
@@ -783,6 +802,7 @@
 
         // Load link preview settings
         linkPreviewsEnabled = LinkPreviewSettings.Enabled;
+        mediaCachingEnabled = LinkPreviewSettings.MediaCachingEnabled;
     }
 
     private async Task SelectUser(Guid userId)
@@ -874,6 +894,7 @@
 
     // Link preview settings
     private bool linkPreviewsEnabled;
+    private bool mediaCachingEnabled;
 
     private async Task ToggleRegistrationClosed(ChangeEventArgs e)
     {
@@ -897,6 +918,12 @@
     {
         linkPreviewsEnabled = (bool)(e.Value ?? false);
         await LinkPreviewSettings.SetEnabledAsync(linkPreviewsEnabled);
+    }
+
+    private async Task ToggleMediaCaching(ChangeEventArgs e)
+    {
+        mediaCachingEnabled = (bool)(e.Value ?? false);
+        await LinkPreviewSettings.SetMediaCachingEnabledAsync(mediaCachingEnabled);
     }
 
     private void ApprovePending(string username)

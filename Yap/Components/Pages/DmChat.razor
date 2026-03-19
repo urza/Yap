@@ -123,8 +123,9 @@
         ChatService.OnMessageDeleted += HandleMessageDeleted;
         ChatService.OnReactionChanged += HandleReactionChanged;
         ChatService.OnLinkPreviewReady += HandleLinkPreviewReady;
+        ChatService.OnMediaCacheReady += HandleLinkPreviewReady;
 
-        // Queue link preview fetches for loaded messages
+        // Queue link preview + media cache fetches for loaded messages
         QueuePreviewsForMessages(messages);
 
         initialized = true;
@@ -215,7 +216,13 @@
         {
             try
             {
+                var wasNearBottom = await JS.InvokeAsync<bool>("isNearBottom", 100);
                 await InvokeAsync(StateHasChanged);
+                if (wasNearBottom)
+                {
+                    await Task.Delay(50);
+                    await ScrollToBottomAsync();
+                }
             }
             catch (Exception ex)
             {
@@ -236,6 +243,7 @@
         ChatService.OnMessageDeleted -= HandleMessageDeleted;
         ChatService.OnReactionChanged -= HandleReactionChanged;
         ChatService.OnLinkPreviewReady -= HandleLinkPreviewReady;
+        ChatService.OnMediaCacheReady -= HandleLinkPreviewReady;
 
         // Mark channel as read when leaving to ensure no stale unread counts
         if (channelId != Guid.Empty && UserId != Guid.Empty)

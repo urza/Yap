@@ -83,6 +83,20 @@ public partial class LinkPreviewService
     }
 
     /// <summary>
+    /// Gets existing preview or creates a minimal one (for media cache to attach to
+    /// when OG scrape failed or hasn't completed).
+    /// </summary>
+    public LinkPreview GetOrCreatePreview(string url)
+    {
+        if (_cache.TryGetValue(url, out var existing) && DateTime.UtcNow - existing.FetchedAt < CacheTtl)
+            return existing;
+
+        var preview = new LinkPreview { Url = url, FetchedAt = DateTime.UtcNow };
+        _cache[url] = preview;
+        return preview;
+    }
+
+    /// <summary>
     /// Fire-and-forget background fetch. Invokes OnPreviewFetched when done.
     /// </summary>
     public void QueueFetch(Guid messageId, string url)

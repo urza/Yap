@@ -22,6 +22,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     [Inject] protected SystemBotService BotService { get; set; } = default!;
     [Inject] protected LinkPreviewService LinkPreviewService { get; set; } = default!;
     [Inject] protected LinkPreviewSettingsService LinkPreviewSettings { get; set; } = default!;
+    [Inject] protected MediaCacheService MediaCacheService { get; set; } = default!;
     [Inject] protected ILogger<ChatBase> Logger { get; set; } = default!;
 
     // Common accessors
@@ -676,7 +677,18 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
         foreach (var url in urls.Take(5))
         {
             var preview = LinkPreviewService.GetCachedPreview(url);
-            if (preview?.HasContent == true)
+
+            // Check for cached media (memory + disk) and attach to preview
+            var media = MediaCacheService.GetCachedMedia(url);
+            if (media != null)
+            {
+                preview ??= LinkPreviewService.GetOrCreatePreview(url);
+                preview.CachedMediaUrl = media.LocalUrl;
+                preview.MediaType = media.MediaType;
+                preview.MediaDurationSeconds = media.DurationSeconds;
+            }
+
+            if (preview != null && (preview.HasContent || preview.CachedMediaUrl != null))
                 previews.Add(preview);
         }
 
@@ -698,6 +710,10 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
             foreach (var url in urls.Take(5))
             {
                 LinkPreviewService.QueueFetch(msg.Id, url);
+
+                // Also queue media caching (yt-dlp determines if URL is supported)
+                if (LinkPreviewSettings.MediaCachingEnabled)
+                    MediaCacheService.QueueDownload(msg.Id, url);
             }
         }
     }

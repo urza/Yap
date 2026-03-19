@@ -130,12 +130,19 @@
         }
         </div>
 
-        @* Link preview cards *@
+        @* Link preview cards / Media players *@
         @if (LinkPreviews != null)
         {
             @foreach (var preview in LinkPreviews)
             {
-                <LinkPreviewCard Preview="@preview" />
+                @if (!string.IsNullOrEmpty(preview.CachedMediaUrl))
+                {
+                    <MediaPlayer Preview="@preview" />
+                }
+                else
+                {
+                    <LinkPreviewCard Preview="@preview" />
+                }
             }
         }
 
