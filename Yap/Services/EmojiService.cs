@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Components;
@@ -160,6 +161,64 @@ public partial class EmojiService
         }
 
         return new MarkupString(result);
+    }
+
+    /// <summary>
+    /// Processes message content: extracts URLs and makes them clickable links,
+    /// then applies emoji conversion to the non-URL parts.
+    /// URLs are not processed for emoji shortcodes (e.g., :something: in a URL stays as-is).
+    /// </summary>
+    public MarkupString ProcessMessageContent(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return new MarkupString(text);
+
+        var urls = LinkPreviewService.ExtractUrls(text);
+        if (urls.Count == 0)
+            return ConvertEmojisToTwemoji(text);
+
+        // Split text around URLs and process each segment
+        var sb = new StringBuilder();
+        var remaining = text;
+
+        foreach (var url in urls)
+        {
+            // Find the raw URL text in the remaining string
+            // The URL might have been normalized (https:// prepended), so find the original text
+            var searchUrl = url;
+            var idx = remaining.IndexOf(searchUrl, StringComparison.Ordinal);
+
+            // If normalized URL not found, try without https:// prefix (bare domain case)
+            if (idx < 0 && searchUrl.StartsWith("https://"))
+            {
+                searchUrl = searchUrl["https://".Length..];
+                idx = remaining.IndexOf(searchUrl, StringComparison.Ordinal);
+            }
+
+            if (idx < 0) continue;
+
+            // Process text before the URL (with emoji conversion)
+            if (idx > 0)
+            {
+                var before = remaining[..idx];
+                sb.Append(ConvertEmojisToTwemoji(before).Value);
+            }
+
+            // Render the URL as a clickable link (HTML-encoded, no emoji processing)
+            var encodedUrl = WebUtility.HtmlEncode(url);
+            var encodedDisplay = WebUtility.HtmlEncode(searchUrl);
+            sb.Append($"<a href=\"{encodedUrl}\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"message-link\">{encodedDisplay}</a>");
+
+            remaining = remaining[(idx + searchUrl.Length)..];
+        }
+
+        // Process any remaining text after the last URL
+        if (remaining.Length > 0)
+        {
+            sb.Append(ConvertEmojisToTwemoji(remaining).Value);
+        }
+
+        return new MarkupString(sb.ToString());
     }
 
     private bool IsEmojiOnlyMessage(string text)

@@ -7,6 +7,7 @@
 @inject GeoLocationService GeoLocation
 @inject SystemBotService BotService
 @inject RegistrationGateService RegistrationGate
+@inject LinkPreviewSettingsService LinkPreviewSettings
 @inject MediaUploadLogService MediaLog
 @inject VideoService VideoService
 @inject NavigationManager Navigation
@@ -457,6 +458,24 @@
                 </label>
             </div>
 
+            <div class="section-header" style="margin-top: 2rem;">
+                <h3>Link Previews</h3>
+                <span class="section-count">OpenGraph preview cards</span>
+            </div>
+
+            <div class="registration-settings">
+                <label class="toggle-row">
+                    <div class="toggle-info">
+                        <span class="toggle-label">Enable link previews</span>
+                        <span class="toggle-hint">Show OpenGraph preview cards below messages with URLs.</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" checked="@linkPreviewsEnabled" @onchange="ToggleLinkPreviews" />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </label>
+            </div>
+
             @if (pendingUsersList.Count > 0)
             {
                 <div class="section-header" style="margin-top: 2rem;">
@@ -761,6 +780,9 @@
         regApproval = RegistrationGate.RequireApproval;
         smartMode = RegistrationGate.SmartMode;
         pendingUsersList = RegistrationGate.GetPendingUsers();
+
+        // Load link preview settings
+        linkPreviewsEnabled = LinkPreviewSettings.Enabled;
     }
 
     private async Task SelectUser(Guid userId)
@@ -850,6 +872,9 @@
     private bool smartMode;
     private List<(string Username, DateTime RequestedAt)> pendingUsersList = new();
 
+    // Link preview settings
+    private bool linkPreviewsEnabled;
+
     private async Task ToggleRegistrationClosed(ChangeEventArgs e)
     {
         regClosed = (bool)(e.Value ?? false);
@@ -866,6 +891,12 @@
     {
         smartMode = (bool)(e.Value ?? false);
         await RegistrationGate.SetSmartModeAsync(smartMode);
+    }
+
+    private async Task ToggleLinkPreviews(ChangeEventArgs e)
+    {
+        linkPreviewsEnabled = (bool)(e.Value ?? false);
+        await LinkPreviewSettings.SetEnabledAsync(linkPreviewsEnabled);
     }
 
     private void ApprovePending(string username)

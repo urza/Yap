@@ -122,13 +122,22 @@
         }
         else
         {
-            @EmojiService.ConvertEmojisToTwemoji(Message.Content)
+            @EmojiService.ProcessMessageContent(Message.Content)
             @if (Message.IsEdited)
             {
                 <span class="edited-indicator">(edited)</span>
             }
         }
         </div>
+
+        @* Link preview cards *@
+        @if (LinkPreviews != null)
+        {
+            @foreach (var preview in LinkPreviews)
+            {
+                <LinkPreviewCard Preview="@preview" />
+            }
+        }
 
         @* Reactions display *@
         @if (Message.Reactions?.Count > 0)
@@ -215,6 +224,7 @@
     [Parameter] public List<string> QuickReactions { get; set; } = new(); // Cached quick reactions
     [Parameter] public bool IsBot { get; set; }
     [Parameter] public bool IsReplyTarget { get; set; }
+    [Parameter] public List<Yap.Models.LinkPreview>? LinkPreviews { get; set; }
 
     // Computed from Message
     private bool IsOwn => Message.Username.Equals(CurrentUsername, StringComparison.OrdinalIgnoreCase);

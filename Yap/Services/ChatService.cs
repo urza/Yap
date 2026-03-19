@@ -16,6 +16,8 @@ public class ChatService
     private readonly PushNotificationService _pushService;
     private readonly ChatPersistenceService _persistence;
     private readonly UserService _userService;
+    private readonly LinkPreviewService _linkPreviewService;
+    private readonly LinkPreviewSettingsService _linkPreviewSettings;
     private readonly ILogger<ChatService> _logger;
 
     // Channels (rooms and DMs)
@@ -54,6 +56,9 @@ public class ChatService
     // Session kicked event (sessionId) - used to force-disconnect remote circuits
     public event Action<string>? OnSessionKicked;
 
+    // Link preview ready (messageId) - fired when OG data is fetched for a message's URL
+    public event Action<Guid>? OnLinkPreviewReady;
+
     // Per-user status (shared across all sessions for the same user)
     private readonly ConcurrentDictionary<string, UserStatus> _userStatuses = new(StringComparer.OrdinalIgnoreCase);
 
@@ -64,12 +69,18 @@ public class ChatService
 
     public record UserSession(Guid UserId, string Username, string SessionId, bool? IsMobile = null, bool PageVisible = true, DateTime LastActivity = default, string? ClientIp = null);
 
-    public ChatService(PushNotificationService pushService, ChatPersistenceService persistence, UserService userService, ILogger<ChatService> logger)
+    public ChatService(PushNotificationService pushService, ChatPersistenceService persistence, UserService userService,
+        LinkPreviewService linkPreviewService, LinkPreviewSettingsService linkPreviewSettings, ILogger<ChatService> logger)
     {
         _pushService = pushService;
         _persistence = persistence;
         _userService = userService;
+        _linkPreviewService = linkPreviewService;
+        _linkPreviewSettings = linkPreviewSettings;
         _logger = logger;
+
+        // Wire link preview callback
+        _linkPreviewService.OnPreviewFetched = (msgId, url, preview) => OnLinkPreviewReady?.Invoke(msgId);
 
         // Create default lobby channel (will be replaced if loading from DB)
         var lobby = Channel.CreateRoom("lobby", createdById: null, createdBy: null, isDefault: true);
@@ -741,6 +752,16 @@ public class ChatService
 
         OnMessageReceived?.Invoke(message);
         NotifyUnreadChanged(channelId, affectedUserIds);
+
+        // Queue link preview fetches for URLs in the message (fire-and-forget)
+        if (_linkPreviewSettings.Enabled && !message.HasMedia)
+        {
+            var urls = LinkPreviewService.ExtractUrls(content);
+            foreach (var url in urls.Take(5))
+            {
+                _linkPreviewService.QueueFetch(message.Id, url);
+            }
+        }
 
         // Send push notification for DMs (fire-and-forget, doesn't block)
         // Skip only if recipient is actively viewing the app (page visible + live circuit)

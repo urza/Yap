@@ -162,6 +162,15 @@
     overflow-x: hidden;
 }
 
+.message-content ::deep a.message-link {
+    color: var(--accent-focus);
+    text-decoration: none;
+}
+
+.message-content ::deep a.message-link:hover {
+    text-decoration: underline;
+}
+
 /* System messages */
 .system-message {
     display: block;

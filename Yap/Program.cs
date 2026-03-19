@@ -114,7 +114,17 @@ if (pushStorage.Equals("Database", StringComparison.OrdinalIgnoreCase))
 else
     builder.Services.AddSingleton<IPushSubscriptionPersistence, JsonPushSubscriptionPersistence>();
 
+// Named HttpClient for link preview OG scraping
+builder.Services.AddHttpClient("LinkPreview", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (compatible; YapBot/1.0)");
+    client.MaxResponseContentBufferSize = 256 * 1024; // 256KB
+});
+
 // Chat services
+builder.Services.AddSingleton<LinkPreviewSettingsService>();
+builder.Services.AddSingleton<LinkPreviewService>();
 builder.Services.AddSingleton<GeoLocationService>();
 builder.Services.AddSingleton<CustomEmojiService>();
 builder.Services.AddSingleton<ImageService>();

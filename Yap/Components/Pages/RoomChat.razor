@@ -66,7 +66,8 @@
                      OnSaveEdit="SaveEdit"
                      OnCancelEdit="CancelEdit"
                      OnDelete="@(() => DeleteMessage(message.Id))"
-                     OnImageClick="@(args => ShowGallery(args.Images, args.Index))" />
+                     OnImageClick="@(args => ShowGallery(args.Images, args.Index))"
+                     LinkPreviews="@GetLinkPreviews(message)" />
     }
 </div>
 
@@ -137,6 +138,10 @@
         ChatService.OnUserChanged += HandleUserChanged;
         ChatService.OnChannelDeleted += HandleChannelDeleted;
         ChatService.OnChannelUpdated += HandleChannelUpdated;
+        ChatService.OnLinkPreviewReady += HandleLinkPreviewReady;
+
+        // Queue link preview fetches for loaded messages
+        QueuePreviewsForMessages(messages);
     }
 
     private async Task SwitchRoomContentAsync(Guid newRoomId)
@@ -160,6 +165,7 @@
         await JS.InvokeVoidAsync("saveLastRoute", route);
 
         await UpdatePageTitleAsync();
+        QueuePreviewsForMessages(messages);
         await InvokeAsync(StateHasChanged);
         await ScrollToBottomAsync();
     }
@@ -280,6 +286,24 @@
         }
     }
 
+    private async void HandleLinkPreviewReady(Guid messageId)
+    {
+        if (messages.Any(m => m.Id == messageId))
+        {
+            try
+            {
+                await InvokeAsync(StateHasChanged);
+            }
+            catch (Exception ex)
+            {
+                if (ex is ObjectDisposedException or InvalidOperationException)
+                    Logger.LogWarning("HandleLinkPreviewReady: {Message}", ex.Message);
+                else
+                    Logger.LogError(ex, "Error in HandleLinkPreviewReady");
+            }
+        }
+    }
+
     #endregion
 
     public override async ValueTask DisposeAsync()
@@ -291,6 +315,7 @@
         ChatService.OnUserChanged -= HandleUserChanged;
         ChatService.OnChannelDeleted -= HandleChannelDeleted;
         ChatService.OnChannelUpdated -= HandleChannelUpdated;
+        ChatService.OnLinkPreviewReady -= HandleLinkPreviewReady;
 
         // Mark channel as read when leaving to ensure no stale unread counts
         if (channelId != Guid.Empty && UserId != Guid.Empty)

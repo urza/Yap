@@ -20,6 +20,8 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     [Inject] protected IJSRuntime JS { get; set; } = default!;
     [Inject] private IHttpContextAccessor HttpContextAccessor { get; set; } = default!;
     [Inject] protected SystemBotService BotService { get; set; } = default!;
+    [Inject] protected LinkPreviewService LinkPreviewService { get; set; } = default!;
+    [Inject] protected LinkPreviewSettingsService LinkPreviewSettings { get; set; } = default!;
     [Inject] protected ILogger<ChatBase> Logger { get; set; } = default!;
 
     // Common accessors
@@ -304,6 +306,9 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
                 // Prepend to message list
                 messages.InsertRange(0, olderMessages);
                 hasMoreMessages = hasMore;
+
+                // Queue link preview fetches for newly loaded messages
+                QueuePreviewsForMessages(olderMessages);
 
                 // Render update
                 await InvokeAsync(StateHasChanged);
@@ -649,6 +654,52 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
         // Note: quickReactions is NOT updated here - it stays cached for the session
 
         UserService.UpdateEmojiCounts(UserId, emojiCounts);
+    }
+
+    #endregion
+
+    #region Link Previews
+
+    /// <summary>
+    /// Gets cached link previews for a message (max 5). Returns null if previews disabled or no URLs.
+    /// </summary>
+    protected List<Models.LinkPreview>? GetLinkPreviews(Models.ChatMessage message)
+    {
+        if (!LinkPreviewSettings.Enabled || message.HasMedia || string.IsNullOrEmpty(message.Content))
+            return null;
+
+        var urls = LinkPreviewService.ExtractUrls(message.Content);
+        if (urls.Count == 0)
+            return null;
+
+        var previews = new List<Models.LinkPreview>();
+        foreach (var url in urls.Take(5))
+        {
+            var preview = LinkPreviewService.GetCachedPreview(url);
+            if (preview?.HasContent == true)
+                previews.Add(preview);
+        }
+
+        return previews.Count > 0 ? previews : null;
+    }
+
+    /// <summary>
+    /// Queues preview fetches for all messages that contain URLs. Called on page load / infinite scroll.
+    /// </summary>
+    protected void QueuePreviewsForMessages(List<Models.ChatMessage> msgs)
+    {
+        if (!LinkPreviewSettings.Enabled) return;
+
+        foreach (var msg in msgs)
+        {
+            if (msg.HasMedia || string.IsNullOrEmpty(msg.Content)) continue;
+
+            var urls = LinkPreviewService.ExtractUrls(msg.Content);
+            foreach (var url in urls.Take(5))
+            {
+                LinkPreviewService.QueueFetch(msg.Id, url);
+            }
+        }
     }
 
     #endregion
