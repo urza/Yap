@@ -10,6 +10,8 @@ public class MediaCacheService
 {
     private readonly ILogger<MediaCacheService> _logger;
     private readonly IWebHostEnvironment _env;
+    private readonly LinkPreviewSettingsService _settings;
+    private readonly LinkPreviewService? _linkPreviewService;
 
     // Cache: normalized URL -> MediaCacheEntry
     private readonly ConcurrentDictionary<string, MediaCacheEntry> _cache = new();
@@ -26,6 +28,7 @@ public class MediaCacheService
     /// <summary>Whether yt-dlp is available on this system.</summary>
     public static bool IsAvailable { get; private set; }
 
+
     private const int MaxDurationSeconds = 600; // 10 minutes
     private const long MaxFileSizeBytes = 200 * 1024 * 1024; // 200MB safety limit
     private const int DownloadTimeoutMs = 300_000; // 5 minutes
@@ -37,10 +40,12 @@ public class MediaCacheService
     /// </summary>
     public Action<Guid, string, MediaCacheEntry>? OnMediaCached { get; set; }
 
-    public MediaCacheService(ILogger<MediaCacheService> logger, IWebHostEnvironment env)
+    public MediaCacheService(ILogger<MediaCacheService> logger, IWebHostEnvironment env, LinkPreviewSettingsService settings, LinkPreviewService linkPreviewService)
     {
         _logger = logger;
         _env = env;
+        _settings = settings;
+        _linkPreviewService = linkPreviewService;
         DetectYtDlp();
         EnsureCacheDirectory();
     }
@@ -77,6 +82,13 @@ public class MediaCacheService
             IsAvailable = false;
             _logger.LogWarning("yt-dlp not found — media caching will be unavailable");
         }
+    }
+
+
+    private static bool IsSpotifyUrl(string url)
+    {
+        return Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            && uri.Host.Equals("open.spotify.com", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -129,7 +141,10 @@ public class MediaCacheService
 
         // Known failure? (with TTL)
         if (_failedUrls.TryGetValue(url, out var failedAt) && DateTime.UtcNow - failedAt < FailureCacheTtl)
+        {
+            _logger.LogDebug("Skipping {Url}: cached failure from {Ago}s ago", url, (DateTime.UtcNow - failedAt).TotalSeconds);
             return;
+        }
 
         // Already in flight?
         if (!_inFlight.TryAdd(url, 0))
@@ -179,6 +194,10 @@ public class MediaCacheService
             return new MediaCacheEntry($"/media-cache/{hash}{ext}", type, 0);
         }
 
+        // Route Spotify URLs to spotdl
+        if (IsSpotifyUrl(url))
+            return await DownloadSpotifyAsync(url, hash, sw);
+
         // Step 1: Get metadata — duration + whether video is available
         var metadata = await GetMetadataAsync(url);
         if (metadata == null)
@@ -196,7 +215,7 @@ public class MediaCacheService
 
         // Step 2: Download — try video first, fall back to audio-only
         var outputPathMp4 = Path.Combine(CacheDirectory, $"{hash}.mp4");
-        var outputPathAudio = Path.Combine(CacheDirectory, $"{hash}.opus");
+        var outputPathAudio = Path.Combine(CacheDirectory, $"{hash}.mp3");
 
         // Try video download first — prefer H.264 for browser compatibility
         var videoArgs = $"--no-playlist -S \"vcodec:h264\" -f \"bestvideo[height<=720]+bestaudio/best[height<=720]/best\" --merge-output-format mp4 -o \"{outputPathMp4}\" -- \"{url}\"";
@@ -208,7 +227,7 @@ public class MediaCacheService
             _logger.LogDebug("Video download failed for {Url}, trying audio-only: {Err}", url, TruncateLog(stderr));
             TryDeleteFile(outputPathMp4);
 
-            var audioArgs = $"--no-playlist -x --audio-format opus --audio-quality 5 -o \"{outputPathAudio}\" -- \"{url}\"";
+            var audioArgs = $"--no-playlist -x --audio-format mp3 --audio-quality 2 -o \"{outputPathAudio}\" -- \"{url}\"";
             (exitCode, stderr) = await RunYtDlpAsync(audioArgs, DownloadTimeoutMs);
 
             if (exitCode != 0)
@@ -279,6 +298,84 @@ public class MediaCacheService
     /// Gets duration and checks if video streams exist via yt-dlp metadata query.
     /// Returns null if yt-dlp can't handle the URL.
     /// </summary>
+    /// <summary>
+    /// Downloads a Spotify track by searching YouTube for the song title + artist via yt-dlp.
+    /// Uses the OG metadata from LinkPreviewService to build the search query.
+    /// </summary>
+    private async Task<MediaCacheEntry?> DownloadSpotifyAsync(string url, string hash, Stopwatch sw)
+    {
+        if (!IsAvailable)
+        {
+            _logger.LogDebug("yt-dlp not available, cannot download Spotify via YouTube search");
+            return null;
+        }
+
+        // Get OG metadata for song title + artist
+        var preview = _linkPreviewService?.GetCachedPreview(url);
+        string? searchQuery = null;
+
+        if (preview != null && !string.IsNullOrEmpty(preview.Title))
+        {
+            // OG title is usually "Song Name - Artist" or "Song Name · Artist"
+            searchQuery = preview.Title;
+        }
+
+        if (string.IsNullOrEmpty(searchQuery))
+        {
+            // OG scrape hasn't completed yet or failed — wait briefly and retry
+            await Task.Delay(3000);
+            preview = _linkPreviewService?.GetCachedPreview(url);
+            searchQuery = preview?.Title;
+        }
+
+        if (string.IsNullOrEmpty(searchQuery))
+        {
+            _logger.LogWarning("No title found for Spotify URL {Url}, cannot search YouTube", url);
+            return null;
+        }
+
+        // Clean up the title — remove "song on Spotify" suffix if present
+        searchQuery = searchQuery.Replace(" | Spotify", "").Replace(" - song by ", " ").Replace(" on Spotify", "").Trim();
+
+        _logger.LogInformation("Spotify -> YouTube search: \"{Query}\" for {Url}", searchQuery, url);
+
+        // Use yt-dlp's YouTube search to find and download audio
+        var outputPath = Path.Combine(CacheDirectory, $"{hash}.mp3");
+        var args = $"--no-playlist -x --audio-format mp3 --audio-quality 2 \"ytsearch1:{searchQuery}\" -o \"{outputPath}\"";
+        var (exitCode, stderr) = await RunYtDlpAsync(args, DownloadTimeoutMs);
+
+        if (exitCode != 0)
+        {
+            _logger.LogWarning("yt-dlp YouTube search failed for Spotify {Url} (query=\"{Query}\", exit={Code}): {Err}",
+                url, searchQuery, exitCode, TruncateLog(stderr));
+            TryDeleteFile(outputPath);
+            return null;
+        }
+
+        var actualPath = FindOutputFile(hash);
+        if (actualPath == null)
+        {
+            _logger.LogWarning("yt-dlp completed but output file not found for Spotify {Url}", url);
+            return null;
+        }
+
+        var fileSize = new FileInfo(actualPath).Length;
+        if (fileSize > MaxFileSizeBytes)
+        {
+            _logger.LogWarning("Spotify cached file too large ({SizeMB}MB), deleting: {Url}", fileSize / (1024 * 1024), url);
+            TryDeleteFile(actualPath);
+            return null;
+        }
+
+        var actualExt = Path.GetExtension(actualPath);
+        var localUrl = $"/media-cache/{hash}{actualExt}";
+
+        _logger.LogInformation("Cached Spotify: {Url} -> {File} ({SizeKB}KB, \"{Query}\", {ElapsedMs}ms)",
+            url, Path.GetFileName(actualPath), fileSize / 1024, searchQuery, sw.ElapsedMilliseconds);
+
+        return new MediaCacheEntry(localUrl, CachedMediaType.Audio, 0);
+    }
+
     private async Task<MediaMetadata?> GetMetadataAsync(string url)
     {
         var (exitCode, stdout) = await RunYtDlpAsync(

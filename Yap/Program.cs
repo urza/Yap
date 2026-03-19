@@ -261,10 +261,14 @@ app.UseStaticFiles(new StaticFileOptions
 // Serve cached media from Data/media-cache/ folder
 var mediaCachePath = Path.Combine(app.Environment.ContentRootPath, "Data", "media-cache");
 Directory.CreateDirectory(mediaCachePath);
+var mediaCacheContentTypes = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+mediaCacheContentTypes.Mappings[".opus"] = "audio/ogg";
+mediaCacheContentTypes.Mappings[".m4a"] = "audio/mp4";
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(mediaCachePath),
-    RequestPath = "/media-cache"
+    RequestPath = "/media-cache",
+    ContentTypeProvider = mediaCacheContentTypes
 });
 
 // Custom middlewares - positioned after UseStaticFiles() to skip static file requests

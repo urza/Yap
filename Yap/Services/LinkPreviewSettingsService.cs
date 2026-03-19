@@ -36,6 +36,7 @@ public class LinkPreviewSettingsService
         _logger.LogInformation("Media caching enabled set to {Enabled}", enabled);
     }
 
+
     private void LoadSettings()
     {
         try
@@ -69,7 +70,11 @@ public class LinkPreviewSettingsService
     {
         try
         {
-            var settings = new LinkPreviewSettings { Enabled = _enabled, MediaCachingEnabled = _mediaCachingEnabled };
+            var settings = new LinkPreviewSettings
+            {
+                Enabled = _enabled,
+                MediaCachingEnabled = _mediaCachingEnabled
+            };
             var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(SettingsFilePath, json);
         }
