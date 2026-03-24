@@ -654,36 +654,44 @@ window.initEmojiPickerScroll = (contentElement) => {
 // without waiting for Blazor server round-trip. Blazor @onclick still fires for bookkeeping.
 // Note: intentionally does NOT focus the textarea — on mobile, focus() within a user gesture
 // triggers the keyboard, which we don't want while the emoji picker is open.
-window.setupEmojiPickerClick = (pickerElement, textareaId) => {
-    if (!pickerElement || !textareaId) return;
+// Document-level event delegation for emoji picker clicks.
+// Survives Blazor DOM replacements — the handler is on document, not the picker element.
+let _emojiTextareaId = null;
+let _emojiCursorPos = null;
+let _emojiClickSetup = false;
 
-    // Track cursor position ourselves — Blazor re-renders reset selectionStart to 0
-    // when the textarea doesn't have focus.
-    let cursorPos = null;
+window.setupEmojiPickerClick = (pickerElement, textareaId) => {
+    _emojiTextareaId = textareaId;
+    _emojiCursorPos = null;
+
+    if (_emojiClickSetup) return;
+    _emojiClickSetup = true;
 
     // Blur search input on pointerdown to dismiss mobile keyboard early,
     // so the click event fires without keyboard dismissal delay.
-    pickerElement.addEventListener('pointerdown', (e) => {
-        if (e.target.closest('.emoji-btn[data-emoji]')) {
-            const searchInput = pickerElement.querySelector('.emoji-search input');
+    document.addEventListener('pointerdown', (e) => {
+        const btn = e.target.closest('.emoji-picker .emoji-btn[data-emoji]');
+        if (btn) {
+            const searchInput = btn.closest('.emoji-picker')?.querySelector('.emoji-search input');
             if (searchInput && document.activeElement === searchInput) {
                 searchInput.blur();
             }
         }
     });
 
-    pickerElement.addEventListener('click', (e) => {
-        const btn = e.target.closest('.emoji-btn[data-emoji]');
+    // Track cursor position ourselves — Blazor re-renders reset selectionStart to 0
+    // when the textarea doesn't have focus.
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.emoji-picker .emoji-btn[data-emoji]');
         if (!btn) return;
 
         const emoji = btn.getAttribute('data-emoji');
-        if (!emoji) return;
+        if (!emoji || !_emojiTextareaId) return;
 
-        const textarea = document.getElementById(textareaId);
+        const textarea = document.getElementById(_emojiTextareaId);
         if (!textarea) return;
 
-        // Use tracked position, or fall back to end of text
-        const pos = cursorPos !== null ? cursorPos : textarea.value.length;
+        const pos = _emojiCursorPos !== null ? _emojiCursorPos : textarea.value.length;
         const value = textarea.value;
 
         textarea.value = value.substring(0, pos) + emoji + value.substring(pos);
@@ -691,10 +699,10 @@ window.setupEmojiPickerClick = (pickerElement, textareaId) => {
         const newPos = pos + emoji.length;
         textarea.selectionStart = newPos;
         textarea.selectionEnd = newPos;
-        cursorPos = newPos;
+        _emojiCursorPos = newPos;
 
         textarea.dispatchEvent(new Event('input', { bubbles: true }));
-        window.autoResizeTextarea(textareaId);
+        window.autoResizeTextarea(_emojiTextareaId);
     });
 };
 
