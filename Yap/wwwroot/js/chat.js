@@ -79,22 +79,37 @@ window.scrollToBottom = () => {
     // Scroll immediately
     requestAnimationFrame(doScroll);
 
-    // Wait for ALL pending images to finish loading, then do one
-    // final scroll. Handles lazy-loaded images whose real dimensions
-    // differ from the width/height placeholder, causing layout shifts.
-    const pending = Array.from(element.querySelectorAll('img')).filter(img => !img.complete);
-    if (pending.length > 0) {
-        let remaining = pending.length;
-        const onSettled = () => {
-            if (--remaining === 0) {
-                requestAnimationFrame(doScroll);
-            }
-        };
-        pending.forEach(img => {
-            img.addEventListener('load', onSettled, { once: true });
-            img.addEventListener('error', onSettled, { once: true });
-        });
-    }
+    // Wait for ALL pending media (images, videos, audio) to settle, then
+    // re-scroll. Handles late-loading media whose real dimensions differ
+    // from the placeholder, causing layout shifts that strand the user
+    // above the actual bottom.
+    const pendingImgs = Array.from(element.querySelectorAll('img')).filter(img => !img.complete);
+    const pendingMedia = Array.from(element.querySelectorAll('video, audio'))
+        .filter(m => m.readyState < 1 /* HAVE_METADATA */);
+
+    const total = pendingImgs.length + pendingMedia.length;
+    if (total === 0) return;
+
+    let remaining = total;
+    const onSettled = () => {
+        if (--remaining === 0) {
+            requestAnimationFrame(doScroll);
+        }
+    };
+
+    pendingImgs.forEach(img => {
+        img.addEventListener('load', onSettled, { once: true });
+        img.addEventListener('error', onSettled, { once: true });
+    });
+    pendingMedia.forEach(m => {
+        let done = false;
+        const fire = () => { if (!done) { done = true; onSettled(); } };
+        m.addEventListener('loadedmetadata', fire, { once: true });
+        m.addEventListener('error', fire, { once: true });
+        // Safety: some browsers/elements never fire loadedmetadata
+        // (e.g. cross-origin or stalled fetches). Don't wait forever.
+        setTimeout(fire, 1500);
+    });
 };
 
 // Check if user is scrolled near the bottom of messages

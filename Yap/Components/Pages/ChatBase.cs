@@ -572,6 +572,14 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
             await UpdatePageTitleAsync();
             await InvokeAsync(StateHasChanged);
         }
+
+        // On PWA/tab resume, snap back to the bottom. Media (videos, link
+        // previews) may have finished loading while backgrounded and shifted
+        // the layout, leaving the user stranded above the real bottom.
+        if (visible)
+        {
+            await ScrollToBottomAsync();
+        }
     }
 
     protected async Task UpdatePageTitleAsync()
@@ -686,6 +694,11 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
                 preview.CachedMediaUrl = media.LocalUrl;
                 preview.MediaType = media.MediaType;
                 preview.MediaDurationSeconds = media.DurationSeconds;
+                if (media.Width > 0 && media.Height > 0)
+                {
+                    preview.MediaWidth = media.Width;
+                    preview.MediaHeight = media.Height;
+                }
             }
 
             if (preview != null && (preview.HasContent || preview.CachedMediaUrl != null))

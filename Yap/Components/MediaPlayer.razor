@@ -5,7 +5,7 @@
     <div class="media-player-container">
         @if (Preview.MediaType == CachedMediaType.Video)
         {
-            <video controls preload="auto" class="cached-video-player">
+            <video controls preload="auto" class="cached-video-player" style="@VideoAspectStyle">
                 <source src="@Preview.CachedMediaUrl" type="video/mp4" />
             </video>
         }
@@ -36,4 +36,12 @@
 
 @code {
     [Parameter, EditorRequired] public LinkPreview Preview { get; set; } = default!;
+
+    // Per-video aspect-ratio override so portrait videos (TikTok / Shorts) reserve
+    // a 9:16-ish box instead of the CSS-default 16/9 fallback. Empty when unknown
+    // (lets CSS fallback apply).
+    private string VideoAspectStyle =>
+        Preview.MediaWidth is > 0 && Preview.MediaHeight is > 0
+            ? $"aspect-ratio: {Preview.MediaWidth} / {Preview.MediaHeight};"
+            : "";
 }

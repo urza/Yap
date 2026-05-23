@@ -95,6 +95,11 @@ public class ChatService
             preview.CachedMediaUrl = entry.LocalUrl;
             preview.MediaType = entry.MediaType;
             preview.MediaDurationSeconds = entry.DurationSeconds;
+            if (entry.Width > 0 && entry.Height > 0)
+            {
+                preview.MediaWidth = entry.Width;
+                preview.MediaHeight = entry.Height;
+            }
             OnMediaCacheReady?.Invoke(msgId);
         };
 

@@ -114,7 +114,18 @@ public class MediaCacheService
         {
             var ext = Path.GetExtension(diskFile);
             var type = IsVideoExtension(ext) ? CachedMediaType.Video : CachedMediaType.Audio;
-            var entry = new MediaCacheEntry($"/media-cache/{hash}{ext}", type, 0);
+
+            // Pick up dimensions from sidecar if present (videos only); otherwise
+            // kick off a background probe so the next render gets them.
+            var (w, h) = (0, 0);
+            if (type == CachedMediaType.Video)
+            {
+                var dims = ReadDimensionsSidecar(hash);
+                if (dims != null) (w, h) = dims.Value;
+                else QueueLazyDimensionsProbe(url, hash, diskFile);
+            }
+
+            var entry = new MediaCacheEntry($"/media-cache/{hash}{ext}", type, 0, w, h);
             _cache[url] = entry;
             return entry;
         }
@@ -191,7 +202,18 @@ public class MediaCacheService
             var ext = Path.GetExtension(existingFile);
             var type = IsVideoExtension(ext) ? CachedMediaType.Video : CachedMediaType.Audio;
             _logger.LogDebug("Media cache hit (file exists): {Url}", url);
-            return new MediaCacheEntry($"/media-cache/{hash}{ext}", type, 0);
+
+            var (w, h) = (0, 0);
+            if (type == CachedMediaType.Video)
+            {
+                var dims = ReadDimensionsSidecar(hash) ?? await ProbeVideoDimensionsAsync(existingFile);
+                if (dims != null)
+                {
+                    (w, h) = dims.Value;
+                    WriteDimensionsSidecar(hash, w, h);
+                }
+            }
+            return new MediaCacheEntry($"/media-cache/{hash}{ext}", type, 0, w, h);
         }
 
         // Route Spotify URLs to spotdl
@@ -287,11 +309,25 @@ public class MediaCacheService
             return null;
         }
 
-        _logger.LogInformation("Cached media: {Url} -> {File} ({SizeKB}KB, {Duration}s, {Type}, {ElapsedMs}ms)",
-            url, Path.GetFileName(actualPath), fileSize / 1024,
-            (int)metadata.Duration, mediaType, sw.ElapsedMilliseconds);
+        // Capture pixel dimensions so the <video> element can reserve the right
+        // box before metadata loads — prevents layout-shift scroll-stranding,
+        // especially for portrait videos (TikTok / YouTube Shorts).
+        var (vw, vh) = (0, 0);
+        if (mediaType == CachedMediaType.Video)
+        {
+            var dims = await ProbeVideoDimensionsAsync(actualPath);
+            if (dims != null)
+            {
+                (vw, vh) = dims.Value;
+                WriteDimensionsSidecar(hash, vw, vh);
+            }
+        }
 
-        return new MediaCacheEntry(localUrl, mediaType, (int)metadata.Duration);
+        _logger.LogInformation("Cached media: {Url} -> {File} ({SizeKB}KB, {Duration}s, {Type}, {Dims}, {ElapsedMs}ms)",
+            url, Path.GetFileName(actualPath), fileSize / 1024,
+            (int)metadata.Duration, mediaType, vw > 0 ? $"{vw}x{vh}" : "-", sw.ElapsedMilliseconds);
+
+        return new MediaCacheEntry(localUrl, mediaType, (int)metadata.Duration, vw, vh);
     }
 
     /// <summary>
@@ -394,13 +430,16 @@ public class MediaCacheService
 
     /// <summary>
     /// Finds an output file by hash prefix. Uses glob to catch any extension
-    /// yt-dlp may have chosen. Video extensions preferred over audio.
+    /// yt-dlp may have chosen. Video extensions preferred over audio. Sidecar
+    /// files like {hash}.dims are excluded.
     /// </summary>
     private string? FindOutputFile(string hash)
     {
         try
         {
-            var files = Directory.GetFiles(CacheDirectory, $"{hash}.*");
+            var files = Directory.GetFiles(CacheDirectory, $"{hash}.*")
+                .Where(f => IsKnownMediaExtension(Path.GetExtension(f)))
+                .ToArray();
             if (files.Length == 0) return null;
 
             // Prefer video files over audio
@@ -416,6 +455,100 @@ public class MediaCacheService
     private static bool IsVideoExtension(string ext)
     {
         return ext is ".mp4" or ".webm" or ".mkv";
+    }
+
+    private static bool IsKnownMediaExtension(string ext)
+    {
+        return IsVideoExtension(ext) || ext is ".mp3" or ".m4a" or ".ogg" or ".wav" or ".opus";
+    }
+
+    /// <summary>
+    /// Probes a video file with ffprobe to get pixel dimensions. Returns null on failure.
+    /// </summary>
+    private async Task<(int Width, int Height)?> ProbeVideoDimensionsAsync(string filePath)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("ffprobe",
+                $"-v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 \"{filePath}\"")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using var process = Process.Start(psi);
+            if (process == null) return null;
+
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            using var cts = new CancellationTokenSource(5000);
+            await process.WaitForExitAsync(cts.Token);
+            var output = (await stdoutTask).Trim();
+
+            var parts = output.Split(',');
+            if (parts.Length >= 2
+                && int.TryParse(parts[0], out var w)
+                && int.TryParse(parts[1], out var h)
+                && w > 0 && h > 0)
+            {
+                return (w, h);
+            }
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Tiny sidecar file holding "WxH" so disk-hits after restart don't need
+    /// to re-probe with ffprobe. Format kept text-only on purpose — cheap to read.
+    /// </summary>
+    private string DimsSidecarPath(string hash) => Path.Combine(CacheDirectory, $"{hash}.dims");
+
+    private void WriteDimensionsSidecar(string hash, int width, int height)
+    {
+        try { File.WriteAllText(DimsSidecarPath(hash), $"{width}x{height}"); }
+        catch { }
+    }
+
+    private (int Width, int Height)? ReadDimensionsSidecar(string hash)
+    {
+        try
+        {
+            var path = DimsSidecarPath(hash);
+            if (!File.Exists(path)) return null;
+            var parts = File.ReadAllText(path).Trim().Split('x');
+            if (parts.Length == 2
+                && int.TryParse(parts[0], out var w)
+                && int.TryParse(parts[1], out var h)
+                && w > 0 && h > 0)
+            {
+                return (w, h);
+            }
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Fire-and-forget background probe for a disk-cached video without a sidecar.
+    /// Mutates the in-memory cache entry on success so subsequent renders see dimensions.
+    /// </summary>
+    private void QueueLazyDimensionsProbe(string url, string hash, string filePath)
+    {
+        _ = Task.Run(async () =>
+        {
+            var dims = await ProbeVideoDimensionsAsync(filePath);
+            if (dims == null) return;
+            WriteDimensionsSidecar(hash, dims.Value.Width, dims.Value.Height);
+            if (_cache.TryGetValue(url, out var existing))
+                _cache[url] = existing with { Width = dims.Value.Width, Height = dims.Value.Height };
+        });
     }
 
     private static string ComputeHash(string url)
@@ -524,4 +657,4 @@ public class MediaCacheService
     private record MediaMetadata(double Duration);
 }
 
-public record MediaCacheEntry(string LocalUrl, CachedMediaType MediaType, int DurationSeconds);
+public record MediaCacheEntry(string LocalUrl, CachedMediaType MediaType, int DurationSeconds, int Width = 0, int Height = 0);
