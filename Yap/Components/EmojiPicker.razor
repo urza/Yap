@@ -52,7 +52,7 @@
                         @foreach (var result in results)
                         {
                             var e = result;
-                            <button class="emoji-btn" data-emoji="@e" @onclick="() => SelectEmoji(e)">
+                            <button class="emoji-btn" data-emoji="@e" @attributes="GetClickAttributes(e)">
                                 @if (IsCustomEmojiString(e))
                                 {
                                     var ce = GetCustomEmojiFromString(e);
@@ -86,7 +86,7 @@
                         @foreach (var emoji in frozenRecents)
                         {
                             var e = emoji;
-                            <button class="emoji-btn" data-emoji="@e" @onclick="() => SelectEmoji(e)">
+                            <button class="emoji-btn" data-emoji="@e" @attributes="GetClickAttributes(e)">
                                 @if (IsCustomEmojiString(e))
                                 {
                                     var ce = GetCustomEmojiFromString(e);
@@ -122,7 +122,7 @@
                         @foreach (var emoji in CustomEmojiService.GetAll())
                         {
                             var shortcode = $":{emoji.Shortcode}:";
-                            <button class="emoji-btn" data-emoji="@shortcode" @onclick="() => SelectEmoji(shortcode)" title="@shortcode">
+                            <button class="emoji-btn" data-emoji="@shortcode" @attributes="GetClickAttributes(shortcode)" title="@shortcode">
                                 @EmojiService.RenderCustomEmoji(emoji, "22px")
                             </button>
                         }
@@ -139,7 +139,7 @@
                         @foreach (var emoji in category.Value.Emojis)
                         {
                             var e = emoji;
-                            <button class="emoji-btn" data-emoji="@e" @onclick="() => SelectEmoji(e)">@EmojiService.GetPickerEmojiHtml(e)</button>
+                            <button class="emoji-btn" data-emoji="@e" @attributes="GetClickAttributes(e)">@EmojiService.GetPickerEmojiHtml(e)</button>
                         }
                     </div>
                 </div>
@@ -151,6 +151,7 @@
 @code {
     [Parameter] public List<string> RecentEmojis { get; set; } = new();
     [Parameter] public EventCallback<string> OnEmojiSelected { get; set; }
+    [Parameter] public Action<string>? OnEmojiUsed { get; set; }
     [Parameter] public string TextareaId { get; set; } = "";
 
     private const string RecentCategory = "recent";
@@ -158,10 +159,34 @@
     private ElementReference pickerElement;
     private ElementReference contentElement;
     private IJSObjectReference? scrollTracker;
+    private DotNetObjectReference<EmojiPicker>? _dotNetRef;
     private string searchText = "";
 
     // Snapshot of recents taken on init — won't shift under the user's fingers
     private List<string> frozenRecents = new();
+
+    // Re-render only when our own search state changes. Skips the cascade
+    // of zero-change diffs when parents re-render (e.g., MessageInput on @bind:after).
+    private bool _hasRenderedOnce;
+    private string _lastRenderedSearchText = "";
+
+    private bool IsClientInsertionMode => !string.IsNullOrEmpty(TextareaId);
+
+    protected override bool ShouldRender()
+    {
+        if (!_hasRenderedOnce)
+        {
+            _hasRenderedOnce = true;
+            _lastRenderedSearchText = searchText;
+            return true;
+        }
+        if (searchText != _lastRenderedSearchText)
+        {
+            _lastRenderedSearchText = searchText;
+            return true;
+        }
+        return false;
+    }
 
     protected override void OnInitialized()
     {
@@ -178,13 +203,34 @@
             }
             catch { /* Ignore JS errors */ }
 
-            // Set up client-side click handler for instant emoji insertion (no server round-trip)
+            // Set up client-side click handler for instant emoji insertion (no server round-trip).
+            // The DotNet ref enables fire-and-forget bookkeeping (recents + counts) from JS,
+            // avoiding the @onclick→EventCallback path that would force a parent re-render.
             try
             {
-                await JS.InvokeVoidAsync("setupEmojiPickerClick", pickerElement, TextareaId);
+                _dotNetRef = DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("setupEmojiPickerClick", pickerElement, TextareaId, _dotNetRef);
             }
             catch { /* Ignore JS errors */ }
         }
+    }
+
+    // Built per render in client-insertion mode it returns null, so no Blazor event
+    // handler is attached and the click is handled purely by chat.js. In reaction mode
+    // (no TextareaId — e.g., MessageItem) it attaches @onclick → SelectEmoji as before.
+    private IReadOnlyDictionary<string, object>? GetClickAttributes(string emoji)
+    {
+        if (IsClientInsertionMode) return null;
+        return new Dictionary<string, object>
+        {
+            ["onclick"] = EventCallback.Factory.Create(this, () => SelectEmoji(emoji))
+        };
+    }
+
+    [JSInvokable]
+    public void RecordEmojiUsed(string emoji)
+    {
+        OnEmojiUsed?.Invoke(emoji);
     }
 
     private async Task ScrollToCategory(string key)
@@ -255,5 +301,6 @@
             }
             catch { /* Circuit may already be gone */ }
         }
+        _dotNetRef?.Dispose();
     }
 }

@@ -675,9 +675,12 @@ let _emojiTextareaId = null;
 let _emojiCursorPos = null;
 let _emojiClickSetup = false;
 
-window.setupEmojiPickerClick = (pickerElement, textareaId) => {
+let _emojiDotNetRef = null;
+
+window.setupEmojiPickerClick = (pickerElement, textareaId, dotNetRef) => {
     _emojiTextareaId = textareaId;
     _emojiCursorPos = null;
+    _emojiDotNetRef = dotNetRef || null;
 
     if (_emojiClickSetup) return;
     _emojiClickSetup = true;
@@ -718,7 +721,27 @@ window.setupEmojiPickerClick = (pickerElement, textareaId) => {
 
         textarea.dispatchEvent(new Event('input', { bubbles: true }));
         window.autoResizeTextarea(_emojiTextareaId);
+
+        // Fire-and-forget bookkeeping (recents + counts). Avoids a second
+        // server round-trip via Blazor @onclick that would also force a
+        // parent re-render of the open picker.
+        if (_emojiDotNetRef) {
+            _emojiDotNetRef.invokeMethodAsync('RecordEmojiUsed', emoji).catch(() => { });
+        }
     });
+};
+
+// Client-side textarea auto-resize on input. Replaces the server-side
+// JS.InvokeVoidAsync("autoResizeTextarea") round-trip that used to fire on
+// every keystroke.
+window.setupTextareaAutoResize = (textareaId) => {
+    const textarea = document.getElementById(textareaId);
+    if (!textarea) return;
+    if (textarea._autoResizeHandler) {
+        textarea.removeEventListener('input', textarea._autoResizeHandler);
+    }
+    textarea._autoResizeHandler = () => window.autoResizeTextarea(textareaId);
+    textarea.addEventListener('input', textarea._autoResizeHandler);
 };
 
 // Smooth-scroll emoji picker content to a specific category section.

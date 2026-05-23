@@ -107,7 +107,7 @@ else
         {
             <div class="emoji-picker-backdrop" @onclick="CloseEmojiPicker"></div>
             <div class="emoji-picker-container">
-                <EmojiPicker RecentEmojis="@RecentEmojis" OnEmojiSelected="HandleEmojiSelected" TextareaId="@TextareaId" />
+                <EmojiPicker RecentEmojis="@RecentEmojis" OnEmojiUsed="@OnEmojiUsed" TextareaId="@TextareaId" />
             </div>
         }
     </div>
@@ -222,6 +222,8 @@ else
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to detect touch device"); }
             try { await JS.InvokeVoidAsync("setupEnterKeyHandler", TextareaId); }
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup enter key handler"); }
+            try { await JS.InvokeVoidAsync("setupTextareaAutoResize", TextareaId); }
+            catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup textarea auto-resize"); }
             try { await JS.InvokeVoidAsync("setupSendButtonFocus", TextareaId); }
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup send button focus"); }
             try { await JS.InvokeVoidAsync("setupEmojiToggle", EmojiIconId, SpriteCols, SpriteTotalEmojis); }
@@ -340,7 +342,7 @@ else
 
     private async Task OnInputChangedInternal()
     {
-        await JS.InvokeVoidAsync("autoResizeTextarea", TextareaId);
+        // Auto-resize runs client-side via setupTextareaAutoResize — no round-trip needed here.
 
         // Handle typing state
         if (!string.IsNullOrWhiteSpace(messageText) && !isTyping)
@@ -432,13 +434,6 @@ else
     private void CloseEmojiPicker()
     {
         showEmojiPicker = false;
-    }
-
-    private void HandleEmojiSelected(string emoji)
-    {
-        // Emoji insertion into textarea is handled client-side by setupEmojiPickerClick
-        // for instant feedback. This handler only does server-side bookkeeping.
-        OnEmojiUsed?.Invoke(emoji);
     }
 
     #endregion
