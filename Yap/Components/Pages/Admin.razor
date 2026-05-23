@@ -79,6 +79,13 @@
             </svg>
             <span>Diagnostics</span>
         </button>
+        <button class="nav-item @(activeSection == "visitors" ? "active" : "")"
+                @onclick="SelectVisitorsTab">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+            </svg>
+            <span>Visitors</span>
+        </button>
     </nav>
 
     <div class="admin-tabs">
@@ -109,6 +116,10 @@
         <button class="tab-item @(activeSection == "diagnostics" ? "active" : "")"
                 @onclick="SelectDiagnosticsTab">
             Diagnostics
+        </button>
+        <button class="tab-item @(activeSection == "visitors" ? "active" : "")"
+                @onclick="SelectVisitorsTab">
+            Visitors
         </button>
     </div>
 
@@ -728,6 +739,132 @@
                 </div>
             </div>
         }
+
+        @if (activeSection == "visitors")
+        {
+            <div class="section-header">
+                <h3>Visitors</h3>
+                <span class="section-count">@visitorStats.TotalVisits visits tracked</span>
+            </div>
+
+            <div class="media-stats">
+                <div class="media-stat-card">
+                    <span class="media-stat-label">Total Visits</span>
+                    <span class="media-stat-value">@visitorStats.TotalVisits</span>
+                </div>
+                <div class="media-stat-card">
+                    <span class="media-stat-label">Login Failures</span>
+                    <span class="media-stat-value">@visitorStats.LoginFailures</span>
+                </div>
+                <div class="media-stat-card">
+                    <span class="media-stat-label">Unique IPs</span>
+                    <span class="media-stat-value">@visitorStats.UniqueIPs</span>
+                </div>
+                <div class="media-stat-card">
+                    <span class="media-stat-label">Today</span>
+                    <span class="media-stat-value">@visitorStats.TodayVisits</span>
+                </div>
+            </div>
+
+            <div class="log-filters">
+                <select class="log-filter-select" @onchange="OnVisitorFilterChanged">
+                    <option value="">All</option>
+                    <option value="@UserActionLog.KnownActions.VISIT">Visits only</option>
+                    <option value="@UserActionLog.KnownActions.LOGIN_FAIL">Login failures only</option>
+                </select>
+            </div>
+
+            @if (visitorLoading)
+            {
+                <div class="log-empty">Loading...</div>
+            }
+            else if (visitorEntries.Count == 0)
+            {
+                <div class="log-empty">No visitor data yet. Visitors are tracked when they load the login page.</div>
+            }
+            else
+            {
+                <div class="table-wrapper">
+                    <table class="users-table logs-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>IP</th>
+                                <th>Action</th>
+                                <th>Details</th>
+                                <th>User-Agent</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var entry in visitorEntries)
+                            {
+                                <tr class="clickable-row @(selectedVisitorId == entry.Id ? "selected" : "")"
+                                    @onclick="() => SelectVisitorEntry(entry.Id)">
+                                    <td class="date-cell">@FormatLogDate(entry.Date)</td>
+                                    <td class="ip-mono">@(entry.IP ?? "---")</td>
+                                    <td>
+                                        <span class="action-pill @GetVisitorActionClass(entry.Action)">
+                                            @entry.Action
+                                        </span>
+                                    </td>
+                                    <td>@FormatVisitorInfo(entry.Info)</td>
+                                    <td class="ua-cell">@TruncateUa(entry.UserAgent)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (visitorEntries.Count % 100 == 0)
+                {
+                    <div style="text-align: center; padding: 12px;">
+                        <button class="join-button" @onclick="LoadMoreVisitors" disabled="@visitorLoading">
+                            Load more
+                        </button>
+                    </div>
+                }
+            }
+
+            @if (selectedVisitorEntry != null)
+            {
+                <div class="user-detail-panel">
+                    <div class="detail-header">
+                        <div class="detail-header-info">
+                            <h4>@(selectedVisitorEntry.IP ?? "Unknown IP")</h4>
+                            @if (GeoLocation.IsAvailable && !string.IsNullOrEmpty(selectedVisitorEntry.IP))
+                            {
+                                var geo = GeoLocation.Lookup(selectedVisitorEntry.IP);
+                                if (geo != null)
+                                {
+                                    <span class="user-username">@geo</span>
+                                }
+                            }
+                        </div>
+                        <button class="detail-close" @onclick="() => selectedVisitorId = null" title="Close">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="detail-tags">
+                        <span class="detail-tag tag-muted">@FormatTimeAgo(selectedVisitorEntry.Date)</span>
+                        <span class="detail-tag tag-muted">
+                            @selectedVisitorEntry.Action
+                        </span>
+                        @if (!string.IsNullOrEmpty(selectedVisitorEntry.Info))
+                        {
+                            <span class="detail-tag tag-muted">@FormatVisitorInfo(selectedVisitorEntry.Info)</span>
+                        }
+                    </div>
+
+                    <div class="detail-section">
+                        <h5>User Agent</h5>
+                        <span class="ua-cell" style="word-break: break-all;">@(selectedVisitorEntry.UserAgent ?? "---")</span>
+                    </div>
+                </div>
+            }
+        }
     </main>
 </div>
 
@@ -1242,5 +1379,92 @@
         }
         catch (JSDisconnectedException) { }
         catch (ObjectDisposedException) { }
+    }
+
+    // Visitors tab
+    private List<UserActionLog> visitorEntries = new();
+    private (int TotalVisits, int LoginFailures, int UniqueIPs, int TodayVisits) visitorStats;
+    private string? visitorFilterAction;
+    private bool visitorLoading;
+    private bool visitorLoaded;
+    private int? selectedVisitorId;
+
+    private UserActionLog? selectedVisitorEntry => selectedVisitorId.HasValue
+        ? visitorEntries.FirstOrDefault(e => e.Id == selectedVisitorId.Value)
+        : null;
+
+    private async Task SelectVisitorsTab()
+    {
+        activeSection = "visitors";
+        if (!visitorLoaded)
+            await LoadVisitors();
+    }
+
+    private async Task LoadVisitors()
+    {
+        visitorLoading = true;
+        StateHasChanged();
+
+        visitorStats = await ActionLog.GetVisitorStatsAsync();
+        visitorEntries = await ActionLog.GetVisitorLogsAsync(visitorFilterAction, 0, 100);
+
+        visitorLoading = false;
+        visitorLoaded = true;
+    }
+
+    private async Task LoadMoreVisitors()
+    {
+        visitorLoading = true;
+        StateHasChanged();
+
+        var more = await ActionLog.GetVisitorLogsAsync(visitorFilterAction, visitorEntries.Count, 100);
+        visitorEntries.AddRange(more);
+        visitorLoading = false;
+    }
+
+    private async Task OnVisitorFilterChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        visitorFilterAction = string.IsNullOrEmpty(val) ? null : val;
+        await LoadVisitors();
+    }
+
+    private void SelectVisitorEntry(int id)
+    {
+        selectedVisitorId = selectedVisitorId == id ? null : id;
+    }
+
+    private static string FormatVisitorInfo(string? info)
+    {
+        if (string.IsNullOrEmpty(info)) return "---";
+
+        var parts = info.Split(':', 2);
+        var reason = parts[0] switch
+        {
+            "wrong_passphrase" => "Wrong passphrase",
+            "multi_device_blocked" => "Multi-device blocked",
+            "registration_closed" => "Registration closed",
+            "bot_username" => "Bot username",
+            "ip_mismatch" => "IP mismatch",
+            "approval_not_consumed" => "Approval pending",
+            _ => parts[0]
+        };
+
+        return parts.Length > 1 && !string.IsNullOrEmpty(parts[1])
+            ? $"{reason} ({parts[1]})"
+            : reason;
+    }
+
+    private static string GetVisitorActionClass(string action) => action switch
+    {
+        UserActionLog.KnownActions.VISIT => "action-default",
+        UserActionLog.KnownActions.LOGIN_FAIL => "action-logout",
+        _ => "action-default"
+    };
+
+    private static string TruncateUa(string? ua)
+    {
+        if (string.IsNullOrEmpty(ua)) return "---";
+        return ua.Length > 60 ? ua[..60] + "..." : ua;
     }
 }

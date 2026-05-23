@@ -94,7 +94,7 @@ public class UserActionLogService : BackgroundService
                 .Where(l => l.Date < cutoff)
                 .ExecuteDeleteAsync();
 
-            // Per user, keep only the last 100 entries
+            // Per user, keep only the last 100 entries (1000 for anonymous visitor logs)
             var usersWithExcess = await db.UserActionLogs
                 .GroupBy(l => l.UserUid)
                 .Where(g => g.Count() > 100)
@@ -104,10 +104,12 @@ public class UserActionLogService : BackgroundService
             var deletedExcess = 0;
             foreach (var userUid in usersWithExcess)
             {
+                var limit = userUid == "" ? 1000 : 100;
+
                 var keepIds = await db.UserActionLogs
                     .Where(l => l.UserUid == userUid)
                     .OrderByDescending(l => l.Date)
-                    .Take(100)
+                    .Take(limit)
                     .Select(l => l.Id)
                     .ToListAsync();
 
@@ -227,6 +229,84 @@ public class UserActionLogService : BackgroundService
         {
             _logger.LogError(ex, "Failed to get connection details for user {UserUid}", userUid);
             return (new(), new());
+        }
+    }
+
+    /// <summary>
+    /// Gets paginated visitor logs (anonymous: VISIT and LOGIN_FAIL actions).
+    /// </summary>
+    public async Task<List<UserActionLog>> GetVisitorLogsAsync(string? action = null, int skip = 0, int take = 100)
+    {
+        if (!IsEnabled || _dbFactory == null)
+            return new();
+
+        try
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync();
+            IQueryable<UserActionLog> query = db.UserActionLogs
+                .Where(l => l.UserUid == "");
+
+            if (!string.IsNullOrEmpty(action))
+                query = query.Where(l => l.Action == action);
+            else
+                query = query.Where(l => l.Action == UserActionLog.KnownActions.VISIT
+                                      || l.Action == UserActionLog.KnownActions.LOGIN_FAIL);
+
+            return await query
+                .OrderByDescending(l => l.Date)
+                .Skip(skip)
+                .Take(take)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get visitor logs");
+            return new();
+        }
+    }
+
+    /// <summary>
+    /// Gets visitor stats (total visits, login failures, unique IPs, today's visits).
+    /// </summary>
+    public async Task<(int TotalVisits, int LoginFailures, int UniqueIPs, int TodayVisits)> GetVisitorStatsAsync()
+    {
+        if (!IsEnabled || _dbFactory == null)
+            return (0, 0, 0, 0);
+
+        try
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync();
+            var visitorLogs = db.UserActionLogs
+                .Where(l => l.UserUid == ""
+                         && (l.Action == UserActionLog.KnownActions.VISIT
+                          || l.Action == UserActionLog.KnownActions.LOGIN_FAIL));
+
+            var today = DateTime.UtcNow.Date;
+
+            var totalVisits = await visitorLogs
+                .Where(l => l.Action == UserActionLog.KnownActions.VISIT)
+                .CountAsync();
+
+            var loginFailures = await visitorLogs
+                .Where(l => l.Action == UserActionLog.KnownActions.LOGIN_FAIL)
+                .CountAsync();
+
+            var uniqueIPs = await visitorLogs
+                .Where(l => l.IP != null && l.IP != "")
+                .Select(l => l.IP)
+                .Distinct()
+                .CountAsync();
+
+            var todayVisits = await visitorLogs
+                .Where(l => l.Date >= today)
+                .CountAsync();
+
+            return (totalVisits, loginFailures, uniqueIPs, todayVisits);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get visitor stats");
+            return (0, 0, 0, 0);
         }
     }
 

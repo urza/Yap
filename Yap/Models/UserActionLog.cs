@@ -68,6 +68,16 @@ public class UserActionLog
         /// </summary>
         public const string SMART_LOGIN = "SMART_LOGIN";
 
+        /// <summary>
+        /// Anonymous user loaded the login page
+        /// </summary>
+        public const string VISIT = "VISIT";
+
+        /// <summary>
+        /// Failed login attempt (Info field contains "reason:username")
+        /// </summary>
+        public const string LOGIN_FAIL = "LOGIN_FAIL";
+
     }
 
 }

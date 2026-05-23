@@ -58,12 +58,18 @@ public static class AuthEndpoints
 
     private static async Task<IResult> HandleSignIn(HttpContext context, UserService userService, UserActionLogService actionLog, SystemBotService botService, string username, string? password, string? returnUrl)
     {
+        var ip = IpHelper.GetClientIp(context);
+        var ua = context.Request.Headers.UserAgent.ToString();
+
         if (string.IsNullOrEmpty(username))
             return Results.Redirect("/");
 
         // Block login as bot user
         if (botService.IsBotUser(username))
+        {
+            actionLog.Log(null, UserActionLog.KnownActions.LOGIN_FAIL, info: $"bot_username:{username}", ip: ip ?? "unknown", userAgent: ua);
             return Results.Redirect("/login");
+        }
 
         var registrationGate = context.RequestServices.GetRequiredService<RegistrationGateService>();
 
@@ -74,7 +80,10 @@ public static class AuthEndpoints
         {
             user = userService.VerifyPassword(username, password);
             if (user == null)
+            {
+                actionLog.Log(null, UserActionLog.KnownActions.LOGIN_FAIL, info: $"wrong_passphrase:{username}", ip: ip ?? "unknown", userAgent: ua);
                 return Results.Redirect("/");
+            }
             newDeviceMethod = "passphrase";
         }
         else
@@ -85,16 +94,16 @@ public static class AuthEndpoints
                 if (registrationGate.SmartMode && !existingUser.SmartLoginOptOut)
                 {
                     var chatService = context.RequestServices.GetRequiredService<ChatService>();
-                    var requestIp = IpHelper.GetClientIp(context);
-                    if (chatService.HasActiveSessionFromIp(username, requestIp))
+                    if (chatService.HasActiveSessionFromIp(username, ip))
                     {
                         user = existingUser;
                         newDeviceMethod = "smart";
                         actionLog.Log(user.Id.ToString(), UserActionLog.KnownActions.SMART_LOGIN,
-                            info: username, ip: requestIp ?? "unknown");
+                            info: username, ip: ip ?? "unknown");
                     }
                     else
                     {
+                        actionLog.Log(null, UserActionLog.KnownActions.LOGIN_FAIL, info: $"ip_mismatch:{username}", ip: ip ?? "unknown", userAgent: ua);
                         return Results.Redirect("/login");
                     }
                 }
@@ -106,10 +115,16 @@ public static class AuthEndpoints
             else
             {
                 if (registrationGate.RegistrationClosed)
+                {
+                    actionLog.Log(null, UserActionLog.KnownActions.LOGIN_FAIL, info: $"registration_closed:{username}", ip: ip ?? "unknown", userAgent: ua);
                     return Results.Redirect("/login");
+                }
 
                 if (registrationGate.RequireApproval && !registrationGate.ConsumeApproval(username))
+                {
+                    actionLog.Log(null, UserActionLog.KnownActions.LOGIN_FAIL, info: $"approval_not_consumed:{username}", ip: ip ?? "unknown", userAgent: ua);
                     return Results.Redirect("/login");
+                }
 
                 user = await userService.CreateUserAsync(username);
                 if (user == null)
@@ -119,12 +134,10 @@ public static class AuthEndpoints
 
         AuthMiddleware.SetAuthCookie(context, user.Token);
 
-        var ip = IpHelper.GetClientIp(context) ?? "unknown";
-        var ua = context.Request.Headers.UserAgent.ToString();
-        actionLog.Log(user.Id.ToString(), UserActionLog.KnownActions.LOGIN, info: username, ip: ip, userAgent: ua);
+        actionLog.Log(user.Id.ToString(), UserActionLog.KnownActions.LOGIN, info: username, ip: ip ?? "unknown", userAgent: ua);
 
         if (newDeviceMethod != null)
-            _ = botService.NotifyNewDeviceLoginAsync(username, newDeviceMethod, ip);
+            _ = botService.NotifyNewDeviceLoginAsync(username, newDeviceMethod, ip ?? "unknown");
 
         var destination = "/lobby";
         if (!string.IsNullOrEmpty(returnUrl) && returnUrl.StartsWith("/") && !returnUrl.StartsWith("//"))

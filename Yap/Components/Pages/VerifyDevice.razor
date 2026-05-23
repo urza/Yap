@@ -1,5 +1,7 @@
 @page "/verify/{Username}"
 @inject UserService UserService
+@inject UserActionLogService ActionLog
+@inject IHttpContextAccessor HttpContextAccessor
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
@@ -36,6 +38,7 @@
     private string passwordInput = "";
     private string errorMessage = "";
     private bool showError = false;
+    private string? _clientIp;
 
     private string? SafeReturnUrl =>
         !string.IsNullOrEmpty(ReturnUrl) && ReturnUrl.StartsWith("/") && !ReturnUrl.StartsWith("//")
@@ -44,6 +47,8 @@
 
     protected override void OnInitialized()
     {
+        _clientIp = HttpContextAccessor.HttpContext?.Items["ClientIp"]?.ToString();
+
         // If user doesn't exist or has no password, redirect back to login
         if (!UserService.HasPassword(Username))
         {
@@ -69,6 +74,7 @@
         {
             showError = true;
             errorMessage = "Wrong secret code";
+            ActionLog.Log(null, UserActionLog.KnownActions.LOGIN_FAIL, info: $"wrong_passphrase:{Username}", ip: _clientIp);
             return;
         }
 

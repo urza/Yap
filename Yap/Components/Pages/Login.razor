@@ -6,6 +6,7 @@
 @inject RegistrationGateService RegistrationGate
 @inject ChatService ChatService
 @inject IHttpContextAccessor HttpContextAccessor
+@inject UserActionLogService ActionLog
 @inject NavigationManager Navigation
 @implements IDisposable
 
@@ -94,6 +95,8 @@
     private bool _wasRejected = false;
 
     private Timer? _pollTimer;
+    private string? _clientIp;
+    private string? _clientUa;
 
     // Username rules: 2-23 chars, lowercase a-z, 0-9, underscore, period, no consecutive periods
     private static readonly System.Text.RegularExpressions.Regex ValidUsernameRegex =
@@ -112,6 +115,10 @@
 
     protected override void OnInitialized()
     {
+        // Capture IP and User-Agent during initial render (HttpContext is null after this during SignalR callbacks)
+        _clientIp = HttpContextAccessor.HttpContext?.Items["ClientIp"]?.ToString();
+        _clientUa = HttpContextAccessor.HttpContext?.Request.Headers.UserAgent.ToString();
+
         // Already authenticated (via cookie - UserState populated by AuthMiddleware)
         // Verify user still exists in database before redirecting
         if (UserState.IsLoggedIn && UserState.UserId.HasValue)
@@ -138,8 +145,12 @@
         if (RegistrationGate.RegistrationClosed)
         {
             _state = LoginState.Closed;
+            ActionLog.Log(null, UserActionLog.KnownActions.LOGIN_FAIL, info: "registration_closed", ip: _clientIp, userAgent: _clientUa);
             return;
         }
+
+        // Track anonymous visitor
+        ActionLog.Log(null, UserActionLog.KnownActions.VISIT, ip: _clientIp, userAgent: _clientUa);
 
         welcomeMessage = ChatConfig.GetRandomWelcomeMessage();
         joinButtonText = ChatConfig.GetRandomJoinButtonText();
@@ -243,6 +254,7 @@
         else
         {
             _showMultiDeviceGuide = true;
+            ActionLog.Log(null, UserActionLog.KnownActions.LOGIN_FAIL, info: $"multi_device_blocked:{usernameInput}", ip: _clientIp, userAgent: _clientUa);
         }
     }
 
