@@ -30,6 +30,7 @@ public class AuthMiddleware
                 userState.Username = user.Username;
                 userState.DisplayName = user.DisplayName;
                 userState.ProfilePictureUrl = user.ProfilePictureUrl;
+                userState.Theme = user.Theme;
                 userState.Status = UserStatus.Online;
             }
         }

@@ -103,6 +103,30 @@
         </div>
 
         <div class="settings-section">
+            <h3>Appearance</h3>
+            <span class="form-hint" style="margin-bottom: 12px;">Pick a color theme. Changes apply instantly and sync across your devices.</span>
+            <div class="theme-grid">
+                @foreach (var theme in ThemeRegistry.All)
+                {
+                    var id = theme.Id;
+                    <button type="button" class="theme-card @(selectedTheme == id ? "selected" : "")"
+                            @onclick="() => SelectTheme(id)" title="@theme.Name">
+                        <div class="theme-card-preview" style="background: @theme.PreviewBg;">
+                            <span class="theme-card-accent-dot" style="background: @theme.PreviewAccent;"></span>
+                            @if (selectedTheme == id)
+                            {
+                                <span class="theme-card-check">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                </span>
+                            }
+                        </div>
+                        <span class="theme-card-name">@theme.Name</span>
+                    </button>
+                }
+            </div>
+        </div>
+
+        <div class="settings-section">
             <h3>Multi-Device Login</h3>
 
             <span class="form-hint" style="margin-bottom: 12px;">@MultiDeviceSummary</span>
@@ -394,6 +418,7 @@
     private string dateOrder = "dmy";
     private string clockStyle = "24h";
     private string? cultureOverride;
+    private string selectedTheme = ThemeRegistry.DefaultId;
 
     private bool isUploading = false;
     private string? saveStatus;
@@ -464,6 +489,7 @@
                 clockStyle = LocaleResolver.GuessClockFromLocale(user.Locale);
             }
             pushMuted = user.PushMuted;
+            selectedTheme = ThemeRegistry.IsKnown(user.Theme) ? user.Theme! : ThemeRegistry.DefaultId;
 
             // Load password state
             currentPassword = user.Password;
@@ -1066,6 +1092,18 @@
     private async Task InstallPwa()
     {
         await JS.InvokeVoidAsync("showPwaInstallGuide");
+    }
+
+    private async Task SelectTheme(string themeId)
+    {
+        if (selectedTheme == themeId || !UserState.UserId.HasValue) return;
+
+        selectedTheme = themeId;
+        UserState.Theme = themeId;
+
+        // Flip the attribute immediately for instant preview, then persist.
+        await JS.InvokeVoidAsync("applyTheme", themeId);
+        await UserService.UpdateThemeAsync(UserState.UserId.Value, themeId);
     }
 
     private record ClientLocaleInfo(string? TimeZone, string? Locale);

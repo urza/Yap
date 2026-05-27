@@ -70,6 +70,12 @@ public class User
     public string? DateFormat { get; set; }
 
     /// <summary>
+    /// Selected color theme ID (e.g. "ocean", "sunset"). Null = default Discord Dark.
+    /// Themes are defined in wwwroot/themes.css and registered in ThemeRegistry.
+    /// </summary>
+    public string? Theme { get; set; }
+
+    /// <summary>
     /// Optional passphrase for multi-device login.
     /// Stored as plaintext so the user can view/copy it in Settings.
     /// When set, the username can be claimed from any device by entering this passphrase.

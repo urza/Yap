@@ -36,6 +36,7 @@ public class ChatDbContext : DbContext
             entity.Property(u => u.Password).HasMaxLength(64);
             entity.Property(u => u.RecentEmojis).HasMaxLength(2048);
             entity.Property(u => u.EmojiCounts).HasMaxLength(2048);
+            entity.Property(u => u.Theme).HasMaxLength(32);
 
             // Ignore computed property
             entity.Ignore(u => u.EffectiveDisplayName);

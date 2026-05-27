@@ -1,5 +1,6 @@
-﻿<!DOCTYPE html>
-<html lang="en">
+﻿@inject UserStateService UserState
+<!DOCTYPE html>
+<html lang="en" data-theme="@(UserState.Theme ?? "discord-dark")">
 
 <head>
     <meta charset="utf-8" />
@@ -8,6 +9,7 @@
     <base href="/" />
     <ResourcePreloader />
     <link rel="stylesheet" href="@Assets["app.css"]" />
+    <link rel="stylesheet" href="@Assets["themes.css"]" />
     <link rel="stylesheet" href="@Assets["Yap.styles.css"]" />
     <link rel="icon" type="image/svg+xml" href="icon.svg" />
     <link rel="manifest" href="manifest.webmanifest" />

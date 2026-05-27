@@ -92,6 +92,12 @@ public class UserStateService
     public string? DateFormat { get; set; }
 
     /// <summary>
+    /// Selected color theme ID (e.g. "ocean", "sunset"). Null = default Discord Dark.
+    /// </summary>
+    [PersistentState]
+    public string? Theme { get; set; }
+
+    /// <summary>
     /// Resolves timezone string (IANA, abbreviation, or UTC offset) to TimeZoneInfo.
     /// Falls back to UTC if not set or unresolvable.
     /// </summary>

@@ -1121,3 +1121,11 @@ window.cleanupInfiniteScroll = () => {
     scrollHandler = null;
     infiniteScrollRef = null;
 };
+
+// ==========================================
+// Theme switching
+// ==========================================
+
+window.applyTheme = (themeId) => {
+    document.documentElement.dataset.theme = themeId || 'discord-dark';
+};

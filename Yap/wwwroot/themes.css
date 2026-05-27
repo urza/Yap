@@ -1,0 +1,198 @@
+/*
+ * Color themes. Each block overrides CSS variables from :root in app.css.
+ * Activated by data-theme="..." on the <html> element (set in App.razor).
+ *
+ * Status colors (online/away/danger/success/warning) are intentionally NOT
+ * overridden — they carry semantic meaning that should stay consistent across
+ * themes (green = online universally, red = danger, etc.).
+ *
+ * Default theme (discord-dark) has no block here — it falls through to :root.
+ */
+
+/* ==========================================================================
+   Midnight — near-black backdrop with deep violet accent
+   ========================================================================== */
+[data-theme="midnight"] {
+    --bg-darkest: #050510;
+    --bg-header: #0d0d18;
+    --bg-sidebar: #14141e;
+    --bg-hover: #1c1c28;
+    --bg-primary: #0a0a14;
+    --bg-secondary: #161620;
+    --bg-input: #1f1f2b;
+    --bg-muted: #2a2a38;
+    --bg-tertiary: #1a1a26;
+
+    --text-white: #ffffff;
+    --text-primary: #d4d4e0;
+    --text-secondary: #a0a0b0;
+    --text-muted: #7a7a90;
+    --text-tertiary: #66667a;
+    --text-placeholder: #50506a;
+
+    --accent-primary: #7c4dff;
+    --accent-hover: #6a3dd9;
+    --accent-light: #e3d9ff;
+    --accent-focus: #b388ff;
+    --accent-tint: hsl(259 100% 65% / 0.16);
+
+    --border-dark: #0d0d18;
+    --border-subtle: #050510;
+}
+
+/* ==========================================================================
+   Nord — cool slate-grey with frost-blue accent
+   ========================================================================== */
+[data-theme="nord"] {
+    --bg-darkest: #1c2129;
+    --bg-header: #242933;
+    --bg-sidebar: #2e3440;
+    --bg-hover: #353c4a;
+    --bg-primary: #2e3440;
+    --bg-secondary: #3b4252;
+    --bg-input: #434c5e;
+    --bg-muted: #4c566a;
+    --bg-tertiary: #353c4a;
+
+    --text-white: #eceff4;
+    --text-primary: #e5e9f0;
+    --text-secondary: #d8dee9;
+    --text-muted: #a3aab8;
+    --text-tertiary: #8d95a4;
+    --text-placeholder: #6e7689;
+
+    --accent-primary: #88c0d0;
+    --accent-hover: #6da8b9;
+    --accent-light: #d1e6ec;
+    --accent-focus: #5e81ac;
+    --accent-tint: hsl(193 43% 67% / 0.18);
+
+    --border-dark: #242933;
+    --border-subtle: #1c2129;
+}
+
+/* ==========================================================================
+   Ocean — teal-to-navy gradient with cyan accent
+   ========================================================================== */
+[data-theme="ocean"] {
+    --bg-darkest: #061319;
+    --bg-header: #0a1929;
+    --bg-sidebar: #0f2538;
+    --bg-hover: #14334a;
+    --bg-primary: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+    --bg-secondary: #1c3a52;
+    --bg-input: #14334a;
+    --bg-muted: #2a4d68;
+    --bg-tertiary: #0f2538;
+
+    --text-white: #e0f7fa;
+    --text-primary: #c9e8ee;
+    --text-secondary: #a0c5ce;
+    --text-muted: #7ea3ad;
+    --text-tertiary: #6a8a98;
+    --text-placeholder: #506e7d;
+
+    --accent-primary: #26d0ce;
+    --accent-hover: #1ab0ae;
+    --accent-light: #b8eeed;
+    --accent-focus: #00bcd4;
+    --accent-tint: hsl(179 70% 49% / 0.16);
+
+    --border-dark: #061319;
+    --border-subtle: #030a0e;
+}
+
+/* ==========================================================================
+   Sunset — purple-to-coral gradient with rose-pink accent
+   ========================================================================== */
+[data-theme="sunset"] {
+    --bg-darkest: #1a0e26;
+    --bg-header: #261535;
+    --bg-sidebar: #321c43;
+    --bg-hover: #422450;
+    --bg-primary: linear-gradient(135deg, #2d1b3d 0%, #6b2d5c 50%, #c44569 100%);
+    --bg-secondary: #432555;
+    --bg-input: #4d2d63;
+    --bg-muted: #6b4282;
+    --bg-tertiary: #382144;
+
+    --text-white: #fff5fb;
+    --text-primary: #f0e0eb;
+    --text-secondary: #d4b8c8;
+    --text-muted: #b08aa0;
+    --text-tertiary: #946d85;
+    --text-placeholder: #7a5b6e;
+
+    --accent-primary: #ff6b9d;
+    --accent-hover: #e54d82;
+    --accent-light: #ffd1e1;
+    --accent-focus: #ff8fb5;
+    --accent-tint: hsl(335 100% 71% / 0.16);
+
+    --border-dark: #1a0e26;
+    --border-subtle: #0d0713;
+}
+
+/* ==========================================================================
+   Aurora — indigo/navy gradient with violet accent
+   ========================================================================== */
+[data-theme="aurora"] {
+    --bg-darkest: #0a0420;
+    --bg-header: #120a2e;
+    --bg-sidebar: #1a1240;
+    --bg-hover: #251950;
+    --bg-primary: linear-gradient(135deg, #1a0a2e 0%, #16213e 50%, #0f3460 100%);
+    --bg-secondary: #1f1850;
+    --bg-input: #261c60;
+    --bg-muted: #382a78;
+    --bg-tertiary: #1f1645;
+
+    --text-white: #f0e8ff;
+    --text-primary: #dcd0f7;
+    --text-secondary: #b5a8d8;
+    --text-muted: #8e82b0;
+    --text-tertiary: #756988;
+    --text-placeholder: #5b526e;
+
+    --accent-primary: #a78bfa;
+    --accent-hover: #8b6fe0;
+    --accent-light: #e3d8ff;
+    --accent-focus: #c4b5fd;
+    --accent-tint: hsl(254 92% 76% / 0.18);
+
+    --border-dark: #0a0420;
+    --border-subtle: #050210;
+}
+
+/* ==========================================================================
+   Daylight — light backgrounds, dark text. Note: --text-white is the
+   highest-emphasis text (used for headings), so under a light theme it
+   inverts to near-black for proper contrast.
+   ========================================================================== */
+[data-theme="light"] {
+    --bg-darkest: #e0e0e5;
+    --bg-header: #ffffff;
+    --bg-sidebar: #f0f0f3;
+    --bg-hover: #e8e8ed;
+    --bg-primary: #f5f5f7;
+    --bg-secondary: #ebebef;
+    --bg-input: #ffffff;
+    --bg-muted: #d4d4d9;
+    --bg-tertiary: #d8d8df;
+
+    --text-white: #0a0a14;
+    --text-primary: #1c1d21;
+    --text-secondary: #4a4b50;
+    --text-muted: #6e6f73;
+    --text-tertiary: #8b8c91;
+    --text-placeholder: #b0b1b5;
+
+    --accent-primary: #5865f2;
+    --accent-hover: #4752c4;
+    --accent-light: #dee0fc;
+    --accent-focus: #4760e8;
+    --accent-tint: hsl(235 86% 65% / 0.12);
+
+    --border-dark: #d0d0d5;
+    --border-subtle: #c4c4ca;
+}

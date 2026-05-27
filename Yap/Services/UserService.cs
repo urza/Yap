@@ -431,6 +431,33 @@ public class UserService
     }
 
     /// <summary>
+    /// Updates the user's selected color theme ID.
+    /// </summary>
+    public async Task UpdateThemeAsync(Guid userId, string? themeId)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        user.Theme = themeId;
+
+        if (_persistenceEnabled)
+        {
+            try
+            {
+                await using var db = await _dbFactory!.CreateDbContextAsync();
+                await db.Users
+                    .Where(u => u.Id == userId)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(u => u.Theme, themeId));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update Theme for user {UserId}", userId);
+            }
+        }
+    }
+
+    /// <summary>
     /// Updates the user's timezone and locale (detected from browser).
     /// </summary>
     public async Task UpdateLocaleAsync(Guid userId, string? timeZone, string? locale, string? dateFormat = null)
