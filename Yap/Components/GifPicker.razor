@@ -222,6 +222,7 @@
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var result = await GifService.GetTrendingAsync(null, 24, cts.Token);
             trendingResults = result.Items;
+            Logger.LogInformation("GIF trending: {Count} items", trendingResults.Count);
             await InvokeAsync(StateHasChanged);
         }
         catch (Exception ex) { Logger.LogWarning(ex, "GIF trending failed"); }
@@ -278,15 +279,22 @@
 
         localResults = GifService.SearchLocal(query);
         isSearchingProvider = GifService.IsConfigured;
+        Logger.LogInformation("GIF search '{Query}': {LocalCount} local hits, querying provider={Querying}",
+            query, localResults.Count, GifService.IsConfigured);
         StateHasChanged();
 
-        if (!GifService.IsConfigured) return;
+        if (!GifService.IsConfigured)
+        {
+            Logger.LogWarning("GIF provider not configured — skipping provider search");
+            return;
+        }
 
         try
         {
             var result = await GifService.SearchProviderAsync(query, null, 24, ct);
             if (ct.IsCancellationRequested) return;
             providerResults = result.Items;
+            Logger.LogInformation("GIF search '{Query}': provider returned {Count} items", query, providerResults.Count);
         }
         catch (OperationCanceledException) { return; }
         catch (Exception ex)
@@ -328,9 +336,7 @@
         <div class="gif-card" style="@aspect" @onclick="@(() => SendLocalAsync(e.Id))">
             @if (!string.IsNullOrEmpty(src) && ctype != "image/gif")
             {
-                <video src="@src" muted loop playsinline preload="metadata"
-                       onmouseenter="this.play().catch(()=>{})"
-                       onmouseleave="this.pause(); this.currentTime=0"></video>
+                <video src="@src" autoplay muted loop playsinline preload="metadata" class="gif-card-video"></video>
             }
             else if (!string.IsNullOrEmpty(src))
             {
@@ -349,12 +355,11 @@
     {
         var (src, ctype) = PickPreview(item);
         var aspect = (item.Width > 0 && item.Height > 0) ? $"aspect-ratio: {item.Width}/{item.Height};" : "";
-        <div class="gif-card" style="@aspect" @onclick="@(() => SendProviderAsync(item.SourceId))">
+        var capturedItem = item;
+        <div class="gif-card" style="@aspect" @onclick="@(() => SendProviderAsync(capturedItem))">
             @if (!string.IsNullOrEmpty(src) && ctype != "image/gif")
             {
-                <video src="@src" muted loop playsinline preload="metadata"
-                       onmouseenter="this.play().catch(()=>{})"
-                       onmouseleave="this.pause(); this.currentTime=0"></video>
+                <video src="@src" autoplay muted loop playsinline preload="metadata" class="gif-card-video"></video>
             }
             else if (!string.IsNullOrEmpty(src))
             {
@@ -387,14 +392,19 @@
 
     private async Task SendLocalAsync(Guid gifEntryId)
     {
+        Logger.LogInformation("GifPicker click: cached entry {EntryId}", gifEntryId);
         var att = await GifService.SendCachedGifAsync(gifEntryId, searchText, CurrentUserId, CurrentUsername);
         if (att != null) await OnGifSelected.InvokeAsync(att);
+        else Logger.LogWarning("GifPicker click: SendCachedGifAsync returned null for {EntryId}", gifEntryId);
     }
 
-    private async Task SendProviderAsync(string sourceId)
+    private async Task SendProviderAsync(GifSearchItem item)
     {
-        var att = await GifService.SendProviderGifAsync(sourceId, searchText, CurrentUserId, CurrentUsername);
+        Logger.LogInformation("GifPicker click: provider item {SourceId} (formats={Formats}, previews={Previews})",
+            item.SourceId, item.Formats.Count, item.PreviewFormats.Count);
+        var att = await GifService.SendProviderGifAsync(item, searchText, CurrentUserId, CurrentUsername);
         if (att != null) await OnGifSelected.InvokeAsync(att);
+        else Logger.LogWarning("GifPicker click: SendProviderGifAsync returned null for {SourceId}", item.SourceId);
     }
 
     private async Task ToggleFavoriteAsync(Guid gifEntryId)

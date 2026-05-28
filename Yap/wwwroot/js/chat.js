@@ -1129,3 +1129,70 @@ window.cleanupInfiniteScroll = () => {
 window.applyTheme = (themeId) => {
     document.documentElement.dataset.theme = themeId || 'discord-dark';
 };
+
+// ==========================================
+// GIF (MP4) message autoplay — canplay-based
+// ==========================================
+// Why this exists: Blazor Server's prerender → hydrate cycle can race the browser's autoplay
+// decision (see dotnet/aspnetcore#59415). Rather than rely on the `autoplay` attribute surviving
+// hydration, we listen for the native `canplay` event in the capturing phase on the document.
+// That event fires once the browser has buffered enough data to start playing, regardless of
+// when the <video> element was added to the DOM or whether Blazor patched it. We then call .play(),
+// which works for muted+playsinline videos under every browser's autoplay policy.
+//
+// If a video's play() ever rejects with NotAllowedError (rare for muted videos but possible under
+// strict policy), we install a one-shot pointerdown/keydown listener so the next user gesture
+// anywhere unblocks every paused .gif-message-video on the page.
+(function () {
+    if (window.__gifAutoplayWired) return;
+    window.__gifAutoplayWired = true;
+
+    // Both chat-message gifs and picker-grid previews share the same canplay-driven autoplay.
+    const GIF_VIDEO_SELECTOR = '.gif-message-video, .gif-card-video';
+
+    const isGifVideo = (v) =>
+        v && v.tagName === 'VIDEO' && v.classList &&
+        (v.classList.contains('gif-message-video') || v.classList.contains('gif-card-video'));
+
+    const tryPlay = (v) => {
+        if (!isGifVideo(v) || !v.paused) return;
+        v.play().catch(err => {
+            if (err && err.name === 'NotAllowedError') installClickUnlock();
+            else console.warn(`[gif autoplay] ${err.name}: ${err.message} — ${v.currentSrc}`);
+        });
+    };
+
+    function installClickUnlock() {
+        if (window.__gifKickPending) return;
+        window.__gifKickPending = true;
+        const unlock = () => {
+            window.__gifKickPending = false;
+            document.removeEventListener('pointerdown', unlock, true);
+            document.removeEventListener('keydown', unlock, true);
+            document.querySelectorAll(GIF_VIDEO_SELECTOR).forEach(v => {
+                if (v.paused) v.play().catch(() => {});
+            });
+        };
+        document.addEventListener('pointerdown', unlock, true);
+        document.addEventListener('keydown', unlock, true);
+    }
+
+    // Catches every <video> reaching the canplay state — initial-render, freshly inserted, or
+    // hydrated. Capturing-phase listener ensures we see the event regardless of bubbling.
+    document.addEventListener('canplay', e => tryPlay(e.target), true);
+
+    // Fallback for videos that loaded super-fast and fired canplay before this listener was wired:
+    // sweep any paused gif videos periodically. Cheap; only acts on currently-paused. The picker
+    // can open and close multiple times during a session, so we keep sweeping (longer cadence).
+    setInterval(() => {
+        document.querySelectorAll(GIF_VIDEO_SELECTOR).forEach(tryPlay);
+    }, 800);
+})();
+
+// Public hook for any C# code that calls into JS via interop. The canplay listener handles the
+// initial-play case; this is a manual sweep for explicit re-kicks.
+window.kickGifVideos = () => {
+    document.querySelectorAll('.gif-message-video, .gif-card-video').forEach(v => {
+        if (v.paused) v.play().catch(() => {});
+    });
+};

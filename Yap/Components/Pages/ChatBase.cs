@@ -157,6 +157,11 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
             // Setup scroll-to-dismiss for mobile message actions
             await SetupScrollDismissAsync();
         }
+
+        // Kick any paused GIF videos on every render. Cheap (no-op if already playing) and
+        // covers the case where browser autoplay didn't fire reliably for multiple <video>
+        // elements that hydrated in the same paint (common after page restart).
+        await KickGifVideosAsync();
     }
 
     /// <summary>
@@ -197,6 +202,16 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     {
         try { await JS.InvokeVoidAsync("scrollToBottom"); }
         catch (Exception ex) { Console.WriteLine($"[ChatBase] Failed to scroll: {ex.Message}"); }
+    }
+
+    /// <summary>
+    /// Nudges any paused GIF-message videos to start playing. Browsers don't always honor
+    /// the autoplay attribute when many videos hydrate at once on initial page load.
+    /// </summary>
+    protected async Task KickGifVideosAsync()
+    {
+        try { await JS.InvokeVoidAsync("kickGifVideos"); }
+        catch { /* circuit may be dead during disconnect */ }
     }
 
     /// <summary>

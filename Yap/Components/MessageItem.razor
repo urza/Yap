@@ -125,18 +125,25 @@
                     var w = att.Width > 0 ? att.Width : entry?.Width ?? 0;
                     var h = att.Height > 0 ? att.Height : entry?.Height ?? 0;
                     var aspect = (w > 0 && h > 0) ? $"aspect-ratio: {w}/{h}; max-width: min(360px, {w}px);" : "max-width: 320px;";
-                    var sources = BuildGifSources(entry);
+                    var (gifSrc, gifIsImage) = PickGifRender(entry);
                     var isFav = entry != null && GifService.IsFavorite(CurrentUserId, entry.Id);
                     var uploader = entry?.UploadedByUserId is Guid uid ? UserService.GetById(uid)?.EffectiveDisplayName : null;
                     var gifId = att.GifEntryId;
                     <div class="gif-message" style="@aspect">
-                        @if (sources.Count > 0)
+                        @if (gifSrc != null && gifIsImage)
                         {
-                            <video autoplay loop muted playsinline preload="metadata" width="@(w > 0 ? w.ToString() : null)" height="@(h > 0 ? h.ToString() : null)">
-                                @foreach (var (url, type) in sources)
-                                {
-                                    <source src="@url" type="@type" />
-                                }
+                            // Render as <img>. Animated GIFs in img tags always animate — no autoplay
+                            // policy, no Blazor hydration timing pitfalls, no codec/decode concerns.
+                            <img src="@gifSrc" alt="@(entry?.OriginalContentType)"
+                                 width="@(w > 0 ? w.ToString() : null)" height="@(h > 0 ? h.ToString() : null)"
+                                 loading="lazy" />
+                        }
+                        else if (gifSrc != null)
+                        {
+                            // Fallback for entries without a .gif (user uploads we transcoded to mp4/webm).
+                            <video src="@gifSrc" autoplay loop muted playsinline preload="auto"
+                                   class="gif-message-video"
+                                   width="@(w > 0 ? w.ToString() : null)" height="@(h > 0 ? h.ToString() : null)">
                             </video>
                         }
                         else
@@ -465,27 +472,24 @@
 
     private Guid CurrentUserId => UserState.UserId ?? Guid.Empty;
 
-    private static readonly (string, string)[] GifSourceOrder = new[]
+    /// <summary>
+    /// Picks the best URL for the GIF and whether to render via &lt;video&gt; (MP4/WebM) or &lt;img&gt; (animated GIF).
+    /// MP4 first to match Discord — smaller than GIF, with a global JS canplay handler making
+    /// playback reliable across Blazor's prerender/hydrate cycle. GIF (img tag) stays as a fallback
+    /// for entries that only have that format available.
+    /// </summary>
+    private (string? Src, bool IsImage) PickGifRender(GifEntry? entry)
     {
-        ("local-webm", "video/webm"),
-        ("local-mp4",  "video/mp4"),
-        ("local-gif",  "image/gif"),
-        ("remote-webm","video/webm"),
-        ("remote-mp4", "video/mp4"),
-        ("remote-gif", "image/gif"),
-    };
+        if (entry == null) return (null, false);
 
-    private List<(string Url, string Type)> BuildGifSources(GifEntry? entry)
-    {
-        var list = new List<(string, string)>();
-        if (entry == null) return list;
-        if (!string.IsNullOrEmpty(entry.WebmUrl))      list.Add((entry.WebmUrl!,      "video/webm"));
-        if (!string.IsNullOrEmpty(entry.Mp4Url))       list.Add((entry.Mp4Url!,       "video/mp4"));
-        if (!string.IsNullOrEmpty(entry.GifUrl))       list.Add((entry.GifUrl!,       "image/gif"));
-        if (!string.IsNullOrEmpty(entry.RemoteWebmUrl))list.Add((entry.RemoteWebmUrl!,"video/webm"));
-        if (!string.IsNullOrEmpty(entry.RemoteMp4Url)) list.Add((entry.RemoteMp4Url!, "video/mp4"));
-        if (!string.IsNullOrEmpty(entry.RemoteGifUrl)) list.Add((entry.RemoteGifUrl!, "image/gif"));
-        return list;
+        if (!string.IsNullOrEmpty(entry.Mp4Url))        return (entry.Mp4Url,        false);
+        if (!string.IsNullOrEmpty(entry.WebmUrl))       return (entry.WebmUrl,       false);
+        if (!string.IsNullOrEmpty(entry.RemoteMp4Url))  return (entry.RemoteMp4Url,  false);
+        if (!string.IsNullOrEmpty(entry.RemoteWebmUrl)) return (entry.RemoteWebmUrl, false);
+
+        if (!string.IsNullOrEmpty(entry.GifUrl))       return (entry.GifUrl,       true);
+        if (!string.IsNullOrEmpty(entry.RemoteGifUrl)) return (entry.RemoteGifUrl, true);
+        return (null, false);
     }
 
     private async Task ToggleGifFavorite(Guid gifEntryId)

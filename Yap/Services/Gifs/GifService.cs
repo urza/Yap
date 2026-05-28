@@ -47,7 +47,6 @@ public class GifService
     // Per-user favorites (cached in memory, written to DB immediately on toggle).
     private readonly ConcurrentDictionary<Guid, HashSet<Guid>> _favoritesByUser = new();
 
-    private static readonly string[] FormatPreference = ["video/webm", "video/mp4", "image/gif"];
     private const int MaxRecentGifs = 30;
     private const int LocalSearchLimit = 24;
     private const long MaxDownloadBytes = 64L * 1024 * 1024; // 64MB safety ceiling per file
@@ -127,6 +126,17 @@ public class GifService
             }
 
             _logger.LogInformation("Loaded {EntryCount} GIF entries, {FavCount} favorites", entries.Count, favorites.Count);
+
+            // Backfill: any provider entries that have a remote gif URL but no local gif file
+            // get queued for download. Catches entries created before we cached gifs locally,
+            // and also re-fetches if files were manually deleted.
+            var backfillNeeded = entries.Where(NeedsBackgroundNormalization).ToList();
+            if (backfillNeeded.Count > 0)
+            {
+                _logger.LogInformation("Backfilling local cache for {Count} GIF entries", backfillNeeded.Count);
+                foreach (var entry in backfillNeeded)
+                    QueueNormalization(entry);
+            }
         }
         catch (Exception ex)
         {
@@ -216,37 +226,33 @@ public class GifService
     #region Send flows
 
     /// <summary>
-    /// Called when the user clicks a provider result in the picker. Creates a GifEntry (or hits the
-    /// existing one), updates usage, queues background download, and returns a GifAttachment ready
-    /// to embed in a ChatMessage.
+    /// Called when the user clicks a provider result in the picker. Creates a GifEntry from the
+    /// already-fetched search item (or hits an existing entry if we've seen this sourceId before),
+    /// updates usage, queues background download, and returns a GifAttachment ready to embed in a
+    /// ChatMessage. No extra round-trip to the provider — the search response carried everything we
+    /// need.
     /// </summary>
-    public async Task<GifAttachment?> SendProviderGifAsync(string sourceId, string? query, Guid userId, string username)
+    public async Task<GifAttachment?> SendProviderGifAsync(GifSearchItem item, string? query, Guid userId, string username)
     {
-        if (string.IsNullOrEmpty(sourceId)) return null;
+        if (string.IsNullOrEmpty(item.SourceId)) return null;
 
         GifEntry entry;
-        if (_byProviderSourceId.TryGetValue((_provider.ProviderId, sourceId), out var existingId)
+        if (_byProviderSourceId.TryGetValue((_provider.ProviderId, item.SourceId), out var existingId)
             && _entries.TryGetValue(existingId, out var existing))
         {
             entry = existing;
             TouchUsage(entry, query);
+            _logger.LogInformation("SendProviderGif hit cached entry {EntryId} for sourceId={SourceId}", entry.Id, item.SourceId);
         }
         else
         {
-            // Need fresh data from provider. We could have cached the item from the picker, but
-            // ResolveByIdAsync gives us authoritative URLs at send-time.
-            var item = await _provider.ResolveByIdAsync(sourceId, CancellationToken.None);
-            if (item == null)
-            {
-                _logger.LogWarning("Could not resolve provider GIF {SourceId}", sourceId);
-                return null;
-            }
             entry = await CreateEntryFromProviderItemAsync(item, query);
-            if (entry == null!) return null;
+            _logger.LogInformation("SendProviderGif created new entry {EntryId} for sourceId={SourceId} (formats: {FormatCount})",
+                entry.Id, item.SourceId, item.Formats.Count);
         }
 
         // Fire-and-forget provider share notification (TOS requirement for some providers).
-        _ = _provider.RegisterShareAsync(sourceId, query, CancellationToken.None);
+        _ = _provider.RegisterShareAsync(item.SourceId, query, CancellationToken.None);
 
         // Queue background normalization if local files aren't ready yet.
         if (NeedsBackgroundNormalization(entry))
@@ -305,10 +311,12 @@ public class GifService
             || (!probe.HasAudio && probe.VideoCodec != null && probe.DurationSeconds <= MaxGifDurationSec && probe.DurationSeconds > 0);
         if (!qualifies) return null;
 
-        // Output to wwwroot/uploads/gifs/{entryId}.{ext}
+        // Always produce a browser-friendly H.264 MP4 regardless of source format. Discord/Tenor's
+        // pattern: MP4 in a <video autoplay loop muted> tag — 5–30× smaller than the equivalent
+        // GIF, with a JS canplay handler ensuring it plays through Blazor's prerender → hydrate cycle.
         var entryId = Guid.NewGuid();
         var mp4Path = Path.Combine(CustomUploadsDir, $"{entryId}.mp4");
-        var webmPath = Path.Combine(CustomUploadsDir, $"{entryId}.webm");
+        var sourceExt = Path.GetExtension(sourceFilePath).ToLowerInvariant();
 
         var mp4Ok = await _ffmpeg.TranscodeToMp4Async(sourceFilePath, mp4Path, ct);
         if (!mp4Ok)
@@ -317,13 +325,7 @@ public class GifService
             return null;
         }
 
-        var webmOk = false;
-        if (TranscodeWebmEnabled)
-        {
-            webmOk = await _ffmpeg.TranscodeToWebmAsync(sourceFilePath, webmPath, ct);
-        }
-
-        // Determine displayed dimensions: prefer source probe, fall back to MP4 probe if source was unusual.
+        // Dimensions: prefer the source probe; fall back to probing the produced MP4.
         int width = probe.Width, height = probe.Height;
         if (width == 0 || height == 0)
         {
@@ -335,13 +337,12 @@ public class GifService
         {
             Id = entryId,
             Mp4Url = $"/uploads/gifs/{entryId}.mp4",
-            WebmUrl = webmOk ? $"/uploads/gifs/{entryId}.webm" : null,
             Width = width,
             Height = height,
             DurationSeconds = probe.DurationSeconds,
-            FileSizeBytes = SafeFileSize(mp4Path) + (webmOk ? SafeFileSize(webmPath) : 0),
+            FileSizeBytes = SafeFileSize(mp4Path),
             OriginalContentType = originalContentType,
-            TranscodeStatus = GifTranscodeStatus.DoneMp4 | (webmOk ? GifTranscodeStatus.DoneWebm : GifTranscodeStatus.None),
+            TranscodeStatus = GifTranscodeStatus.DoneMp4,
             CreatedAt = DateTime.UtcNow,
             LastUsedAt = DateTime.UtcNow,
         };
@@ -504,12 +505,9 @@ public class GifService
     private static bool NeedsBackgroundNormalization(GifEntry entry)
     {
         if (entry.SourceProviderId == null) return false; // Custom uploads are already normalized.
-        if (!string.IsNullOrEmpty(entry.Mp4Url) && (string.IsNullOrEmpty(entry.RemoteWebmUrl) || !string.IsNullOrEmpty(entry.WebmUrl)))
-        {
-            // MP4 ready and either WebM done or not needed.
-            return false;
-        }
-        return true;
+        if (entry.DeletedAt != null) return false;
+        // Need normalization if we don't have a local MP4 but the provider gave us a remote one.
+        return string.IsNullOrEmpty(entry.Mp4Url) && !string.IsNullOrEmpty(entry.RemoteMp4Url);
     }
 
     private void QueueNormalization(GifEntry entry)
@@ -528,77 +526,25 @@ public class GifService
 
     private async Task NormalizeProviderEntryAsync(GifEntry entry)
     {
-        // 1) Download primary remote format → local file
-        var pick = PickBestRemote(entry);
-        if (pick == null) return;
+        // Chat renders provider GIFs via <video autoplay loop muted> — the same pattern Discord uses
+        // for Tenor content. MP4 is ~30× smaller than the equivalent GIF and Klipy serves it ready
+        // at /md/mp4. We don't transcode anything; just download the file so we serve it from our
+        // own /gif-cache instead of hammering Klipy's CDN.
+        if (string.IsNullOrEmpty(entry.RemoteMp4Url)) return;
 
-        var (remoteUrl, contentType, localExt) = pick.Value;
-        var localPath = Path.Combine(CacheDir, $"{entry.Id}{localExt}");
-        if (!File.Exists(localPath))
+        var mp4Path = Path.Combine(CacheDir, $"{entry.Id}.mp4");
+        if (!File.Exists(mp4Path))
         {
-            var ok = await DownloadAsync(remoteUrl, localPath, CancellationToken.None);
+            var ok = await DownloadAsync(entry.RemoteMp4Url, mp4Path, CancellationToken.None);
             if (!ok) { MarkFailed(entry); return; }
         }
 
-        // 2) Update entry to reflect downloaded format
-        var localUrl = $"/gif-cache/{entry.Id}{localExt}";
-        switch (contentType)
-        {
-            case "video/mp4": entry.Mp4Url = localUrl; entry.TranscodeStatus |= GifTranscodeStatus.DoneMp4; break;
-            case "video/webm": entry.WebmUrl = localUrl; entry.TranscodeStatus |= GifTranscodeStatus.DoneWebm; break;
-            case "image/gif": entry.GifUrl = localUrl; entry.TranscodeStatus |= GifTranscodeStatus.DoneGif; break;
-        }
-        entry.FileSizeBytes += SafeFileSize(localPath);
-
-        // 3) Fill any browser-compat gap. We always want an MP4 (Safari) and optionally WebM.
-        var mp4Missing = string.IsNullOrEmpty(entry.Mp4Url);
-        var webmMissing = string.IsNullOrEmpty(entry.WebmUrl);
-
-        if (mp4Missing)
-        {
-            var mp4Path = Path.Combine(CacheDir, $"{entry.Id}.mp4");
-            if (await _ffmpeg.TranscodeToMp4Async(localPath, mp4Path))
-            {
-                entry.Mp4Url = $"/gif-cache/{entry.Id}.mp4";
-                entry.TranscodeStatus |= GifTranscodeStatus.DoneMp4;
-                entry.FileSizeBytes += SafeFileSize(mp4Path);
-            }
-        }
-
-        if (webmMissing && TranscodeWebmEnabled)
-        {
-            var webmPath = Path.Combine(CacheDir, $"{entry.Id}.webm");
-            // Use the MP4 we just produced (if any) as ffmpeg source — smaller input, more standardized.
-            var src = !string.IsNullOrEmpty(entry.Mp4Url)
-                ? Path.Combine(CacheDir, $"{entry.Id}.mp4")
-                : localPath;
-            if (await _ffmpeg.TranscodeToWebmAsync(src, webmPath))
-            {
-                entry.WebmUrl = $"/gif-cache/{entry.Id}.webm";
-                entry.TranscodeStatus |= GifTranscodeStatus.DoneWebm;
-                entry.FileSizeBytes += SafeFileSize(webmPath);
-            }
-        }
+        entry.Mp4Url = $"/gif-cache/{entry.Id}.mp4";
+        entry.TranscodeStatus |= GifTranscodeStatus.DoneMp4;
+        entry.FileSizeBytes = SafeFileSize(mp4Path);
 
         await PersistFormatsAsync(entry);
         OnGifEntryUpdated?.Invoke(entry.Id);
-    }
-
-    private (string Url, string ContentType, string Extension)? PickBestRemote(GifEntry entry)
-    {
-        foreach (var ct in FormatPreference)
-        {
-            switch (ct)
-            {
-                case "video/webm" when !string.IsNullOrEmpty(entry.RemoteWebmUrl):
-                    return (entry.RemoteWebmUrl!, "video/webm", ".webm");
-                case "video/mp4" when !string.IsNullOrEmpty(entry.RemoteMp4Url):
-                    return (entry.RemoteMp4Url!, "video/mp4", ".mp4");
-                case "image/gif" when !string.IsNullOrEmpty(entry.RemoteGifUrl):
-                    return (entry.RemoteGifUrl!, "image/gif", ".gif");
-            }
-        }
-        return null;
     }
 
     private async Task<bool> DownloadAsync(string url, string destPath, CancellationToken ct)

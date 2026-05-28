@@ -170,35 +170,71 @@ public class KlipyGifProvider : IGifSourceProvider
 
     private async Task<GifSearchResult> FetchSearchAsync(string url, string? cursor, CancellationToken ct)
     {
+        _logger.LogInformation("Klipy GET {Url}", RedactKey(url));
         try
         {
             var client = _httpClientFactory.CreateClient("Klipy");
             using var response = await client.GetAsync(url, ct);
+            var bodyText = await response.Content.ReadAsStringAsync(ct);
+
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Klipy request failed: {Status} for {Url}", response.StatusCode, RedactKey(url));
+                _logger.LogWarning("Klipy HTTP {Status} for {Url} — body: {Body}",
+                    response.StatusCode, RedactKey(url), Truncate(bodyText, 500));
                 return new GifSearchResult(new(), null);
             }
 
-            await using var stream = await response.Content.ReadAsStreamAsync(ct);
-            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+            _logger.LogInformation("Klipy HTTP {Status} for {Url} ({Bytes} bytes)",
+                response.StatusCode, RedactKey(url), bodyText.Length);
+
+            using var doc = JsonDocument.Parse(bodyText);
 
             // Standard Klipy envelope: { "result": true, "data": { "data": [...], "current_page": N, "has_next": bool } }
             if (!doc.RootElement.TryGetProperty("data", out var outer) || outer.ValueKind != JsonValueKind.Object)
+            {
+                _logger.LogWarning("Klipy response has no 'data' object. Root kind: {Kind}, body: {Body}",
+                    doc.RootElement.ValueKind, Truncate(bodyText, 800));
                 return new GifSearchResult(new(), null);
+            }
             if (!outer.TryGetProperty("data", out var items) || items.ValueKind != JsonValueKind.Array)
+            {
+                _logger.LogWarning("Klipy response 'data.data' is not an array. Outer keys: [{Keys}], body: {Body}",
+                    string.Join(",", outer.EnumerateObject().Select(p => p.Name)), Truncate(bodyText, 800));
                 return new GifSearchResult(new(), null);
+            }
 
+            var totalItems = items.GetArrayLength();
             var list = new List<GifSearchItem>();
+            var skippedAds = 0;
+            var rejectedNoMedia = 0;
             foreach (var r in items.EnumerateArray())
             {
-                // Skip ad objects if Klipy mixes them in (type=="ad").
                 if (r.TryGetProperty("type", out var typ) && typ.ValueKind == JsonValueKind.String
                     && typ.GetString() == "ad")
+                {
+                    skippedAds++;
                     continue;
+                }
 
                 var item = ParseResultItem(r);
                 if (item != null) list.Add(item);
+                else rejectedNoMedia++;
+            }
+
+            if (list.Count == 0 && totalItems > 0)
+            {
+                // Got items back but couldn't parse any — log the FIRST item so we can see the actual shape.
+                var firstItem = items[0];
+                _logger.LogWarning("Klipy returned {Total} items but parsed 0 (ads skipped={Ads}, rejected={Rej}). " +
+                    "First item keys: [{Keys}]. First item sample: {Sample}",
+                    totalItems, skippedAds, rejectedNoMedia,
+                    string.Join(",", firstItem.EnumerateObject().Select(p => p.Name)),
+                    Truncate(firstItem.GetRawText(), 1500));
+            }
+            else
+            {
+                _logger.LogInformation("Klipy parsed {Parsed}/{Total} items (ads={Ads}, rejected={Rej})",
+                    list.Count, totalItems, skippedAds, rejectedNoMedia);
             }
 
             string? nextCursor = null;
@@ -222,7 +258,10 @@ public class KlipyGifProvider : IGifSourceProvider
         }
     }
 
-    private static GifSearchItem? ParseResultItem(JsonElement r)
+    private static string Truncate(string s, int max)
+        => s.Length <= max ? s : s[..max] + "…";
+
+    private GifSearchItem? ParseResultItem(JsonElement r)
     {
         // Klipy's id can be numeric or string; the slug (also string) is the share-friendly identifier.
         // Prefer slug if present (the share / items endpoints take it), fall back to id.
@@ -235,39 +274,80 @@ public class KlipyGifProvider : IGifSourceProvider
         var preview = new List<MediaFormat>();
         int width = 0, height = 0;
 
-        // Klipy's media object mirrors Tenor's format keys: mp4 / webm / gif / tinymp4 / tinygif / etc.
-        if (r.TryGetProperty("media", out var media) && media.ValueKind == JsonValueKind.Object)
+        // Current Klipy shape: file.{hd|md|sm}.{gif|webp|jpg|mp4|webm}.{url,width,height,size}.
+        // We prefer the "md" tier for full formats: gif is ~3× smaller than hd (5MB vs 17MB on
+        // the cat example), while mp4/webm are byte-identical between tiers (Klipy doesn't
+        // downsize video). Fall back to "hd" if "md" isn't present for some items.
+        // Previews come from "sm" tier (smallest), falling back to "md".
+        if (r.TryGetProperty("file", out var file) && file.ValueKind == JsonValueKind.Object)
+        {
+            JsonElement fullTier = default;
+            if (file.TryGetProperty("md", out var md) && md.ValueKind == JsonValueKind.Object) fullTier = md;
+            else if (file.TryGetProperty("hd", out var hd) && hd.ValueKind == JsonValueKind.Object) fullTier = hd;
+
+            if (fullTier.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var fmt in fullTier.EnumerateObject())
+                {
+                    if (!IsPlayableFormatKey(fmt.Name)) continue;
+                    var mf = ParseMediaFormat(fmt.Value, fmt.Name);
+                    if (mf == null) continue;
+                    full.Add(mf);
+                    if (width == 0 || height == 0) { width = mf.Width; height = mf.Height; }
+                }
+            }
+
+            JsonElement previewTier = default;
+            if (file.TryGetProperty("sm", out var sm) && sm.ValueKind == JsonValueKind.Object) previewTier = sm;
+            else if (file.TryGetProperty("md", out var md2) && md2.ValueKind == JsonValueKind.Object) previewTier = md2;
+
+            if (previewTier.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var fmt in previewTier.EnumerateObject())
+                {
+                    if (!IsPlayableFormatKey(fmt.Name)) continue;
+                    var mf = ParseMediaFormat(fmt.Value, fmt.Name);
+                    if (mf == null) continue;
+                    preview.Add(mf);
+                }
+            }
+        }
+        // Legacy Tenor-style fallback: media.{mp4|webm|gif|tinymp4|tinygif|...}.
+        else if (r.TryGetProperty("media", out var media) && media.ValueKind == JsonValueKind.Object)
         {
             foreach (var fmt in media.EnumerateObject())
             {
-                var media1 = ParseMediaFormat(fmt.Value, fmt.Name);
-                if (media1 == null) continue;
+                var mf = ParseMediaFormat(fmt.Value, fmt.Name);
+                if (mf == null) continue;
                 if (IsFullSizeFormatKey(fmt.Name))
                 {
-                    full.Add(media1);
-                    if (width == 0 || height == 0) { width = media1.Width; height = media1.Height; }
+                    full.Add(mf);
+                    if (width == 0 || height == 0) { width = mf.Width; height = mf.Height; }
                 }
                 else if (IsPreviewFormatKey(fmt.Name))
                 {
-                    preview.Add(media1);
+                    preview.Add(mf);
                 }
             }
         }
-        // Some Klipy endpoints/keys may use "file_meta" or "files" wrapper — be tolerant.
-        else if (r.TryGetProperty("file_meta", out var fileMeta) && fileMeta.ValueKind == JsonValueKind.Object)
-        {
-            foreach (var fmt in fileMeta.EnumerateObject())
-            {
-                var media1 = ParseMediaFormat(fmt.Value, fmt.Name);
-                if (media1 == null) continue;
-                if (IsFullSizeFormatKey(fmt.Name)) full.Add(media1);
-                else if (IsPreviewFormatKey(fmt.Name)) preview.Add(media1);
-            }
-        }
 
-        if (full.Count == 0 && preview.Count == 0) return null;
+        if (full.Count == 0 && preview.Count == 0)
+        {
+            var topKeys = string.Join(",", r.EnumerateObject().Select(p => p.Name));
+            _logger.LogWarning("Klipy item {Id} produced no formats. Top keys: [{TopKeys}]", idStr, topKeys);
+            return null;
+        }
         return new GifSearchItem(idStr, title, width, height, full, preview);
     }
+
+    /// <summary>
+    /// Formats our renderer can actually play in a &lt;video&gt; tag or as a &lt;img&gt; gif.
+    /// Klipy ships jpg (static poster) and webp (we don't render image/webp in messages) — both rejected.
+    /// </summary>
+    private static bool IsPlayableFormatKey(string formatKey) =>
+        formatKey.Equals("mp4", StringComparison.OrdinalIgnoreCase)
+        || formatKey.Equals("webm", StringComparison.OrdinalIgnoreCase)
+        || formatKey.Equals("gif", StringComparison.OrdinalIgnoreCase);
 
     private static MediaFormat? ParseMediaFormat(JsonElement el, string formatName)
     {

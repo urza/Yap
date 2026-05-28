@@ -315,7 +315,11 @@
     private async void HandleGifEntryUpdated(Guid gifEntryId)
     {
         if (!messages.Any(m => m.GifAttachments.Any(a => a.GifEntryId == gifEntryId))) return;
-        try { await InvokeAsync(StateHasChanged); }
+        try
+        {
+            await InvokeAsync(StateHasChanged);
+            await KickGifVideosAsync();
+        }
         catch (Exception ex)
         {
             if (ex is ObjectDisposedException or InvalidOperationException)
