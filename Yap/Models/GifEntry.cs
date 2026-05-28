@@ -1,7 +1,7 @@
 namespace Yap.Models;
 
 /// <summary>
-/// A short looping media item (concept of "GIF") sourced either from an external provider (Tenor)
+/// A short looping media item (concept of "GIF") sourced either from an external provider (Klipy)
 /// or uploaded directly by a user. May exist as MP4, WebM, original GIF, or any combination.
 ///
 /// Sourced entries (SourceProviderId != null) start with only Remote URLs set and get Local URLs
@@ -14,7 +14,7 @@ public class GifEntry
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
-    /// <summary>Provider that supplied this GIF (e.g. "tenor"). Null for custom uploads.</summary>
+    /// <summary>Provider that supplied this GIF (e.g. "klipy"). Null for custom uploads.</summary>
     public string? SourceProviderId { get; set; }
 
     /// <summary>Provider's GIF identifier. Null for custom uploads. Unique-when-not-null with SourceProviderId.</summary>

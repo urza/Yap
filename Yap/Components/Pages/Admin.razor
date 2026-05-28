@@ -510,23 +510,23 @@
 
             <div class="section-header" style="margin-top: 2rem;">
                 <h3>GIFs</h3>
-                <span class="section-count">Tenor content filter</span>
+                <span class="section-count">Klipy content rating</span>
             </div>
 
             <div class="registration-settings">
                 <label class="toggle-row">
                     <div class="toggle-info">
-                        <span class="toggle-label">Content filter</span>
+                        <span class="toggle-label">Content rating</span>
                         <span class="toggle-hint">
-                            How strictly Tenor filters search and trending results. Off = anything goes. High = G-rated only.
-                            Default is Medium (matches Tenor's own default).
+                            How strictly Klipy filters search and trending results.
+                            G = strictest (kid-friendly). PG = mild (default). PG-13 = some edgy content. R = anything goes.
                         </span>
                     </div>
-                    <select class="log-filter-select" @bind="gifContentFilter" @bind:after="UpdateGifContentFilter">
-                        <option value="Off">Off</option>
-                        <option value="Low">Low</option>
-                        <option value="Medium">Medium</option>
-                        <option value="High">High</option>
+                    <select class="log-filter-select" @bind="gifContentRating" @bind:after="UpdateGifContentRating">
+                        <option value="G">G</option>
+                        <option value="PG">PG</option>
+                        <option value="PG13">PG-13</option>
+                        <option value="R">R</option>
                     </select>
                 </label>
             </div>
@@ -967,7 +967,7 @@
         mediaCachingEnabled = LinkPreviewSettings.MediaCachingEnabled;
 
         // Load GIF settings
-        gifContentFilter = GifAdminSettings.TenorContentFilter.ToString();
+        gifContentRating = GifAdminSettings.KlipyRating.ToString();
     }
 
     private async Task SelectUser(Guid userId)
@@ -1062,7 +1062,7 @@
     private bool mediaCachingEnabled;
 
     // GIF settings
-    private string gifContentFilter = "Medium";
+    private string gifContentRating = "PG";
 
     private async Task ToggleRegistrationClosed(ChangeEventArgs e)
     {
@@ -1094,11 +1094,11 @@
         await LinkPreviewSettings.SetMediaCachingEnabledAsync(mediaCachingEnabled);
     }
 
-    private async Task UpdateGifContentFilter()
+    private async Task UpdateGifContentRating()
     {
-        if (Enum.TryParse<Yap.Services.Gifs.TenorContentFilter>(gifContentFilter, out var parsed))
+        if (Enum.TryParse<Yap.Services.Gifs.KlipyRating>(gifContentRating, out var parsed))
         {
-            await GifAdminSettings.SetTenorContentFilterAsync(parsed);
+            await GifAdminSettings.SetKlipyRatingAsync(parsed);
         }
     }
 

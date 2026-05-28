@@ -43,7 +43,7 @@
     <div class="gif-content">
         <div class="gif-search">
             <input type="text" @bind="searchText" @bind:event="oninput" @bind:after="OnSearchInputChanged"
-                   placeholder="@(GifService.IsConfigured ? "Search Tenor..." : "Search your library...")" />
+                   placeholder="@(GifService.IsConfigured ? $"Search {GifService.Provider.DisplayName}..." : "Search your library...")" />
             @if (!string.IsNullOrEmpty(searchText))
             {
                 <button class="gif-search-clear" @onclick="ClearSearch" title="Clear">✕</button>
@@ -134,7 +134,7 @@
                 }
                 else if (!GifService.IsConfigured)
                 {
-                    <div class="gif-empty">Tenor not configured. Set GifSettings:Tenor:ApiKey in appsettings.json.</div>
+                    <div class="gif-empty">@GifService.Provider.DisplayName not configured. Set ChatSettings:GifSettings:Klipy:ApiKey in appsettings.json.</div>
                 }
                 else
                 {

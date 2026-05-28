@@ -123,8 +123,8 @@ builder.Services.AddHttpClient("LinkPreview", client =>
     client.MaxResponseContentBufferSize = 256 * 1024; // 256KB
 });
 
-// Named HttpClient for the GIF provider (Tenor today). Shared for API requests + CDN downloads.
-builder.Services.AddHttpClient("Tenor", client =>
+// Named HttpClient for the GIF provider (Klipy today). Shared for API requests + CDN downloads.
+builder.Services.AddHttpClient("Klipy", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(15);
     client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (compatible; YapBot/1.0)");
@@ -137,7 +137,7 @@ builder.Services.AddSingleton<MediaCacheService>();
 // GIF feature — registered before ChatService since ChatService depends on GifService.
 builder.Services.AddSingleton<GifAdminSettingsService>();
 builder.Services.AddSingleton<GifFfmpegHelper>();
-builder.Services.AddSingleton<IGifSourceProvider, TenorGifProvider>();
+builder.Services.AddSingleton<IGifSourceProvider, KlipyGifProvider>();
 builder.Services.AddSingleton<GifService>();
 builder.Services.AddSingleton<GeoLocationService>();
 builder.Services.AddSingleton<CustomEmojiService>();

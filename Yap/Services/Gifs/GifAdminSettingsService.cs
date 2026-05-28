@@ -12,7 +12,7 @@ public class GifAdminSettingsService
     private readonly IWebHostEnvironment _env;
     private readonly ILogger<GifAdminSettingsService> _logger;
 
-    private TenorContentFilter _tenorContentFilter = TenorContentFilter.Medium;
+    private KlipyRating _klipyRating = KlipyRating.PG;
 
     public GifAdminSettingsService(IWebHostEnvironment env, ILogger<GifAdminSettingsService> logger)
     {
@@ -23,13 +23,13 @@ public class GifAdminSettingsService
 
     private string SettingsFilePath => Path.Combine(_env.ContentRootPath, "Data", "gif-settings.json");
 
-    public TenorContentFilter TenorContentFilter => _tenorContentFilter;
+    public KlipyRating KlipyRating => _klipyRating;
 
-    public async Task SetTenorContentFilterAsync(TenorContentFilter value)
+    public async Task SetKlipyRatingAsync(KlipyRating value)
     {
-        _tenorContentFilter = value;
+        _klipyRating = value;
         await SaveSettingsAsync();
-        _logger.LogInformation("Tenor content filter set to {Value}", value);
+        _logger.LogInformation("Klipy rating set to {Value}", value);
     }
 
     private void LoadSettings()
@@ -42,9 +42,9 @@ public class GifAdminSettingsService
                 var settings = JsonSerializer.Deserialize<GifSettings>(json);
                 if (settings != null)
                 {
-                    _tenorContentFilter = settings.TenorContentFilter;
+                    _klipyRating = settings.KlipyRating;
                 }
-                _logger.LogInformation("Loaded GIF settings: TenorContentFilter={Filter}", _tenorContentFilter);
+                _logger.LogInformation("Loaded GIF settings: KlipyRating={Rating}", _klipyRating);
             }
         }
         catch (Exception ex)
@@ -59,7 +59,7 @@ public class GifAdminSettingsService
         {
             var settings = new GifSettings
             {
-                TenorContentFilter = _tenorContentFilter
+                KlipyRating = _klipyRating
             };
             var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(SettingsFilePath, json);
@@ -72,14 +72,17 @@ public class GifAdminSettingsService
 
     private class GifSettings
     {
-        public TenorContentFilter TenorContentFilter { get; set; } = TenorContentFilter.Medium;
+        public KlipyRating KlipyRating { get; set; } = KlipyRating.PG;
     }
 }
 
-public enum TenorContentFilter
+/// <summary>
+/// Klipy's 4-level content rating. Maps to API parameter values: g, pg, pg-13, r.
+/// </summary>
+public enum KlipyRating
 {
-    Off,
-    Low,
-    Medium,
-    High,
+    G,
+    PG,
+    PG13,
+    R,
 }

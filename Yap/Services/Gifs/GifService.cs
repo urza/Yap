@@ -245,7 +245,7 @@ public class GifService
             if (entry == null!) return null;
         }
 
-        // Fire-and-forget Tenor TOS share notification.
+        // Fire-and-forget provider share notification (TOS requirement for some providers).
         _ = _provider.RegisterShareAsync(sourceId, query, CancellationToken.None);
 
         // Queue background normalization if local files aren't ready yet.
@@ -612,7 +612,7 @@ public class GifService
                 return false;
             }
 
-            var client = _httpClientFactory.CreateClient("Tenor");
+            var client = _httpClientFactory.CreateClient("Klipy");
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(DownloadTimeoutMs);
 

@@ -6,8 +6,8 @@ namespace Yap.Models;
 /// even if the underlying GifEntry is missing (defensive fallback).
 ///
 /// The actual playable URLs are looked up at render time via the GifService by GifEntryId — this
-/// lets background normalization (Tenor URL → local file, MP4 → WebM transcode) update what gets
-/// served without rewriting historical messages.
+/// lets background normalization (provider CDN URL → local file, MP4 → WebM transcode) update what
+/// gets served without rewriting historical messages.
 /// </summary>
 public class GifAttachment
 {
