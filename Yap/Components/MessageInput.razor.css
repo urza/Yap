@@ -409,6 +409,17 @@
         height: 40px;
     }
 
+    /* On phone, GIFs and emoji share one button (the emoji icon) — the picker has tabs. */
+    .gif-toggle-button {
+        display: none;
+    }
+
+    /* Reclaim space for the textarea while the user is actively composing.
+       Reset back to visible after send (HandleSend clears isInputFocused). */
+    .message-input-container.input-focused .image-upload-button {
+        display: none;
+    }
+
     .emoji-picker-container {
         position: fixed;
         bottom: 0;

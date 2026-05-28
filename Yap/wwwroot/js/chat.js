@@ -262,6 +262,19 @@ window.isTouchDevice = () => {
     return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 };
 
+// Watch viewport for the mobile breakpoint and notify Blazor when it changes.
+// Returns the initial match value so the caller can set state on first render.
+window.setupMobileLayoutWatcher = (dotnetRef) => {
+    const mq = window.matchMedia('(max-width: 600px)');
+    const handler = (e) => {
+        try { dotnetRef.invokeMethodAsync('OnMobileLayoutChanged', e.matches); }
+        catch { /* circuit may be gone */ }
+    };
+    if (mq.addEventListener) mq.addEventListener('change', handler);
+    else mq.addListener(handler);
+    return mq.matches;
+};
+
 // Prevent textarea from losing focus when send button is tapped (keeps mobile keyboard open)
 window.setupSendButtonFocus = (textareaId) => {
     const textarea = document.getElementById(textareaId);

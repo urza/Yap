@@ -79,7 +79,7 @@ else
     </div>
 }
 
-<div class="message-input-container @(isDraggingOver ? "drag-over" : "") @(ReplyingToMessage != null ? "has-reply-bar" : "") @(showEmojiPicker ? "emoji-open" : "")"
+<div class="message-input-container @(isDraggingOver ? "drag-over" : "") @(ReplyingToMessage != null ? "has-reply-bar" : "") @(showEmojiPicker ? "emoji-open" : "") @(isInputFocused ? "input-focused" : "")"
      @ref="dropZoneElement"
      @ondragenter="HandleDragEnter"
      @ondragover="HandleDragOver"
@@ -90,6 +90,7 @@ else
     <textarea @bind="messageText" @bind:event="oninput" @bind:after="OnInputChangedInternal"
               placeholder="@placeholder" class="message-input"
               @onkeydown="HandleKeyDown"
+              @onfocus="HandleInputFocus" @onblur="HandleInputBlur"
               rows="1" id="@TextareaId"></textarea>
     <label class="image-upload-button" title="Upload files">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
@@ -120,7 +121,16 @@ else
         {
             <div class="emoji-picker-backdrop" @onclick="CloseEmojiPicker"></div>
             <div class="emoji-picker-container">
-                <EmojiPicker RecentEmojis="@RecentEmojis" OnEmojiUsed="@OnEmojiUsed" TextareaId="@TextareaId" />
+                @if (isMobileLayout)
+                {
+                    <CombinedPicker CurrentUserId="@UserId" CurrentUsername="@Username"
+                                    OnGifSelected="HandleGifSelected" OnUploadError="HandleGifUploadError"
+                                    RecentEmojis="@RecentEmojis" OnEmojiUsed="@OnEmojiUsed" TextareaId="@TextareaId" />
+                }
+                else
+                {
+                    <EmojiPicker RecentEmojis="@RecentEmojis" OnEmojiUsed="@OnEmojiUsed" TextareaId="@TextareaId" />
+                }
             </div>
         }
     </div>
@@ -188,6 +198,9 @@ else
     private string TextareaId = $"messageTextarea_{Guid.NewGuid():N}";
     private string FileInputId = $"fileInput_{Guid.NewGuid():N}";
     private bool isTouchDevice = false;
+    private bool isMobileLayout = false;
+    private bool isInputFocused = false;
+    private DotNetObjectReference<MessageInput>? _layoutRef;
     private bool showEmojiPicker = false;
     private bool showGifPicker = false;
 
@@ -244,7 +257,26 @@ else
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup emoji toggle"); }
             try { await JS.InvokeVoidAsync("setupPasteUpload", TextareaId, FileInputId); }
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup paste upload"); }
+            try
+            {
+                _layoutRef = DotNetObjectReference.Create(this);
+                isMobileLayout = await JS.InvokeAsync<bool>("setupMobileLayoutWatcher", _layoutRef);
+                StateHasChanged();
+            }
+            catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup mobile layout watcher"); }
         }
+    }
+
+    [JSInvokable]
+    public async Task OnMobileLayoutChanged(bool isMobile)
+    {
+        if (isMobileLayout == isMobile) return;
+        isMobileLayout = isMobile;
+        // Closing on layout flip avoids the desktop picker getting stuck in a bottom-sheet container (or vice versa).
+        showEmojiPicker = false;
+        showGifPicker = false;
+        try { await InvokeAsync(StateHasChanged); }
+        catch { /* circuit may be dead */ }
     }
 
     private void UpdateChannelId()
@@ -392,6 +424,9 @@ else
         }
     }
 
+    private void HandleInputFocus() => isInputFocused = true;
+    private void HandleInputBlur() => isInputFocused = false;
+
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
         // On touch devices, Enter creates newline (use send button to send)
@@ -408,6 +443,9 @@ else
         if (string.IsNullOrWhiteSpace(messageText) || !channelId.HasValue) return;
 
         showEmojiPicker = false;
+        // Send button preventDefaults mousedown to keep keyboard open, so blur won't fire —
+        // reset the focus-driven UI state explicitly so the upload button reappears on mobile.
+        isInputFocused = false;
 
         var content = messageText;
         messageText = "";
@@ -620,6 +658,7 @@ else
         typingCts?.Cancel();
         typingCts?.Dispose();
         _uploadRef?.Dispose();
+        _layoutRef?.Dispose();
 
         // Unsubscribe from events
         ChatService.OnTypingUsersChanged -= HandleTypingUsersChanged;
