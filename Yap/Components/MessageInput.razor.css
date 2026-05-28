@@ -35,7 +35,7 @@
     display: flex;
     flex-direction: row;
     align-items: flex-end;
-    gap: 0.25rem;
+    gap: 0;
     width: 100%;
     padding: 4px 8px 16px;
     background: var(--bg-primary);
@@ -156,13 +156,13 @@
     color: var(--text-primary);
 }
 
-/* Emoji toggle button */
+/* Toggle wrapper — holds the gif + emoji buttons together. position:relative anchors the
+   absolute-positioned picker containers above. */
 .emoji-toggle-wrapper {
     position: relative;
-    margin-left: -0.5rem;
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: 0;
 }
 
 .emoji-toggle-button {
@@ -178,32 +178,43 @@
     cursor: pointer;
 }
 
+/* GIF toggle button — square 44×44 to match image-upload + emoji buttons. The "GIF" badge
+   sits centered inside (light pill on the dark button area), giving a square hit area while
+   keeping the recognizable Discord-style badge as the visual. */
 .gif-toggle-button {
+    flex: 0 0 44px;
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 28px;
-    padding: 0 8px;
+    width: 44px;
+    height: 44px;
     background: transparent;
-    border: 1.5px solid var(--text-secondary);
-    border-radius: 4px;
-    color: var(--text-secondary);
+    border: none;
+    border-radius: 50%;
     cursor: pointer;
-    font-weight: 700;
-    font-size: 0.7rem;
-    letter-spacing: 0.05em;
-    transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+    padding: 0;
 }
 
-.gif-toggle-button:hover,
-.gif-toggle-button.active {
-    color: var(--text-primary);
-    border-color: var(--text-primary);
-    background: var(--bg-input);
-}
-
-.gif-toggle-label {
+.gif-toggle-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    background: var(--text-secondary);
+    color: var(--bg-darkest);
+    border-radius: 4px;
+    font-weight: 800;
+    font-size: 0.55rem;
+    letter-spacing: 0.02em;
+    line-height: 1;
     pointer-events: none;
+    transition: background-color 0.15s;
+}
+
+.gif-toggle-button:hover .gif-toggle-badge,
+.gif-toggle-button.active .gif-toggle-badge {
+    background: var(--text-primary);
 }
 
 /* Sprite icon: 960x192 source, 48px cells, displayed at 22px

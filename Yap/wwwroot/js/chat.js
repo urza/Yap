@@ -76,40 +76,49 @@ window.scrollToBottom = () => {
         element.scrollTop = element.scrollHeight;
     };
 
-    // Scroll immediately
-    requestAnimationFrame(doScroll);
+    // Two passes: now and after Blazor's render flushes. The freshly-added message
+    // (e.g. a just-sent GIF) often hasn't hit the DOM yet on the first pass, so its
+    // img wouldn't be in our pending-load list. Re-running querySelectorAll inside
+    // a deferred callback catches it.
+    const wireUpAndScroll = () => {
+        doScroll();
 
-    // Wait for ALL pending media (images, videos, audio) to settle, then
-    // re-scroll. Handles late-loading media whose real dimensions differ
-    // from the placeholder, causing layout shifts that strand the user
-    // above the actual bottom.
-    const pendingImgs = Array.from(element.querySelectorAll('img')).filter(img => !img.complete);
-    const pendingMedia = Array.from(element.querySelectorAll('video, audio'))
-        .filter(m => m.readyState < 1 /* HAVE_METADATA */);
+        const pendingImgs = Array.from(element.querySelectorAll('img')).filter(img => !img.complete);
+        const pendingMedia = Array.from(element.querySelectorAll('video, audio'))
+            .filter(m => m.readyState < 1 /* HAVE_METADATA */);
 
-    const total = pendingImgs.length + pendingMedia.length;
-    if (total === 0) return;
+        const total = pendingImgs.length + pendingMedia.length;
+        if (total === 0) return;
 
-    let remaining = total;
-    const onSettled = () => {
-        if (--remaining === 0) {
-            requestAnimationFrame(doScroll);
-        }
+        let remaining = total;
+        const onSettled = () => {
+            if (--remaining === 0) {
+                requestAnimationFrame(doScroll);
+            }
+        };
+
+        pendingImgs.forEach(img => {
+            img.addEventListener('load', onSettled, { once: true });
+            img.addEventListener('error', onSettled, { once: true });
+        });
+        pendingMedia.forEach(m => {
+            let done = false;
+            const fire = () => { if (!done) { done = true; onSettled(); } };
+            m.addEventListener('loadedmetadata', fire, { once: true });
+            m.addEventListener('error', fire, { once: true });
+            // Safety: some browsers/elements never fire loadedmetadata
+            // (e.g. cross-origin or stalled fetches). Don't wait forever.
+            setTimeout(fire, 1500);
+        });
     };
 
-    pendingImgs.forEach(img => {
-        img.addEventListener('load', onSettled, { once: true });
-        img.addEventListener('error', onSettled, { once: true });
-    });
-    pendingMedia.forEach(m => {
-        let done = false;
-        const fire = () => { if (!done) { done = true; onSettled(); } };
-        m.addEventListener('loadedmetadata', fire, { once: true });
-        m.addEventListener('error', fire, { once: true });
-        // Safety: some browsers/elements never fire loadedmetadata
-        // (e.g. cross-origin or stalled fetches). Don't wait forever.
-        setTimeout(fire, 1500);
-    });
+    // Pass 1: immediate (catches existing pending media).
+    requestAnimationFrame(wireUpAndScroll);
+
+    // Pass 2: short delay so Blazor's render queue has flushed and any just-added
+    // message (with its img) is now in the DOM and gets a load-listener wired up.
+    // 80ms is enough for one or two render passes without feeling laggy.
+    setTimeout(wireUpAndScroll, 80);
 };
 
 // Check if user is scrolled near the bottom of messages

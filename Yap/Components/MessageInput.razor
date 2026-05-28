@@ -102,7 +102,7 @@ else
     </label>
     <div class="emoji-toggle-wrapper">
         <button class="gif-toggle-button @(showGifPicker ? "active" : "")" @onclick="ToggleGifPicker" title="GIF picker">
-            <span class="gif-toggle-label">GIF</span>
+            <span class="gif-toggle-badge">GIF</span>
         </button>
         @if (showGifPicker)
         {
@@ -471,6 +471,11 @@ else
             await ChatService.SendMessageAsync(channelId.Value, UserId, Username, "",
                 replyToMessageId: ReplyingToMessage?.Id,
                 gifAttachments: new List<Yap.Models.GifAttachment> { att });
+            // Explicit scroll for the sender. The OnMessageReceived → ScrollToBottomAsync chain
+            // also fires, but its timing races with MessageInput's picker-close re-render and
+            // sometimes lands before the new message's <img> hits the DOM. This call runs after
+            // SendMessageAsync's async work is done and reliably hits the latest layout.
+            try { await JS.InvokeVoidAsync("scrollToBottom"); } catch { /* circuit may be dead */ }
             if (ReplyingToMessage != null)
                 await OnCancelReply.InvokeAsync();
         }

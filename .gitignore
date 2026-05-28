@@ -374,3 +374,4 @@ uploads/
 /Yap/Data/ip2location/*
 /Yap/Data/appsettings.json
 /Yap/Data/media-cache/*
+/Yap/Data/gif-cache/*
