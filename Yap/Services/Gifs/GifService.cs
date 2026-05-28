@@ -311,38 +311,60 @@ public class GifService
             || (!probe.HasAudio && probe.VideoCodec != null && probe.DurationSeconds <= MaxGifDurationSec && probe.DurationSeconds > 0);
         if (!qualifies) return null;
 
-        // Always produce a browser-friendly H.264 MP4 regardless of source format. Discord/Tenor's
-        // pattern: MP4 in a <video autoplay loop muted> tag — 5–30× smaller than the equivalent
-        // GIF, with a JS canplay handler ensuring it plays through Blazor's prerender → hydrate cycle.
+        // Produce an animated WebP for any upload. WebP in <img> = instant animation on page load
+        // (no autoplay policy block), and ~2× smaller than the equivalent GIF. .gif sources are
+        // copied as-is (already img-tag-friendly); everything else (mp4, mov, webm) goes through
+        // ffmpeg's libwebp encoder.
         var entryId = Guid.NewGuid();
-        var mp4Path = Path.Combine(CustomUploadsDir, $"{entryId}.mp4");
         var sourceExt = Path.GetExtension(sourceFilePath).ToLowerInvariant();
+        string localExt;
+        string localPath;
+        bool produced;
 
-        var mp4Ok = await _ffmpeg.TranscodeToMp4Async(sourceFilePath, mp4Path, ct);
-        if (!mp4Ok)
+        if (sourceExt == ".gif")
         {
-            _logger.LogWarning("Failed to transcode upload to MP4: {Path}", sourceFilePath);
-            return null;
+            localExt = ".gif";
+            localPath = Path.Combine(CustomUploadsDir, $"{entryId}.gif");
+            try
+            {
+                File.Copy(sourceFilePath, localPath, overwrite: true);
+                produced = true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to copy uploaded gif to {Path}", localPath);
+                produced = false;
+            }
+        }
+        else
+        {
+            localExt = ".webp";
+            localPath = Path.Combine(CustomUploadsDir, $"{entryId}.webp");
+            produced = await _ffmpeg.TranscodeToAnimatedWebpAsync(sourceFilePath, localPath, ct);
+            if (!produced)
+                _logger.LogWarning("Failed to transcode upload to animated WebP: {Path}", sourceFilePath);
         }
 
-        // Dimensions: prefer the source probe; fall back to probing the produced MP4.
+        if (!produced) return null;
+
+        // Dimensions: prefer the source probe; fall back to probing the produced output.
         int width = probe.Width, height = probe.Height;
         if (width == 0 || height == 0)
         {
-            var mp4Probe = await _ffmpeg.ProbeAsync(mp4Path, ct);
-            if (mp4Probe != null) { width = mp4Probe.Width; height = mp4Probe.Height; }
+            var outProbe = await _ffmpeg.ProbeAsync(localPath, ct);
+            if (outProbe != null) { width = outProbe.Width; height = outProbe.Height; }
         }
 
         var entry = new GifEntry(sourceProviderId: null, sourceId: null, uploaderUserId)
         {
             Id = entryId,
-            Mp4Url = $"/uploads/gifs/{entryId}.mp4",
+            GifUrl = $"/uploads/gifs/{entryId}{localExt}",
             Width = width,
             Height = height,
             DurationSeconds = probe.DurationSeconds,
-            FileSizeBytes = SafeFileSize(mp4Path),
+            FileSizeBytes = SafeFileSize(localPath),
             OriginalContentType = originalContentType,
-            TranscodeStatus = GifTranscodeStatus.DoneMp4,
+            TranscodeStatus = GifTranscodeStatus.DoneGif,
             CreatedAt = DateTime.UtcNow,
             LastUsedAt = DateTime.UtcNow,
         };
@@ -459,10 +481,15 @@ public class GifService
             {
                 case "video/mp4": entry.RemoteMp4Url ??= fmt.Url; break;
                 case "video/webm": entry.RemoteWebmUrl ??= fmt.Url; break;
-                case "image/gif": entry.RemoteGifUrl ??= fmt.Url; break;
             }
             entry.OriginalContentType ??= fmt.ContentType;
         }
+
+        // For the animated-image slot, prefer WebP (~2× smaller than GIF) and fall back to GIF.
+        // Stored in RemoteGifUrl regardless of format — the field is "URL of an animated image",
+        // and the <img> tag plays both formats transparently.
+        entry.RemoteGifUrl = item.Formats.FirstOrDefault(f => f.ContentType == "image/webp")?.Url
+                          ?? item.Formats.FirstOrDefault(f => f.ContentType == "image/gif")?.Url;
 
         // Ensure dims if provider didn't give them at the top level — pull from any format.
         if (entry.Width == 0 || entry.Height == 0)
@@ -506,8 +533,8 @@ public class GifService
     {
         if (entry.SourceProviderId == null) return false; // Custom uploads are already normalized.
         if (entry.DeletedAt != null) return false;
-        // Need normalization if we don't have a local MP4 but the provider gave us a remote one.
-        return string.IsNullOrEmpty(entry.Mp4Url) && !string.IsNullOrEmpty(entry.RemoteMp4Url);
+        // We render via <img>; need normalization when local animated image is missing.
+        return string.IsNullOrEmpty(entry.GifUrl) && !string.IsNullOrEmpty(entry.RemoteGifUrl);
     }
 
     private void QueueNormalization(GifEntry entry)
@@ -526,25 +553,45 @@ public class GifService
 
     private async Task NormalizeProviderEntryAsync(GifEntry entry)
     {
-        // Chat renders provider GIFs via <video autoplay loop muted> — the same pattern Discord uses
-        // for Tenor content. MP4 is ~30× smaller than the equivalent GIF and Klipy serves it ready
-        // at /md/mp4. We don't transcode anything; just download the file so we serve it from our
-        // own /gif-cache instead of hammering Klipy's CDN.
-        if (string.IsNullOrEmpty(entry.RemoteMp4Url)) return;
+        // Chat renders provider GIFs via <img> — animated WebP/GIF in img tags has no autoplay
+        // policy (instant playback on page load), unlike <video> which Chrome's MEI can block until
+        // first user gesture. Download whatever the provider gave us (preferring webp upstream).
+        // File extension is taken from the URL so the static-file middleware sets the right
+        // Content-Type. We serve from our own /gif-cache instead of hammering the provider's CDN.
+        if (string.IsNullOrEmpty(entry.RemoteGifUrl)) return;
 
-        var mp4Path = Path.Combine(CacheDir, $"{entry.Id}.mp4");
-        if (!File.Exists(mp4Path))
+        var ext = GuessExtensionFromUrl(entry.RemoteGifUrl);
+        var localPath = Path.Combine(CacheDir, $"{entry.Id}{ext}");
+        if (!File.Exists(localPath))
         {
-            var ok = await DownloadAsync(entry.RemoteMp4Url, mp4Path, CancellationToken.None);
+            var ok = await DownloadAsync(entry.RemoteGifUrl, localPath, CancellationToken.None);
             if (!ok) { MarkFailed(entry); return; }
         }
 
-        entry.Mp4Url = $"/gif-cache/{entry.Id}.mp4";
-        entry.TranscodeStatus |= GifTranscodeStatus.DoneMp4;
-        entry.FileSizeBytes = SafeFileSize(mp4Path);
+        entry.GifUrl = $"/gif-cache/{entry.Id}{ext}";
+        entry.TranscodeStatus |= GifTranscodeStatus.DoneGif;
+        entry.FileSizeBytes = SafeFileSize(localPath);
 
         await PersistFormatsAsync(entry);
         OnGifEntryUpdated?.Invoke(entry.Id);
+    }
+
+    /// <summary>
+    /// Pulls the file extension off the URL path (handles query strings / fragments). Falls back
+    /// to .webp when nothing looks right.
+    /// </summary>
+    private static string GuessExtensionFromUrl(string url)
+    {
+        try
+        {
+            var path = new Uri(url, UriKind.Absolute).AbsolutePath;
+            var ext = Path.GetExtension(path).ToLowerInvariant();
+            return ext switch { ".gif" => ".gif", ".webp" => ".webp", _ => ".webp" };
+        }
+        catch
+        {
+            return ".webp";
+        }
     }
 
     private async Task<bool> DownloadAsync(string url, string destPath, CancellationToken ct)

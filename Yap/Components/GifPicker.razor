@@ -334,13 +334,13 @@
         var aspect = (e.Width > 0 && e.Height > 0) ? $"aspect-ratio: {e.Width}/{e.Height};" : "";
         var isFav = GifService.IsFavorite(CurrentUserId, e.Id);
         <div class="gif-card" style="@aspect" @onclick="@(() => SendLocalAsync(e.Id))">
-            @if (!string.IsNullOrEmpty(src) && ctype != "image/gif")
+            @if (!string.IsNullOrEmpty(src) && ctype != null && ctype.StartsWith("image/"))
             {
-                <video src="@src" autoplay muted loop playsinline preload="metadata" class="gif-card-video"></video>
+                <img src="@src" alt="@(e.OriginalContentType ?? "GIF")" loading="lazy" />
             }
             else if (!string.IsNullOrEmpty(src))
             {
-                <img src="@src" alt="@(e.OriginalContentType ?? "GIF")" loading="lazy" />
+                <video src="@src" autoplay muted loop playsinline preload="metadata" class="gif-card-video"></video>
             }
             <button class="gif-fav-btn @(isFav ? "favorited" : "")"
                     @onclick="@(() => ToggleFavoriteAsync(e.Id))" @onclick:stopPropagation="true" title="@(isFav ? "Remove from favorites" : "Add to favorites")">
@@ -357,36 +357,39 @@
         var aspect = (item.Width > 0 && item.Height > 0) ? $"aspect-ratio: {item.Width}/{item.Height};" : "";
         var capturedItem = item;
         <div class="gif-card" style="@aspect" @onclick="@(() => SendProviderAsync(capturedItem))">
-            @if (!string.IsNullOrEmpty(src) && ctype != "image/gif")
+            @if (!string.IsNullOrEmpty(src) && ctype != null && ctype.StartsWith("image/"))
             {
-                <video src="@src" autoplay muted loop playsinline preload="metadata" class="gif-card-video"></video>
+                <img src="@src" alt="@(item.Title)" loading="lazy" />
             }
             else if (!string.IsNullOrEmpty(src))
             {
-                <img src="@src" alt="@(item.Title)" loading="lazy" />
+                <video src="@src" autoplay muted loop playsinline preload="metadata" class="gif-card-video"></video>
             }
         </div>
     };
 
     private (string? Url, string? ContentType) PickPreview(GifSearchItem item)
     {
-        // Prefer tinymp4 (small, smooth), fall back to tinygif.
-        var mp4 = item.PreviewFormats.FirstOrDefault(f => f.ContentType == "video/mp4");
-        if (mp4 != null) return (mp4.Url, mp4.ContentType);
+        // Prefer animated webp / gif (img-tag, instant animation on appear). Fall back to tinymp4
+        // (video tag) only if no image-format preview is available.
+        var webp = item.PreviewFormats.FirstOrDefault(f => f.ContentType == "image/webp");
+        if (webp != null) return (webp.Url, webp.ContentType);
         var gif = item.PreviewFormats.FirstOrDefault(f => f.ContentType == "image/gif");
         if (gif != null) return (gif.Url, gif.ContentType);
+        var mp4 = item.PreviewFormats.FirstOrDefault(f => f.ContentType == "video/mp4");
+        if (mp4 != null) return (mp4.Url, mp4.ContentType);
         return (item.Formats.FirstOrDefault()?.Url, item.Formats.FirstOrDefault()?.ContentType);
     }
 
     private (string? Url, string? ContentType) PickLocalPreviewSource(GifEntry e)
     {
-        // For local entries, use the best available URL we have. Prefer webm > mp4 > gif (local first, remote fallback).
+        // Animated-image first (img tag, no autoplay drama), video fallback for older entries.
+        if (!string.IsNullOrEmpty(e.GifUrl)) return (e.GifUrl, "image/gif");
+        if (!string.IsNullOrEmpty(e.RemoteGifUrl)) return (e.RemoteGifUrl, "image/gif");
         if (!string.IsNullOrEmpty(e.WebmUrl)) return (e.WebmUrl, "video/webm");
         if (!string.IsNullOrEmpty(e.Mp4Url)) return (e.Mp4Url, "video/mp4");
-        if (!string.IsNullOrEmpty(e.GifUrl)) return (e.GifUrl, "image/gif");
         if (!string.IsNullOrEmpty(e.RemoteMp4Url)) return (e.RemoteMp4Url, "video/mp4");
         if (!string.IsNullOrEmpty(e.RemoteWebmUrl)) return (e.RemoteWebmUrl, "video/webm");
-        if (!string.IsNullOrEmpty(e.RemoteGifUrl)) return (e.RemoteGifUrl, "image/gif");
         return (null, null);
     }
 

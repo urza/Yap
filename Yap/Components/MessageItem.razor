@@ -473,22 +473,22 @@
     private Guid CurrentUserId => UserState.UserId ?? Guid.Empty;
 
     /// <summary>
-    /// Picks the best URL for the GIF and whether to render via &lt;video&gt; (MP4/WebM) or &lt;img&gt; (animated GIF).
-    /// MP4 first to match Discord — smaller than GIF, with a global JS canplay handler making
-    /// playback reliable across Blazor's prerender/hydrate cycle. GIF (img tag) stays as a fallback
-    /// for entries that only have that format available.
+    /// Picks the best URL for the GIF and whether to render via &lt;img&gt; (animated webp/gif) or &lt;video&gt;.
+    /// Animated image format is preferred — img-tag rendering plays instantly with no browser
+    /// autoplay policy and no Blazor hydration drama. &lt;video&gt; remains as fallback for legacy
+    /// entries that only have mp4/webm available.
     /// </summary>
     private (string? Src, bool IsImage) PickGifRender(GifEntry? entry)
     {
         if (entry == null) return (null, false);
 
+        if (!string.IsNullOrEmpty(entry.GifUrl))       return (entry.GifUrl,       true);
+        if (!string.IsNullOrEmpty(entry.RemoteGifUrl)) return (entry.RemoteGifUrl, true);
+
         if (!string.IsNullOrEmpty(entry.Mp4Url))        return (entry.Mp4Url,        false);
         if (!string.IsNullOrEmpty(entry.WebmUrl))       return (entry.WebmUrl,       false);
         if (!string.IsNullOrEmpty(entry.RemoteMp4Url))  return (entry.RemoteMp4Url,  false);
         if (!string.IsNullOrEmpty(entry.RemoteWebmUrl)) return (entry.RemoteWebmUrl, false);
-
-        if (!string.IsNullOrEmpty(entry.GifUrl))       return (entry.GifUrl,       true);
-        if (!string.IsNullOrEmpty(entry.RemoteGifUrl)) return (entry.RemoteGifUrl, true);
         return (null, false);
     }
 

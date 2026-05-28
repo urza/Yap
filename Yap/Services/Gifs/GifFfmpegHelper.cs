@@ -160,11 +160,47 @@ public class GifFfmpegHelper
     }
 
     /// <summary>
+    /// Transcodes a source media file into an animated WebP. Animated WebP plays in an
+    /// &lt;img&gt; tag (no autoplay policy / no Blazor hydration drama) and is ~2× smaller than
+    /// the equivalent GIF for the same content. Caps at 15fps and max-width 480px.
+    /// </summary>
+    public async Task<bool> TranscodeToAnimatedWebpAsync(string srcPath, string dstPath, CancellationToken ct = default)
+    {
+        if (!IsAvailable) return false;
+
+        await _transcodeSemaphore.WaitAsync(ct);
+        try
+        {
+            // -vcodec libwebp + multi-frame input → animated webp.
+            // -loop 0          → infinite loop
+            // -lossless 0 -q:v 75 -compression_level 4 → balanced quality/size
+            // -an              → strip audio
+            // -vsync 0         → preserve frame timing
+            // -map_metadata -1 → strip metadata
+            var args = $"-y -i \"{srcPath}\" " +
+                       $"-vf \"fps=15,scale='min(480,iw)':-1:flags=lanczos\" " +
+                       $"-vcodec libwebp -loop 0 -lossless 0 -q:v 75 -compression_level 4 " +
+                       $"-an -vsync 0 -map_metadata -1 \"{dstPath}\"";
+
+            var (exit, _, stderr) = await RunProcessAsync("ffmpeg", args, TranscodeTimeoutMs, ct);
+            if (exit != 0)
+            {
+                _logger.LogWarning("ffmpeg webp transcode failed (exit={Exit}): {Stderr}", exit, Truncate(stderr));
+                TryDelete(dstPath);
+                return false;
+            }
+            return File.Exists(dstPath) && new FileInfo(dstPath).Length > 0;
+        }
+        finally
+        {
+            _transcodeSemaphore.Release();
+        }
+    }
+
+    /// <summary>
     /// Transcodes a source media file into an animated GIF using two-pass palette generation
     /// (palettegen → paletteuse) for far better quality than ffmpeg's default 256-color
-    /// quantization. Caps at 15fps and max-width 480px to keep file size sane — typical short
-    /// clips produce 1–5MB output, comparable to a heavy GIF and small enough to serve from
-    /// our own cache without choking on bandwidth.
+    /// quantization. Caps at 15fps and max-width 480px to keep file size sane.
     /// </summary>
     public async Task<bool> TranscodeToGifAsync(string srcPath, string dstPath, CancellationToken ct = default)
     {

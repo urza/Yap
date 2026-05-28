@@ -341,13 +341,15 @@ public class KlipyGifProvider : IGifSourceProvider
     }
 
     /// <summary>
-    /// Formats our renderer can actually play in a &lt;video&gt; tag or as a &lt;img&gt; gif.
-    /// Klipy ships jpg (static poster) and webp (we don't render image/webp in messages) — both rejected.
+    /// Formats our renderer can use. WebP is the new preferred format — animated WebP plays in
+    /// an &lt;img&gt; tag (instant animation, no browser autoplay policy) and is ~2× smaller than
+    /// the equivalent GIF. Klipy's jpg is rejected (static-only).
     /// </summary>
     private static bool IsPlayableFormatKey(string formatKey) =>
         formatKey.Equals("mp4", StringComparison.OrdinalIgnoreCase)
         || formatKey.Equals("webm", StringComparison.OrdinalIgnoreCase)
-        || formatKey.Equals("gif", StringComparison.OrdinalIgnoreCase);
+        || formatKey.Equals("gif", StringComparison.OrdinalIgnoreCase)
+        || formatKey.Equals("webp", StringComparison.OrdinalIgnoreCase);
 
     private static MediaFormat? ParseMediaFormat(JsonElement el, string formatName)
     {
