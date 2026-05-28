@@ -1,9 +1,12 @@
 @using Yap.Models
 @using Yap.Services
+@using Yap.Services.Gifs
 @inject EmojiService EmojiService
 @inject UserStateService UserState
 @inject IJSRuntime JS
 @inject VideoService VideoService
+@inject GifService GifService
+@inject UserService UserService
 
 <div class="message-group @(IsSystem ? "system-message" : "") @(ShowHeader ? "has-header" : "") @(showEmojiPicker ? "picker-open" : "") @(ReplyToMessage != null ? "has-reply" : "") @(IsReplyTarget ? "reply-target" : "")"
      id="msg-@Message.Id"
@@ -109,6 +112,51 @@
                                 <polygon points="26,20 26,44 46,32" />
                             </svg>
                         </div>
+                    </div>
+                }
+                </div>
+            }
+            @if (Message.HasGifs)
+            {
+                <div class="gif-message-gallery">
+                @foreach (var att in Message.GifAttachments)
+                {
+                    var entry = GifService.GetEntry(att.GifEntryId);
+                    var w = att.Width > 0 ? att.Width : entry?.Width ?? 0;
+                    var h = att.Height > 0 ? att.Height : entry?.Height ?? 0;
+                    var aspect = (w > 0 && h > 0) ? $"aspect-ratio: {w}/{h}; max-width: min(360px, {w}px);" : "max-width: 320px;";
+                    var sources = BuildGifSources(entry);
+                    var isFav = entry != null && GifService.IsFavorite(CurrentUserId, entry.Id);
+                    var uploader = entry?.UploadedByUserId is Guid uid ? UserService.GetById(uid)?.EffectiveDisplayName : null;
+                    var gifId = att.GifEntryId;
+                    <div class="gif-message" style="@aspect">
+                        @if (sources.Count > 0)
+                        {
+                            <video autoplay loop muted playsinline preload="metadata" width="@(w > 0 ? w.ToString() : null)" height="@(h > 0 ? h.ToString() : null)">
+                                @foreach (var (url, type) in sources)
+                                {
+                                    <source src="@url" type="@type" />
+                                }
+                            </video>
+                        }
+                        else
+                        {
+                            <div class="gif-message-missing">GIF unavailable</div>
+                        }
+                        @if (entry != null)
+                        {
+                            <button class="gif-message-fav @(isFav ? "favorited" : "")"
+                                    @onclick="@(() => ToggleGifFavorite(gifId))" @onclick:stopPropagation="true"
+                                    title="@(isFav ? "Remove from favorites" : "Add to favorites")">
+                                <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                                    <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                                </svg>
+                            </button>
+                            @if (!string.IsNullOrEmpty(uploader))
+                            {
+                                <div class="gif-message-uploader" title="Uploaded by @uploader">via @uploader</div>
+                            }
+                        }
                     </div>
                 }
                 </div>
@@ -413,6 +461,36 @@
     {
         try { await JS.InvokeVoidAsync("showPwaInstallGuide"); }
         catch { /* Ignore JS errors during disconnect */ }
+    }
+
+    private Guid CurrentUserId => UserState.UserId ?? Guid.Empty;
+
+    private static readonly (string, string)[] GifSourceOrder = new[]
+    {
+        ("local-webm", "video/webm"),
+        ("local-mp4",  "video/mp4"),
+        ("local-gif",  "image/gif"),
+        ("remote-webm","video/webm"),
+        ("remote-mp4", "video/mp4"),
+        ("remote-gif", "image/gif"),
+    };
+
+    private List<(string Url, string Type)> BuildGifSources(GifEntry? entry)
+    {
+        var list = new List<(string, string)>();
+        if (entry == null) return list;
+        if (!string.IsNullOrEmpty(entry.WebmUrl))      list.Add((entry.WebmUrl!,      "video/webm"));
+        if (!string.IsNullOrEmpty(entry.Mp4Url))       list.Add((entry.Mp4Url!,       "video/mp4"));
+        if (!string.IsNullOrEmpty(entry.GifUrl))       list.Add((entry.GifUrl!,       "image/gif"));
+        if (!string.IsNullOrEmpty(entry.RemoteWebmUrl))list.Add((entry.RemoteWebmUrl!,"video/webm"));
+        if (!string.IsNullOrEmpty(entry.RemoteMp4Url)) list.Add((entry.RemoteMp4Url!, "video/mp4"));
+        if (!string.IsNullOrEmpty(entry.RemoteGifUrl)) list.Add((entry.RemoteGifUrl!, "image/gif"));
+        return list;
+    }
+
+    private async Task ToggleGifFavorite(Guid gifEntryId)
+    {
+        await GifService.ToggleFavoriteAsync(CurrentUserId, gifEntryId);
     }
 
     private string GetTextBefore(string marker)

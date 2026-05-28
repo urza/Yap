@@ -15,6 +15,8 @@ public class ChatDbContext : DbContext
     public DbSet<UserActionLog> UserActionLogs { get; set; } = null!;
     public DbSet<UserNote> UserNotes { get; set; } = null!;
     public DbSet<MediaUploadLog> MediaUploadLogs { get; set; } = null!;
+    public DbSet<GifEntry> GifEntries { get; set; } = null!;
+    public DbSet<FavoriteGif> FavoriteGifs { get; set; } = null!;
 
     public ChatDbContext(DbContextOptions<ChatDbContext> options) : base(options)
     {
@@ -36,6 +38,7 @@ public class ChatDbContext : DbContext
             entity.Property(u => u.Password).HasMaxLength(64);
             entity.Property(u => u.RecentEmojis).HasMaxLength(2048);
             entity.Property(u => u.EmojiCounts).HasMaxLength(2048);
+            entity.Property(u => u.RecentGifs).HasMaxLength(2048);
             entity.Property(u => u.Theme).HasMaxLength(32);
 
             // Ignore computed property
@@ -104,6 +107,12 @@ public class ChatDbContext : DbContext
                 v => string.IsNullOrEmpty(v) ? new List<string>() : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null) ?? new List<string>()
             );
 
+            // Store GifAttachments as JSON (guard null/empty for existing rows before migration)
+            entity.Property(m => m.GifAttachments).HasConversion(
+                v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => string.IsNullOrEmpty(v) ? new List<GifAttachment>() : JsonSerializer.Deserialize<List<GifAttachment>>(v, (JsonSerializerOptions?)null) ?? new List<GifAttachment>()
+            );
+
             entity.HasMany(m => m.Reactions)
                   .WithOne(r => r.Message)
                   .HasForeignKey(r => r.MessageId)
@@ -119,7 +128,55 @@ public class ChatDbContext : DbContext
             // Ignore computed properties
             entity.Ignore(m => m.HasImages);
             entity.Ignore(m => m.HasVideos);
+            entity.Ignore(m => m.HasGifs);
             entity.Ignore(m => m.HasMedia);
+        });
+
+        // GifEntry configuration
+        modelBuilder.Entity<GifEntry>(entity =>
+        {
+            entity.HasKey(g => g.Id);
+            entity.Property(g => g.SourceProviderId).HasMaxLength(32);
+            entity.Property(g => g.SourceId).HasMaxLength(128);
+            entity.Property(g => g.Mp4Url).HasMaxLength(512);
+            entity.Property(g => g.WebmUrl).HasMaxLength(512);
+            entity.Property(g => g.GifUrl).HasMaxLength(512);
+            entity.Property(g => g.RemoteMp4Url).HasMaxLength(1024);
+            entity.Property(g => g.RemoteWebmUrl).HasMaxLength(1024);
+            entity.Property(g => g.RemoteGifUrl).HasMaxLength(1024);
+            entity.Property(g => g.OriginalContentType).HasMaxLength(64);
+            entity.Property(g => g.TranscodeStatus).HasConversion<int>();
+            entity.Property(g => g.Tags).HasMaxLength(2048);
+
+            // Unique-when-not-null is enforced via filtered index where supported (SQL Server).
+            // For SQLite/Postgres we accept duplicates and dedup in code (the in-memory provider+sourceId
+            // index in GifService prevents duplicate inserts in practice).
+            entity.HasIndex(g => new { g.SourceProviderId, g.SourceId });
+            entity.HasIndex(g => g.LastUsedAt);
+            entity.HasIndex(g => g.UploadedByUserId);
+
+            entity.HasOne(g => g.UploadedByUser)
+                  .WithMany()
+                  .HasForeignKey(g => g.UploadedByUserId)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // FavoriteGif configuration (composite primary key, like ChannelReadState)
+        modelBuilder.Entity<FavoriteGif>(entity =>
+        {
+            entity.HasKey(f => new { f.UserId, f.GifEntryId });
+
+            entity.HasOne(f => f.User)
+                  .WithMany()
+                  .HasForeignKey(f => f.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(f => f.GifEntry)
+                  .WithMany()
+                  .HasForeignKey(f => f.GifEntryId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(f => f.GifEntryId);
         });
 
         // Reaction configuration

@@ -1,0 +1,495 @@
+@using Yap.Models
+@using Yap.Services
+@using Yap.Services.Gifs
+@inject GifService GifService
+@inject UserService UserService
+@inject ILogger<GifPicker> Logger
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="gif-picker">
+    <div class="gif-sidebar">
+        <button class="category-btn @(selectedTab == GifTab.Recent ? "active" : "")"
+                @onclick="@(() => SelectTab(GifTab.Recent))" title="Recent">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                <path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" stroke="currentColor" stroke-width="2" fill="none"/>
+            </svg>
+        </button>
+        <button class="category-btn @(selectedTab == GifTab.Favorites ? "active" : "")"
+                @onclick="@(() => SelectTab(GifTab.Favorites))" title="Favorites">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+            </svg>
+        </button>
+        <button class="category-btn @(selectedTab == GifTab.Trending ? "active" : "")"
+                @onclick="@(() => SelectTab(GifTab.Trending))" title="Trending"
+                disabled="@(!GifService.IsConfigured)">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                <path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67zM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.05-2.76 2.81-3.12 1.77-.36 3.6-1.21 4.62-2.58.39 1.29.59 2.65.59 4.04 0 2.65-2.15 4.8-4.8 4.8z"/>
+            </svg>
+        </button>
+        <button class="category-btn @(selectedTab == GifTab.Categories ? "active" : "")"
+                @onclick="@(() => SelectTab(GifTab.Categories))" title="Categories"
+                disabled="@(!GifService.IsConfigured)">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                <rect x="3" y="3" width="7" height="7" rx="1"/>
+                <rect x="14" y="3" width="7" height="7" rx="1"/>
+                <rect x="3" y="14" width="7" height="7" rx="1"/>
+                <rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+        </button>
+    </div>
+
+    <div class="gif-content">
+        <div class="gif-search">
+            <input type="text" @bind="searchText" @bind:event="oninput" @bind:after="OnSearchInputChanged"
+                   placeholder="@(GifService.IsConfigured ? "Search Tenor..." : "Search your library...")" />
+            @if (!string.IsNullOrEmpty(searchText))
+            {
+                <button class="gif-search-clear" @onclick="ClearSearch" title="Clear">✕</button>
+            }
+            @if (isSearchingProvider)
+            {
+                <span class="gif-spinner" title="Searching..."></span>
+            }
+            <label class="gif-upload-btn" title="Upload a GIF">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                </svg>
+                <InputFile OnChange="HandleFileSelected" accept=".gif,.webm,.mp4,.mov,.webp" style="display: none;" />
+            </label>
+        </div>
+
+        <div class="gif-results" @ref="resultsElement">
+            @if (!string.IsNullOrWhiteSpace(searchText))
+            {
+                @* Local matches first *@
+                @if (localResults.Count > 0)
+                {
+                    <div class="gif-section-header">From your library</div>
+                    <div class="gif-grid">
+                        @foreach (var e in localResults)
+                        {
+                            @RenderLocalCard(e)
+                        }
+                    </div>
+                }
+                @if (providerResults.Count > 0)
+                {
+                    <div class="gif-section-header">@GifService.Provider.DisplayName</div>
+                    <div class="gif-grid">
+                        @foreach (var item in providerResults)
+                        {
+                            @RenderProviderCard(item)
+                        }
+                    </div>
+                }
+                @if (localResults.Count == 0 && providerResults.Count == 0 && !isSearchingProvider)
+                {
+                    <div class="gif-empty">No matches</div>
+                }
+            }
+            else if (selectedTab == GifTab.Recent)
+            {
+                @if (recentEntries.Count > 0)
+                {
+                    <div class="gif-grid">
+                        @foreach (var e in recentEntries)
+                        {
+                            @RenderLocalCard(e)
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="gif-empty">No recent GIFs yet</div>
+                }
+            }
+            else if (selectedTab == GifTab.Favorites)
+            {
+                @if (favoriteEntries.Count > 0)
+                {
+                    <div class="gif-grid">
+                        @foreach (var e in favoriteEntries)
+                        {
+                            @RenderLocalCard(e)
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="gif-empty">⭐ Tap the star on any GIF to save it here</div>
+                }
+            }
+            else if (selectedTab == GifTab.Trending)
+            {
+                @if (trendingResults.Count > 0)
+                {
+                    <div class="gif-grid">
+                        @foreach (var item in trendingResults)
+                        {
+                            @RenderProviderCard(item)
+                        }
+                    </div>
+                }
+                else if (!GifService.IsConfigured)
+                {
+                    <div class="gif-empty">Tenor not configured. Set GifSettings:Tenor:ApiKey in appsettings.json.</div>
+                }
+                else
+                {
+                    <div class="gif-empty">Loading…</div>
+                }
+            }
+            else if (selectedTab == GifTab.Categories)
+            {
+                @if (categories.Count > 0)
+                {
+                    <div class="gif-categories">
+                        @foreach (var cat in categories)
+                        {
+                            var c = cat;
+                            <button class="gif-category-tile" @onclick="@(() => SearchCategory(c))"
+                                    style="background-image: url('@c.ImageUrl')">
+                                <span>@c.Name</span>
+                            </button>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="gif-empty">Loading…</div>
+                }
+            }
+        </div>
+
+        @if (GifService.IsConfigured && ShowAttribution())
+        {
+            <div class="gif-attribution">
+                <img src="@GifService.Provider.AttributionImageUrl" alt="@GifService.Provider.DisplayName" />
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public Guid CurrentUserId { get; set; }
+    [Parameter] public string CurrentUsername { get; set; } = "";
+    [Parameter] public EventCallback<GifAttachment> OnGifSelected { get; set; }
+    [Parameter] public EventCallback<string> OnUploadError { get; set; }
+
+    private enum GifTab { Recent, Favorites, Trending, Categories }
+
+    private GifTab selectedTab = GifTab.Trending;
+    private string searchText = "";
+    private bool isSearchingProvider;
+    private CancellationTokenSource? _searchCts;
+    private CancellationTokenSource? _debounceCts;
+    private ElementReference resultsElement;
+
+    private List<GifEntry> recentEntries = new();
+    private List<GifEntry> favoriteEntries = new();
+    private List<GifSearchItem> trendingResults = new();
+    private List<GifCategory> categories = new();
+
+    private List<GifEntry> localResults = new();
+    private List<GifSearchItem> providerResults = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        recentEntries = GifService.GetRecents(CurrentUsername);
+        favoriteEntries = GifService.GetFavorites(CurrentUserId);
+
+        GifService.OnFavoritesChanged += HandleFavoritesChanged;
+        GifService.OnGifEntryUpdated += HandleEntryUpdated;
+        GifService.OnGifLibraryChanged += HandleLibraryChanged;
+
+        // Default to Trending if we have a provider, otherwise Recent.
+        selectedTab = GifService.IsConfigured ? GifTab.Trending : GifTab.Recent;
+
+        if (GifService.IsConfigured)
+        {
+            _ = LoadTrendingAsync();
+            _ = LoadCategoriesAsync();
+        }
+        await Task.CompletedTask;
+    }
+
+    private async Task LoadTrendingAsync()
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var result = await GifService.GetTrendingAsync(null, 24, cts.Token);
+            trendingResults = result.Items;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex) { Logger.LogWarning(ex, "GIF trending failed"); }
+    }
+
+    private async Task LoadCategoriesAsync()
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            categories = await GifService.GetCategoriesAsync(cts.Token);
+        }
+        catch (Exception ex) { Logger.LogWarning(ex, "GIF categories failed"); }
+    }
+
+    private void SelectTab(GifTab tab)
+    {
+        if (selectedTab == tab) return;
+        selectedTab = tab;
+        ClearSearch();
+        if (tab == GifTab.Recent) recentEntries = GifService.GetRecents(CurrentUsername);
+        else if (tab == GifTab.Favorites) favoriteEntries = GifService.GetFavorites(CurrentUserId);
+        else if (tab == GifTab.Trending && trendingResults.Count == 0 && GifService.IsConfigured) _ = LoadTrendingAsync();
+        else if (tab == GifTab.Categories && categories.Count == 0 && GifService.IsConfigured) _ = LoadCategoriesAsync();
+    }
+
+    private async Task OnSearchInputChanged()
+    {
+        _debounceCts?.Cancel();
+        _debounceCts = new CancellationTokenSource();
+        var token = _debounceCts.Token;
+        try
+        {
+            await Task.Delay(250, token);
+            await RunSearchAsync(searchText);
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private async Task RunSearchAsync(string query)
+    {
+        _searchCts?.Cancel();
+        _searchCts = new CancellationTokenSource();
+        var ct = _searchCts.Token;
+
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            localResults = new();
+            providerResults = new();
+            isSearchingProvider = false;
+            StateHasChanged();
+            return;
+        }
+
+        localResults = GifService.SearchLocal(query);
+        isSearchingProvider = GifService.IsConfigured;
+        StateHasChanged();
+
+        if (!GifService.IsConfigured) return;
+
+        try
+        {
+            var result = await GifService.SearchProviderAsync(query, null, 24, ct);
+            if (ct.IsCancellationRequested) return;
+            providerResults = result.Items;
+        }
+        catch (OperationCanceledException) { return; }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "GIF provider search failed for '{Query}'", query);
+            providerResults = new();
+        }
+        finally
+        {
+            isSearchingProvider = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task SearchCategory(GifCategory cat)
+    {
+        searchText = cat.SearchTerm;
+        await RunSearchAsync(cat.SearchTerm);
+    }
+
+    private void ClearSearch()
+    {
+        searchText = "";
+        localResults = new();
+        providerResults = new();
+        isSearchingProvider = false;
+    }
+
+    private bool ShowAttribution() =>
+        !string.IsNullOrWhiteSpace(searchText)
+        || selectedTab == GifTab.Trending
+        || selectedTab == GifTab.Categories;
+
+    private RenderFragment RenderLocalCard(GifEntry e) => __builder =>
+    {
+        var (src, ctype) = PickLocalPreviewSource(e);
+        var aspect = (e.Width > 0 && e.Height > 0) ? $"aspect-ratio: {e.Width}/{e.Height};" : "";
+        var isFav = GifService.IsFavorite(CurrentUserId, e.Id);
+        <div class="gif-card" style="@aspect" @onclick="@(() => SendLocalAsync(e.Id))">
+            @if (!string.IsNullOrEmpty(src) && ctype != "image/gif")
+            {
+                <video src="@src" muted loop playsinline preload="metadata"
+                       onmouseenter="this.play().catch(()=>{})"
+                       onmouseleave="this.pause(); this.currentTime=0"></video>
+            }
+            else if (!string.IsNullOrEmpty(src))
+            {
+                <img src="@src" alt="@(e.OriginalContentType ?? "GIF")" loading="lazy" />
+            }
+            <button class="gif-fav-btn @(isFav ? "favorited" : "")"
+                    @onclick="@(() => ToggleFavoriteAsync(e.Id))" @onclick:stopPropagation="true" title="@(isFav ? "Remove from favorites" : "Add to favorites")">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                    <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                </svg>
+            </button>
+        </div>
+    };
+
+    private RenderFragment RenderProviderCard(GifSearchItem item) => __builder =>
+    {
+        var (src, ctype) = PickPreview(item);
+        var aspect = (item.Width > 0 && item.Height > 0) ? $"aspect-ratio: {item.Width}/{item.Height};" : "";
+        <div class="gif-card" style="@aspect" @onclick="@(() => SendProviderAsync(item.SourceId))">
+            @if (!string.IsNullOrEmpty(src) && ctype != "image/gif")
+            {
+                <video src="@src" muted loop playsinline preload="metadata"
+                       onmouseenter="this.play().catch(()=>{})"
+                       onmouseleave="this.pause(); this.currentTime=0"></video>
+            }
+            else if (!string.IsNullOrEmpty(src))
+            {
+                <img src="@src" alt="@(item.Title)" loading="lazy" />
+            }
+        </div>
+    };
+
+    private (string? Url, string? ContentType) PickPreview(GifSearchItem item)
+    {
+        // Prefer tinymp4 (small, smooth), fall back to tinygif.
+        var mp4 = item.PreviewFormats.FirstOrDefault(f => f.ContentType == "video/mp4");
+        if (mp4 != null) return (mp4.Url, mp4.ContentType);
+        var gif = item.PreviewFormats.FirstOrDefault(f => f.ContentType == "image/gif");
+        if (gif != null) return (gif.Url, gif.ContentType);
+        return (item.Formats.FirstOrDefault()?.Url, item.Formats.FirstOrDefault()?.ContentType);
+    }
+
+    private (string? Url, string? ContentType) PickLocalPreviewSource(GifEntry e)
+    {
+        // For local entries, use the best available URL we have. Prefer webm > mp4 > gif (local first, remote fallback).
+        if (!string.IsNullOrEmpty(e.WebmUrl)) return (e.WebmUrl, "video/webm");
+        if (!string.IsNullOrEmpty(e.Mp4Url)) return (e.Mp4Url, "video/mp4");
+        if (!string.IsNullOrEmpty(e.GifUrl)) return (e.GifUrl, "image/gif");
+        if (!string.IsNullOrEmpty(e.RemoteMp4Url)) return (e.RemoteMp4Url, "video/mp4");
+        if (!string.IsNullOrEmpty(e.RemoteWebmUrl)) return (e.RemoteWebmUrl, "video/webm");
+        if (!string.IsNullOrEmpty(e.RemoteGifUrl)) return (e.RemoteGifUrl, "image/gif");
+        return (null, null);
+    }
+
+    private async Task SendLocalAsync(Guid gifEntryId)
+    {
+        var att = await GifService.SendCachedGifAsync(gifEntryId, searchText, CurrentUserId, CurrentUsername);
+        if (att != null) await OnGifSelected.InvokeAsync(att);
+    }
+
+    private async Task SendProviderAsync(string sourceId)
+    {
+        var att = await GifService.SendProviderGifAsync(sourceId, searchText, CurrentUserId, CurrentUsername);
+        if (att != null) await OnGifSelected.InvokeAsync(att);
+    }
+
+    private async Task ToggleFavoriteAsync(Guid gifEntryId)
+    {
+        await GifService.ToggleFavoriteAsync(CurrentUserId, gifEntryId);
+        // The OnFavoritesChanged handler refreshes the favorites list automatically.
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        if (e.FileCount == 0) return;
+        var file = e.File;
+        if (file.Size > 50 * 1024 * 1024)
+        {
+            await OnUploadError.InvokeAsync("File is too large (max 50MB)");
+            return;
+        }
+
+        var tempPath = Path.Combine(Path.GetTempPath(), $"gif-upload-{Guid.NewGuid()}{Path.GetExtension(file.Name)}");
+        try
+        {
+            await using (var fs = File.Create(tempPath))
+                await file.OpenReadStream(50 * 1024 * 1024).CopyToAsync(fs);
+
+            var contentType = !string.IsNullOrEmpty(file.ContentType) ? file.ContentType : "application/octet-stream";
+            var att = await GifService.TryAcceptAsGifAsync(tempPath, contentType, isExplicitGif: true, CurrentUserId);
+            if (att != null)
+                await OnGifSelected.InvokeAsync(att);
+            else
+                await OnUploadError.InvokeAsync("Could not process this file as a GIF");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "GIF upload failed");
+            await OnUploadError.InvokeAsync("Upload failed");
+        }
+        finally
+        {
+            // TryAcceptAsGifAsync deletes the source on success; clean up on any failure path.
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+        }
+    }
+
+    private async void HandleFavoritesChanged(Guid userId)
+    {
+        if (userId != CurrentUserId) return;
+        try
+        {
+            await InvokeAsync(() =>
+            {
+                favoriteEntries = GifService.GetFavorites(CurrentUserId);
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex)
+        {
+            if (ex is not (ObjectDisposedException or InvalidOperationException))
+                Logger.LogWarning(ex, "HandleFavoritesChanged error");
+        }
+    }
+
+    private async void HandleEntryUpdated(Guid gifEntryId)
+    {
+        try { await InvokeAsync(StateHasChanged); }
+        catch (Exception ex)
+        {
+            if (ex is not (ObjectDisposedException or InvalidOperationException))
+                Logger.LogWarning(ex, "HandleEntryUpdated error");
+        }
+    }
+
+    private async void HandleLibraryChanged(GifEntry entry)
+    {
+        try
+        {
+            await InvokeAsync(() =>
+            {
+                if (selectedTab == GifTab.Recent) recentEntries = GifService.GetRecents(CurrentUsername);
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex)
+        {
+            if (ex is not (ObjectDisposedException or InvalidOperationException))
+                Logger.LogWarning(ex, "HandleLibraryChanged error");
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _debounceCts?.Cancel();
+        _searchCts?.Cancel();
+        GifService.OnFavoritesChanged -= HandleFavoritesChanged;
+        GifService.OnGifEntryUpdated -= HandleEntryUpdated;
+        GifService.OnGifLibraryChanged -= HandleLibraryChanged;
+        return ValueTask.CompletedTask;
+    }
+}

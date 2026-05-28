@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using Yap.Models;
 using Yap.Services;
+using Yap.Services.Gifs;
 
 namespace Yap.Components.Pages;
 
@@ -23,6 +24,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     [Inject] protected LinkPreviewService LinkPreviewService { get; set; } = default!;
     [Inject] protected LinkPreviewSettingsService LinkPreviewSettings { get; set; } = default!;
     [Inject] protected MediaCacheService MediaCacheService { get; set; } = default!;
+    [Inject] protected GifService GifService { get; set; } = default!;
     [Inject] protected ILogger<ChatBase> Logger { get; set; } = default!;
 
     // Common accessors

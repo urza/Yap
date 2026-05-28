@@ -160,6 +160,9 @@
 .emoji-toggle-wrapper {
     position: relative;
     margin-left: -0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 2px;
 }
 
 .emoji-toggle-button {
@@ -173,6 +176,34 @@
     border: none;
     border-radius: 50%;
     cursor: pointer;
+}
+
+.gif-toggle-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 28px;
+    padding: 0 8px;
+    background: transparent;
+    border: 1.5px solid var(--text-secondary);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
+    transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+}
+
+.gif-toggle-button:hover,
+.gif-toggle-button.active {
+    color: var(--text-primary);
+    border-color: var(--text-primary);
+    background: var(--bg-input);
+}
+
+.gif-toggle-label {
+    pointer-events: none;
 }
 
 /* Sprite icon: 960x192 source, 48px cells, displayed at 22px

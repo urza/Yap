@@ -19,6 +19,7 @@ public class ChatMessage
     public DateTime Timestamp { get; set; }
     public List<string> ImageUrls { get; set; } = new();
     public List<string> VideoUrls { get; set; } = new();
+    public List<GifAttachment> GifAttachments { get; set; } = new();
     public bool IsEdited { get; set; }
     public Guid? ReplyToMessageId { get; set; }
 
@@ -29,11 +30,12 @@ public class ChatMessage
 
     public bool HasImages => ImageUrls.Count > 0;
     public bool HasVideos => VideoUrls.Count > 0;
-    public bool HasMedia => HasImages || HasVideos;
+    public bool HasGifs => GifAttachments.Count > 0;
+    public bool HasMedia => HasImages || HasVideos || HasGifs;
 
     private ChatMessage() { } // EF Core constructor
 
-    public ChatMessage(Guid channelId, Guid userId, string username, string content, DateTime timestamp, List<string>? imageUrls = null, Guid? replyToMessageId = null, List<string>? videoUrls = null)
+    public ChatMessage(Guid channelId, Guid userId, string username, string content, DateTime timestamp, List<string>? imageUrls = null, Guid? replyToMessageId = null, List<string>? videoUrls = null, List<GifAttachment>? gifAttachments = null)
     {
         ChannelId = channelId;
         UserId = userId;
@@ -42,6 +44,7 @@ public class ChatMessage
         Timestamp = timestamp;
         ImageUrls = imageUrls ?? new();
         VideoUrls = videoUrls ?? new();
+        GifAttachments = gifAttachments ?? new();
         ReplyToMessageId = replyToMessageId;
         Reactions = new();
     }

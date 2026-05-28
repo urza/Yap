@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Yap.Models;
+using Yap.Services.Gifs;
 
 namespace Yap.Services;
 
@@ -19,6 +20,7 @@ public class ChatService
     private readonly LinkPreviewService _linkPreviewService;
     private readonly LinkPreviewSettingsService _linkPreviewSettings;
     private readonly MediaCacheService _mediaCacheService;
+    private readonly GifService _gifService;
     private readonly ILogger<ChatService> _logger;
 
     // Channels (rooms and DMs)
@@ -75,7 +77,7 @@ public class ChatService
 
     public ChatService(PushNotificationService pushService, ChatPersistenceService persistence, UserService userService,
         LinkPreviewService linkPreviewService, LinkPreviewSettingsService linkPreviewSettings,
-        MediaCacheService mediaCacheService, ILogger<ChatService> logger)
+        MediaCacheService mediaCacheService, GifService gifService, ILogger<ChatService> logger)
     {
         _pushService = pushService;
         _persistence = persistence;
@@ -83,6 +85,7 @@ public class ChatService
         _linkPreviewService = linkPreviewService;
         _linkPreviewSettings = linkPreviewSettings;
         _mediaCacheService = mediaCacheService;
+        _gifService = gifService;
         _logger = logger;
 
         // Wire link preview callback
@@ -731,7 +734,7 @@ public class ChatService
 
     #region Messaging
 
-    public async Task SendMessageAsync(Guid channelId, Guid userId, string username, string content, List<string>? imageUrls = null, Guid? replyToMessageId = null, List<string>? videoUrls = null)
+    public async Task SendMessageAsync(Guid channelId, Guid userId, string username, string content, List<string>? imageUrls = null, Guid? replyToMessageId = null, List<string>? videoUrls = null, List<GifAttachment>? gifAttachments = null)
     {
         var totalSw = Stopwatch.StartNew();
         if (!_channels.TryGetValue(channelId, out var channel))
@@ -741,7 +744,10 @@ public class ChatService
         if (!channel.CanWrite(userId, IsAdmin(userId)))
             return;
 
-        var message = new ChatMessage(channelId, userId, username, content, DateTime.UtcNow, imageUrls, replyToMessageId, videoUrls);
+        var message = new ChatMessage(channelId, userId, username, content, DateTime.UtcNow, imageUrls, replyToMessageId, videoUrls, gifAttachments);
+
+        // Bump GifEntry reference counts so eviction never reaps an entry that's still in chat history.
+        _gifService.IncrementReferences(gifAttachments);
 
         lock (GetChannelLock(channelId))
         {
@@ -809,7 +815,9 @@ public class ChatService
                     var totalUnread = recipientUser != null
                         ? GetTotalUnreadDMCount(recipientUser.Id)
                         : 1;
-                    var preview = message.HasMedia ? "[Attachment]" : content;
+                    var preview = message.HasGifs ? "[GIF]"
+                                : message.HasMedia ? "[Attachment]"
+                                : content;
 
                     _logger.LogDebug("Push DM: from={From} to={To} totalUnread={UnreadCount} status={Status} pageVisible={PageVisible}",
                         username, recipient, totalUnread, recipientStatus, pageVisible);
@@ -1062,6 +1070,9 @@ public class ChatService
 
             messages.Remove(message);
         }
+
+        // Release GifEntry reference counts (eviction may now consider these entries).
+        _gifService.DecrementReferences(message.GifAttachments);
 
         // Delete from database
         await _persistence.DeleteMessageAsync(messageId);

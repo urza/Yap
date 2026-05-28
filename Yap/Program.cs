@@ -7,6 +7,7 @@ using Yap.Endpoints;
 using Yap.Extensions;
 using Yap.Middleware;
 using Yap.Services;
+using Yap.Services.Gifs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -122,10 +123,22 @@ builder.Services.AddHttpClient("LinkPreview", client =>
     client.MaxResponseContentBufferSize = 256 * 1024; // 256KB
 });
 
+// Named HttpClient for the GIF provider (Tenor today). Shared for API requests + CDN downloads.
+builder.Services.AddHttpClient("Tenor", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (compatible; YapBot/1.0)");
+});
+
 // Chat services
 builder.Services.AddSingleton<LinkPreviewSettingsService>();
 builder.Services.AddSingleton<LinkPreviewService>();
 builder.Services.AddSingleton<MediaCacheService>();
+// GIF feature — registered before ChatService since ChatService depends on GifService.
+builder.Services.AddSingleton<GifAdminSettingsService>();
+builder.Services.AddSingleton<GifFfmpegHelper>();
+builder.Services.AddSingleton<IGifSourceProvider, TenorGifProvider>();
+builder.Services.AddSingleton<GifService>();
 builder.Services.AddSingleton<GeoLocationService>();
 builder.Services.AddSingleton<CustomEmojiService>();
 builder.Services.AddSingleton<ImageService>();
@@ -182,6 +195,9 @@ await app.Services.InitializePersistenceAsync();
 
 // Initialize users from database (must be before ChatService.InitializeAsync)
 await app.Services.GetRequiredService<UserService>().LoadUsersAsync();
+
+// Initialize GIF library (warm in-memory index from DB)
+await app.Services.GetRequiredService<GifService>().InitializeAsync();
 
 // Load push subscriptions from database
 await app.Services.GetRequiredService<PushSubscriptionStore>().InitializeAsync();
@@ -269,6 +285,15 @@ app.UseStaticFiles(new StaticFileOptions
     FileProvider = new PhysicalFileProvider(mediaCachePath),
     RequestPath = "/media-cache",
     ContentTypeProvider = mediaCacheContentTypes
+});
+
+// Serve cached GIFs from Data/gif-cache/ folder (separate from user uploads so eviction can sweep it)
+var gifCachePath = Path.Combine(app.Environment.ContentRootPath, "Data", "gif-cache");
+Directory.CreateDirectory(gifCachePath);
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(gifCachePath),
+    RequestPath = "/gif-cache"
 });
 
 // Custom middlewares - positioned after UseStaticFiles() to skip static file requests

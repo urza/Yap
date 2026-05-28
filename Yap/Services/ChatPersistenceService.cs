@@ -104,7 +104,8 @@ public class ChatPersistenceService
                 message.Timestamp,
                 message.ImageUrls.ToList(),
                 message.ReplyToMessageId,
-                message.VideoUrls.ToList()
+                message.VideoUrls.ToList(),
+                message.GifAttachments.ToList()
             )
             {
                 Id = message.Id,
@@ -130,7 +131,7 @@ public class ChatPersistenceService
 
             var detached = messages.Select(m => new ChatMessage(
                 m.ChannelId, m.UserId, m.Username, m.Content, m.Timestamp, m.ImageUrls.ToList(),
-                m.ReplyToMessageId, m.VideoUrls.ToList())
+                m.ReplyToMessageId, m.VideoUrls.ToList(), m.GifAttachments.ToList())
             {
                 Id = m.Id,
                 IsEdited = m.IsEdited

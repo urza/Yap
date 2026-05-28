@@ -105,6 +105,11 @@ public class User
     public string? EmojiCounts { get; set; }
 
     /// <summary>
+    /// JSON-serialized List&lt;Guid&gt; of recently used GIF entry IDs (most recent first, max 30).
+    /// </summary>
+    public string? RecentGifs { get; set; }
+
+    /// <summary>
     /// Gets the name to display in the UI.
     /// Returns DisplayName if set, otherwise Username.
     /// </summary>

@@ -9,6 +9,7 @@
 @inject RegistrationGateService RegistrationGate
 @inject LinkPreviewSettingsService LinkPreviewSettings
 @inject MediaCacheService MediaCacheService
+@inject Yap.Services.Gifs.GifAdminSettingsService GifAdminSettings
 @inject MediaUploadLogService MediaLog
 @inject VideoService VideoService
 @inject NavigationManager Navigation
@@ -507,6 +508,29 @@
 
             </div>
 
+            <div class="section-header" style="margin-top: 2rem;">
+                <h3>GIFs</h3>
+                <span class="section-count">Tenor content filter</span>
+            </div>
+
+            <div class="registration-settings">
+                <label class="toggle-row">
+                    <div class="toggle-info">
+                        <span class="toggle-label">Content filter</span>
+                        <span class="toggle-hint">
+                            How strictly Tenor filters search and trending results. Off = anything goes. High = G-rated only.
+                            Default is Medium (matches Tenor's own default).
+                        </span>
+                    </div>
+                    <select class="log-filter-select" @bind="gifContentFilter" @bind:after="UpdateGifContentFilter">
+                        <option value="Off">Off</option>
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                    </select>
+                </label>
+            </div>
+
             @if (pendingUsersList.Count > 0)
             {
                 <div class="section-header" style="margin-top: 2rem;">
@@ -941,6 +965,9 @@
         // Load link preview settings
         linkPreviewsEnabled = LinkPreviewSettings.Enabled;
         mediaCachingEnabled = LinkPreviewSettings.MediaCachingEnabled;
+
+        // Load GIF settings
+        gifContentFilter = GifAdminSettings.TenorContentFilter.ToString();
     }
 
     private async Task SelectUser(Guid userId)
@@ -1034,6 +1061,9 @@
     private bool linkPreviewsEnabled;
     private bool mediaCachingEnabled;
 
+    // GIF settings
+    private string gifContentFilter = "Medium";
+
     private async Task ToggleRegistrationClosed(ChangeEventArgs e)
     {
         regClosed = (bool)(e.Value ?? false);
@@ -1062,6 +1092,14 @@
     {
         mediaCachingEnabled = (bool)(e.Value ?? false);
         await LinkPreviewSettings.SetMediaCachingEnabledAsync(mediaCachingEnabled);
+    }
+
+    private async Task UpdateGifContentFilter()
+    {
+        if (Enum.TryParse<Yap.Services.Gifs.TenorContentFilter>(gifContentFilter, out var parsed))
+        {
+            await GifAdminSettings.SetTenorContentFilterAsync(parsed);
+        }
     }
 
 

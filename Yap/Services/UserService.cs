@@ -625,6 +625,33 @@ public class UserService
     }
 
     /// <summary>
+    /// Gets the recent GIF entry IDs for a user (deserialized from in-memory User).
+    /// </summary>
+    public List<Guid> GetRecentGifs(string username)
+    {
+        var user = GetByUsername(username);
+        if (user?.RecentGifs == null) return new();
+
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<List<Guid>>(user.RecentGifs) ?? new();
+        }
+        catch
+        {
+            return new();
+        }
+    }
+
+    public void UpdateRecentGifs(Guid userId, List<Guid> gifIds)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        user.RecentGifs = System.Text.Json.JsonSerializer.Serialize(gifIds);
+        _dirtyEmojiUsers.TryAdd(userId, 0);
+    }
+
+    /// <summary>
     /// Gets the emoji usage counts for a user (deserialized from in-memory User).
     /// </summary>
     public Dictionary<string, int> GetEmojiCounts(string username)
@@ -712,7 +739,8 @@ public class UserService
                     .Where(u => u.Id == userId)
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(u => u.RecentEmojis, user.RecentEmojis)
-                        .SetProperty(u => u.EmojiCounts, user.EmojiCounts));
+                        .SetProperty(u => u.EmojiCounts, user.EmojiCounts)
+                        .SetProperty(u => u.RecentGifs, user.RecentGifs));
             }
         }
         catch (Exception ex)

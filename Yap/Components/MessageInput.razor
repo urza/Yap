@@ -1,7 +1,9 @@
+@using Yap.Services.Gifs
 @inject ChatService ChatService
 @inject ChatConfigService ChatConfig
 @inject UserStateService UserState
 @inject UserService UserService
+@inject GifService GifService
 @inject IJSRuntime JS
 @inject ILogger<MessageInput> Logger
 @implements IAsyncDisposable
@@ -99,6 +101,17 @@ else
         <InputFile OnChange="HandleFileSelected" accept="image/*,video/*" multiple style="display: none;" id="@FileInputId" />
     </label>
     <div class="emoji-toggle-wrapper">
+        <button class="gif-toggle-button @(showGifPicker ? "active" : "")" @onclick="ToggleGifPicker" title="GIF picker">
+            <span class="gif-toggle-label">GIF</span>
+        </button>
+        @if (showGifPicker)
+        {
+            <div class="emoji-picker-backdrop" @onclick="CloseGifPicker"></div>
+            <div class="emoji-picker-container">
+                <GifPicker CurrentUserId="@UserId" CurrentUsername="@Username"
+                           OnGifSelected="HandleGifSelected" OnUploadError="HandleGifUploadError" />
+            </div>
+        }
         <button class="emoji-toggle-button @(showEmojiPicker ? "active" : "")" @onclick="ToggleEmojiPicker" title="Emoji picker">
             <span class="emoji-toggle-icon" id="@EmojiIconId"
                   style="--grey-col: @greyCol; --grey-row: @greyRow; --color-col: @colorCol; --color-row: @colorRow;"></span>
@@ -176,6 +189,7 @@ else
     private string FileInputId = $"fileInput_{Guid.NewGuid():N}";
     private bool isTouchDevice = false;
     private bool showEmojiPicker = false;
+    private bool showGifPicker = false;
 
     // Emoji button sprite grid: 960x192 PNG, 48px cells = 20 cols x 4 rows
     private const int SpriteCols = 20;
@@ -424,6 +438,7 @@ else
     private void ToggleEmojiPicker()
     {
         showEmojiPicker = !showEmojiPicker;
+        if (showEmojiPicker) showGifPicker = false;
     }
 
     private async Task HandleCancelReply()
@@ -434,6 +449,40 @@ else
     private void CloseEmojiPicker()
     {
         showEmojiPicker = false;
+    }
+
+    private void ToggleGifPicker()
+    {
+        showGifPicker = !showGifPicker;
+        if (showGifPicker) showEmojiPicker = false;
+    }
+
+    private void CloseGifPicker()
+    {
+        showGifPicker = false;
+    }
+
+    private async Task HandleGifSelected(Yap.Models.GifAttachment att)
+    {
+        if (!channelId.HasValue) return;
+        showGifPicker = false;
+        try
+        {
+            await ChatService.SendMessageAsync(channelId.Value, UserId, Username, "",
+                replyToMessageId: ReplyingToMessage?.Id,
+                gifAttachments: new List<Yap.Models.GifAttachment> { att });
+            if (ReplyingToMessage != null)
+                await OnCancelReply.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to send GIF message");
+        }
+    }
+
+    private void HandleGifUploadError(string error)
+    {
+        ShowWarning("GIF upload failed", error);
     }
 
     #endregion
