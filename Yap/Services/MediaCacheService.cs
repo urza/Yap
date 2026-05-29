@@ -338,7 +338,7 @@ public class MediaCacheService
             url, Path.GetFileName(actualPath), fileSize / 1024,
             (int)metadata.Duration, mediaType, vw > 0 ? $"{vw}x{vh}" : "-", sw.ElapsedMilliseconds);
 
-        return new MediaCacheEntry(localUrl, mediaType, (int)metadata.Duration, vw, vh);
+        return new MediaCacheEntry(localUrl, mediaType, (int)metadata.Duration, vw, vh, metadata.Title, metadata.Thumbnail);
     }
 
     /// <summary>
@@ -425,18 +425,31 @@ public class MediaCacheService
 
     private async Task<MediaMetadata?> GetMetadataAsync(string url)
     {
+        // Print duration, title and thumbnail (one per line, in this order). The title/thumbnail
+        // let us populate the preview card from yt-dlp's own metadata when the OG scrape comes back
+        // empty (e.g. YouTube serves a bot/consent page with no og: tags).
         var (exitCode, stdout) = await RunYtDlpAsync(
-            $"--print duration --no-playlist -- \"{url}\"", MetadataTimeoutMs);
+            $"--print duration --print title --print thumbnail --no-playlist -- \"{url}\"", MetadataTimeoutMs);
 
         if (exitCode != 0 || string.IsNullOrWhiteSpace(stdout))
             return null;
 
-        var line = stdout.Trim().Split('\n')[0].Trim();
-        if (!double.TryParse(line, System.Globalization.NumberStyles.Float,
+        var lines = stdout.Trim().Split('\n');
+        if (!double.TryParse(lines[0].Trim(), System.Globalization.NumberStyles.Float,
                 System.Globalization.CultureInfo.InvariantCulture, out var duration))
             return null;
 
-        return new MediaMetadata(duration);
+        var title = lines.Length > 1 ? CleanField(lines[1]) : null;
+        var thumbnail = lines.Length > 2 ? CleanField(lines[2]) : null;
+
+        return new MediaMetadata(duration, title, thumbnail);
+    }
+
+    // yt-dlp prints "NA" for fields it couldn't resolve; treat that (and blanks) as null.
+    private static string? CleanField(string raw)
+    {
+        var s = raw.Trim();
+        return string.IsNullOrEmpty(s) || s == "NA" ? null : s;
     }
 
     /// <summary>
@@ -665,7 +678,7 @@ public class MediaCacheService
         return text.Length <= maxLength ? text : text[..maxLength] + "...";
     }
 
-    private record MediaMetadata(double Duration);
+    private record MediaMetadata(double Duration, string? Title = null, string? Thumbnail = null);
 }
 
-public record MediaCacheEntry(string LocalUrl, CachedMediaType MediaType, int DurationSeconds, int Width = 0, int Height = 0);
+public record MediaCacheEntry(string LocalUrl, CachedMediaType MediaType, int DurationSeconds, int Width = 0, int Height = 0, string? Title = null, string? Thumbnail = null);

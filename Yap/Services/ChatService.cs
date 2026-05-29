@@ -103,6 +103,14 @@ public class ChatService
                 preview.MediaWidth = entry.Width;
                 preview.MediaHeight = entry.Height;
             }
+            // Fall back to yt-dlp's own title/thumbnail when the OG scrape didn't get them (e.g.
+            // YouTube serves a bot/consent page with no og: tags). OG values win when present.
+            if (string.IsNullOrEmpty(preview.Title)) preview.Title = entry.Title;
+            if (string.IsNullOrEmpty(preview.ImageUrl)) preview.ImageUrl = entry.Thumbnail;
+            // A successful media cache is a real preview even if the scrape was marked failed —
+            // clear the flag so HasContent turns true and the card renders.
+            if (!string.IsNullOrEmpty(preview.Title) || !string.IsNullOrEmpty(preview.ImageUrl) || !string.IsNullOrEmpty(preview.CachedMediaUrl))
+                preview.Failed = false;
             OnMediaCacheReady?.Invoke(msgId);
         };
 

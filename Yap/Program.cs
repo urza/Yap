@@ -119,7 +119,12 @@ else
 builder.Services.AddHttpClient("LinkPreview", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(10);
-    client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (compatible; YapBot/1.0)");
+    // Use a real browser UA: some sites (YouTube especially) serve a bot/consent page with no
+    // OpenGraph tags to non-browser user agents, so previews come back empty. Accept-Language
+    // helps avoid region-based consent interstitials.
+    client.DefaultRequestHeaders.UserAgent.ParseAdd(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+    client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-US,en;q=0.9");
     client.MaxResponseContentBufferSize = 256 * 1024; // 256KB
 });
 
