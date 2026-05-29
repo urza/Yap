@@ -490,6 +490,36 @@ public class UserService
     }
 
     /// <summary>
+    /// Records that the user was seen running Yap as an installed PWA (display-mode: standalone).
+    /// Updates <see cref="User.PwaInstalledAt"/> to now. Idempotent per connect; only called by the
+    /// client when it detects standalone mode, so non-PWA sessions never touch this.
+    /// </summary>
+    public async Task MarkPwaInstalledAsync(Guid userId)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        var now = DateTime.UtcNow;
+        user.PwaInstalledAt = now;
+
+        if (_persistenceEnabled)
+        {
+            try
+            {
+                await using var db = await _dbFactory!.CreateDbContextAsync();
+                await db.Users
+                    .Where(u => u.Id == userId)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(u => u.PwaInstalledAt, now));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update PWA install state for user {UserId}", userId);
+            }
+        }
+    }
+
+    /// <summary>
     /// Sets a passphrase for the user (enables multi-device login).
     /// </summary>
     public async Task SetPasswordAsync(Guid userId, string? password)

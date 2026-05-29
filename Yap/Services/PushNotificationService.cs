@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using WebPush;
 
@@ -54,6 +55,8 @@ public class PushNotificationService
     private readonly UserService _userService;
     private readonly ILogger<PushNotificationService> _logger;
     private readonly bool _isConfigured;
+    private readonly PushKeyStatus _keyStatus;
+    private readonly string? _keyStatusDetail;
 
     public PushNotificationService(
         IConfiguration configuration,
@@ -84,15 +87,81 @@ public class PushNotificationService
             !string.IsNullOrEmpty(privateKey) &&
             !publicKey.Contains("GENERATE_YOUR_OWN"))
         {
-            _vapidDetails = new VapidDetails(subject, publicKey, privateKey);
-            _isConfigured = true;
-            _logger.LogInformation("Push notifications configured with VAPID");
+            // Verify the public key is the cryptographic pair of the private key BEFORE enabling push.
+            // A mismatched pair signs JWTs the push service rejects as BadJwtToken — silently, on every
+            // send. This turns months of invisibly-broken notifications into a loud startup error.
+            if (KeypairPairs(publicKey, privateKey, out var detail))
+            {
+                _vapidDetails = new VapidDetails(subject, publicKey, privateKey);
+                _isConfigured = true;
+                _keyStatus = PushKeyStatus.Valid;
+                _keyStatusDetail = detail;
+                _logger.LogInformation("Push notifications configured with VAPID ({Detail}).", detail);
+            }
+            else
+            {
+                _isConfigured = false;
+                _keyStatus = PushKeyStatus.Invalid;
+                _keyStatusDetail = detail;
+                _logger.LogError(
+                    "PUSH DISABLED — VAPID keypair is invalid: {Detail}. The configured public and private keys " +
+                    "are not a pair, so every push would be rejected (BadJwtToken). Regenerate a matched pair " +
+                    "(WebPush.VapidHelper.GenerateVapidKeys()) and set both Vapid:PublicKey and Vapid:PrivateKey.",
+                    detail);
+            }
         }
         else
         {
             _isConfigured = false;
+            _keyStatus = PushKeyStatus.NotConfigured;
             _logger.LogWarning("Push notifications not configured - VAPID keys missing or placeholder values");
         }
+    }
+
+    /// <summary>
+    /// Confirms the configured VAPID public key is the cryptographic pair of the private key by signing
+    /// a probe with the private key and verifying it with the public key — exactly the check the push
+    /// service performs. Returns false (with a human-readable reason) for any mismatch or malformed key.
+    /// </summary>
+    private static bool KeypairPairs(string publicKey, string privateKey, out string detail)
+    {
+        try
+        {
+            var pub = FromBase64Url(publicKey);   // 0x04 || X(32) || Y(32)
+            var d = FromBase64Url(privateKey);    // 32-byte scalar
+            if (pub.Length != 65 || pub[0] != 0x04)
+            {
+                detail = $"public key is not a 65-byte uncompressed P-256 point (got {pub.Length} bytes)";
+                return false;
+            }
+            if (d.Length != 32)
+            {
+                detail = $"private key is not a 32-byte scalar (got {d.Length} bytes)";
+                return false;
+            }
+
+            var q = new ECPoint { X = pub[1..33], Y = pub[33..65] };
+            // Importing D alongside Q validates Q == D·G on most platforms (throws if not); the
+            // sign+verify below is the backstop for any platform that skips that import-time check.
+            using var signer = ECDsa.Create(new ECParameters { Curve = ECCurve.NamedCurves.nistP256, D = d, Q = q });
+            using var verifier = ECDsa.Create(new ECParameters { Curve = ECCurve.NamedCurves.nistP256, Q = q });
+            var probe = "yap-vapid-startup-selfcheck"u8.ToArray();
+            var ok = verifier.VerifyData(probe, signer.SignData(probe, HashAlgorithmName.SHA256), HashAlgorithmName.SHA256);
+            detail = ok ? "keypair verified" : "public key is not the cryptographic pair of the private key";
+            return ok;
+        }
+        catch (Exception ex)
+        {
+            detail = $"keypair check failed ({ex.GetType().Name}: {ex.Message})";
+            return false;
+        }
+    }
+
+    private static byte[] FromBase64Url(string s)
+    {
+        s = s.Replace('-', '+').Replace('_', '/');
+        switch (s.Length % 4) { case 2: s += "=="; break; case 3: s += "="; break; }
+        return Convert.FromBase64String(s);
     }
 
     /// <summary>
@@ -104,6 +173,14 @@ public class PushNotificationService
     /// Whether push notifications are properly configured.
     /// </summary>
     public bool IsConfigured => _isConfigured;
+
+    /// <summary>
+    /// Health of the configured VAPID keypair, surfaced on the admin page.
+    /// </summary>
+    public PushKeyStatus KeyStatus => _keyStatus;
+
+    /// <summary>Human-readable detail for <see cref="KeyStatus"/> (e.g. why the keypair was rejected).</summary>
+    public string? KeyStatusDetail => _keyStatusDetail;
 
     /// <summary>
     /// Number of push subscriptions registered for a user (diagnostic + Settings display).
@@ -215,6 +292,19 @@ public class PushNotificationService
 
         return SendToUserAsync(username, payload, bypassMute: true);
     }
+}
+
+/// <summary>
+/// Health of the configured VAPID keypair.
+/// </summary>
+public enum PushKeyStatus
+{
+    /// <summary>No VAPID keys configured (or placeholder values).</summary>
+    NotConfigured,
+    /// <summary>Public key is the verified cryptographic pair of the private key.</summary>
+    Valid,
+    /// <summary>Keys are present but malformed or not a matching pair — push is disabled.</summary>
+    Invalid
 }
 
 /// <summary>

@@ -116,6 +116,20 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
                 catch { /* JS not available yet, will use fallbacks */ }
             }
 
+            // Detect whether this client is running as an installed PWA (display-mode: standalone)
+            // and record it on the User model so the admin page can see who has Yap installed.
+            // Only persisted when standalone — non-PWA sessions never touch the timestamp.
+            if (UserState.UserId.HasValue)
+            {
+                try
+                {
+                    var isPwa = await JS.InvokeAsync<bool>("isPwaInstalled");
+                    if (isPwa)
+                        await UserService.MarkPwaInstalledAsync(UserState.UserId.Value);
+                }
+                catch { /* JS not available yet, ignore */ }
+            }
+
             // Auth guard - layout also checks, but this is a fallback
             // UserState is populated by AuthMiddleware before Blazor starts
             if (!UserState.IsLoggedIn)

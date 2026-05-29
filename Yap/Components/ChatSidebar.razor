@@ -6,6 +6,7 @@
 @inject NavigationManager Navigation
 @inject EmojiService EmojiService
 @inject SystemBotService BotService
+@inject IHttpContextAccessor HttpContextAccessor
 @inject ILogger<ChatSidebar> Logger
 @implements IDisposable
 
@@ -60,10 +61,25 @@
                 var displayName = GetDisplayName(user);
 
                 <div class="user-item @(isCurrentUser ? "current-user" : "") @(isActiveDM ? "active-dm" : "")"
-                     @onclick="() => OpenDM(user)"
-                     title="@(isCurrentUser ? "You" : $"Message {displayName}")">
+                     @onclick="() => OpenDM(user)">
                     <span class="user-status-dot @statusClass"></span>
-                    <span class="user-name">@EmojiService.ConvertEmojisToTwemoji(displayName, inline: true)@(isCurrentUser ? " (you)" : "")</span>
+                    <span class="user-name"
+                          @onmouseenter="@((MouseEventArgs e) => ShowProfile(user, status, e))"
+                          @onmouseleave="HideProfile">@EmojiService.ConvertEmojisToTwemoji(displayName, inline: true)@(isCurrentUser ? " (you)" : "")</span>
+                    @if (_isMobile)
+                    {
+                        <button class="profile-info-btn" title="View profile" aria-label="View profile"
+                                @onclick="@((MouseEventArgs e) => ToggleProfile(user, status, e))"
+                                @onclick:stopPropagation="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                                <line x1="9" y1="9" x2="9.01" y2="9"/>
+                                <line x1="15" y1="9" x2="15.01" y2="9"/>
+                            </svg>
+                        </button>
+                    }
                     @if (isUserAdmin)
                     {
                         <span class="admin-badge" title="Admin">@EmojiService.ConvertEmojisToTwemoji("👑", inline: true)</span>
@@ -82,6 +98,20 @@
     </div>
 </div>
 
+@* User profile popout — desktop: hover-anchored tooltip; mobile: centered modal with tap-away backdrop.
+   Rendered as a sibling of the sidebar so position:fixed isn't clipped by the sidebar's
+   overflow:hidden (desktop) or trapped by its slide-in transform (mobile). *@
+@if (_popupUser != null)
+{
+    @if (_isMobile)
+    {
+        <div class="profile-popup-backdrop" @onclick="HideProfile"></div>
+    }
+    <div class="profile-popup @(_isMobile ? "is-mobile" : "")" style="@PopupStyle">
+        <UserProfileCard Username="@_popupUser" Status="_popupStatus" />
+    </div>
+}
+
 @code {
     private Guid UserId => UserState.UserId ?? Guid.Empty;
     private string Username => UserState.Username ?? "";
@@ -92,6 +122,13 @@
     private bool isAdmin = false;
     private string onlineUsersHeader = "";
 
+    // Profile popout state
+    private bool _isMobile;
+    private string? _popupUser;
+    private UserStatus _popupStatus;
+    private int _popupX;
+    private int _popupY;
+
 
     protected override void OnInitialized()
     {
@@ -99,6 +136,7 @@
         rooms = ChatService.GetRooms();
         RefreshOnlineUsers();
         isAdmin = ChatService.IsAdmin(UserId);
+        _isMobile = ResolveIsMobile();
         UpdateOnlineUsersHeader();
 
         // Subscribe to events
@@ -110,6 +148,82 @@
         ChatService.OnUnreadChanged += HandleUnreadChanged;
         NavState.OnChange += StateHasChanged;
     }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // Safety net: if the device type wasn't known at first render (no prior page set
+        // UserState.IsMobile and HttpContext was unavailable), resolve it now and re-render
+        // so phones get the info button instead of desktop hover.
+        if (firstRender)
+        {
+            var resolved = ResolveIsMobile();
+            if (resolved != _isMobile)
+            {
+                _isMobile = resolved;
+                StateHasChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Determines whether this is a mobile device. Prefers the session-cached value,
+    /// falls back to the User-Agent flag set by DeviceDetectionMiddleware.
+    /// </summary>
+    private bool ResolveIsMobile()
+    {
+        if (UserState.IsMobile.HasValue)
+            return UserState.IsMobile.Value;
+
+        var ctx = HttpContextAccessor.HttpContext;
+        if (ctx?.Items.TryGetValue("IsMobile", out var m) == true && m is bool b)
+        {
+            UserState.IsMobile = b; // cache for the rest of the session
+            return b;
+        }
+
+        return false; // assume desktop until proven otherwise
+    }
+
+    #region Profile Popout
+
+    // Desktop: hover the name to reveal a profile card next to the cursor.
+    // We drive this from Blazor (not pure CSS :hover) because the card must escape the
+    // sidebar's overflow:hidden via position:fixed, which needs the cursor coordinates.
+    // The round-trip latency reads as a normal tooltip delay here — acceptable for a
+    // deliberate, low-frequency popout (unlike per-message action bars).
+    private void ShowProfile(string user, UserStatus status, MouseEventArgs e)
+    {
+        if (_isMobile) return; // mobile uses the info button (tap), not hover
+        _popupUser = user;
+        _popupStatus = status;
+        _popupX = (int)e.ClientX;
+        _popupY = (int)e.ClientY;
+    }
+
+    private void HideProfile() => _popupUser = null;
+
+    // Mobile: tap the info button to toggle the centered profile card.
+    private void ToggleProfile(string user, UserStatus status, MouseEventArgs e)
+    {
+        if (_popupUser == user)
+        {
+            _popupUser = null;
+            return;
+        }
+        _popupUser = user;
+        _popupStatus = status;
+        _popupX = (int)e.ClientX;
+        _popupY = (int)e.ClientY;
+    }
+
+    // Anchors the card to the left of the cursor (sidebar sits on the right edge).
+    // clamp() keeps it inside the viewport without needing JS measurements; the mobile
+    // ".is-mobile" rule overrides these to center the card instead.
+    private string PopupStyle =>
+        $"left: clamp(8px, {_popupX - 292}px, calc(100vw - 288px)); " +
+        $"top: clamp(8px, {_popupY - 56}px, calc(100dvh - 348px));";
+
+    #endregion
 
     private void RefreshOnlineUsers()
     {
@@ -280,6 +394,7 @@
 
     private void SwitchToRoom(Guid roomId)
     {
+        _popupUser = null; // dismiss any open profile card
         var url = roomId == ChatService.GetLobbyId() ? "/lobby" : $"/room/{roomId}";
         Navigation.NavigateTo(url);
     }
@@ -300,6 +415,7 @@
 
     private void OpenDM(string targetUser)
     {
+        _popupUser = null; // dismiss any open profile card
         if (targetUser.Equals(Username, StringComparison.OrdinalIgnoreCase)) return;
 
         Navigation.NavigateTo($"/dm/{Uri.EscapeDataString(targetUser)}");

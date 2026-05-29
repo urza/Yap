@@ -4,6 +4,7 @@
 @inject ChatService ChatService
 @inject UserActionLogService ActionLog
 @inject PushSubscriptionStore PushStore
+@inject PushNotificationService PushService
 @inject GeoLocationService GeoLocation
 @inject SystemBotService BotService
 @inject RegistrationGateService RegistrationGate
@@ -138,6 +139,7 @@
                         <tr>
                             <th>User</th>
                             <th>Status</th>
+                            <th>PWA</th>
                             <th>Created</th>
                             <th>Last Action</th>
                             <th>Locale</th>
@@ -179,6 +181,21 @@
                                         <span class="status-dot"></span>
                                         @statusLabel
                                     </span>
+                                </td>
+                                <td class="pwa-cell">
+                                    @if (user.PwaInstalledAt.HasValue)
+                                    {
+                                        <span class="pwa-badge" title="Last seen as installed PWA: @user.PwaInstalledAt.Value.ToString("yyyy-MM-dd HH:mm")">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                            </svg>
+                                            Installed
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="no-data">—</span>
+                                    }
                                 </td>
                                 <td class="date-cell">@user.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
                                 <td class="action-cell">
@@ -265,6 +282,16 @@
                             {
                                 <span class="detail-tag tag-orange">Muted</span>
                             }
+                            <span class="detail-tag @(selectedUser!.PwaInstalledAt.HasValue ? "tag-green" : "tag-muted")">
+                                @if (selectedUser!.PwaInstalledAt.HasValue)
+                                {
+                                    <span>PWA installed (@selectedUser.PwaInstalledAt.Value.ToString("yyyy-MM-dd"))</span>
+                                }
+                                else
+                                {
+                                    <span>No PWA</span>
+                                }
+                            </span>
                         </div>
 
                         <div class="detail-tables">
@@ -741,6 +768,24 @@
                     </div>
                 </div>
             }
+
+            <div class="diag-chart-card" style="margin-bottom: 16px;">
+                <h4>Push notifications</h4>
+                @switch (PushService.KeyStatus)
+                {
+                    case Yap.Services.PushKeyStatus.Valid:
+                        <p style="color: var(--color-success); margin: 0;">✅ Configured — VAPID keypair verified at startup.</p>
+                        break;
+                    case Yap.Services.PushKeyStatus.Invalid:
+                        <p style="color: var(--color-danger); margin: 0; font-weight: 600;">❌ DISABLED — VAPID keypair is invalid.</p>
+                        <p style="color: var(--text-secondary); margin: 4px 0 0;">@PushService.KeyStatusDetail</p>
+                        <p style="color: var(--text-secondary); margin: 4px 0 0;">Regenerate a matched pair and set both <code>Vapid:PublicKey</code> and <code>Vapid:PrivateKey</code>.</p>
+                        break;
+                    default:
+                        <p style="color: var(--text-secondary); margin: 0;">⚠️ Not configured — no VAPID keys set.</p>
+                        break;
+                }
+            </div>
 
             <div class="diag-charts">
                 <div class="diag-chart-card">

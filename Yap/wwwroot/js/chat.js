@@ -519,14 +519,21 @@ window.subscribeToPush = async (vapidPublicKey) => {
 
     try {
         const registration = await navigator.serviceWorker.ready;
+        const convertedKey = urlBase64ToUint8Array(vapidPublicKey);
 
         // Check for existing subscription
         let subscription = await registration.pushManager.getSubscription();
 
-        if (!subscription) {
-            // Convert VAPID key to Uint8Array
-            const convertedKey = urlBase64ToUint8Array(vapidPublicKey);
+        // If an existing subscription was created with a DIFFERENT applicationServerKey (e.g. the
+        // server's VAPID key was rotated/fixed), it can never receive pushes signed by the new key.
+        // Drop it and re-subscribe so users migrate automatically with no action on their part.
+        if (subscription && !applicationServerKeyMatches(subscription, convertedKey)) {
+            console.log('[Push] VAPID key changed — re-subscribing with the new key');
+            try { await subscription.unsubscribe(); } catch (e) { console.warn('[Push] old unsubscribe failed', e); }
+            subscription = null;
+        }
 
+        if (!subscription) {
             subscription = await registration.pushManager.subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: convertedKey
@@ -587,6 +594,24 @@ window.getPushSubscription = async () => {
         return null;
     }
 };
+
+// Helper: true if the subscription was created with the given applicationServerKey.
+// If the browser doesn't expose options.applicationServerKey, assume a match so we never
+// churn a working subscription on a browser that simply can't tell us what key it used.
+function applicationServerKeyMatches(subscription, expectedKeyBytes) {
+    try {
+        const current = subscription.options && subscription.options.applicationServerKey;
+        if (!current) return true;
+        const actual = new Uint8Array(current);
+        if (actual.length !== expectedKeyBytes.length) return false;
+        for (let i = 0; i < actual.length; i++) {
+            if (actual[i] !== expectedKeyBytes[i]) return false;
+        }
+        return true;
+    } catch (e) {
+        return true;
+    }
+}
 
 // Helper: Convert VAPID key to Uint8Array
 function urlBase64ToUint8Array(base64String) {

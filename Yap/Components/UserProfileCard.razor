@@ -1,0 +1,105 @@
+@namespace Yap.Components
+@using System.Net
+@using Yap.Helpers
+@inject UserService UserService
+@inject ChatService ChatService
+@inject SystemBotService BotService
+@inject EmojiService EmojiService
+
+@*  Discord-style profile popout: avatar, identity, status and bio.
+    Rendered inside the sidebar's hover/tap popup (see ChatSidebar).  *@
+
+<div class="profile-card">
+    <div class="profile-card-banner" style="background: @AvatarColor.GetGradientCss(Username, 120);"></div>
+
+    <div class="profile-card-avatar">
+        <Avatar Username="@Username" ProfilePictureUrl="@_user?.ProfilePictureUrl" Size="AvatarSize.Large" />
+    </div>
+
+    <div class="profile-card-body">
+        <div class="profile-card-identity">
+            <span class="profile-card-name">
+                @EmojiService.ConvertEmojisToTwemoji(WebUtility.HtmlEncode(DisplayName), inline: true)
+                @if (_isAdmin)
+                {
+                    <span class="profile-card-badge" title="Admin">@EmojiService.ConvertEmojisToTwemoji("👑", inline: true)</span>
+                }
+                @if (_isBot)
+                {
+                    <span class="profile-card-badge" title="Bot">@EmojiService.ConvertEmojisToTwemoji("🤖", inline: true)</span>
+                }
+            </span>
+            <span class="profile-card-username">@("@" + Username)</span>
+        </div>
+
+        <div class="profile-card-statusline">
+            <span class="profile-card-status-dot @StatusClass"></span>
+            <span>@StatusLabel</span>
+        </div>
+
+        <div class="profile-card-divider"></div>
+
+        @if (!string.IsNullOrWhiteSpace(_user?.Bio))
+        {
+            <div class="profile-card-section">
+                <span class="profile-card-label">About me</span>
+                <p class="profile-card-bio">@EmojiService.ConvertEmojisToTwemoji(WebUtility.HtmlEncode(_user!.Bio!), inline: true)</p>
+            </div>
+        }
+        else
+        {
+            <p class="profile-card-empty">No bio yet — a person of mystery @EmojiService.ConvertEmojisToTwemoji("🕵️", inline: true)</p>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_user?.Country))
+        {
+            <div class="profile-card-meta">
+                @EmojiService.ConvertEmojisToTwemoji("📍", inline: true)
+                <span>@_user!.Country</span>
+            </div>
+        }
+
+        @if (_user != null)
+        {
+            <div class="profile-card-meta">
+                @EmojiService.ConvertEmojisToTwemoji("🗓️", inline: true)
+                <span>Member since @MemberSince</span>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Username { get; set; } = "";
+    [Parameter] public UserStatus Status { get; set; } = UserStatus.Invisible;
+
+    private User? _user;
+    private bool _isAdmin;
+    private bool _isBot;
+
+    protected override void OnParametersSet()
+    {
+        _user = UserService.GetByUsername(Username);
+        _isAdmin = ChatService.IsAdmin(Username);
+        _isBot = BotService.IsBotUser(Username);
+    }
+
+    private string DisplayName => _user?.EffectiveDisplayName ?? Username;
+
+    private string MemberSince => (_user?.CreatedAt ?? DateTime.UtcNow).ToString("MMMM yyyy");
+
+    // Invisible == "appears offline" to everyone else, so present it as Offline here.
+    private string StatusClass => Status switch
+    {
+        UserStatus.Online => "online",
+        UserStatus.Away => "away",
+        _ => "offline"
+    };
+
+    private string StatusLabel => Status switch
+    {
+        UserStatus.Online => "Online",
+        UserStatus.Away => "Away",
+        _ => "Offline"
+    };
+}

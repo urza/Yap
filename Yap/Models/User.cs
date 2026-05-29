@@ -89,6 +89,13 @@ public class User
     public bool PushMuted { get; set; }
 
     /// <summary>
+    /// Last time the user was seen running Yap as an installed PWA (display-mode: standalone).
+    /// Null if we've never detected a standalone session. Updated on connect when the client
+    /// reports it is running as an installed app.
+    /// </summary>
+    public DateTime? PwaInstalledAt { get; set; }
+
+    /// <summary>
     /// Whether this user has opted out of smart login (IP-based auto-login).
     /// Default false = smart login allowed. When true, passphrase is always required.
     /// </summary>
