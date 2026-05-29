@@ -10,7 +10,15 @@ public class PushLogHandler : DelegatingHandler
 {
     private readonly ILogger _logger;
 
-    public PushLogHandler(ILogger logger) : base(new HttpClientHandler())
+    public PushLogHandler(ILogger logger) : base(new SocketsHttpHandler
+    {
+        // The push HttpClient is a singleton (lives for the app's lifetime). Recycle pooled
+        // connections so a silently-dropped keep-alive to a push endpoint can't hang the next
+        // send — stale pooled connections caused 100s timeouts that delayed badge updates.
+        PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+        PooledConnectionIdleTimeout = TimeSpan.FromSeconds(30),
+        ConnectTimeout = TimeSpan.FromSeconds(10)
+    })
     {
         _logger = logger;
     }
@@ -57,7 +65,12 @@ public class PushNotificationService
         _userService = userService;
         _logger = logger;
 
-        var httpClient = new HttpClient(new PushLogHandler(logger));
+        var httpClient = new HttpClient(new PushLogHandler(logger))
+        {
+            // Push sends should be fast (push services respond in ~1s). The 100s default let a single
+            // stale connection delay a notification — and the badge it carries — by up to 100 seconds.
+            Timeout = TimeSpan.FromSeconds(20)
+        };
         _webPushClient = new WebPushClient(httpClient);
 
         // Load VAPID keys from configuration
@@ -101,12 +114,12 @@ public class PushNotificationService
     /// <summary>
     /// Send a push notification to a specific user.
     /// </summary>
-    public async Task SendToUserAsync(string username, PushPayload payload, bool bypassMute = false)
+    public async Task<PushSendResult> SendToUserAsync(string username, PushPayload payload, bool bypassMute = false)
     {
         if (!_isConfigured || _vapidDetails == null)
         {
             _logger.LogDebug("Push not configured, skipping notification to {Username}", username);
-            return;
+            return new PushSendResult(0, 0, 0);
         }
 
         // Check if user has muted banner notifications (badge still sent).
@@ -123,7 +136,7 @@ public class PushNotificationService
         if (subscriptions.Count == 0)
         {
             _logger.LogDebug("No push subscriptions for user {Username}", username);
-            return;
+            return new PushSendResult(0, 0, 0);
         }
 
         var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions
@@ -131,6 +144,7 @@ public class PushNotificationService
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         });
 
+        int sent = 0, failed = 0;
         foreach (var sub in subscriptions)
         {
             try
@@ -138,6 +152,7 @@ public class PushNotificationService
                 var pushSubscription = new PushSubscription(sub.Endpoint, sub.P256dh, sub.Auth);
                 await _webPushClient.SendNotificationAsync(pushSubscription, json, _vapidDetails);
                 _logger.LogDebug("Push sent to {Username} at {Endpoint}", username, sub.Endpoint[..Math.Min(50, sub.Endpoint.Length)]);
+                sent++;
             }
             catch (WebPushException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Gone ||
                                                ex.StatusCode == System.Net.HttpStatusCode.NotFound)
@@ -145,18 +160,23 @@ public class PushNotificationService
                 // Subscription expired or invalid - remove it
                 _logger.LogInformation("Removing expired push subscription for {Username}", username);
                 await _subscriptionStore.RemoveSubscriptionAsync(sub.Endpoint);
+                failed++;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to send push to {Username}", username);
+                failed++;
             }
         }
+
+        _logger.LogDebug("Push to {Username}: sent={Sent} failed={Failed} total={Total}", username, sent, failed, subscriptions.Count);
+        return new PushSendResult(sent, failed, subscriptions.Count);
     }
 
     /// <summary>
     /// Send a DM notification to a user.
     /// </summary>
-    public Task SendDmNotificationAsync(string toUsername, string fromUsername, string messagePreview, int unreadCount)
+    public Task<PushSendResult> SendDmNotificationAsync(string toUsername, string fromUsername, string messagePreview, int unreadCount)
     {
         _logger.LogDebug("SendDmNotification: to={To} from={From} unreadCount={UnreadCount} preview={Preview}",
             toUsername, fromUsername, unreadCount, messagePreview.Length > 30 ? messagePreview[..27] + "..." : messagePreview);
@@ -180,7 +200,7 @@ public class PushNotificationService
     /// "is this subscription alive?" check — the device that buzzes is alive. Bypasses mute
     /// so the user sees the banner even while notifications are muted.
     /// </summary>
-    public Task SendTestAsync(string username)
+    public Task<PushSendResult> SendTestAsync(string username)
     {
         var payload = new PushPayload
         {
@@ -196,6 +216,11 @@ public class PushNotificationService
         return SendToUserAsync(username, payload, bypassMute: true);
     }
 }
+
+/// <summary>
+/// Result of a push send attempt across all of a user's devices.
+/// </summary>
+public record PushSendResult(int Sent, int Failed, int Total);
 
 /// <summary>
 /// Push notification payload sent to the service worker.

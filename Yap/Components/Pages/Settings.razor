@@ -1158,9 +1158,14 @@
 
         try
         {
-            await PushService.SendTestAsync(UserState.Username);
-            pushActionStatus = "Test notification sent — check your devices.";
-            Logger.LogDebug("Push test sent for {Username}", UserState.Username);
+            var result = await PushService.SendTestAsync(UserState.Username);
+            pushActionStatus = result.Total == 0
+                ? "No subscribed devices to notify."
+                : result.Failed == 0
+                    ? $"Sent to {result.Sent} device(s) — check them now."
+                    : $"Sent to {result.Sent}/{result.Total} device(s); {result.Failed} failed (expired ones removed).";
+            Logger.LogDebug("Push test for {Username}: sent={Sent} failed={Failed} total={Total}",
+                UserState.Username, result.Sent, result.Failed, result.Total);
         }
         catch (Exception ex)
         {
@@ -1170,6 +1175,7 @@
         finally
         {
             sendingTest = false;
+            RefreshPushDevices();
             StateHasChanged();
         }
 

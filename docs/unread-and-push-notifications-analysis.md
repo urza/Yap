@@ -90,3 +90,19 @@ A subscription is created only when the user taps "Enable" in `PushPermissionPro
 
 - Changing the overall "suppress push when a device is foreground" policy (i.e. *not* switching to "push to every non-foreground device").
 - Persisting last-push history / status (would require new `PushSubscription` fields and an EF migration). The Settings view uses a transient "send test" alive-check instead.
+
+## Follow-up finding (production, 2026-05-29)
+
+After deploy, dead subscriptions self-healed via re-subscribe and badges returned, but badges arrived **late**. Logs showed:
+
+```
+fail: Yap.Services.PushNotificationService — Failed to send push to <user>
+System.Threading.Tasks.TaskCanceledException: ... HttpClient.Timeout of 100 seconds elapsing
+  ... HttpConnection.CheckUsabilityOnScavenge ... ReadAheadWithZeroByteReadAsync ...
+```
+
+**Root cause:** `PushNotificationService` is a singleton holding one `HttpClient` (`PushNotificationService.cs:60`) with the **default 100s timeout** and **infinite `PooledConnectionLifetime`**. A keep-alive connection to a push endpoint got silently dropped; the next send reused the stale pooled connection and hung up to 100s before timing out. Because the badge value rides inside the push payload, the badge only appeared once a *later* send used a fresh connection.
+
+**Fix:** `PushLogHandler` now uses a `SocketsHttpHandler` with `PooledConnectionLifetime = 2min`, `PooledConnectionIdleTimeout = 30s`, `ConnectTimeout = 10s`, and the `HttpClient.Timeout` is dropped to **20s**. Connections recycle so stale ones can't accumulate, and a hung send fails fast instead of blocking the notification for 100s.
+
+**Visibility:** `SendToUserAsync` now returns `PushSendResult(Sent, Failed, Total)` and logs `Push to {user}: sent=X failed=Y total=Z`. The Settings "Send test notification" button reports the counts ("Sent to 2/3 device(s); 1 failed"). Note the test payload carries `UnreadCount = 0`, so it shows a **banner** but intentionally does not change the home-screen **badge** (real DMs carry `unreadCount > 0`, which drives the badge in `service-worker.js`).
