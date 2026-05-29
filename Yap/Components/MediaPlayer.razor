@@ -5,6 +5,19 @@
     <div class="media-player-container">
         @if (Preview.MediaType == CachedMediaType.Video)
         {
+            @if (!string.IsNullOrEmpty(Preview.Title) || !string.IsNullOrEmpty(Preview.SiteName))
+            {
+                <div class="video-info">
+                    @if (!string.IsNullOrEmpty(Preview.SiteName))
+                    {
+                        <span class="video-site">@Preview.SiteName</span>
+                    }
+                    @if (!string.IsNullOrEmpty(Preview.Title))
+                    {
+                        <a href="@Preview.Url" target="_blank" rel="noopener noreferrer" class="video-title">@Preview.Title</a>
+                    }
+                </div>
+            }
             <video controls preload="auto" class="cached-video-player" style="@VideoAspectStyle">
                 <source src="@Preview.CachedMediaUrl" type="video/mp4" />
             </video>

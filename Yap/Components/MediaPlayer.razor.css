@@ -17,6 +17,42 @@
     display: block;
 }
 
+.video-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    background: var(--bg-sidebar);
+    border-radius: 8px 8px 0 0;
+}
+
+/* When a title bar precedes the video, square the video's top so the two join seamlessly. */
+.video-info + .cached-video-player {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+}
+
+.video-site {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.video-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-decoration: none;
+    /* up to 2 lines, then ellipsis */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.video-title:hover {
+    text-decoration: underline;
+}
+
 .cached-audio-player {
     display: flex;
     gap: 12px;
