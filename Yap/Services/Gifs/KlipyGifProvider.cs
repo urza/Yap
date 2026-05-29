@@ -45,7 +45,8 @@ public class KlipyGifProvider : IGifSourceProvider
     {
         if (!IsConfigured) return Task.FromResult(new GifSearchResult(new(), null));
 
-        var url = $"{BaseUrl}{_apiKey}/gifs/search?q={Uri.EscapeDataString(query)}" +
+        var url = $"{BaseUrl}{_apiKey}/gifs/search?customer_id={Uri.EscapeDataString(_customerId)}" +
+                  $"&q={Uri.EscapeDataString(query)}" +
                   CommonPaginationParams(cursor, limit);
         return FetchSearchAsync(url, cursor, ct);
     }
@@ -63,7 +64,7 @@ public class KlipyGifProvider : IGifSourceProvider
     {
         if (!IsConfigured) return new();
 
-        var url = $"{BaseUrl}{_apiKey}/gifs/categories?locale={_locale}";
+        var url = $"{BaseUrl}{_apiKey}/gifs/categories?locale={_locale}&rating={RatingParam()}";
         try
         {
             var client = _httpClientFactory.CreateClient("Klipy");
@@ -127,34 +128,6 @@ public class KlipyGifProvider : IGifSourceProvider
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "Klipy share-trigger failed for {SourceId} (non-critical)", sourceId);
-        }
-    }
-
-    public async Task<GifSearchItem?> ResolveByIdAsync(string sourceId, CancellationToken ct)
-    {
-        if (!IsConfigured || string.IsNullOrEmpty(sourceId)) return null;
-        var url = $"{BaseUrl}{_apiKey}/gifs/items/{Uri.EscapeDataString(sourceId)}";
-        try
-        {
-            var client = _httpClientFactory.CreateClient("Klipy");
-            using var response = await client.GetAsync(url, ct);
-            if (!response.IsSuccessStatusCode) return null;
-            await using var stream = await response.Content.ReadAsStreamAsync(ct);
-            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
-
-            // Single-item endpoint: data is the item object directly.
-            if (doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object)
-            {
-                // If data is wrapped as {data: {...item}}, unwrap one level.
-                if (data.TryGetProperty("data", out var inner) && inner.ValueKind == JsonValueKind.Object)
-                    return ParseResultItem(inner);
-                return ParseResultItem(data);
-            }
-            return null;
-        }
-        catch
-        {
-            return null;
         }
     }
 

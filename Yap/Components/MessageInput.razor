@@ -201,6 +201,7 @@ else
     private bool isMobileLayout = false;
     private bool isInputFocused = false;
     private DotNetObjectReference<MessageInput>? _layoutRef;
+    private readonly string _layoutWatcherId = Guid.NewGuid().ToString("N");
     private bool showEmojiPicker = false;
     private bool showGifPicker = false;
 
@@ -260,7 +261,7 @@ else
             try
             {
                 _layoutRef = DotNetObjectReference.Create(this);
-                isMobileLayout = await JS.InvokeAsync<bool>("setupMobileLayoutWatcher", _layoutRef);
+                isMobileLayout = await JS.InvokeAsync<bool>("setupMobileLayoutWatcher", _layoutRef, _layoutWatcherId);
                 StateHasChanged();
             }
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup mobile layout watcher"); }
@@ -661,6 +662,8 @@ else
         typingCts?.Cancel();
         typingCts?.Dispose();
         _uploadRef?.Dispose();
+        try { await JS.InvokeVoidAsync("teardownMobileLayoutWatcher", _layoutWatcherId); }
+        catch { /* circuit may be dead */ }
         _layoutRef?.Dispose();
 
         // Unsubscribe from events

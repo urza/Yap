@@ -23,7 +23,6 @@ public class GifService
     private readonly IGifSourceProvider _provider;
     private readonly GifFfmpegHelper _ffmpeg;
     private readonly UserService _userService;
-    private readonly IConfiguration _config;
     private readonly ILogger<GifService> _logger;
 
     // In-memory index of all entries, populated on startup.
@@ -63,7 +62,6 @@ public class GifService
 
     public IGifSourceProvider Provider => _provider;
     public bool IsConfigured => _provider.IsConfigured;
-    public bool TranscodeWebmEnabled => _config.GetValue("ChatSettings:GifSettings:Transcode:EnableWebm", true);
 
     public GifService(IServiceProvider serviceProvider,
         IHttpClientFactory httpClientFactory,
@@ -71,7 +69,6 @@ public class GifService
         IGifSourceProvider provider,
         GifFfmpegHelper ffmpeg,
         UserService userService,
-        IConfiguration config,
         ILogger<GifService> logger)
     {
         _httpClientFactory = httpClientFactory;
@@ -79,7 +76,6 @@ public class GifService
         _provider = provider;
         _ffmpeg = ffmpeg;
         _userService = userService;
-        _config = config;
         _logger = logger;
         _dbFactory = serviceProvider.GetService<IDbContextFactory<ChatDbContext>>();
 

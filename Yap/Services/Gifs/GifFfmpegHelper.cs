@@ -37,8 +37,21 @@ public class GifFfmpegHelper
                 CreateNoWindow = true
             };
             using var process = Process.Start(psi);
-            var exited = process?.WaitForExit(3000) ?? false;
-            IsAvailable = exited && process?.ExitCode == 0;
+            if (process == null)
+            {
+                IsAvailable = false;
+                _logger.LogWarning("ffmpeg not found — GIF transcoding will be unavailable");
+                return;
+            }
+            // Drain both pipes asynchronously so a large `-version` banner can't fill the OS pipe
+            // buffer and deadlock WaitForExit (the classic redirect-without-read hang).
+            process.OutputDataReceived += static (_, _) => { };
+            process.ErrorDataReceived += static (_, _) => { };
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+            var exited = process.WaitForExit(3000);
+            if (!exited) { try { process.Kill(entireProcessTree: true); } catch { } }
+            IsAvailable = exited && process.ExitCode == 0;
             if (IsAvailable) _logger.LogInformation("ffmpeg detected for GIF pipeline");
             else _logger.LogWarning("ffmpeg not found — GIF transcoding will be unavailable");
         }
@@ -104,62 +117,6 @@ public class GifFfmpegHelper
     }
 
     /// <summary>
-    /// Transcodes a source media file to browser-friendly H.264 MP4. Strips audio + metadata.
-    /// Suitable for input: HEVC mov, vp8/vp9 webm, gif, animated webp, etc.
-    /// </summary>
-    public async Task<bool> TranscodeToMp4Async(string srcPath, string dstPath, CancellationToken ct = default)
-    {
-        if (!IsAvailable) return false;
-
-        await _transcodeSemaphore.WaitAsync(ct);
-        try
-        {
-            var args = $"-y -i \"{srcPath}\" -c:v libx264 -preset veryfast -crf 23 " +
-                       $"-pix_fmt yuv420p -movflags +faststart -an -map_metadata -1 \"{dstPath}\"";
-            var (exit, _, stderr) = await RunProcessAsync("ffmpeg", args, TranscodeTimeoutMs, ct);
-            if (exit != 0)
-            {
-                _logger.LogWarning("ffmpeg mp4 transcode failed (exit={Exit}): {Stderr}", exit, Truncate(stderr));
-                TryDelete(dstPath);
-                return false;
-            }
-            return File.Exists(dstPath) && new FileInfo(dstPath).Length > 0;
-        }
-        finally
-        {
-            _transcodeSemaphore.Release();
-        }
-    }
-
-    /// <summary>
-    /// Transcodes a source media file to VP9 WebM (smaller, browser-preferred when available).
-    /// Strips audio + metadata. Slower than MP4 — used as a background pass.
-    /// </summary>
-    public async Task<bool> TranscodeToWebmAsync(string srcPath, string dstPath, CancellationToken ct = default)
-    {
-        if (!IsAvailable) return false;
-
-        await _transcodeSemaphore.WaitAsync(ct);
-        try
-        {
-            var args = $"-y -i \"{srcPath}\" -c:v libvpx-vp9 -b:v 0 -crf 33 -row-mt 1 " +
-                       $"-pix_fmt yuv420p -an -map_metadata -1 \"{dstPath}\"";
-            var (exit, _, stderr) = await RunProcessAsync("ffmpeg", args, TranscodeTimeoutMs, ct);
-            if (exit != 0)
-            {
-                _logger.LogWarning("ffmpeg webm transcode failed (exit={Exit}): {Stderr}", exit, Truncate(stderr));
-                TryDelete(dstPath);
-                return false;
-            }
-            return File.Exists(dstPath) && new FileInfo(dstPath).Length > 0;
-        }
-        finally
-        {
-            _transcodeSemaphore.Release();
-        }
-    }
-
-    /// <summary>
     /// Transcodes a source media file into an animated WebP. Animated WebP plays in an
     /// &lt;img&gt; tag (no autoplay policy / no Blazor hydration drama) and is ~2× smaller than
     /// the equivalent GIF for the same content. Caps at 15fps and max-width 480px.
@@ -186,45 +143,6 @@ public class GifFfmpegHelper
             if (exit != 0)
             {
                 _logger.LogWarning("ffmpeg webp transcode failed (exit={Exit}): {Stderr}", exit, Truncate(stderr));
-                TryDelete(dstPath);
-                return false;
-            }
-            return File.Exists(dstPath) && new FileInfo(dstPath).Length > 0;
-        }
-        finally
-        {
-            _transcodeSemaphore.Release();
-        }
-    }
-
-    /// <summary>
-    /// Transcodes a source media file into an animated GIF using two-pass palette generation
-    /// (palettegen → paletteuse) for far better quality than ffmpeg's default 256-color
-    /// quantization. Caps at 15fps and max-width 480px to keep file size sane.
-    /// </summary>
-    public async Task<bool> TranscodeToGifAsync(string srcPath, string dstPath, CancellationToken ct = default)
-    {
-        if (!IsAvailable) return false;
-
-        await _transcodeSemaphore.WaitAsync(ct);
-        try
-        {
-            // filter graph:
-            //   1. fps=15                          — keep small + GIF-typical motion
-            //   2. scale=min(480,iw):-1:lanczos    — cap width; lanczos for sharp downscale
-            //   3. split[a][b]; [a]palettegen     — derive an optimal 256-color palette from the actual content
-            //   4. [b][palette]paletteuse=dither=bayer:bayer_scale=5
-            //                                      — bayer dithering keeps gradients smooth without
-            //                                        the typical "GIF noise" of error-diffusion
-            var args = $"-y -i \"{srcPath}\" " +
-                       $"-vf \"fps=15,scale='min(480,iw)':-1:flags=lanczos," +
-                       $"split[a][b];[a]palettegen=stats_mode=full[p];[b][p]paletteuse=dither=bayer:bayer_scale=5\" " +
-                       $"-loop 0 \"{dstPath}\"";
-
-            var (exit, _, stderr) = await RunProcessAsync("ffmpeg", args, TranscodeTimeoutMs, ct);
-            if (exit != 0)
-            {
-                _logger.LogWarning("ffmpeg gif transcode failed (exit={Exit}): {Stderr}", exit, Truncate(stderr));
                 TryDelete(dstPath);
                 return false;
             }

@@ -264,7 +264,9 @@ window.isTouchDevice = () => {
 
 // Watch viewport for the mobile breakpoint and notify Blazor when it changes.
 // Returns the initial match value so the caller can set state on first render.
-window.setupMobileLayoutWatcher = (dotnetRef) => {
+const _mobileLayoutWatchers = new Map(); // id -> { mq, handler }
+
+window.setupMobileLayoutWatcher = (dotnetRef, id) => {
     const mq = window.matchMedia('(max-width: 600px)');
     const handler = (e) => {
         try { dotnetRef.invokeMethodAsync('OnMobileLayoutChanged', e.matches); }
@@ -272,7 +274,18 @@ window.setupMobileLayoutWatcher = (dotnetRef) => {
     };
     if (mq.addEventListener) mq.addEventListener('change', handler);
     else mq.addListener(handler);
+    // Track per MessageInput instance so DisposeAsync can detach it — otherwise every page
+    // navigation leaks a matchMedia handler that later fires on a disposed DotNetObjectReference.
+    _mobileLayoutWatchers.set(id, { mq, handler });
     return mq.matches;
+};
+
+window.teardownMobileLayoutWatcher = (id) => {
+    const w = _mobileLayoutWatchers.get(id);
+    if (!w) return;
+    if (w.mq.removeEventListener) w.mq.removeEventListener('change', w.handler);
+    else w.mq.removeListener(w.handler);
+    _mobileLayoutWatchers.delete(id);
 };
 
 // Prevent textarea from losing focus when send button is tapped (keeps mobile keyboard open)
@@ -1202,19 +1215,4 @@ window.applyTheme = (themeId) => {
     // Catches every <video> reaching the canplay state — initial-render, freshly inserted, or
     // hydrated. Capturing-phase listener ensures we see the event regardless of bubbling.
     document.addEventListener('canplay', e => tryPlay(e.target), true);
-
-    // Fallback for videos that loaded super-fast and fired canplay before this listener was wired:
-    // sweep any paused gif videos periodically. Cheap; only acts on currently-paused. The picker
-    // can open and close multiple times during a session, so we keep sweeping (longer cadence).
-    setInterval(() => {
-        document.querySelectorAll(GIF_VIDEO_SELECTOR).forEach(tryPlay);
-    }, 800);
 })();
-
-// Public hook for any C# code that calls into JS via interop. The canplay listener handles the
-// initial-play case; this is a manual sweep for explicit re-kicks.
-window.kickGifVideos = () => {
-    document.querySelectorAll('.gif-message-video, .gif-card-video').forEach(v => {
-        if (v.paused) v.play().catch(() => {});
-    });
-};

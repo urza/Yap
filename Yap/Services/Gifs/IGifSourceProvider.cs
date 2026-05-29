@@ -24,7 +24,4 @@ public interface IGifSourceProvider
 
     /// <summary>Notify provider that a user shared this GIF (TOS / analytics requirement for some providers; no-op for others).</summary>
     Task RegisterShareAsync(string sourceId, string? query, CancellationToken ct);
-
-    /// <summary>Re-resolve a GIF by source id when local files are lost. Returns null if no longer available.</summary>
-    Task<GifSearchItem?> ResolveByIdAsync(string sourceId, CancellationToken ct);
 }
