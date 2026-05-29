@@ -429,8 +429,12 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
         try
         {
-            // Check if near bottom BEFORE updating (to decide if we should scroll after)
-            var wasNearBottom = await JS.InvokeAsync<bool>("isNearBottom", 100);
+            // Check if near bottom BEFORE updating (to decide if we should scroll after).
+            // Best-effort: a canceled JS round-trip (busy/disconnecting circuit) must not skip
+            // the reaction update + StateHasChanged below.
+            bool wasNearBottom = false;
+            try { wasNearBottom = await JS.InvokeAsync<bool>("isNearBottom", 100); }
+            catch { /* couldn't measure scroll position; update anyway, skip auto-scroll */ }
 
             await InvokeAsync(() =>
             {
@@ -448,7 +452,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
         }
         catch (Exception ex)
         {
-            if (ex is ObjectDisposedException or InvalidOperationException)
+            if (ex is ObjectDisposedException or InvalidOperationException or JSDisconnectedException or OperationCanceledException)
                 Logger.LogWarning("HandleReactionChanged: {Message}", ex.Message);
             else
                 Logger.LogError(ex, "Error in HandleReactionChanged");

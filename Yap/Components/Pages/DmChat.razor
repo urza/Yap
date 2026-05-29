@@ -217,7 +217,14 @@
         {
             try
             {
-                var wasNearBottom = await JS.InvokeAsync<bool>("isNearBottom", 100);
+                // Best-effort: this fires off a background event (OG scrape / yt-dlp media cache)
+                // and the JS round-trip can be canceled when the circuit is busy (e.g. the heavy
+                // YouTube media-cache path). A failed measurement must NOT skip the StateHasChanged
+                // below — otherwise the scraped preview never renders.
+                bool wasNearBottom = false;
+                try { wasNearBottom = await JS.InvokeAsync<bool>("isNearBottom", 100); }
+                catch { /* couldn't measure scroll position; render anyway, skip auto-scroll */ }
+
                 await InvokeAsync(StateHasChanged);
                 if (wasNearBottom)
                 {
@@ -227,7 +234,7 @@
             }
             catch (Exception ex)
             {
-                if (ex is ObjectDisposedException or InvalidOperationException)
+                if (ex is ObjectDisposedException or InvalidOperationException or JSDisconnectedException or OperationCanceledException)
                     Logger.LogWarning("HandleLinkPreviewReady: {Message}", ex.Message);
                 else
                     Logger.LogError(ex, "Error in HandleLinkPreviewReady");
