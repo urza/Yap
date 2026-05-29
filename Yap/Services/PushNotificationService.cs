@@ -110,9 +110,12 @@ public class PushLogHandler : DelegatingHandler
     }
 
     /// <summary>
-    /// Verifies the JWT's ES256 signature against the configured public key.
-    /// PASS ⇒ keys pair and the signature is valid (a 403 is then clock/aud/Apple-strictness, NOT the keys).
-    /// FAIL ⇒ signature doesn't match the configured public key (key mismatch, or a bad-signature library bug).
+    /// Verifies the JWT's ES256 signature against the configured public key, trying BOTH signature
+    /// encodings to separate the two causes of a BadJwtToken:
+    ///   PASS-raw  ⇒ keys pair and the signature is valid JOSE (a 403 would then be clock/Apple, not keys)
+    ///   PASS-der  ⇒ keys pair but the library emitted a DER signature Apple rejects ⇒ upgrade/patch WebPush
+    ///   FAIL-both ⇒ signature matches neither ⇒ public key is NOT the pair of the private key ⇒ regenerate keys
+    /// sigLen ≈ 64 ⇒ raw r‖s; sigLen ≈ 70-72 ⇒ DER.
     /// </summary>
     private static string VerifySignature(string? jwt, string? configuredPublicKey)
     {
@@ -130,8 +133,13 @@ public class PushLogHandler : DelegatingHandler
                 Curve = System.Security.Cryptography.ECCurve.NamedCurves.nistP256,
                 Q = new System.Security.Cryptography.ECPoint { X = pub[1..33], Y = pub[33..65] }
             });
-            var ok = ecdsa.VerifyData(signingInput, sig, System.Security.Cryptography.HashAlgorithmName.SHA256);
-            return ok ? "verify=PASS(keys-pair,sig-valid)" : "verify=FAIL(sig!=configured-pubkey)";
+            bool okRaw = false, okDer = false;
+            try { okRaw = ecdsa.VerifyData(signingInput, sig, System.Security.Cryptography.HashAlgorithmName.SHA256, System.Security.Cryptography.DSASignatureFormat.IeeeP1363FixedFieldConcatenation); } catch { }
+            try { okDer = ecdsa.VerifyData(signingInput, sig, System.Security.Cryptography.HashAlgorithmName.SHA256, System.Security.Cryptography.DSASignatureFormat.Rfc3279DerSequence); } catch { }
+            var verdict = okRaw ? "PASS-raw(keys-pair,valid-JOSE)"
+                        : okDer ? "PASS-der(keys-pair-but-lib-emits-DER->upgrade-WebPush)"
+                        : "FAIL-both(pubkey-not-pair-of-privkey->regenerate-keys)";
+            return $"verify={verdict} sigLen={sig.Length}";
         }
         catch (Exception ex)
         {
