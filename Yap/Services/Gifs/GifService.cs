@@ -475,7 +475,11 @@ public class GifService
             TranscodeStatus = GifTranscodeStatus.Pending,
         };
 
-        foreach (var fmt in item.Formats)
+        // Consider full-quality formats first, then preview formats, so items that ship only a
+        // preview tier still yield a usable source instead of a dead (all-null) entry.
+        var formats = item.Formats.Concat(item.PreviewFormats).ToList();
+
+        foreach (var fmt in formats)
         {
             switch (fmt.ContentType)
             {
@@ -488,13 +492,13 @@ public class GifService
         // For the animated-image slot, prefer WebP (~2× smaller than GIF) and fall back to GIF.
         // Stored in RemoteGifUrl regardless of format — the field is "URL of an animated image",
         // and the <img> tag plays both formats transparently.
-        entry.RemoteGifUrl = item.Formats.FirstOrDefault(f => f.ContentType == "image/webp")?.Url
-                          ?? item.Formats.FirstOrDefault(f => f.ContentType == "image/gif")?.Url;
+        entry.RemoteGifUrl = formats.FirstOrDefault(f => f.ContentType == "image/webp")?.Url
+                          ?? formats.FirstOrDefault(f => f.ContentType == "image/gif")?.Url;
 
         // Ensure dims if provider didn't give them at the top level — pull from any format.
         if (entry.Width == 0 || entry.Height == 0)
         {
-            var anyDims = item.Formats.FirstOrDefault(f => f.Width > 0 && f.Height > 0);
+            var anyDims = formats.FirstOrDefault(f => f.Width > 0 && f.Height > 0);
             if (anyDims != null) { entry.Width = anyDims.Width; entry.Height = anyDims.Height; }
         }
 
@@ -533,8 +537,12 @@ public class GifService
     {
         if (entry.SourceProviderId == null) return false; // Custom uploads are already normalized.
         if (entry.DeletedAt != null) return false;
-        // We render via <img>; need normalization when local animated image is missing.
-        return string.IsNullOrEmpty(entry.GifUrl) && !string.IsNullOrEmpty(entry.RemoteGifUrl);
+        if (!string.IsNullOrEmpty(entry.GifUrl)) return false; // Local animated image already present.
+        // We render via <img>; need to produce a local animated image from whatever the provider
+        // gave us — a remote webp/gif, or (failing that) a remote mp4/webm we transcode to webp.
+        return !string.IsNullOrEmpty(entry.RemoteGifUrl)
+            || !string.IsNullOrEmpty(entry.RemoteMp4Url)
+            || !string.IsNullOrEmpty(entry.RemoteWebmUrl);
     }
 
     private void QueueNormalization(GifEntry entry)
@@ -555,23 +563,50 @@ public class GifService
     {
         // Chat renders provider GIFs via <img> — animated WebP/GIF in img tags has no autoplay
         // policy (instant playback on page load), unlike <video> which Chrome's MEI can block until
-        // first user gesture. Download whatever the provider gave us (preferring webp upstream).
-        // File extension is taken from the URL so the static-file middleware sets the right
-        // Content-Type. We serve from our own /gif-cache instead of hammering the provider's CDN.
-        if (string.IsNullOrEmpty(entry.RemoteGifUrl)) return;
-
-        var ext = GuessExtensionFromUrl(entry.RemoteGifUrl);
-        var localPath = Path.Combine(CacheDir, $"{entry.Id}{ext}");
-        if (!File.Exists(localPath))
+        // first user gesture. We serve from our own /gif-cache instead of hammering the provider's CDN.
+        if (!string.IsNullOrEmpty(entry.RemoteGifUrl))
         {
-            var ok = await DownloadAsync(entry.RemoteGifUrl, localPath, CancellationToken.None);
-            if (!ok) { MarkFailed(entry); return; }
+            // Provider gave us an animated image (webp/gif) — download it as-is. The file extension
+            // is taken from the URL so the static-file middleware sets the right Content-Type.
+            var ext = GuessExtensionFromUrl(entry.RemoteGifUrl);
+            var localPath = Path.Combine(CacheDir, $"{entry.Id}{ext}");
+            if (!File.Exists(localPath))
+            {
+                var ok = await DownloadAsync(entry.RemoteGifUrl, localPath, CancellationToken.None);
+                if (!ok) { MarkFailed(entry); return; }
+            }
+            entry.GifUrl = $"/gif-cache/{entry.Id}{ext}";
+            entry.FileSizeBytes = SafeFileSize(localPath);
+        }
+        else
+        {
+            // Video-only item (no webp/gif): download the mp4/webm and transcode it to an animated
+            // WebP so it still renders in an <img> instead of hot-linking the CDN via <video>.
+            // Without ffmpeg we leave GifUrl null and fall back to the remote <video> at render time.
+            string videoUrl, srcExt;
+            if (!string.IsNullOrEmpty(entry.RemoteMp4Url)) { videoUrl = entry.RemoteMp4Url; srcExt = ".mp4"; }
+            else if (!string.IsNullOrEmpty(entry.RemoteWebmUrl)) { videoUrl = entry.RemoteWebmUrl; srcExt = ".webm"; }
+            else return;
+
+            if (!GifFfmpegHelper.IsAvailable) return; // No transcoder; render falls back to remote <video>.
+
+            var webpPath = Path.Combine(CacheDir, $"{entry.Id}.webp");
+            if (!File.Exists(webpPath))
+            {
+                // Intermediate video lives in the system temp dir, not the web-served cache.
+                var tempVideo = Path.Combine(Path.GetTempPath(), $"gifsrc-{entry.Id}{srcExt}");
+                try
+                {
+                    if (!await DownloadAsync(videoUrl, tempVideo, CancellationToken.None)) { MarkFailed(entry); return; }
+                    if (!await _ffmpeg.TranscodeToAnimatedWebpAsync(tempVideo, webpPath, CancellationToken.None)) { MarkFailed(entry); return; }
+                }
+                finally { TryDelete(tempVideo); }
+            }
+            entry.GifUrl = $"/gif-cache/{entry.Id}.webp";
+            entry.FileSizeBytes = SafeFileSize(webpPath);
         }
 
-        entry.GifUrl = $"/gif-cache/{entry.Id}{ext}";
         entry.TranscodeStatus |= GifTranscodeStatus.DoneGif;
-        entry.FileSizeBytes = SafeFileSize(localPath);
-
         await PersistFormatsAsync(entry);
         OnGifEntryUpdated?.Invoke(entry.Id);
     }

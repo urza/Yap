@@ -216,9 +216,19 @@ public class KlipyGifProvider : IGifSourceProvider
                     continue;
                 }
 
-                var item = ParseResultItem(r);
-                if (item != null) list.Add(item);
-                else rejectedNoMedia++;
+                // Isolate per-item parse failures: one malformed item must not discard the whole
+                // page (the outer catch returns an empty result).
+                try
+                {
+                    var item = ParseResultItem(r);
+                    if (item != null) list.Add(item);
+                    else rejectedNoMedia++;
+                }
+                catch (Exception ex)
+                {
+                    rejectedNoMedia++;
+                    _logger.LogWarning(ex, "Klipy: skipping unparseable item");
+                }
             }
 
             if (list.Count == 0 && totalItems > 0)
@@ -364,8 +374,10 @@ public class KlipyGifProvider : IGifSourceProvider
         if (el.TryGetProperty("height", out var hEl) && hEl.ValueKind == JsonValueKind.Number) h = hEl.GetInt32();
         if ((w == 0 || h == 0) && el.TryGetProperty("dims", out var dims) && dims.ValueKind == JsonValueKind.Array && dims.GetArrayLength() >= 2)
         {
-            w = dims[0].GetInt32();
-            h = dims[1].GetInt32();
+            // Guard each element's kind like the width/height reads above. GetInt32() on a string
+            // or fractional number throws, and an unguarded throw here aborts the entire page parse.
+            if (dims[0].ValueKind == JsonValueKind.Number) w = (int)dims[0].GetDouble();
+            if (dims[1].ValueKind == JsonValueKind.Number) h = (int)dims[1].GetDouble();
         }
 
         long size = 0;

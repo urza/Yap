@@ -503,7 +503,10 @@ else
     private async Task HandleGifSelected(Yap.Models.GifAttachment att)
     {
         if (!channelId.HasValue) return;
+        // On mobile the GIF is picked from CombinedPicker, which is gated on showEmojiPicker (not
+        // showGifPicker). Clear both so the picker closes after sending on every layout.
         showGifPicker = false;
+        showEmojiPicker = false;
         try
         {
             await ChatService.SendMessageAsync(channelId.Value, UserId, Username, "",
