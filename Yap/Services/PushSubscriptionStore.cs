@@ -43,7 +43,8 @@ public class PushSubscriptionStore
 
     public async Task SaveSubscriptionAsync(string username, PushSubscriptionInfo subscription)
     {
-        var isNew = !_subscriptions.ContainsKey(subscription.Endpoint);
+        var existing = _subscriptions.GetValueOrDefault(subscription.Endpoint);
+        var isNew = existing == null;
 
         var entry = new PushSubscription
         {
@@ -51,7 +52,9 @@ public class PushSubscriptionStore
             Endpoint = subscription.Endpoint,
             P256dh = subscription.P256dh,
             Auth = subscription.Auth,
-            CreatedAt = DateTime.UtcNow
+            // Preserve the original subscribe time on re-save (e.g. the silent re-subscribe that runs
+            // on every load) so the Settings "Added X ago" stays stable instead of resetting each time.
+            CreatedAt = existing?.CreatedAt ?? DateTime.UtcNow
         };
 
         _subscriptions[subscription.Endpoint] = entry;
@@ -133,6 +136,16 @@ public class PushSubscriptionStore
         _logger.LogDebug("GetSubscriptions: {Count} subscriptions for {Username}", subs.Count, username);
         return subs;
     }
+
+    /// <summary>
+    /// Gets the full subscription records for a user (including Endpoint and CreatedAt),
+    /// ordered oldest-first. Used by the Settings page to list a user's notification devices.
+    /// </summary>
+    public IReadOnlyList<PushSubscription> GetSubscriptionsDetailed(string username) =>
+        _subscriptions.Values
+            .Where(e => e.Username.Equals(username, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(e => e.CreatedAt)
+            .ToList();
 
     public bool HasSubscription(string username)
     {

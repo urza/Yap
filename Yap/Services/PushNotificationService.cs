@@ -93,9 +93,15 @@ public class PushNotificationService
     public bool IsConfigured => _isConfigured;
 
     /// <summary>
+    /// Number of push subscriptions registered for a user (diagnostic + Settings display).
+    /// </summary>
+    public int GetSubscriptionCount(string username) =>
+        _subscriptionStore.GetSubscriptions(username).Count();
+
+    /// <summary>
     /// Send a push notification to a specific user.
     /// </summary>
-    public async Task SendToUserAsync(string username, PushPayload payload)
+    public async Task SendToUserAsync(string username, PushPayload payload, bool bypassMute = false)
     {
         if (!_isConfigured || _vapidDetails == null)
         {
@@ -103,9 +109,11 @@ public class PushNotificationService
             return;
         }
 
-        // Check if user has muted banner notifications (badge still sent)
+        // Check if user has muted banner notifications (badge still sent).
+        // bypassMute is used for the explicit "Send test notification" action so the user
+        // can verify delivery even while muted.
         var user = _userService.GetByUsername(username);
-        if (user?.PushMuted == true)
+        if (!bypassMute && user?.PushMuted == true)
         {
             payload = payload with { Muted = true };
             _logger.LogDebug("Push muted for {Username}, sending badge-only", username);
@@ -165,6 +173,27 @@ public class PushNotificationService
         };
 
         return SendToUserAsync(toUsername, payload);
+    }
+
+    /// <summary>
+    /// Sends a test notification to all of a user's devices. Used from Settings as an
+    /// "is this subscription alive?" check — the device that buzzes is alive. Bypasses mute
+    /// so the user sees the banner even while notifications are muted.
+    /// </summary>
+    public Task SendTestAsync(string username)
+    {
+        var payload = new PushPayload
+        {
+            Title = "Yap test notification",
+            Body = "If you can see this, push notifications work on this device.",
+            Icon = "/icon-192.png",
+            Badge = "/icon-192.png",
+            Tag = "yap-test",
+            Url = "/",
+            UnreadCount = 0
+        };
+
+        return SendToUserAsync(username, payload, bypassMute: true);
     }
 }
 

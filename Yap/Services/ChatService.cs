@@ -570,6 +570,15 @@ public class ChatService
             .Any(u => u.PageVisible);
     }
 
+    /// <summary>
+    /// Checks whether a SPECIFIC session's page is currently visible (foreground).
+    /// Unlike <see cref="IsPageVisible"/> (an OR across all of a user's sessions), this is
+    /// per-session — used to gate auto-mark-read so only the device you're actually looking at
+    /// advances read state.
+    /// </summary>
+    public bool IsSessionPageVisible(string sessionId) =>
+        _users.TryGetValue(sessionId, out var session) && session.PageVisible;
+
     public Task RemoveUserAsync(string circuitId)
     {
         if (_users.TryRemove(circuitId, out var session))
@@ -675,6 +684,21 @@ public class ChatService
         return _users.Values
             .Where(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase))
             .ToList();
+    }
+
+    /// <summary>
+    /// Builds a compact per-session description (id prefix, mobile flag, page-visibility, idle age)
+    /// for a user. Diagnostic-only — used when logging push decisions to reveal which device
+    /// (session) is forcing push suppression.
+    /// </summary>
+    private string DescribeRecipientSessions(string username)
+    {
+        var now = DateTime.UtcNow;
+        var sessions = _users.Values
+            .Where(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase))
+            .Select(u => $"{u.SessionId[..Math.Min(8, u.SessionId.Length)]}(mobile={u.IsMobile} visible={u.PageVisible} idle={(int)(now - u.LastActivity).TotalSeconds}s)")
+            .ToList();
+        return sessions.Count == 0 ? "no sessions" : string.Join(", ", sessions);
     }
 
     /// <summary>
@@ -804,9 +828,14 @@ public class ChatService
                 var recipientStatus = GetUserStatus(recipient);
                 var pageVisible = IsPageVisible(recipient);
 
+                // Diagnostic: show which session (device) makes the recipient "visible" and how many
+                // push subscriptions they have — explains skipped pushes / silent phone.
+                _logger.LogDebug("Push DM decision: to={Recipient} status={Status} anyPageVisible={PageVisible} subscriptions={SubCount} sessions=[{Sessions}]",
+                    recipient, recipientStatus, pageVisible, _pushService.GetSubscriptionCount(recipient), DescribeRecipientSessions(recipient));
+
                 if (recipientStatus is UserStatus.Online or UserStatus.Away && pageVisible)
                 {
-                    _logger.LogDebug("Push DM skipped: {Recipient} is {Status} and page visible",
+                    _logger.LogDebug("Push DM skipped: {Recipient} is {Status} and has a visible page",
                         recipient, recipientStatus);
                 }
                 else
@@ -819,8 +848,8 @@ public class ChatService
                                 : message.HasMedia ? "[Attachment]"
                                 : content;
 
-                    _logger.LogDebug("Push DM: from={From} to={To} totalUnread={UnreadCount} status={Status} pageVisible={PageVisible}",
-                        username, recipient, totalUnread, recipientStatus, pageVisible);
+                    _logger.LogDebug("Push DM: from={From} to={To} totalUnread={UnreadCount} status={Status}",
+                        username, recipient, totalUnread, recipientStatus);
 
                     _ = _pushService.SendDmNotificationAsync(recipient, username, preview, totalUnread);
                 }
@@ -1155,7 +1184,7 @@ public class ChatService
     /// Marks a channel as read for a user (resets unread count to 0).
     /// Use silent: true when called from event handlers to avoid nested event cascades.
     /// </summary>
-    public async Task MarkChannelAsReadAsync(Guid userId, Guid channelId, bool silent = false)
+    public async Task MarkChannelAsReadAsync(Guid userId, Guid channelId, bool silent = false, string? callerSessionId = null)
     {
         var sw = Stopwatch.StartNew();
         var key = (userId, channelId);
@@ -1184,8 +1213,10 @@ public class ChatService
 
         await _persistence.PersistReadStateAsync(state);
 
-        _logger.LogDebug("MarkChannelAsRead user={UserId} channel={ChannelId}: cleared={ClearedCount} silent={Silent} persist={ElapsedMs}ms",
-            userId, channelId, previousCount, silent, sw.ElapsedMilliseconds);
+        // TEMPORARY diagnostic: callerSessionId reveals which device cleared unread, to confirm
+        // cross-device read-state clearing (Issue #1). Safe to remove once behavior is verified.
+        _logger.LogDebug("MarkChannelAsRead user={UserId} channel={ChannelId}: cleared={ClearedCount} silent={Silent} caller={CallerSessionId} persist={ElapsedMs}ms",
+            userId, channelId, previousCount, silent, callerSessionId ?? "(none)", sw.ElapsedMilliseconds);
 
         // Notify if there were unread messages that are now cleared
         if (hadUnread && !silent)

@@ -69,6 +69,11 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
     {
         _circuitTracker.OnConnectionUp(circuit.Id);
 
+        // Reconnected — re-assert this session as visible (a reconnecting circuit is an active tab).
+        // The client's visibilitychange listener corrects this if the tab is later backgrounded.
+        if (!string.IsNullOrEmpty(_userState.SessionId))
+            _chatService.SetPageVisibility(_userState.SessionId, true);
+
         // User reconnected - restore their previous status if no other sessions changed it
         if (!string.IsNullOrEmpty(_userState.SessionId) && _statusBeforeDisconnect.HasValue)
         {
@@ -112,6 +117,11 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
         // Don't change user status here — circuit close handles cleanup via RemoveUserAsync.
         if (!string.IsNullOrEmpty(_userState.SessionId) && !string.IsNullOrEmpty(_userState.Username))
         {
+            // A disconnected circuit can't be "foreground" — clear this session's page-visibility so a
+            // dropped/closed device stops suppressing push to the user's other devices (e.g. phone).
+            // Otherwise PageVisible stays true for the whole disconnected-circuit retention window (~4h).
+            _chatService.SetPageVisibility(_userState.SessionId, false);
+
             var currentStatus = _chatService.GetUserStatus(_userState.Username);
             if (currentStatus.HasValue && currentStatus != UserStatus.Invisible)
             {

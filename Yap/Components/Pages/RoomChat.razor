@@ -115,8 +115,8 @@
         // Load initial messages (most recent page)
         LoadInitialMessages();
 
-        // Mark channel as read
-        await ChatService.MarkChannelAsReadAsync(UserId, channelId);
+        // Mark channel as read (explicit open — always counts as a read)
+        await ChatService.MarkChannelAsReadAsync(UserId, channelId, callerSessionId: UserState.SessionId);
 
         // Set navigation context
         var room = ChatService.GetChannel(channelId);
@@ -154,8 +154,8 @@
         ResetPaginationState();
         LoadInitialMessages();
 
-        // Mark channel as read
-        await ChatService.MarkChannelAsReadAsync(UserId, channelId);
+        // Mark channel as read (explicit open — always counts as a read)
+        await ChatService.MarkChannelAsReadAsync(UserId, channelId, callerSessionId: UserState.SessionId);
 
         var room = ChatService.GetChannel(channelId);
         currentContext = room?.Name ?? "lobby";
@@ -185,8 +185,10 @@
                     messages.Add(message);
                     StateHasChanged();
                 });
-                // Mark as read since we're viewing this channel
-                await ChatService.MarkChannelAsReadAsync(UserId, channelId, silent: true);
+                // Mark as read only if THIS device is foreground and not Away — otherwise a
+                // backgrounded/away device would clear unread for our other devices.
+                if (ShouldMarkReadOnReceive())
+                    await ChatService.MarkChannelAsReadAsync(UserId, channelId, silent: true, callerSessionId: UserState.SessionId);
                 await InvokeAsync(ScrollToBottomAsync);
             }
             catch (Exception ex)
@@ -350,10 +352,11 @@
         ChatService.OnMediaCacheReady -= HandleLinkPreviewReady;
         GifService.OnGifEntryUpdated -= HandleGifEntryUpdated;
 
-        // Mark channel as read when leaving to ensure no stale unread counts
-        if (channelId != Guid.Empty && UserId != Guid.Empty)
+        // Mark channel as read when leaving — only if this device was foreground and not Away, so an
+        // evicted/backgrounded circuit's teardown doesn't clear unread for our other devices.
+        if (channelId != Guid.Empty && UserId != Guid.Empty && ShouldMarkReadOnReceive())
         {
-            await ChatService.MarkChannelAsReadAsync(UserId, channelId);
+            await ChatService.MarkChannelAsReadAsync(UserId, channelId, callerSessionId: UserState.SessionId);
         }
 
         await base.DisposeAsync();

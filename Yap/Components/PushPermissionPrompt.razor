@@ -43,6 +43,16 @@
 
         try
         {
+            // If permission is already granted, silently (re)register the browser's push subscription
+            // on every load. subscribeToPush is idempotent (reuses the existing browser subscription),
+            // and re-saving it server-side restores a rotated/pruned endpoint. No UI shown.
+            var permission = await JS.InvokeAsync<string>("getNotificationPermission");
+            if (permission == "granted")
+            {
+                await TryReSubscribeAsync();
+                return;
+            }
+
             var shouldShow = await JS.InvokeAsync<bool>("shouldShowPushPermissionPrompt");
             if (!shouldShow) return;
 
@@ -53,6 +63,44 @@
         catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException)
         {
             // Circuit dead, ignore
+        }
+    }
+
+    /// <summary>
+    /// Silently (re)registers this browser's push subscription when permission is already granted.
+    /// Idempotent — closes the "subscription rotated/expired and was never refreshed" reliability gap.
+    /// </summary>
+    private async Task TryReSubscribeAsync()
+    {
+        try
+        {
+            if (UserState.Username == null) return;
+            if (!await JS.InvokeAsync<bool>("isPushSupported")) return;
+
+            var publicKey = PushService.GetPublicKey();
+            if (publicKey == null) return;
+
+            var subscriptionJson = await JS.InvokeAsync<string?>("subscribeToPush", publicKey);
+            if (subscriptionJson == null) return;
+
+            var subData = System.Text.Json.JsonSerializer.Deserialize<PushSubData>(subscriptionJson);
+            if (subData?.Endpoint == null) return;
+
+            await PushStore.SaveSubscriptionAsync(UserState.Username, new PushSubscriptionInfo
+            {
+                Endpoint = subData.Endpoint,
+                P256dh = subData.P256dh ?? "",
+                Auth = subData.Auth ?? ""
+            });
+            Logger.LogDebug("Push silent re-subscribe: refreshed subscription for {Username}", UserState.Username);
+        }
+        catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException)
+        {
+            // Circuit dead, ignore
+        }
+        catch (Exception ex)
+        {
+            Logger.LogDebug(ex, "Push silent re-subscribe failed for {Username}", UserState.Username);
         }
     }
 

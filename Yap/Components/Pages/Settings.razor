@@ -276,11 +276,38 @@
                 }
 
                 <div class="notification-row">
-                    <span class="notification-label">Server Subscriptions</span>
+                    <span class="notification-label">Subscribed Devices</span>
                     <span class="notification-value">@serverSubscriptionCount device(s)</span>
                 </div>
 
             </div>
+
+            @if (pushDevices.Count > 0)
+            {
+                <div class="sessions-list" style="margin-bottom: 1rem;">
+                    @foreach (var device in pushDevices)
+                    {
+                        var isThisDevice = currentEndpoint != null && device.Endpoint == currentEndpoint;
+                        <div class="session-item @(isThisDevice ? "current" : "")">
+                            <span class="session-icon">🔔</span>
+                            <div class="session-details">
+                                <div class="session-line">
+                                    @if (isThisDevice)
+                                    {
+                                        <span class="session-badge">This device</span>
+                                    }
+                                    <span class="session-ip">@DescribePushEndpoint(device.Endpoint)</span>
+                                </div>
+                                <span class="session-activity">Added @FormatRelativeTime(device.CreatedAt)</span>
+                            </div>
+                            <button class="remove-button" style="margin-left: auto; padding: 0.25rem 0.625rem; font-size: 0.75rem; flex-shrink: 0;"
+                                    @onclick="() => RemovePushDevice(device.Endpoint)" title="Remove this device">
+                                Remove
+                            </button>
+                        </div>
+                    }
+                </div>
+            }
 
             <div class="notification-actions">
                 @if (!pushSupported)
@@ -321,6 +348,20 @@
                     <button class="upload-button" @onclick="EnablePush" disabled="@pushToggling">
                         @(pushToggling ? "Enabling..." : "Enable Notifications")
                     </button>
+                }
+
+                @if (PushService.IsConfigured && serverSubscriptionCount > 0)
+                {
+                    <div class="notification-buttons" style="margin-top: 8px;">
+                        <button class="upload-button" @onclick="SendTestNotification" disabled="@sendingTest">
+                            @(sendingTest ? "Sending..." : "Send test notification")
+                        </button>
+                    </div>
+                    <span class="form-hint">Sends a notification to every subscribed device — the ones that buzz are alive.</span>
+                }
+                @if (pushActionStatus != null)
+                {
+                    <span class="save-status saved" style="margin-top: 4px;">@pushActionStatus</span>
                 }
             </div>
         </div>
@@ -462,6 +503,12 @@
     private bool isPwa = false;
     private bool pushToggling = false;
 
+    // Per-device subscription list (Lite — no schema change)
+    private IReadOnlyList<Yap.Models.PushSubscription> pushDevices = new List<Yap.Models.PushSubscription>();
+    private string? currentEndpoint;       // this browser's push endpoint (for the "This device" badge)
+    private bool sendingTest = false;
+    private string? pushActionStatus;
+
     protected override void OnInitialized()
     {
         if (!UserState.IsLoggedIn || !UserState.UserId.HasValue)
@@ -507,11 +554,8 @@
                 detectedLocation = location;
         }
 
-        // Server-side subscription count (doesn't need JS)
-        if (UserState.Username != null)
-        {
-            serverSubscriptionCount = PushStore.GetSubscriptions(UserState.Username).Count();
-        }
+        // Server-side subscription list (doesn't need JS)
+        RefreshPushDevices();
 
         // Load active sessions
         if (UserState.Username != null)
@@ -970,6 +1014,11 @@
             {
                 var existingSub = await JS.InvokeAsync<string?>("getPushSubscription");
                 pushSubscribed = existingSub != null;
+                if (existingSub != null)
+                {
+                    var cur = System.Text.Json.JsonSerializer.Deserialize<PushSubData>(existingSub);
+                    currentEndpoint = cur?.Endpoint;
+                }
             }
 
             Logger.LogDebug("Push status loaded: supported={Supported}, permission={Permission}, subscribed={Subscribed}, pwa={Pwa}, serverSubs={ServerSubs}",
@@ -1018,7 +1067,8 @@
                     Auth = subData.Auth ?? ""
                 });
                 pushSubscribed = true;
-                serverSubscriptionCount = PushStore.GetSubscriptions(UserState.Username).Count();
+                currentEndpoint = subData.Endpoint;
+                RefreshPushDevices();
                 Logger.LogDebug("Push enabled for {Username} from settings", UserState.Username);
             }
         }
@@ -1075,7 +1125,8 @@
             }
 
             pushSubscribed = false;
-            serverSubscriptionCount = 0;
+            currentEndpoint = null;
+            RefreshPushDevices();
             Logger.LogDebug("Push disabled for {Username} from settings", UserState.Username);
         }
         catch (Exception ex)
@@ -1086,6 +1137,100 @@
         {
             pushToggling = false;
             StateHasChanged();
+        }
+    }
+
+    private void RefreshPushDevices()
+    {
+        if (UserState.Username != null)
+        {
+            pushDevices = PushStore.GetSubscriptionsDetailed(UserState.Username);
+            serverSubscriptionCount = pushDevices.Count;
+        }
+    }
+
+    private async Task SendTestNotification()
+    {
+        if (sendingTest || UserState.Username == null) return;
+        sendingTest = true;
+        pushActionStatus = null;
+        StateHasChanged();
+
+        try
+        {
+            await PushService.SendTestAsync(UserState.Username);
+            pushActionStatus = "Test notification sent — check your devices.";
+            Logger.LogDebug("Push test sent for {Username}", UserState.Username);
+        }
+        catch (Exception ex)
+        {
+            pushActionStatus = "Failed to send test notification.";
+            Logger.LogError(ex, "Failed to send test push for {Username}", UserState.Username);
+        }
+        finally
+        {
+            sendingTest = false;
+            StateHasChanged();
+        }
+
+        ClearPushActionStatusAfterDelay();
+    }
+
+    private async Task RemovePushDevice(string endpoint)
+    {
+        try
+        {
+            await PushStore.RemoveSubscriptionAsync(endpoint);
+
+            // If we removed THIS browser's subscription, also unsubscribe it locally.
+            if (endpoint == currentEndpoint)
+            {
+                try { await JS.InvokeAsync<bool>("unsubscribeFromPush"); } catch { /* best-effort */ }
+                pushSubscribed = false;
+                currentEndpoint = null;
+            }
+
+            RefreshPushDevices();
+            Logger.LogDebug("Push device removed for {Username}", UserState.Username);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to remove push device for {Username}", UserState.Username);
+        }
+        StateHasChanged();
+    }
+
+    private void ClearPushActionStatusAfterDelay()
+    {
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(3000);
+            await InvokeAsync(() =>
+            {
+                pushActionStatus = null;
+                StateHasChanged();
+            });
+        });
+    }
+
+    /// <summary>
+    /// Best-effort platform hint derived from a push endpoint host (Lite — no stored device label).
+    /// </summary>
+    private static string DescribePushEndpoint(string endpoint)
+    {
+        if (string.IsNullOrEmpty(endpoint)) return "Notification device";
+        try
+        {
+            var host = new Uri(endpoint).Host.ToLowerInvariant();
+            if (host.Contains("apple")) return "Apple (Safari / iOS)";
+            if (host.Contains("fcm") || host.Contains("google")) return "Google (Chrome / Edge / Android)";
+            if (host.Contains("mozilla")) return "Mozilla (Firefox)";
+            if (host.Contains("windows") || host.Contains("microsoft")) return "Microsoft (WNS)";
+            return host;
+        }
+        catch
+        {
+            return "Notification device";
         }
     }
 

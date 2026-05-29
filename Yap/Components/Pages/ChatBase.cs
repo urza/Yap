@@ -31,6 +31,17 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     protected Guid UserId => UserState.UserId ?? Guid.Empty;
     protected string Username => UserState.Username ?? "";
 
+    /// <summary>
+    /// Whether an incoming message on the currently-viewed channel should auto-mark it as read.
+    /// True only when THIS device's page is foreground AND the user is not Away — so a
+    /// backgrounded/locked/away device doesn't silently clear unread for the user's other devices
+    /// (read state is shared per-user, Discord-style). Online and Invisible both qualify.
+    /// </summary>
+    protected bool ShouldMarkReadOnReceive() =>
+        !string.IsNullOrEmpty(UserState.SessionId)
+        && ChatService.IsSessionPageVisible(UserState.SessionId)
+        && ChatService.GetUserStatus(Username) != UserStatus.Away;
+
     // Channel state - set by derived classes
     protected Guid channelId;
     protected List<ChatMessage> messages = new();
@@ -577,6 +588,18 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
             unreadCount = 0;
             await UpdatePageTitleAsync();
             await InvokeAsync(StateHasChanged);
+        }
+
+        // Resuming the tab means we're now looking at this channel — advance read state.
+        // Closes the gap where a backgrounded tab accumulated unread (the on-receive mark is
+        // gated on visibility) and was then foregrounded without navigating. Not silent, so the
+        // user's OTHER devices clear the badge promptly. Skipped while Away (consistent with the
+        // on-receive gate); foregrounding usually restores Away→Online via inbound activity anyway.
+        if (visible && channelId != Guid.Empty && UserId != Guid.Empty
+            && ChatService.GetUserStatus(Username) != UserStatus.Away
+            && ChatService.GetUnreadCount(UserId, channelId) > 0)
+        {
+            await ChatService.MarkChannelAsReadAsync(UserId, channelId, callerSessionId: UserState.SessionId);
         }
 
         // On PWA/tab resume, snap back to the bottom. Media (videos, link
