@@ -652,13 +652,28 @@ public class GifService
                 return false;
             }
 
-            await using var fs = File.Create(destPath);
-            await response.Content.CopyToAsync(fs, cts.Token);
-
-            if (new FileInfo(destPath).Length > MaxDownloadBytes)
+            // Stream to disk with a hard cap so a chunked/headerless response (Content-Length
+            // absent) can't blow past MaxDownloadBytes — the header check above only helps when
+            // the length is advertised.
+            bool overCap = false;
+            await using (var fs = File.Create(destPath))
+            await using (var src = await response.Content.ReadAsStreamAsync(cts.Token))
             {
-                File.Delete(destPath);
-                _logger.LogWarning("GIF exceeded size cap after download: {Url}", url);
+                var buffer = new byte[81920];
+                long total = 0;
+                int read;
+                while ((read = await src.ReadAsync(buffer, cts.Token)) > 0)
+                {
+                    total += read;
+                    if (total > MaxDownloadBytes) { overCap = true; break; }
+                    await fs.WriteAsync(buffer.AsMemory(0, read), cts.Token);
+                }
+            }
+
+            if (overCap)
+            {
+                TryDelete(destPath);
+                _logger.LogWarning("GIF exceeded size cap mid-download: {Url}", url);
                 return false;
             }
             return true;

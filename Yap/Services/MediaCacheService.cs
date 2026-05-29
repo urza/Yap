@@ -66,12 +66,23 @@ public class MediaCacheService
                 CreateNoWindow = true
             };
             using var process = Process.Start(psi);
-            var exited = process?.WaitForExit(3000) ?? false;
-            IsAvailable = exited && process?.ExitCode == 0;
+            if (process == null)
+            {
+                IsAvailable = false;
+                _logger.LogWarning("yt-dlp not found — media caching will be unavailable");
+                return;
+            }
+            // Drain both pipes concurrently with the wait so the pipe buffer can't deadlock
+            // WaitForExit (the redirect-without-read hang).
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            _ = process.StandardError.ReadToEndAsync();
+            var exited = process.WaitForExit(3000);
+            if (!exited) { try { process.Kill(entireProcessTree: true); } catch { } }
+            IsAvailable = exited && process.ExitCode == 0;
 
             if (IsAvailable)
             {
-                var version = process!.StandardOutput.ReadToEnd().Trim();
+                var version = stdoutTask.GetAwaiter().GetResult().Trim();
                 _logger.LogInformation("yt-dlp detected: {Version}", version);
             }
             else

@@ -39,8 +39,21 @@ public class VideoService
                 CreateNoWindow = true
             };
             using var process = Process.Start(psi);
-            var exited = process?.WaitForExit(3000) ?? false;
-            IsAvailable = exited && process?.ExitCode == 0;
+            if (process == null)
+            {
+                IsAvailable = false;
+                _logger.LogWarning("FFmpeg not found — video processing will be unavailable");
+                return;
+            }
+            // Drain both pipes so a large `-version` banner can't fill the OS pipe buffer and
+            // deadlock WaitForExit (the redirect-without-read hang).
+            process.OutputDataReceived += static (_, _) => { };
+            process.ErrorDataReceived += static (_, _) => { };
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+            var exited = process.WaitForExit(3000);
+            if (!exited) { try { process.Kill(entireProcessTree: true); } catch { } }
+            IsAvailable = exited && process.ExitCode == 0;
 
             if (IsAvailable)
                 _logger.LogInformation("FFmpeg detected and available");
