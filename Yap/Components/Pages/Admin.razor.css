@@ -954,6 +954,15 @@
     font-size: 0.875rem;
 }
 
+.gif-admin-thumb {
+    height: 40px;
+    max-width: 72px;
+    object-fit: cover;
+    border-radius: 4px;
+    background: var(--bg-secondary);
+    display: block;
+}
+
 /* Media stats cards */
 .media-stats {
     display: flex;

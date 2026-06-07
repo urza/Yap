@@ -144,6 +144,13 @@ public class GifService
 
     public GifEntry? GetEntry(Guid id) => _entries.TryGetValue(id, out var e) ? e : null;
 
+    /// <summary>All custom (user-uploaded) GIF/WebP entries, newest first. For the admin listing.</summary>
+    public List<GifEntry> GetCustomUploads() =>
+        _entries.Values
+            .Where(e => e.SourceProviderId == null)
+            .OrderByDescending(e => e.CreatedAt)
+            .ToList();
+
     #region Public read API
 
     /// <summary>Local-first search across the cached library by tag tokens.</summary>

@@ -445,6 +445,76 @@
                 <span class="form-hint">Detected: @(UserState.TimeZone ?? "—") · @(UserState.Locale ?? "—")</span>
             }
         </div>
+
+        <div class="settings-section">
+            <details class="debug-info">
+                <summary>DEBUG INFO</summary>
+
+                <p class="form-hint" style="margin-bottom: 12px;">
+                    Read live from this device via the browser's Cache Storage API — the same store the
+                    service worker writes to, so this is genuine proof that PWA caching works locally.
+                    Profile pictures are absent by design (stable URL, excluded from the service-worker cache).
+                </p>
+
+                @if (cacheReport is null)
+                {
+                    <span class="form-hint">@(loadingCache ? "Reading cache…" : "Cache report unavailable.")</span>
+                }
+                else if (!cacheReport.Supported)
+                {
+                    <span class="form-hint">Cache Storage API is not available in this browser.</span>
+                }
+                else
+                {
+                    <div class="notification-status">
+                        <div class="notification-row">
+                            <span class="notification-label">Cached files</span>
+                            <span class="notification-value">@cacheReport.TotalCount file@(cacheReport.TotalCount == 1 ? "" : "s") · @FormatBytes(cacheReport.TotalBytes)</span>
+                        </div>
+                        @if (cacheReport.Usage is long usage)
+                        {
+                            <div class="notification-row">
+                                <span class="notification-label">Origin storage estimate</span>
+                                <span class="notification-value">@FormatBytes(usage)@(cacheReport.Quota is long quota ? $" of {FormatBytes(quota)}" : "")</span>
+                            </div>
+                        }
+                    </div>
+
+                    @foreach (var group in cacheReport.Caches)
+                    {
+                        <div class="cache-group">
+                            <div class="cache-group-header">
+                                <span class="cache-group-name">@FriendlyCacheName(group.Name)</span>
+                                <span class="cache-group-meta">@group.Count · @FormatBytes(group.TotalBytes)</span>
+                            </div>
+                            @if (group.Entries.Count == 0)
+                            {
+                                <span class="form-hint">Empty</span>
+                            }
+                            else
+                            {
+                                <div class="cache-entry-list">
+                                    @foreach (var entry in group.Entries)
+                                    {
+                                        <div class="cache-entry" title="@entry.Url">
+                                            <span class="cache-entry-name">@entry.Name</span>
+                                            <span class="cache-entry-size">@FormatBytes(entry.Bytes)</span>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            @if (group.Name == "yap-media-v1" && group.Count > 0)
+                            {
+                                <button class="remove-button" style="margin-top: 8px; padding: 0.25rem 0.625rem; font-size: 0.75rem;"
+                                        @onclick="() => ClearCache(group.Name)" title="Delete this cache to watch it re-populate">
+                                    Clear this cache
+                                </button>
+                            }
+                        </div>
+                    }
+                }
+            </details>
+        </div>
        
     </div>
 </div>
@@ -580,7 +650,9 @@
     {
         if (firstRender)
         {
+            _jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./Components/Pages/Settings.razor.js");
             await LoadPushStatusAsync();
+            await LoadCacheReportAsync();
             StateHasChanged();
         }
     }
@@ -1289,11 +1361,62 @@
         };
     }
 
-    public ValueTask DisposeAsync()
+    // --- Debug: Local Cache (PWA) ---
+    private IJSObjectReference? _jsModule;
+    private CacheReport? cacheReport;
+    private bool loadingCache;
+
+    private async Task LoadCacheReportAsync()
+    {
+        if (_jsModule is null) return;
+        loadingCache = true;
+        try { cacheReport = await _jsModule.InvokeAsync<CacheReport>("getCacheStorageReport"); }
+        catch (Exception ex) { Logger.LogWarning(ex, "Failed to load cache report"); }
+        finally { loadingCache = false; }
+    }
+
+    private async Task RefreshCacheReport()
+    {
+        await LoadCacheReportAsync();
+        StateHasChanged();
+    }
+
+    private async Task ClearCache(string name)
+    {
+        if (_jsModule is not null)
+        {
+            try { await _jsModule.InvokeAsync<bool>("clearCacheByName", name); }
+            catch (Exception ex) { Logger.LogWarning(ex, "Failed to clear cache {Cache}", name); }
+        }
+        await RefreshCacheReport();
+    }
+
+    private static string FriendlyCacheName(string name) => name switch
+    {
+        "yap-media-v1" => "Media — uploads, GIFs, cached video",
+        "yap-v2" => "App shell — icons, sound",
+        _ => name
+    };
+
+    private static string FormatBytes(long bytes) => bytes < 1024 ? $"{bytes} B"
+        : bytes < 1024 * 1024 ? $"{bytes / 1024.0:0.#} KB"
+        : bytes < 1024L * 1024 * 1024 ? $"{bytes / (1024.0 * 1024):0.#} MB"
+        : $"{bytes / (1024.0 * 1024 * 1024):0.##} GB";
+
+    public record CacheReport(bool Supported, long? Usage, long? Quota, long TotalBytes, int TotalCount, List<CacheGroup> Caches);
+    public record CacheGroup(string Name, int Count, long TotalBytes, List<CacheEntry> Entries);
+    public record CacheEntry(string Url, string Name, long Bytes, string Type);
+
+    public async ValueTask DisposeAsync()
     {
         ChatService.OnUsersListChanged -= HandleUsersListChanged;
         _debounceCts?.Cancel();
         _debounceCts?.Dispose();
-        return ValueTask.CompletedTask;
+        if (_jsModule is not null)
+        {
+            try { await _jsModule.DisposeAsync(); }
+            catch (JSDisconnectedException) { }
+            catch (ObjectDisposedException) { }
+        }
     }
 }

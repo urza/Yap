@@ -11,6 +11,7 @@
 @inject LinkPreviewSettingsService LinkPreviewSettings
 @inject MediaCacheService MediaCacheService
 @inject Yap.Services.Gifs.GifAdminSettingsService GifAdminSettings
+@inject Yap.Services.Gifs.GifService GifService
 @inject MediaUploadLogService MediaLog
 @inject VideoService VideoService
 @inject NavigationManager Navigation
@@ -74,6 +75,13 @@
             </svg>
             <span>Media</span>
         </button>
+        <button class="nav-item @(activeSection == "gifs" ? "active" : "")"
+                @onclick="SelectGifsTab">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18 3v2h-2V3H8v2H6V3H4v18h2v-2h2v2h8v-2h2v2h2V3h-2zM8 17H6v-2h2v2zm0-4H6v-2h2v2zm0-4H6V7h2v2zm10 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V7h2v2z"/>
+            </svg>
+            <span>GIFs</span>
+        </button>
         <button class="nav-item @(activeSection == "diagnostics" ? "active" : "")"
                 @onclick="SelectDiagnosticsTab">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -114,6 +122,10 @@
         <button class="tab-item @(activeSection == "media" ? "active" : "")"
                 @onclick="SelectMediaTab">
             Media
+        </button>
+        <button class="tab-item @(activeSection == "gifs" ? "active" : "")"
+                @onclick="SelectGifsTab">
+            GIFs
         </button>
         <button class="tab-item @(activeSection == "diagnostics" ? "active" : "")"
                 @onclick="SelectDiagnosticsTab">
@@ -729,6 +741,74 @@
             @if (!mediaLoading && mediaEntries.Count == 0)
             {
                 <div class="log-empty">No media uploads found.</div>
+            }
+        }
+
+        @if (activeSection == "gifs")
+        {
+            <div class="section-header">
+                <h3>GIFs</h3>
+                <span class="section-count">@gifEntries.Count custom uploads</span>
+            </div>
+
+            <div class="media-stats">
+                <div class="media-stat-card">
+                    <span class="media-stat-label">FFmpeg</span>
+                    <span class="media-stat-value">
+                        <span class="status-dot @(VideoService.IsAvailable ? "status-online" : "status-offline")"></span>
+                        @(VideoService.IsAvailable ? "Available" : "Unavailable")
+                    </span>
+                </div>
+                <div class="media-stat-card">
+                    <span class="media-stat-label">Total Storage</span>
+                    <span class="media-stat-value">@FormatFileSize(gifTotalBytes)</span>
+                </div>
+                <div class="media-stat-card">
+                    <span class="media-stat-label">Custom GIFs</span>
+                    <span class="media-stat-value">@gifEntries.Count</span>
+                </div>
+            </div>
+
+            <div class="table-wrapper">
+                <table class="users-table logs-table">
+                    <thead>
+                        <tr>
+                            <th>Preview</th>
+                            <th>Date</th>
+                            <th>Uploader</th>
+                            <th>Format</th>
+                            <th>Dimensions</th>
+                            <th>Size</th>
+                            <th>Uses</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var g in gifEntries)
+                        {
+                            <tr>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(g.GifUrl))
+                                    {
+                                        <a href="@g.GifUrl" target="_blank" rel="noopener">
+                                            <img src="@g.GifUrl" alt="" class="gif-admin-thumb" loading="lazy" />
+                                        </a>
+                                    }
+                                </td>
+                                <td class="date-cell">@FormatLogDate(g.CreatedAt)</td>
+                                <td>@GifUploaderName(g)</td>
+                                <td><span class="action-pill action-default">@GifFormat(g)</span></td>
+                                <td>@($"{g.Width} × {g.Height}")</td>
+                                <td>@FormatFileSize(g.FileSizeBytes)</td>
+                                <td>@g.UseCount</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (gifEntries.Count == 0)
+            {
+                <div class="log-empty">No custom GIFs uploaded yet.</div>
             }
         }
 
@@ -1379,6 +1459,31 @@
         if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
         if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
         return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
+    }
+
+    // GIFs tab state — custom (user-uploaded) GIF/WebP entries, sourced live from GifService (in-memory).
+    private List<GifEntry> gifEntries = new();
+    private long gifTotalBytes;
+
+    private void SelectGifsTab()
+    {
+        activeSection = "gifs";
+        gifEntries = GifService.GetCustomUploads();
+        gifTotalBytes = gifEntries.Sum(g => g.FileSizeBytes);
+    }
+
+    private string GifUploaderName(GifEntry g)
+    {
+        if (g.UploadedByUserId is not Guid id) return "—";
+        return UserService.GetById(id)?.Username ?? "(deleted)";
+    }
+
+    private static string GifFormat(GifEntry g)
+    {
+        var url = g.GifUrl ?? g.Mp4Url ?? g.WebmUrl;
+        if (string.IsNullOrEmpty(url)) return "?";
+        var ext = Path.GetExtension(url).TrimStart('.').ToLowerInvariant();
+        return string.IsNullOrEmpty(ext) ? "?" : ext;
     }
 
     // Diagnostics tab
