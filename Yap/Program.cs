@@ -259,6 +259,36 @@ app.Use(async (context, next) =>
     await next();
 });
 
+// Content-addressed uploads use GUID/hash filenames that are never reused → safe to cache forever.
+// immutable = the browser never revalidates; max-age is the fallback for browsers that don't
+// support immutable (the same policy .NET applies to its own fingerprinted assets).
+Action<Microsoft.AspNetCore.StaticFiles.StaticFileResponseContext> cacheImmutable = ctx =>
+    ctx.Context.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
+
+var uploadsRoot = Path.Combine(app.Environment.WebRootPath, "uploads");
+var profilesRoot = Path.Combine(uploadsRoot, "profiles");
+Directory.CreateDirectory(profilesRoot); // PhysicalFileProvider throws if the root is missing
+
+// Profile pictures live at a STABLE url (/uploads/profiles/{userId}.webp) that's overwritten when
+// the avatar changes, so they must NOT be immutable. Short max-age = fast reuse + quick propagation.
+// Registered before the general /uploads handler so it wins for the profiles subtree.
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(profilesRoot),
+    RequestPath = "/uploads/profiles",
+    OnPrepareResponse = ctx =>
+        ctx.Context.Response.Headers.CacheControl = "public, max-age=300"
+});
+
+// Everything else under /uploads (image thumbnails, gif/webp, video posters) is content-addressed.
+// Registered before the generic UseStaticFiles so it wins for /uploads/* and attaches the header.
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(uploadsRoot),
+    RequestPath = "/uploads",
+    OnPrepareResponse = cacheImmutable
+});
+
 app.UseStaticFiles();
 
 // Serve custom emojis from Data/custom-emojis/ folder
@@ -289,7 +319,8 @@ app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(mediaCachePath),
     RequestPath = "/media-cache",
-    ContentTypeProvider = mediaCacheContentTypes
+    ContentTypeProvider = mediaCacheContentTypes,
+    OnPrepareResponse = cacheImmutable
 });
 
 // Serve cached GIFs from Data/gif-cache/ folder (separate from user uploads so eviction can sweep it)
@@ -298,7 +329,8 @@ Directory.CreateDirectory(gifCachePath);
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(gifCachePath),
-    RequestPath = "/gif-cache"
+    RequestPath = "/gif-cache",
+    OnPrepareResponse = cacheImmutable
 });
 
 // Custom middlewares - positioned after UseStaticFiles() to skip static file requests

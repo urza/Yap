@@ -3,6 +3,9 @@
 // Blazor Server requires live connection, so minimal caching
 
 const CACHE_NAME = 'yap-v2';
+// Separate cache for content-addressed media (user uploads, cached gifs/media). GUID/hash
+// filenames are never reused, so these are served cache-first and intentionally survive SW updates.
+const MEDIA_CACHE = 'yap-media-v1';
 
 // Install: cache essential assets and activate immediately
 self.addEventListener('install', (event) => {
@@ -27,9 +30,10 @@ self.addEventListener('activate', (event) => {
     console.log('[SW] Activating service worker');
     event.waitUntil(
         caches.keys().then((cacheNames) => {
+            const keep = [CACHE_NAME, MEDIA_CACHE];
             return Promise.all(
                 cacheNames
-                    .filter((name) => name !== CACHE_NAME)
+                    .filter((name) => !keep.includes(name))
                     .map((name) => caches.delete(name))
             );
         }).then(() => self.clients.claim())
@@ -42,24 +46,42 @@ self.addEventListener('fetch', (event) => {
     if (event.request.method !== 'GET') return;
     if (url.pathname.includes('_blazor')) return;
 
+    // App-shell icons + notification sound: cache-first against the versioned app cache.
     const staticAssets = ['/icon.svg', '/icon-192.png', '/icon-512.png', '/notif.mp3'];
-    const isStaticAsset = staticAssets.some(asset => url.pathname.endsWith(asset));
+    if (staticAssets.some(asset => url.pathname.endsWith(asset))) {
+        event.respondWith(cacheFirst(event.request, CACHE_NAME));
+        return;
+    }
 
-    if (isStaticAsset) {
-        event.respondWith(
-            caches.match(event.request).then((cached) => {
-                if (cached) return cached;
-                return fetch(event.request).then((response) => {
-                    if (response.ok) {
-                        const clone = response.clone();
-                        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-                    }
-                    return response;
-                });
-            })
-        );
+    // Content-addressed media (uploads, cached gifs/media). GUID/hash filenames are immutable, so
+    // cache-first lets cold PWA launches paint instantly without re-downloading multi-MB files.
+    // Excludes: profile pictures (stable url, overwritten on avatar change — let the network's
+    // short max-age handle freshness) and range requests (the Cache API can't serve partial
+    // content for video/audio seeking; the HTTP immutable cache covers those instead).
+    const mediaPrefixes = ['/uploads/', '/gif-cache/', '/media-cache/'];
+    if (url.origin === self.location.origin
+        && mediaPrefixes.some((p) => url.pathname.startsWith(p))
+        && !url.pathname.startsWith('/uploads/profiles/')
+        && !event.request.headers.has('range')) {
+        event.respondWith(cacheFirst(event.request, MEDIA_CACHE));
+        return;
     }
 });
+
+// Cache-first: serve from the named cache, else fetch and cache successful responses.
+// On network failure, fall back to any cached copy (or a network error).
+async function cacheFirst(request, cacheName) {
+    const cache = await caches.open(cacheName);
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    try {
+        const response = await fetch(request);
+        if (response.ok) cache.put(request, response.clone());
+        return response;
+    } catch (err) {
+        return (await cache.match(request)) || Response.error();
+    }
+}
 
 // ==========================================
 // Push Notification Handler
