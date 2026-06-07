@@ -308,19 +308,20 @@ public class GifService
         if (!qualifies) return null;
 
         // Produce an animated WebP for any upload. WebP in <img> = instant animation on page load
-        // (no autoplay policy block), and ~2× smaller than the equivalent GIF. .gif sources are
-        // copied as-is (already img-tag-friendly); everything else (mp4, mov, webm) goes through
-        // ffmpeg's libwebp encoder.
+        // (no autoplay policy block), and ~2× smaller than the equivalent GIF. .gif and animated
+        // .webp sources are copied as-is (already img-tag-friendly, looping, and optimized — and
+        // ffmpeg can't reliably re-encode animated webp anyway); everything else (mp4, mov, webm)
+        // goes through ffmpeg's libwebp encoder.
         var entryId = Guid.NewGuid();
         var sourceExt = Path.GetExtension(sourceFilePath).ToLowerInvariant();
         string localExt;
         string localPath;
         bool produced;
 
-        if (sourceExt == ".gif")
+        if (sourceExt is ".gif" or ".webp")
         {
-            localExt = ".gif";
-            localPath = Path.Combine(CustomUploadsDir, $"{entryId}.gif");
+            localExt = sourceExt;
+            localPath = Path.Combine(CustomUploadsDir, $"{entryId}{localExt}");
             try
             {
                 File.Copy(sourceFilePath, localPath, overwrite: true);
@@ -328,7 +329,7 @@ public class GifService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to copy uploaded gif to {Path}", localPath);
+                _logger.LogWarning(ex, "Failed to copy uploaded {Ext} to {Path}", sourceExt, localPath);
                 produced = false;
             }
         }
