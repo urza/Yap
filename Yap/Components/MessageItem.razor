@@ -124,7 +124,12 @@
                     var entry = GifService.GetEntry(att.GifEntryId);
                     var w = att.Width > 0 ? att.Width : entry?.Width ?? 0;
                     var h = att.Height > 0 ? att.Height : entry?.Height ?? 0;
-                    var aspect = (w > 0 && h > 0) ? $"aspect-ratio: {w}/{h}; max-width: min(360px, {w}px);" : "max-width: 320px;";
+                    // Known dims → exact aspect-ratio box (no layout shift). Unknown dims (a file we
+                    // still couldn't measure) → a neutral square placeholder so the box reserves space
+                    // and shows the loading spinner instead of collapsing to 0 height and popping in.
+                    var aspect = (w > 0 && h > 0)
+                        ? $"aspect-ratio: {w}/{h}; max-width: min(360px, {w}px);"
+                        : "aspect-ratio: 1; max-width: 240px;";
                     var (gifSrc, gifIsImage) = PickGifRender(entry);
                     var isFav = entry != null && GifService.IsFavorite(CurrentUserId, entry.Id);
                     var uploader = entry?.UploadedByUserId is Guid uid ? UserService.GetById(uid)?.EffectiveDisplayName : null;

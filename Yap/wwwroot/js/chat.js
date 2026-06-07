@@ -1237,7 +1237,21 @@ window.applyTheme = (themeId) => {
         document.addEventListener('keydown', unlock, true);
     }
 
+    // Drop the loading spinner once a chat GIF can paint. The CSS spins until we add
+    // .gif-loaded to the .gif-message box. Covers <img> (animated webp/gif) via `load` and
+    // the legacy <video> fallback via `canplay`; `error` also clears it so a broken URL never
+    // spins forever. closest('.gif-message') returns null for every other image/video on the
+    // page (avatars, emojis, gallery images, picker previews), so this is a cheap no-op for them.
+    const markGifLoaded = (el) => {
+        const box = el && el.closest && el.closest('.gif-message');
+        if (box) box.classList.add('gif-loaded');
+    };
+
     // Catches every <video> reaching the canplay state — initial-render, freshly inserted, or
     // hydrated. Capturing-phase listener ensures we see the event regardless of bubbling.
-    document.addEventListener('canplay', e => tryPlay(e.target), true);
+    document.addEventListener('canplay', e => { tryPlay(e.target); markGifLoaded(e.target); }, true);
+    // `load`/`error` don't bubble, so capture them at the document to catch <img> regardless of
+    // when Blazor inserted or patched the element.
+    document.addEventListener('load', e => markGifLoaded(e.target), true);
+    document.addEventListener('error', e => markGifLoaded(e.target), true);
 })();

@@ -133,6 +133,20 @@ public class GifService
                 foreach (var entry in backfillNeeded)
                     QueueNormalization(entry);
             }
+
+            // Backfill missing dimensions for custom uploads. Animated-WebP uploads taking the
+            // copy-as-is path were stored 0×0 because ffprobe can't read their size; ImageSharp
+            // can. Without real dimensions the chat can't reserve space and they jump in on load.
+            // Header read only (no decode), one-time per affected file, so run it in the background.
+            var dimsBackfill = entries
+                .Where(e => e.SourceProviderId == null && (e.Width == 0 || e.Height == 0)
+                            && !string.IsNullOrEmpty(e.GifUrl))
+                .ToList();
+            if (dimsBackfill.Count > 0)
+            {
+                _logger.LogInformation("Backfilling dimensions for {Count} custom GIF uploads", dimsBackfill.Count);
+                _ = Task.Run(() => BackfillCustomUploadDimensionsAsync(dimsBackfill));
+            }
         }
         catch (Exception ex)
         {
@@ -358,6 +372,15 @@ public class GifService
             var outProbe = await _ffmpeg.ProbeAsync(localPath, ct);
             if (outProbe != null) { width = outProbe.Width; height = outProbe.Height; }
         }
+        // ffprobe routinely reports 0×0 for animated WebP — exactly the files that take the
+        // copy-as-is branch above. ImageSharp reads the dimensions from the container header.
+        // Without real dimensions the chat can't reserve layout space and the GIF "pops in"
+        // after its (multi-MB) bytes finally arrive.
+        if (width == 0 || height == 0)
+        {
+            var (iw, ih) = TryReadImageDimensions(localPath);
+            if (iw > 0 && ih > 0) { width = iw; height = ih; }
+        }
 
         var entry = new GifEntry(sourceProviderId: null, sourceId: null, uploaderUserId)
         {
@@ -381,6 +404,50 @@ public class GifService
 
         OnGifLibraryChanged?.Invoke(entry);
         return new GifAttachment(entry.Id, entry.Width, entry.Height);
+    }
+
+    /// <summary>
+    /// One-time repair for custom uploads stored with 0×0 dimensions (animated WebP that ffprobe
+    /// couldn't measure). Reads the real size from each local file via ImageSharp and persists it.
+    /// Updates the in-memory entry so historical messages — which fall back to the entry's
+    /// dimensions when their own attachment carries 0×0 — render with reserved space too.
+    /// </summary>
+    private async Task BackfillCustomUploadDimensionsAsync(List<GifEntry> entries)
+    {
+        var fixedCount = 0;
+        foreach (var entry in entries)
+        {
+            try
+            {
+                var path = Path.Combine(CustomUploadsDir, Path.GetFileName(entry.GifUrl!));
+                if (!File.Exists(path)) continue;
+
+                var (w, h) = TryReadImageDimensions(path);
+                if (w <= 0 || h <= 0) continue;
+
+                entry.Width = w;
+                entry.Height = h;
+
+                if (_dbFactory != null)
+                {
+                    await using var db = await _dbFactory.CreateDbContextAsync();
+                    await db.GifEntries
+                        .Where(g => g.Id == entry.Id)
+                        .ExecuteUpdateAsync(s => s
+                            .SetProperty(g => g.Width, w)
+                            .SetProperty(g => g.Height, h));
+                }
+
+                fixedCount++;
+                OnGifEntryUpdated?.Invoke(entry.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to backfill dimensions for custom GIF {Id}", entry.Id);
+            }
+        }
+        if (fixedCount > 0)
+            _logger.LogInformation("Backfilled dimensions for {Count} custom GIF uploads", fixedCount);
     }
 
     #endregion
@@ -835,6 +902,24 @@ public class GifService
     }
 
     #endregion
+
+    /// <summary>
+    /// Reads pixel dimensions straight from the image header (no full decode). Reliable for
+    /// animated WebP and GIF, where ffprobe frequently returns 0×0. Returns (0,0) on failure.
+    /// </summary>
+    private (int Width, int Height) TryReadImageDimensions(string filePath)
+    {
+        try
+        {
+            var info = SixLabors.ImageSharp.Image.Identify(filePath);
+            return (info.Width, info.Height);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "ImageSharp could not read dimensions for {Path}", filePath);
+            return (0, 0);
+        }
+    }
 
     private static long SafeFileSize(string path)
     {
