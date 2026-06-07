@@ -52,10 +52,19 @@
             {
                 <span class="gif-spinner" title="Searching..."></span>
             }
-            <label class="gif-upload-btn" title="Upload a GIF">
-                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                </svg>
+            <label class="gif-upload-btn @(isUploading ? "is-busy" : "")" title="@(isUploading ? "Adding GIF…" : "Upload a GIF")">
+                @if (isUploading)
+                {
+                    <span class="gif-spinner"></span>
+                }
+                else
+                {
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                    </svg>
+                }
+                @* InputFile stays mounted while uploading: file.OpenReadStream() reads through this
+                   input element over JS interop, so removing it mid-read would break the upload. *@
                 <InputFile OnChange="HandleFileSelected" accept=".gif,.webm,.mp4,.mov,.webp" style="display: none;" />
             </label>
         </div>
@@ -169,6 +178,14 @@
                 <img src="@GifService.Provider.AttributionImageUrl" alt="@GifService.Provider.DisplayName" />
             </div>
         }
+
+        @if (isUploading)
+        {
+            <div class="gif-upload-overlay">
+                <span class="gif-upload-spinner"></span>
+                <span class="gif-upload-overlay-text">Adding GIF…</span>
+            </div>
+        }
     </div>
 </div>
 
@@ -183,6 +200,7 @@
     private GifTab selectedTab = GifTab.Trending;
     private string searchText = "";
     private bool isSearchingProvider;
+    private bool isUploading;
     private CancellationTokenSource? _searchCts;
     private CancellationTokenSource? _debounceCts;
     private ElementReference resultsElement;
@@ -426,6 +444,11 @@
             return;
         }
 
+        // Busy overlay covers the whole upload → probe → transcode/copy → persist round-trip,
+        // which is otherwise silent (the picker stays open until OnGifSelected closes it).
+        isUploading = true;
+        StateHasChanged();
+
         var tempPath = Path.Combine(Path.GetTempPath(), $"gif-upload-{Guid.NewGuid()}{Path.GetExtension(file.Name)}");
         try
         {
@@ -448,6 +471,10 @@
         {
             // TryAcceptAsGifAsync deletes the source on success; clean up on any failure path.
             try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+            isUploading = false;
+            // On success the parent closes the picker (OnGifSelected → showGifPicker = false),
+            // so this component may already be tearing down — guard the re-render.
+            try { await InvokeAsync(StateHasChanged); } catch { /* picker closing / circuit dead */ }
         }
     }
 
