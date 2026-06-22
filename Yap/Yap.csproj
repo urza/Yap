@@ -12,6 +12,12 @@
     <Folder Include="wwwroot\uploads\" />
   </ItemGroup>
 
+  <!-- Apple emoji filename map (emoji-datasource). Embedded + read at runtime by EmojiService.Apple.cs. -->
+  <ItemGroup>
+    <None Remove="Data\emoji.json" />
+    <EmbeddedResource Include="Data\emoji.json" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.2">
       <PrivateAssets>all</PrivateAssets>

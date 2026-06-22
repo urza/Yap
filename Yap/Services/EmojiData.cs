@@ -35,7 +35,7 @@ public static class EmojiData
             "🐣", "🐥", "🦆", "🦅", "🦉", "🦇", "🐺", "🐗", "🐴", "🦄", "🐝", "🪱",
             "🐛", "🦋", "🐌", "🐞", "🐜", "🪰", "🪲", "🪳", "🦟", "🦗", "🕷️", "🦂",
             "🐢", "🐍", "🦎", "🦖", "🦕", "🐙", "🦑", "🦐", "🦞", "🦀", "🐡", "🐠",
-            "🐟", "🐬", "🐳", "🐋", "🦈", "🐊", "🐅", "🐆", "🦓", "🦍", "🦧", "🐘"
+            "🐟", "🐬", "🐳", "🐋", "\U0001FACD", "🦈", "🐊", "🐅", "🐆", "🦓", "🦍", "🦧", "🐘"
         }),
         ["nature"] = ("🌿", new[]
         {
@@ -393,6 +393,7 @@ public static class EmojiData
         ["🐬"] = "dolphin flipper sea",
         ["🐳"] = "spouting whale sea ocean",
         ["🐋"] = "whale sea ocean",
+        ["\U0001FACD"] = "orca killer whale sea ocean",
         ["🦈"] = "shark fish sea jaws",
         ["🐊"] = "crocodile alligator reptile",
         ["🐅"] = "tiger cat stripes",

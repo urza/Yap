@@ -20,7 +20,7 @@
                     ProfilePictureUrl="@ReplyToProfilePictureUrl"
                     Size="AvatarSize.Small" />
             <span class="reply-author">@(ReplyToDisplayName ?? ReplyToMessage.Username)</span>
-            <span class="reply-text">@EmojiService.ConvertEmojisToTwemoji(GetReplyPreviewText(), forceSmall: true)</span>
+            <span class="reply-text">@EmojiService.ConvertEmojisToApple(GetReplyPreviewText(), forceSmall: true)</span>
         </div>
     }
 
@@ -35,10 +35,10 @@
         @if (ShowHeader)
         {
             <div class="message-meta">
-                <strong class="message-username">@EmojiService.ConvertEmojisToTwemoji(DisplayName ?? Message.Username, inline: true)</strong>
+                <strong class="message-username">@EmojiService.ConvertEmojisToApple(DisplayName ?? Message.Username, inline: true)</strong>
                 @if (IsBot)
                 {
-                    <span class="bot-badge" title="Bot">@EmojiService.ConvertEmojisToTwemoji("🤖", inline: true)</span>
+                    <span class="bot-badge" title="Bot">@EmojiService.ConvertEmojisToApple("🤖", inline: true)</span>
                 }
                 <span class="message-time">@FormatTimestamp()</span>
             </div>
@@ -176,13 +176,13 @@
         }
         else if (IsBot && Message.Content.Contains("[pwa-install]"))
         {
-            @EmojiService.ConvertEmojisToTwemoji(GetTextBefore("[pwa-install]"))
+            @EmojiService.ConvertEmojisToApple(GetTextBefore("[pwa-install]"))
             <span class="bot-action-link" @onclick="HandlePwaInstall" @ontouchend="HandlePwaInstall" @ontouchend:preventDefault>install it</span>
-            @EmojiService.ConvertEmojisToTwemoji(GetTextAfter("[pwa-install]"))
+            @EmojiService.ConvertEmojisToApple(GetTextAfter("[pwa-install]"))
         }
         else
         {
-            @EmojiService.ProcessMessageContent(Message.Content)
+            @EmojiService.ProcessMessageContentApple(Message.Content)
             @if (Message.IsEdited)
             {
                 <span class="edited-indicator">(edited)</span>
@@ -218,7 +218,7 @@
                     <button class="reaction-pill @(hasReacted ? "reacted" : "")"
                             @onclick="() => OnReaction.InvokeAsync(emoji)"
                             title="@string.Join(", ", users)">
-                        @EmojiService.ConvertEmojisToTwemoji(emoji, forceSmall: true) <span class="reaction-count">@users.Count</span>
+                        @EmojiService.ConvertEmojisToApple(emoji, forceSmall: true) <span class="reaction-count">@users.Count</span>
                     </button>
                 }
             </div>
@@ -238,7 +238,7 @@
             @foreach (var emoji in GetQuickReactions())
             {
                 var e = emoji;
-                <button class="action-btn" @onclick="@(() => HandleQuickReaction(e))" title="@e">@EmojiService.ConvertEmojisToTwemoji(e, forceSmall: true)</button>
+                <button class="action-btn" @onclick="@(() => HandleQuickReaction(e))" title="@e">@EmojiService.ConvertEmojisToApple(e, forceSmall: true)</button>
             }
             <div class="action-divider"></div>
             <button class="action-btn action-picker" @ref="pickerAnchorRef" @onclick="ToggleEmojiPicker" @onclick:stopPropagation="true" title="Add Reaction">

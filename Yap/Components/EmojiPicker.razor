@@ -10,7 +10,7 @@
         <button class="category-btn" data-category="recent"
                 @onclick="() => ScrollToCategory(RecentCategory)"
                 title="Recent">
-            @EmojiService.GetPickerEmojiHtml("🕐")
+            @EmojiService.GetAppleEmojiHtml("🕐")
         </button>
         @* Custom tab (if custom emojis exist) *@
         @if (CustomEmojiService.HasCustomEmojis)
@@ -27,7 +27,7 @@
             <button class="category-btn" data-category="@category.Key"
                     @onclick="() => ScrollToCategory(category.Key)"
                     title="@CapitalizeFirst(category.Key)">
-                @EmojiService.GetPickerEmojiHtml(category.Value.Icon)
+                @EmojiService.GetAppleEmojiHtml(category.Value.Icon)
             </button>
         }
     </div>
@@ -63,7 +63,7 @@
                                 }
                                 else
                                 {
-                                    @EmojiService.GetPickerEmojiHtml(e)
+                                    @EmojiService.GetAppleEmojiHtml(e)
                                 }
                             </button>
                         }
@@ -101,7 +101,7 @@
                                 }
                                 else
                                 {
-                                    @EmojiService.GetPickerEmojiHtml(e)
+                                    @EmojiService.GetAppleEmojiHtml(e)
                                 }
                             </button>
                         }
@@ -139,7 +139,7 @@
                         @foreach (var emoji in category.Value.Emojis)
                         {
                             var e = emoji;
-                            <button class="emoji-btn" data-emoji="@e" @attributes="GetClickAttributes(e)">@EmojiService.GetPickerEmojiHtml(e)</button>
+                            <button class="emoji-btn" data-emoji="@e" @attributes="GetClickAttributes(e)">@EmojiService.GetAppleEmojiHtml(e)</button>
                         }
                     </div>
                 </div>
