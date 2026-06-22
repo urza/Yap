@@ -247,13 +247,10 @@
                                     }
                                 </td>
                             </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-
-            @if (selectedUser != null)
-            {
+                            @if (selectedUserId == uid && selectedUser != null)
+                            {
+                                <tr class="detail-row">
+                                    <td colspan="7">
                 <div class="user-detail-panel">
                     <div class="detail-header">
                         <Avatar Username="@selectedUser.Username"
@@ -374,7 +371,13 @@
                         </div>
                     }
                 </div>
-            }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
         }
 
         @if (activeSection == "debug")
@@ -1052,7 +1055,7 @@
             return;
 
         // Load users from UserService
-        users = UserService.GetAllUsers().OrderBy(u => u.CreatedAt).ToList();
+        users = UserService.GetAllUsers().OrderByDescending(u => u.LastSeenAt ?? u.CreatedAt).ToList();
 
         // Build online status map from ChatService
         var onlineUsers = ChatService.GetAllUsersWithStatus();

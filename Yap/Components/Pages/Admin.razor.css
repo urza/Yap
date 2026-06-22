@@ -335,6 +335,18 @@
     padding: 1.25rem;
 }
 
+/* Inline expand row: detail panel rendered directly beneath the selected user row */
+.detail-row > td {
+    padding: 0;
+    border-bottom: 1px solid var(--border-dark);
+}
+
+.detail-row .user-detail-panel {
+    margin: 0;
+    border-radius: 0;
+    border-left: 3px solid var(--accent-primary);
+}
+
 .detail-header {
     display: flex;
     align-items: center;
