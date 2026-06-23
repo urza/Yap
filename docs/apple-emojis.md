@@ -1,25 +1,40 @@
-# Apple-style Emoji Rendering
+# Emoji Rendering (Apple ⇄ Twemoji)
 
-Documentation for the Apple emoji feature. Audience: future maintainers (you and Claude).
+Documentation for the emoji-image feature. Audience: future maintainers (you and Claude).
 
 ## TL;DR
 
-Yap renders **Apple-design emoji images for everyone** by reusing the existing unicode → `<img>`
-pipeline but pointing at Apple-style PNGs instead of Twitter's Twemoji. The old Twemoji code is
-**kept intact in the codebase as a backup** (just not wired into the UI).
+Yap renders **emoji as images for everyone** by reusing the existing unicode → `<img>` pipeline. A
+single **code-only `const`** (`ActiveEmojiStyle`) flips the active set between **Apple**
+(`emoji-datasource-apple` PNGs) and **Twemoji** (SVGs). Self-hosted overrides always win in both
+modes. There is **nothing in the UI** — it's a compile-time switch.
 
-Per-emoji resolution order:
+Per-emoji resolution order (both modes):
 
 1. **Self-hosted override** — `wwwroot/emoji-fallback/{codepoint}.png` (for emoji missing or
-   outdated in the CDN, e.g. new Unicode releases). Auto-discovered by a folder scan.
-2. **emoji-datasource-apple CDN** — `cdn.jsdelivr.net/npm/emoji-datasource-apple@16.0.0` (primary
-   source for ~everything).
-3. **Twemoji CDN** — `cdn.jsdelivr.net/gh/jdecked/twemoji@latest` (final `onerror` fallback for
-   anything the CDN is missing).
+   outdated in the chosen set, e.g. new Unicode releases). Auto-discovered by a folder scan.
+2. **Active set CDN** — Apple (`cdn.jsdelivr.net/npm/emoji-datasource-apple@16.0.0`) **or** Twemoji
+   (`cdn.jsdelivr.net/gh/jdecked/twemoji@latest`), chosen by `ActiveEmojiStyle`.
+3. **Twemoji CDN** — final `onerror` fallback for anything the active set is missing (skipped when
+   Twemoji is already the source, so Twemoji mode makes no Apple-CDN calls).
 
 > **Why images at all?** We deliberately keep the "swap unicode for an image" model (rather than
-> rendering native OS emoji) so every platform sees a consistent Apple design. This was an explicit
+> rendering native OS emoji) so every platform sees a consistent design. This was an explicit
 > product choice.
+
+## The toggle
+
+Top of `Yap/Services/EmojiService.Rendering.cs`:
+
+```csharp
+private enum EmojiStyle { Apple, Twemoji }
+
+// === Switch the active emoji set here (code-only; nothing in the UI). ===
+private const EmojiStyle ActiveEmojiStyle = EmojiStyle.Apple;   // flip to EmojiStyle.Twemoji
+```
+
+Flip it, rebuild, done. `BuildEmojiImg` reads it to choose the "rest" source; `LocalOverrides` is
+checked first regardless, and Twemoji remains the `onerror` last-resort.
 
 ## Why this approach (background)
 
@@ -34,38 +49,43 @@ Per-emoji resolution order:
 
 ## Code changes
 
-### New: `Yap/Services/EmojiService.Apple.cs`
+### `Yap/Services/EmojiService.Rendering.cs` (the active renderer)
 
-A **second partial** of `EmojiService` (the class was already `partial`). It contains *all* Apple
-logic and reuses the existing private helpers from `EmojiService.cs` (`EmojiRegex()`,
-`CustomEmojiShortcodeRegex()`, `ShouldMergeEmoji`, `IsEmojiOnlyMessage`, `_customEmojiService`,
-and crucially `GetCodePoint()` for the Twemoji-fallback URL).
+A **second partial** of `EmojiService` (the class was already `partial`). It contains the unified
+renderer and reuses private helpers from `EmojiService.cs` (`EmojiRegex()`,
+`CustomEmojiShortcodeRegex()`, `ShouldMergeEmoji`, `IsEmojiOnlyMessage`, `_customEmojiService`, and
+crucially `GetCodePoint()` for the Twemoji codepoint/fallback).
 
-Public methods (the "Apple twins" wired into the UI):
+Public methods (active, wired into the UI) and their dormant full-Twemoji backups in `EmojiService.cs`:
 
-| Apple method (active) | Twemoji twin (backup, untouched) |
+| Active method (this file) | Backup twin (EmojiService.cs, untouched) |
 |---|---|
-| `ConvertEmojisToApple(text, forceSmall, inline, withFallback=true)` | `ConvertEmojisToTwemoji(text, forceSmall, inline)` |
-| `ProcessMessageContentApple(text)` | `ProcessMessageContent(text)` |
-| `GetAppleEmojiHtml(emoji)` | `GetPickerEmojiHtml(emoji)` |
+| `ConvertEmojis(text, forceSmall, inline, withFallback=true)` | `ConvertEmojisToTwemoji(text, forceSmall, inline)` |
+| `RenderMessageContent(text)` | `ProcessMessageContent(text)` |
+| `GetEmojiHtml(emoji)` | `GetPickerEmojiHtml(emoji)` |
 
 Key internals:
 
-- **`ResolveAppleCodePoint(emoji)`** — turns an emoji sequence into the emoji-datasource filename
-  (no extension). Uses `AppleMap` for bare/legacy/keycap emoji; otherwise a direct computation.
-- **`NormalizeCodePoints(emoji, keepFe0f)`** — hyphen-joined lowercase hex, each codepoint padded
-  to ≥4 digits (`ToString("x4")`), optionally dropping `FE0F`.
-- **`AppleMap`** (lazy, from embedded `emoji.json`) — maps a bare (FE0F-stripped) codepoint key to
-  the fully-qualified filename. Only entries whose qualified form contains `FE0F` are stored (the
-  rest match the direct computation), so the map is small.
-- **`LocalOverrides`** (lazy folder scan of `wwwroot/emoji-fallback/`) — the set of codepoints that
-  have a self-hosted PNG.
-- **`BuildAppleImg(...)`** — emits the `<img>`: local override if present, else CDN, plus the
-  `onerror` → Twemoji fallback when `withFallback` is true.
-- **`GetAppleEmojiHtml`** passes `withFallback: false` — the picker's ~1400 cells are all curated
-  emoji present in the CDN, so the fallback markup would only bloat them.
+- **`BuildEmojiImg(emoji, appleCp, …, withFallback)`** — emits the `<img>`. `src` = local override if
+  present, else the **active set's** URL (Apple PNG or Twemoji SVG per `ActiveEmojiStyle`); plus an
+  `onerror` → Twemoji when `withFallback` and Twemoji isn't already the src.
+- **`ResolveAppleCodePoint(emoji)`** — the emoji-datasource filename (no extension); used as the
+  **override-file key in both modes** and as the Apple URL. Uses `AppleMap` for bare/legacy/keycap
+  emoji; otherwise a direct computation.
+- **`NormalizeCodePoints(emoji, keepFe0f)`** — hyphen-joined lowercase hex, each codepoint padded to
+  ≥4 digits (`ToString("x4")`), optionally dropping `FE0F`.
+- **`AppleMap`** (lazy, from embedded `emoji.json`) — bare (FE0F-stripped) codepoint → fully-qualified
+  filename. Only entries whose qualified form contains `FE0F` are stored, so the map is small.
+- **`LocalOverrides`** (lazy folder scan of `wwwroot/emoji-fallback/`) — codepoints that have a
+  self-hosted PNG.
+- **`GetEmojiHtml`** passes `withFallback: false` — the picker's ~1400 cells are all curated emoji
+  present in the chosen CDN, so the fallback markup would only bloat them.
 
-### New: `Yap/Data/emoji.json` (embedded resource)
+> Naming note: set-specific helpers keep the "Apple" name (`AppleImgUrl`, `AppleCdnBase`, `AppleMap`,
+> `ResolveAppleCodePoint`) because they refer to the Apple/emoji-datasource set / the override-file
+> key even when `ActiveEmojiStyle == Twemoji`.
+
+### `Yap/Data/emoji.json` (embedded resource)
 
 The `emoji-datasource` metadata file (the `unified` codepoints used to build `AppleMap`). Embedded
 via `Yap.csproj`:
@@ -80,9 +100,9 @@ via `Yap.csproj`:
 Read at runtime with `Assembly.GetManifestResourceStream` (no constructor/DI change needed). It is
 **not** web-served (it's inside the DLL).
 
-### New: `Yap/wwwroot/emoji-fallback/`
+### `Yap/wwwroot/emoji-fallback/`
 
-Self-hosted Apple PNGs for emoji the CDN lacks/outdates. Served at `/emoji-fallback/*` by the
+Self-hosted Apple PNGs for emoji the chosen set lacks/outdates. Served at `/emoji-fallback/*` by the
 existing `app.UseStaticFiles()`. Current contents:
 
 | File | Emoji | Codepoint | Why |
@@ -92,19 +112,18 @@ existing `app.UseStaticFiles()`. Current contents:
 | `1facd.png` | orca | U+1FACD | Unicode 17 — missing from @16 |
 | `1f3f4-200d-2620-fe0f.png` | 🏴‍☠️ pirate flag | ZWJ seq | override @16's older art |
 
-### Wired active (call-site swaps only)
+### Wired active (call-site swaps)
 
-The unicode-emoji calls in 6 components were pointed at the Apple twins
-(`ConvertEmojisToTwemoji`→`ConvertEmojisToApple`, `ProcessMessageContent`→`ProcessMessageContentApple`,
-`GetPickerEmojiHtml`→`GetAppleEmojiHtml`). **`RenderCustomEmoji` was left alone** — custom
-`:shortcode:` emoji are local images, identical under both sets.
+The unicode-emoji calls in 6 components point at the active methods (`ConvertEmojis`,
+`RenderMessageContent`, `GetEmojiHtml`). **`RenderCustomEmoji` is left alone** — custom `:shortcode:`
+emoji are local images, identical under both sets.
 
 Components: `MessageItem.razor`, `EmojiPicker.razor`, `ChatSidebar.razor`, `ChatHeader.razor`,
 `UserProfileCard.razor`, `Pages/ChannelSettings.razor`.
 
-### Untouched (backup)
+### Untouched (full-revert backup)
 
-`Yap/Services/EmojiService.cs` (all Twemoji methods, caches, `GetCodePoint`) and
+`Yap/Services/EmojiService.cs` (the original Twemoji methods, caches, `GetCodePoint`) and
 `Yap/Services/EmojiData.cs`. No model / migration / settings / DI changes.
 
 ## The filename convention (the important detail)
@@ -112,7 +131,7 @@ Components: `MessageItem.razor`, `EmojiPicker.razor`, `ChatSidebar.razor`, `Chat
 `emoji-datasource` names files by the **fully-qualified `unified` codepoint, lowercased**:
 `FE0F` is **kept**, and each codepoint is **zero-padded to ≥4 hex digits**.
 
-| Emoji | emoji-datasource file | Twemoji file (backup) |
+| Emoji | emoji-datasource (Apple) file | Twemoji file |
 |---|---|---|
 | 😀 U+1F600 | `1f600.png` | `1f600.svg` |
 | ❤️ U+2764 FE0F | `2764-fe0f.png` | `2764.svg` (FE0F stripped) |
@@ -120,44 +139,43 @@ Components: `MessageItem.razor`, `EmojiPicker.razor`, `ChatSidebar.razor`, `Chat
 | #️⃣ U+0023 FE0F 20E3 | `0023-fe0f-20e3.png` | `23-20e3.svg` |
 | 🏳️‍🌈 …FE0F‍🌈 | `1f3f4-fe0f-200d-1f308.png` | same |
 
-This is the **inverse** of Twemoji's `GetCodePoint` (strips FE0F, minimal width). Because
+Apple naming is the **inverse** of Twemoji's `GetCodePoint` (strips FE0F, minimal width). Because
 `EmojiData.cs` stores its picker emoji **bare** (no FE0F), bare legacy/keycap emoji wouldn't match
-the qualified filenames — that's exactly what `AppleMap` bridges. Astral emoji, skin-tone sequences,
-and FE0F-qualified keyboard input resolve directly without the map.
+the qualified Apple filenames — that's exactly what `AppleMap` bridges. Astral emoji, skin-tone
+sequences, and FE0F-qualified keyboard input resolve directly without the map. `BuildEmojiImg`
+computes both forms (`appleCp` via `ResolveAppleCodePoint`, the Twemoji one via `GetCodePoint`).
 
 URLs:
 
-- CDN: `https://cdn.jsdelivr.net/npm/emoji-datasource-apple@16.0.0/img/apple/64/{codepoint}.png`
-  (64px is the largest individual size the package ships).
-- Local: `/emoji-fallback/{codepoint}.png`
-- Twemoji fallback: `https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/svg/{twemojiCodepoint}.svg`
+- Apple CDN: `https://cdn.jsdelivr.net/npm/emoji-datasource-apple@16.0.0/img/apple/64/{appleCp}.png`
+- Twemoji CDN: `https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/svg/{twemojiCp}.svg`
+- Local: `/emoji-fallback/{appleCp}.png` (override files are named by the **Apple-set** codepoint)
 
 ---
 
 ## How to add / fix an emoji (the part you'll come back for)
 
-You'll need this in two situations: **(A)** an emoji renders broken, or **(B)** a new Unicode set
-drops and you want the new art.
+You'll need this when an emoji renders broken, or a new Unicode set drops and you want the art.
 
 ### The foolproof recipe
 
 1. **Find the codepoint the app is looking for.** Send the emoji in the app, open DevTools →
-   **Network**, filter for `emoji-datasource`. The failing (404) request is
-   `…/img/apple/64/XXXX.png` — **`XXXX` is exactly the name your file must have.** (This sidesteps
-   all the FE0F/padding rules — the app tells you the name.)
+   **Network**. The failing (404) request is `…/img/apple/64/XXXX.png` (Apple mode) — **`XXXX` is
+   exactly the name your file must have.** (This sidesteps all the FE0F/padding rules — the app tells
+   you the name. The override key is the Apple-set codepoint in both modes.)
 2. **Get an Apple PNG** for that emoji (e.g. from [emojipedia](https://emojipedia.org) — the page's
    image; its filename usually contains the codepoint too).
 3. **Save it as `wwwroot/emoji-fallback/XXXX.png`** (same `XXXX` from step 1).
 4. **Restart the app.** The override folder is scanned once at startup. (`UseStaticFiles` serves the
    file at runtime; the scan is what registers it for the lookup — so a restart is required.)
 
-That's it. Local overrides win over the CDN, so this also works to **replace** an emoji whose CDN
-art is outdated (e.g. the pirate flag).
+That's it. Local overrides win, so this also **replaces** an emoji whose set art is outdated (e.g. the
+pirate flag).
 
 ### Naming without DevTools (manual codepoint rules)
 
-If you'd rather derive the name: take the emoji's Unicode codepoints (emojipedia lists them under
-"Codepoints"), lowercase the hex, drop the `U+`, and join multiple with `-`:
+Take the emoji's Unicode codepoints (emojipedia lists them under "Codepoints"), lowercase the hex,
+drop the `U+`, join multiple with `-`:
 
 - **Single new emoji** (most common): just the hex — `U+1FAEF` → `1faef.png`.
 - **Sequences** (ZWJ flags/professions, keycaps): include every codepoint *including* `fe0f` and
@@ -165,8 +183,15 @@ If you'd rather derive the name: take the emoji's Unicode codepoints (emojipedia
 - Pad any codepoint shorter than 4 hex digits to 4 (`U+0023` → `0023`). Astral emoji (U+1Fxxx) are
   already ≥4.
 
-If a file is mis-named it simply won't match (the emoji falls through to CDN/Twemoji). When in
-doubt, use the DevTools recipe.
+If a file is mis-named it simply won't match (the emoji falls through to the set CDN / Twemoji). When
+in doubt, use the DevTools recipe.
+
+### Add it to the picker too (optional)
+
+The fallback renders the emoji wherever it's typed, but it won't appear in the picker drawer until
+it's in `EmojiData.cs`. Add the character to the right category's array and an `EmojiKeywords` entry
+(use the C# escape `"\U0001FACD"` for brand-new astral glyphs so they can't be mangled in source).
+Example: orca was added to the `animals` array after the whale.
 
 ### When a newer `emoji-datasource-apple` ships (e.g. v17)
 
@@ -174,7 +199,7 @@ The cleaner long-term fix for "new Unicode set" is to bump the package instead o
 emoji:
 
 1. Update the version in **two** places to keep the map and images in sync:
-   - `AppleCdnBase` in `Services/EmojiService.Apple.cs` (the CDN URL).
+   - `AppleCdnBase` in `Services/EmojiService.Rendering.cs` (the CDN URL).
    - `Yap/Data/emoji.json` — re-download from the matching version:
      `curl -sSL https://cdn.jsdelivr.net/npm/emoji-datasource-apple@<NEW_VER>/emoji.json -o Yap/Data/emoji.json`
 2. Rebuild (the embedded resource is baked at build time).
@@ -183,33 +208,33 @@ emoji:
 
 ### Edge cases
 
-- **Emoji missing from the CDN *and* Twemoji** (e.g. fight cloud was 404 on both) → it *must* be
-  self-hosted, or it renders broken. There's no other source.
+- **Emoji missing from the active set *and* Twemoji** (e.g. fight cloud was 404 on both) → it *must*
+  be self-hosted, or it renders broken. There's no other source.
 - **Skin-tone variants** of an overridden base aren't covered by a single file — e.g. a local
   `1f483.png` (💃) does not cover `1f483-1f3fd` (💃🏽). Add each variant's file if needed (the CDN
   usually has skin-tone variants already, so this is rare).
-- **Picker** uses `GetAppleEmojiHtml` (no Twemoji `onerror`). Its emoji come from the curated
-  `EmojiData.cs` set and are all in the CDN, so they never need fallback. Brand-new emoji generally
-  aren't in `EmojiData.cs`, so they won't appear in the picker until added there — but they still
-  render correctly in messages/reactions via the fallback chain.
+- **Picker** uses `GetEmojiHtml` (no Twemoji `onerror`). Its emoji come from the curated
+  `EmojiData.cs` set and are all in the chosen CDN, so they never need the fallback.
 
-## Reverting to Twemoji
+## Switching the emoji set
 
-Everything Twemoji is still present and working in `EmojiService.cs`. To roll back:
+- **Apple ⇄ Twemoji (recommended):** flip `ActiveEmojiStyle` in `EmojiService.Rendering.cs` and
+  rebuild. Local overrides still apply; in Twemoji mode the rest is Twemoji and no Apple-CDN calls are
+  made.
+- **Full revert to the original Twemoji path (drops local overrides):** swap the 6 components' call
+  sites to the `EmojiService.cs` backups — `ConvertEmojis`→`ConvertEmojisToTwemoji`,
+  `RenderMessageContent`→`ProcessMessageContent`, `GetEmojiHtml`→`GetPickerEmojiHtml`. ⚠️ This loses
+  the self-hosted overrides, so brand-new emoji (orca/fight-cloud) render broken — prefer the const.
 
-1. In the 6 components, swap the call sites back: `ConvertEmojisToApple`→`ConvertEmojisToTwemoji`,
-   `ProcessMessageContentApple`→`ProcessMessageContent`, `GetAppleEmojiHtml`→`GetPickerEmojiHtml`.
-2. Optionally delete `Services/EmojiService.Apple.cs`, the `<EmbeddedResource>` line + `Data/emoji.json`,
-   and `wwwroot/emoji-fallback/`.
-
-(Grep `ConvertEmojisToApple\|ProcessMessageContentApple\|GetAppleEmojiHtml` to find every call site.)
+(Grep `ConvertEmojis\b\|RenderMessageContent\|GetEmojiHtml` to find every active call site.)
 
 ## Verify after changes
 
-1. `dotnet build`, run, hard-refresh (bypass cached Twemoji SVGs + service worker).
-2. Picker shows Apple-style PNGs; Network shows `…emoji-datasource-apple@16.0.0/img/apple/64/*.png`
-   returning 200.
-3. Legacy/keycap (❤ ☀ © `#️⃣`) and the self-hosted ones (🫪 🫯 orca 🏴‍☠️) render — no 404s — from
-   both the picker and after sending.
-4. Force a fallback: an emoji the CDN lacks should swap to a `…/jdecked/twemoji…svg` (DevTools).
-5. Reactions, emoji-only "jumbo" sizing, inline emoji in names, and custom `:shortcode:` emoji all fine.
+1. `dotnet build` (with `ActiveEmojiStyle = Apple`), run, hard-refresh. Picker shows Apple PNGs;
+   Network shows `…emoji-datasource-apple@16.0.0/img/apple/64/*.png` (200). Self-hosted ones
+   (🫪 🫯 orca 🏴‍☠️) and legacy/keycap (❤ ☀ © `#️⃣`) render with no 404s.
+2. Flip the const to `Twemoji`, rebuild, hard-refresh. Non-override emoji now load
+   `…/jdecked/twemoji…/*.svg` (no Apple-CDN requests); the 4 overrides **still** come from
+   `/emoji-fallback/`.
+3. Force a fallback in Apple mode: an emoji the CDN lacks should swap to a `…/jdecked/twemoji…svg`.
+4. Reactions, emoji-only "jumbo" sizing, inline emoji in names, and custom `:shortcode:` emoji all fine.

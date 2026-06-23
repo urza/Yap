@@ -19,14 +19,14 @@
     <div class="profile-card-body">
         <div class="profile-card-identity">
             <span class="profile-card-name">
-                @EmojiService.ConvertEmojisToApple(WebUtility.HtmlEncode(DisplayName), inline: true)
+                @EmojiService.ConvertEmojis(WebUtility.HtmlEncode(DisplayName), inline: true)
                 @if (_isAdmin)
                 {
-                    <span class="profile-card-badge" title="Admin">@EmojiService.ConvertEmojisToApple("👑", inline: true)</span>
+                    <span class="profile-card-badge" title="Admin">@EmojiService.ConvertEmojis("👑", inline: true)</span>
                 }
                 @if (_isBot)
                 {
-                    <span class="profile-card-badge" title="Bot">@EmojiService.ConvertEmojisToApple("🤖", inline: true)</span>
+                    <span class="profile-card-badge" title="Bot">@EmojiService.ConvertEmojis("🤖", inline: true)</span>
                 }
             </span>
             <span class="profile-card-username">@("@" + Username)</span>
@@ -43,18 +43,18 @@
         {
             <div class="profile-card-section">
                 <span class="profile-card-label">About me</span>
-                <p class="profile-card-bio">@EmojiService.ConvertEmojisToApple(WebUtility.HtmlEncode(_user!.Bio!), inline: true)</p>
+                <p class="profile-card-bio">@EmojiService.ConvertEmojis(WebUtility.HtmlEncode(_user!.Bio!), inline: true)</p>
             </div>
         }
         else
         {
-            <p class="profile-card-empty">No bio yet — a person of mystery @EmojiService.ConvertEmojisToApple("🕵️", inline: true)</p>
+            <p class="profile-card-empty">No bio yet — a person of mystery @EmojiService.ConvertEmojis("🕵️", inline: true)</p>
         }
 
         @if (!string.IsNullOrWhiteSpace(_user?.Country))
         {
             <div class="profile-card-meta">
-                @EmojiService.ConvertEmojisToApple("📍", inline: true)
+                @EmojiService.ConvertEmojis("📍", inline: true)
                 <span>@_user!.Country</span>
             </div>
         }
@@ -62,7 +62,7 @@
         @if (_user != null)
         {
             <div class="profile-card-meta">
-                @EmojiService.ConvertEmojisToApple("🗓️", inline: true)
+                @EmojiService.ConvertEmojis("🗓️", inline: true)
                 <span>Member since @MemberSince</span>
             </div>
         }

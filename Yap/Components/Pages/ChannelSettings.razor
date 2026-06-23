@@ -130,7 +130,7 @@
 
                         <div class="reorder-item @(isCurrent ? "current" : "")">
                             <span class="reorder-icon">#</span>
-                            <span class="reorder-name">@EmojiService.ConvertEmojisToApple(room.Name, inline: true)</span>
+                            <span class="reorder-name">@EmojiService.ConvertEmojis(room.Name, inline: true)</span>
                             <div class="reorder-buttons">
                                 <button class="reorder-btn" disabled="@(!canMoveUp)"
                                         @onclick="() => MoveChannel(room.Id, true)" title="Move up">
