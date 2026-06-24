@@ -4,7 +4,7 @@
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
-<div class="emoji-picker" @ref="pickerElement">
+<div class="emoji-picker" data-textarea-id="@TextareaId" @ref="pickerElement">
     <div class="emoji-sidebar">
         @* Recent tab *@
         <button class="category-btn" data-category="recent"
@@ -209,7 +209,7 @@
             try
             {
                 _dotNetRef = DotNetObjectReference.Create(this);
-                await JS.InvokeVoidAsync("setupEmojiPickerClick", pickerElement, TextareaId, _dotNetRef);
+                await JS.InvokeVoidAsync("setupEmojiPickerClick", TextareaId, _dotNetRef);
             }
             catch { /* Ignore JS errors */ }
         }

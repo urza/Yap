@@ -252,6 +252,8 @@ else
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup enter key handler"); }
             try { await JS.InvokeVoidAsync("setupTextareaAutoResize", TextareaId); }
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup textarea auto-resize"); }
+            try { await JS.InvokeVoidAsync("setupCaretTracking", TextareaId); }
+            catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup caret tracking"); }
             try { await JS.InvokeVoidAsync("setupSendButtonFocus", TextareaId); }
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup send button focus"); }
             try { await JS.InvokeVoidAsync("setupEmojiToggle", EmojiIconId, SpriteCols, SpriteTotalEmojis); }

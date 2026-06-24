@@ -210,32 +210,6 @@ window.resetTextareaHeight = (id) => {
     }
 };
 
-// Insert text at cursor position in textarea (for emoji picker)
-window.insertTextAtCursor = (textareaId, text) => {
-    const textarea = document.getElementById(textareaId);
-    if (!textarea) return;
-
-    textarea.focus();
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const value = textarea.value;
-
-    // Splice text in at cursor position
-    textarea.value = value.substring(0, start) + text + value.substring(end);
-
-    // Move cursor to after inserted text
-    const newPos = start + text.length;
-    textarea.selectionStart = newPos;
-    textarea.selectionEnd = newPos;
-
-    // Dispatch input event so Blazor's @bind picks up the change
-    textarea.dispatchEvent(new Event('input', { bubbles: true }));
-
-    // Auto-resize textarea
-    window.autoResizeTextarea(textareaId);
-};
-
 // Emoji toggle button: randomize which color emoji appears on each hover
 // Listens on the button (parent) to avoid re-triggering when moving within it
 window.setupEmojiToggle = (iconId, cols, totalEmojis) => {
@@ -727,20 +701,23 @@ window.initEmojiPickerScroll = (contentElement) => {
 
 // Client-side click handler for emoji picker — inserts emoji into textarea instantly
 // without waiting for Blazor server round-trip. Blazor @onclick still fires for bookkeeping.
-// Note: intentionally does NOT focus the textarea — on mobile, focus() within a user gesture
-// triggers the keyboard, which we don't want while the emoji picker is open.
 // Document-level event delegation for emoji picker clicks.
 // Survives Blazor DOM replacements — the handler is on document, not the picker element.
-let _emojiTextareaId = null;
-let _emojiCursorPos = null;
+//
+// All per-click state is sourced from the DOM at click time (no shared module globals):
+//   - which textarea to insert into → the picker's data-textarea-id
+//   - where to insert → textarea._emojiCaret (captured on blur, see setupCaretTracking)
+//   - bookkeeping callback → textarea._emojiDotNetRef
+// This is what kills the old race: previously the insert offset lived in a module global
+// that was only reset via a server round-trip, so a fast click could read a stale offset
+// from a previous message and insert mid-text.
 let _emojiClickSetup = false;
 
-let _emojiDotNetRef = null;
-
-window.setupEmojiPickerClick = (pickerElement, textareaId, dotNetRef) => {
-    _emojiTextareaId = textareaId;
-    _emojiCursorPos = null;
-    _emojiDotNetRef = dotNetRef || null;
+window.setupEmojiPickerClick = (textareaId, dotNetRef) => {
+    // Stash the recents/counts callback on the textarea element. Reaction-mode pickers
+    // (MessageItem) pass an empty id and have no textarea → nothing to wire up.
+    const ta = textareaId ? document.getElementById(textareaId) : null;
+    if (ta) ta._emojiDotNetRef = dotNetRef || null;
 
     if (_emojiClickSetup) return;
     _emojiClickSetup = true;
@@ -757,19 +734,23 @@ window.setupEmojiPickerClick = (pickerElement, textareaId, dotNetRef) => {
         }
     });
 
-    // Track cursor position ourselves — Blazor re-renders reset selectionStart to 0
-    // when the textarea doesn't have focus.
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('.emoji-picker .emoji-btn[data-emoji]');
         if (!btn) return;
 
         const emoji = btn.getAttribute('data-emoji');
-        if (!emoji || !_emojiTextareaId) return;
+        // The target textarea is carried on the picker. Empty/missing means a reaction-mode
+        // picker (no TextareaId) — bail so the Blazor @onclick handles it instead.
+        const picker = btn.closest('.emoji-picker');
+        const tid = picker && picker.getAttribute('data-textarea-id');
+        if (!emoji || !tid) return;
 
-        const textarea = document.getElementById(_emojiTextareaId);
+        const textarea = document.getElementById(tid);
         if (!textarea) return;
 
-        const pos = _emojiCursorPos !== null ? _emojiCursorPos : textarea.value.length;
+        // Caret was captured on the textarea's blur (before Blazor reset selectionStart to 0).
+        // Fall back to end-of-text when the field was never focused (e.g. mobile tap-to-insert).
+        const pos = (typeof textarea._emojiCaret === 'number') ? textarea._emojiCaret : textarea.value.length;
         const value = textarea.value;
 
         textarea.value = value.substring(0, pos) + emoji + value.substring(pos);
@@ -777,17 +758,19 @@ window.setupEmojiPickerClick = (pickerElement, textareaId, dotNetRef) => {
         const newPos = pos + emoji.length;
         textarea.selectionStart = newPos;
         textarea.selectionEnd = newPos;
-        _emojiCursorPos = newPos;
+        // Advance the cached caret synchronously so rapid emoji-to-emoji clicks (no blur
+        // between them) chain after each other instead of stacking at the same offset.
+        textarea._emojiCaret = newPos;
 
+        // Intentionally do NOT focus the textarea — on mobile, focus() within a user gesture
+        // pops the keyboard, which we don't want while the picker is open.
         textarea.dispatchEvent(new Event('input', { bubbles: true }));
-        window.autoResizeTextarea(_emojiTextareaId);
+        window.autoResizeTextarea(tid);
 
-        // Fire-and-forget bookkeeping (recents + counts). Avoids a second
-        // server round-trip via Blazor @onclick that would also force a
-        // parent re-render of the open picker.
-        if (_emojiDotNetRef) {
-            _emojiDotNetRef.invokeMethodAsync('RecordEmojiUsed', emoji).catch(() => { });
-        }
+        // Fire-and-forget bookkeeping (recents + counts). MUST stay render-free for the
+        // MessageInput component: a re-render triggered here could push the server's older
+        // messageText back over the value we just spliced in, clobbering the emoji.
+        textarea._emojiDotNetRef?.invokeMethodAsync('RecordEmojiUsed', emoji).catch(() => { });
     });
 };
 
@@ -802,6 +785,19 @@ window.setupTextareaAutoResize = (textareaId) => {
     }
     textarea._autoResizeHandler = () => window.autoResizeTextarea(textareaId);
     textarea.addEventListener('input', textarea._autoResizeHandler);
+};
+
+// Track the textarea caret for the emoji picker. Captured on `blur` — the instant focus
+// leaves the textarea for the picker, and crucially BEFORE the Blazor re-render that resets
+// an unfocused textarea's selectionStart to 0. The emoji click handler reads textarea._emojiCaret.
+window.setupCaretTracking = (textareaId) => {
+    const textarea = document.getElementById(textareaId);
+    if (!textarea) return;
+    if (textarea._emojiCaretHandler) {
+        textarea.removeEventListener('blur', textarea._emojiCaretHandler);
+    }
+    textarea._emojiCaretHandler = () => { textarea._emojiCaret = textarea.selectionStart; };
+    textarea.addEventListener('blur', textarea._emojiCaretHandler);
 };
 
 // Smooth-scroll emoji picker content to a specific category section.

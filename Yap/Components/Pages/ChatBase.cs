@@ -522,6 +522,10 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
         await ChatService.DeleteMessageAsync(messageId, channelId, Username);
     }
 
+    // Invoked (fire-and-forget from JS) when an emoji is inserted into the message input.
+    // MUST stay render-free: the JS click handler splices the emoji into the textarea client-side,
+    // so a StateHasChanged here could push the server's older messageText back over it and clobber
+    // the inserted emoji. Keep these calls in-memory only (they persist via UserService dirty-flush).
     protected void HandleInputEmojiUsed(string emoji)
     {
         AddRecentEmoji(emoji);
