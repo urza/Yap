@@ -52,6 +52,7 @@ public class UserService
             await using var db = await _dbFactory!.CreateDbContextAsync();
             var users = await db.Users.AsNoTracking().ToListAsync();
 
+            var flattenedIds = new List<Guid>();
             foreach (var user in users)
             {
                 _users[user.Id] = user;
@@ -62,9 +63,27 @@ public class UserService
                 {
                     _adminUserId = user.Id;
                 }
+
+                // Collapse raw usage counts to dense ranks once on load. Keeps the column
+                // bounded and stops long-dead favorites from sitting at the top forever —
+                // only relative order matters for quick reactions, not the magnitudes.
+                if (FlattenEmojiCounts(user))
+                    flattenedIds.Add(user.Id);
             }
 
-            _logger.LogInformation("Loaded {Count} users from database", users.Count);
+            // Persist the collapsed counts back so the stored column actually shrinks.
+            // Idempotent: once dense, re-flattening is a no-op and this loop stays empty.
+            foreach (var id in flattenedIds)
+            {
+                if (!_users.TryGetValue(id, out var u)) continue;
+                await db.Users
+                    .Where(x => x.Id == id)
+                    .ExecuteUpdateAsync(s => s.SetProperty(x => x.EmojiCounts, u.EmojiCounts));
+            }
+
+            _logger.LogInformation(
+                "Loaded {Count} users; flattened emoji counts for {Flattened}",
+                users.Count, flattenedIds.Count);
         }
         catch (Exception ex)
         {
@@ -697,6 +716,41 @@ public class UserService
         {
             return new();
         }
+    }
+
+    /// <summary>
+    /// Collapses a user's raw emoji usage counts to dense ranks (lowest count → 1, next
+    /// distinct → 2, …), keeping the 40 highest-ranked. Only relative order matters for
+    /// quick reactions, so this bounds the stored column and lets recent usage climb past
+    /// stale favorites. Mutates user.EmojiCounts; returns true if the value actually changed.
+    /// Idempotent — a dense 1..n sequence re-ranks to itself.
+    /// </summary>
+    private static bool FlattenEmojiCounts(User user)
+    {
+        if (string.IsNullOrEmpty(user.EmojiCounts)) return false;
+
+        Dictionary<string, int>? counts;
+        try { counts = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(user.EmojiCounts); }
+        catch { return false; }
+        if (counts is null || counts.Count == 0) return false;
+
+        // Dense-rank the distinct count values: smallest → 1, largest → N.
+        var ranks = counts.Values.Distinct().OrderBy(x => x)
+            .Select((val, index) => new { val, index })
+            .ToDictionary(x => x.val, x => x.index + 1);
+
+        // Replace each emoji's count with its rank; keep the top 40, drop the long tail.
+        var flattened = counts
+            .Select(kvp => new { kvp.Key, Rank = ranks[kvp.Value] })
+            .OrderByDescending(x => x.Rank)
+            .Take(40)
+            .ToDictionary(x => x.Key, x => x.Rank);
+
+        var serialized = System.Text.Json.JsonSerializer.Serialize(flattened);
+        if (serialized == user.EmojiCounts) return false; // already flat — skip the write
+
+        user.EmojiCounts = serialized;
+        return true;
     }
 
     /// <summary>
