@@ -79,7 +79,7 @@ else
     </div>
 }
 
-<div class="message-input-container @(isDraggingOver ? "drag-over" : "") @(ReplyingToMessage != null ? "has-reply-bar" : "") @(showEmojiPicker ? "emoji-open" : "") @(isInputFocused ? "input-focused" : "")"
+<div class="message-input-container @(isDraggingOver ? "drag-over" : "") @(ReplyingToMessage != null ? "has-reply-bar" : "") @(showEmojiPicker ? "emoji-open" : "") @(showEmojiPicker || showGifPicker ? "picker-open" : "") @(isInputFocused ? "input-focused" : "")"
      @ref="dropZoneElement"
      @ondragenter="HandleDragEnter"
      @ondragover="HandleDragOver"
@@ -427,7 +427,15 @@ else
         }
     }
 
-    private void HandleInputFocus() => isInputFocused = true;
+    private void HandleInputFocus()
+    {
+        isInputFocused = true;
+        // One-gesture dismiss: while a picker is open the textarea sits above the picker backdrop
+        // (.picker-open CSS), so this click focuses it directly — clear the picker flags here to
+        // finish the same gesture. Mirrors HandleSend, which also clears showEmojiPicker on click.
+        showEmojiPicker = false;
+        showGifPicker = false;
+    }
     private void HandleInputBlur() => isInputFocused = false;
 
     private async Task HandleKeyDown(KeyboardEventArgs e)

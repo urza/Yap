@@ -3,6 +3,7 @@
 ## Claude Instructions
 - **Do NOT run `dotnet build` or `dotnet run`** - always ask the user to build/run and report results
 - The dev environment uses .NET 10 which may not be available in the CLI environment
+- **Project lives in a `Yap/` subfolder of the repo root.** The repo root is `/mnt/d/PROJECTS/Yap/` (has `.git`, `.sln`, this file); the .NET project is in `/mnt/d/PROJECTS/Yap/Yap/` (has `Yap.csproj`). All paths in the structure tree below are relative to that inner `Yap/`, so e.g. `Components/MessageInput.razor` → `/mnt/d/PROJECTS/Yap/Yap/Components/MessageInput.razor` (note the doubled `Yap/Yap/`).
 
 ## Coding Principles
 

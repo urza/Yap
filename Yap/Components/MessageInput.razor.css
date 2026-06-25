@@ -271,6 +271,15 @@
     z-index: 999;
 }
 
+/* While a picker is open, lift the textarea above the picker backdrop (z-index 999) — like
+   .send-button — so a single click reaches the textarea, focusing it AND dismissing the picker
+   in one gesture (HandleInputFocus clears the picker flags). Scoped to .picker-open so the
+   drag-over "Drop images here" hint (container ::after) stays above the textarea otherwise. */
+.message-input-container.picker-open .message-input {
+    position: relative;
+    z-index: 1000;
+}
+
 /* Typing indicator styles */
 .typing-indicator-container {
     height: 18px;
