@@ -31,6 +31,12 @@ public class AuthMiddleware
                 userState.DisplayName = user.DisplayName;
                 userState.ProfilePictureUrl = user.ProfilePictureUrl;
                 userState.Theme = user.Theme;
+                // Date/time format is an explicit cross-device preference — load it here so a
+                // fresh circuit on any device starts with the saved value. Without this it stays
+                // null, and ChatBase would re-guess it from the browser locale and persist that
+                // guess, silently overwriting the user's chosen format. (TimeZone/Locale are
+                // intentionally NOT loaded — they're auto-detected per device.)
+                userState.DateFormat = user.DateFormat;
                 userState.Status = UserStatus.Online;
             }
         }
