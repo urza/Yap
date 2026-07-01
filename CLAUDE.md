@@ -4,6 +4,7 @@
 - **Do NOT run `dotnet build` or `dotnet run`** - always ask the user to build/run and report results
 - The dev environment uses .NET 10 which may not be available in the CLI environment
 - **Project lives in a `Yap/` subfolder of the repo root.** The repo root is `/mnt/d/PROJECTS/Yap/` (has `.git`, `.sln`, this file); the .NET project is in `/mnt/d/PROJECTS/Yap/Yap/` (has `Yap.csproj`). All paths in the structure tree below are relative to that inner `Yap/`, so e.g. `Components/MessageInput.razor` → `/mnt/d/PROJECTS/Yap/Yap/Components/MessageInput.razor` (note the doubled `Yap/Yap/`).
+- **DB is deployed in production with real user data.** Any schema change needs an EF Core migration (the user runs the commands). Never suggest deleting `yap.db`.
 
 ## Coding Principles
 
@@ -40,82 +41,71 @@ When using JS interop, keep it minimal and focused. The goal is surgical fixes, 
 - Test on actual devices - mobile browser behavior varies
 
 ## Overview
-A real-time chat application built with Blazor Server (.NET 10), featuring instant messaging, image sharing, and resilient reconnection with persistent state.
+A real-time chat application built with Blazor Server (.NET 10): rooms + DMs, image/video/GIF sharing, link previews, Apple-style emoji, reactions, push notifications, curated themes, an admin panel, and resilient reconnection with persistent circuit state.
 
 ## Architecture
 
 ### Single Project Structure
+Most `.razor` components have a co-located `.razor.css` (scoped styles) and occasionally a `.razor.js` — those siblings are omitted below to keep the map readable.
+
 ```
 Yap/
 ├── Components/
+│   ├── App.razor                      # Root component with Blazor.start() config
+│   ├── Routes.razor · _Imports.razor
 │   ├── Layout/
 │   │   ├── MainLayout.razor           # Base layout
-│   │   ├── ChatLayout.razor           # Chat-specific layout (header, sidebar, body)
+│   │   ├── ChatLayout.razor           # Chat shell (header, sidebar, @Body)
 │   │   └── ReconnectModal.razor       # Discord-style reconnection banner with auto-resume
 │   ├── Pages/
-│   │   ├── Login.razor                # Login/username entry
-│   │   ├── RoomChat.razor             # Room chat page (/lobby, /room/{id})
-│   │   ├── DmChat.razor               # DM chat page (/dm/{username})
-│   │   ├── ChatBase.cs                # Shared base class for chat pages
-│   │   ├── Settings.razor             # User profile settings (picture, display name, bio)
-│   │   ├── Error.razor
-│   │   └── NotFound.razor
-│   ├── ChatHeader.razor               # Header with status dropdown, mailbox, user count
-│   ├── ChatSidebar.razor              # Rooms list, users list with status dots
-│   ├── MessageInput.razor             # Message input with typing, file upload
-│   ├── MessageItem.razor              # Individual message display with avatars
-│   ├── EmojiPicker.razor              # Emoji selection popup for reactions
-│   ├── ImageGalleryModal.razor        # Lightbox for viewing uploaded images
-│   ├── Avatar.razor                   # Reusable avatar (image or colored initials fallback)
-│   ├── App.razor                      # Root component with Blazor.start() config
-│   ├── Routes.razor
-│   └── _Imports.razor
-├── Configuration/
-│   └── PersistenceSettings.cs
+│   │   ├── Welcome.razor              # "/" landing page (gated by WelcomePageEnabled)
+│   │   ├── Login.razor                # /login — username + optional passphrase
+│   │   ├── VerifyDevice.razor         # /verify/{username} — passphrase entry for new devices
+│   │   ├── RoomChat.razor             # /lobby, /room/{RoomId}
+│   │   ├── DmChat.razor               # /dm/{DmUser}
+│   │   ├── ChatBase.cs                # Shared base class for chat pages (DI, auth guard, helpers)
+│   │   ├── Settings.razor             # /settings — profile, theme, sessions, push
+│   │   ├── ChannelSettings.razor      # /channel/new, /channel/{id}/settings
+│   │   ├── Admin.razor                # /admin — users, registration gating, diagnostics
+│   │   └── Error.razor · NotFound.razor
+│   ├── ChatHeader.razor               # Status dropdown, mailbox, user count
+│   ├── ChatSidebar.razor              # Rooms + users lists with status dots
+│   ├── MessageInput.razor             # Typing, file upload, picker trigger
+│   ├── MessageItem.razor              # Message display with avatars, reactions, attachments
+│   ├── Avatar.razor (+ AvatarSize.cs) # Image or colored-initials fallback
+│   ├── EmojiPicker · GifPicker · CombinedPicker.razor   # Emoji + GIF picker popups
+│   ├── ImageGalleryModal.razor        # Lightbox for images
+│   ├── LinkPreviewCard.razor          # OpenGraph link preview
+│   ├── MediaPlayer.razor              # Inline video/audio player
+│   ├── UserProfileCard.razor          # Profile hover/click popover
+│   └── PushPermissionPrompt · PwaInstallBanner.razor
+├── Configuration/PersistenceSettings.cs
 ├── Data/
-│   ├── ChatDbContext.cs               # EF Core DbContext
-│   ├── ChatDbContextFactory.cs        # Design-time factory for migrations
-│   ├── Migrations/
-│   └── custom-emojis/                 # Drop image files here for custom emojis
-├── Extensions/
-│   └── PersistenceServiceExtensions.cs
+│   ├── ChatDbContext.cs · ChatDbContextFactory.cs   # EF Core context + design-time factory
+│   ├── custom-emojis/                 # Drop images → :shortcode: emojis
+│   ├── gif-cache/ · media-cache/      # Cached remote GIFs / yt-dlp media
+│   ├── ip2location/                   # Offline IP→country DB
+│   ├── branding/ · welcome/           # welcome.html + branding assets
+│   ├── *-settings.json                # Runtime settings (bot, registration, link-preview, gif)
+│   └── yap.db                         # SQLite (when persistence enabled)
+├── Endpoints/                         # Minimal-API route groups (mapped in Program.cs)
+│   ├── TusEndpoints.cs                # Resumable tus file uploads → /api/tus
+│   └── AuthEndpoints · PushEndpoints · AdminEndpoints · DiagnosticsEndpoints.cs
+├── Extensions/PersistenceServiceExtensions.cs
+├── Migrations/                        # EF Core migrations (project root, NOT under Data/)
 ├── Middleware/
-│   ├── DeviceDetectionMiddleware.cs   # Detects mobile vs desktop
-│   └── RequestLoggingMiddleware.cs    # HTTP request logging
-├── Services/
-│   ├── ChatService.cs                 # Core real-time functionality (singleton)
-│   ├── ChatPersistenceService.cs      # Write-through database persistence
-│   ├── ChatConfigService.cs           # UI text configuration from appsettings
-│   ├── ChatNavigationState.cs         # Navigation state with [PersistentState]
-│   ├── UserStateService.cs            # User identity with [PersistentState]
-│   ├── UserService.cs                 # User management (join, leave, status)
-│   ├── ChatCircuitHandler.cs          # Circuit lifecycle + auto-away detection
-│   ├── CircuitTracker.cs              # Tracks active circuits per user
-│   ├── PushSubscriptionStore.cs       # Push notification subscriptions
-│   ├── PushNotificationService.cs     # Web push notifications
-│   ├── EmojiService.cs                # Twemoji rendering + emoji-only message detection
-│   ├── EmojiData.cs                   # Emoji definitions and categories
-│   ├── CustomEmojiService.cs          # Custom emoji loading from Data/custom-emojis/
-│   └── ImageService.cs                # Thumbnail generation (WebP)
-├── Models/
-│   ├── ChatMessage.cs
-│   ├── Channel.cs
-│   ├── ChannelType.cs
-│   ├── ChannelReadState.cs
-│   ├── Reaction.cs
-│   ├── User.cs
-│   ├── UserStatus.cs
-│   ├── PushSubscription.cs
-│   └── ChatDiagnostics.cs
+│   ├── AuthMiddleware.cs              # Token-cookie auth → hydrates UserStateService
+│   ├── DeviceDetectionMiddleware.cs  # Mobile vs desktop
+│   └── RequestLoggingMiddleware.cs   # HTTP logging (RequestLogQueue + RequestLogWriter)
+├── Services/                          # see "Key Services" below
+├── Models/                            # EF-friendly models double as tables (no separate entities)
 ├── wwwroot/
-│   ├── js/chat.js                     # Tab notifications, badge API helpers
-│   ├── uploads/                       # Image storage
-│   ├── app.css                        # Base styles
-│   ├── notif.mp3                      # Notification sound
-│   ├── manifest.webmanifest           # PWA manifest
-│   └── service-worker.js              # PWA service worker
-├── Data/yap.db                        # SQLite database (when persistence enabled)
-├── appsettings.json                   # Chat config + persistence settings
+│   ├── js/chat.js                     # Tab notifications, badge/push, scroll, applyTheme helpers
+│   ├── themes.css                     # [data-theme] variable overrides (curated themes)
+│   ├── uploads/ · images/ · emoji-fallback/
+│   ├── app.css · notif.mp3
+│   └── manifest.webmanifest · service-worker.js
+├── appsettings.json                   # ChatSettings + Vapid + persistence + gif config
 ├── Program.cs                         # Service registration, circuit config
 └── Yap.csproj
 ```
@@ -123,67 +113,51 @@ Yap/
 ## How It Works
 
 ### Real-time Communication
-Blazor Server uses a persistent SignalR connection (circuit) for all UI updates. We leverage this existing connection for chat functionality:
+Blazor Server keeps a persistent SignalR connection (circuit) per user for all UI updates. We reuse that connection instead of a custom hub:
 
-1. **ChatService** (singleton) - Holds all chat state and raises events
-2. Components subscribe to ChatService events
-3. When a message is sent, ChatService notifies all subscribers
-4. Each component calls `StateHasChanged()` to update its UI
+1. **ChatService** (singleton) holds all chat state and raises events
+2. Scoped components (per-circuit) subscribe to those events
+3. On a mutation, ChatService notifies subscribers, which call `StateHasChanged()`
 
-No custom SignalR hub needed - Blazor's built-in circuit handles everything.
+Event handlers in components use the `async void` + `InvokeAsync()` + try/catch pattern, treating circuit-dead exceptions (`ObjectDisposedException`, `InvalidOperationException`) as warnings.
 
 ### Component Architecture
 - **ChatLayout** - Real Blazor layout with header, sidebar, and `@Body`
-- **ChatHeader** - Self-sufficient, injects services directly
-- **ChatSidebar** - Self-sufficient, handles navigation internally
-- **RoomChat/DmChat** - Thin pages focused on message display
-- **ChatBase** - Shared base class for DI, auth guard, helpers
+- **ChatHeader / ChatSidebar** - Self-sufficient, inject services directly
+- **RoomChat / DmChat** - Thin pages focused on message display, extend **ChatBase**
 
 ### Key Services
 
-**ChatService.cs** (Singleton)
-- Manages online users, messages, channels (rooms/DMs), typing indicators, reactions
-- Tracks user status (Online, Away, Invisible)
-- First user to join becomes admin (can create/delete rooms)
-- Uses `ConcurrentDictionary` for thread-safe state
-- Integrates with `ChatPersistenceService` for database persistence
-- Supports paginated message loading for infinite scroll
-- Exposes events: `OnMessageReceived`, `OnMessageUpdated`, `OnMessageDeleted`, `OnReactionChanged`, `OnUserChanged`, `OnUsersListChanged`, `OnUserStatusChanged`, `OnTypingUsersChanged`, `OnAdminChanged`, `OnChannelCreated`, `OnChannelDeleted`
+**ChatService.cs** (Singleton) — core real-time state: users, messages, channels (rooms/DMs), typing, reactions, unread counts, link-preview/media-cache fan-out. Thread-safe via `ConcurrentDictionary`; integrates `ChatPersistenceService`; paginated loading for infinite scroll.
+Events: `OnMessageReceived`, `OnMessageUpdated`, `OnMessageDeleted`, `OnReactionChanged`, `OnUserChanged`, `OnUsersListChanged`, `OnUserStatusChanged`, `OnTypingUsersChanged`, `OnChannelCreated`, `OnChannelUpdated`, `OnChannelDeleted`, `OnUnreadChanged`, `OnSessionKicked`, `OnLinkPreviewReady`, `OnMediaCacheReady`.
 
-**ChatPersistenceService.cs** (Singleton)
-- Write-through persistence to database (when enabled)
-- All methods are no-ops when persistence is disabled
-- Handles channels, messages, reactions, and push subscriptions
-- Loads snapshot on startup via `LoadSnapshotAsync()`
+**ChatPersistenceService.cs** (Singleton) — write-through DB persistence; no-ops when disabled; `LoadSnapshotAsync()` on startup.
 
-**UserStateService.cs** (Scoped + Persistent)
-- Holds current user's identity (Username, SessionId, Status)
-- Properties marked with `[PersistentState]` survive circuit eviction
+**UserService.cs** (Singleton) — users, token auth, sessions (multi-device), admin tracking. First user to register becomes admin (`_adminUserId`); admin persisted on `User.IsAdmin`.
 
-**ChatNavigationState.cs** (Scoped + Persistent)
-- Tracks current room/DM context
-- Properties marked with `[PersistentState]` for session restoration
+**UserStateService.cs / ChatNavigationState.cs** (Scoped + `[PersistentState]`) — current identity and room/DM context; survive circuit eviction.
 
-**ImageService.cs** (Singleton)
-- Generates WebP thumbnails on image upload
+**Supporting singletons:**
+- `ChatConfigService` (scoped) — UI text from appsettings; `ChatCircuitHandler` + `CircuitTracker` — circuit lifecycle & auto-away; `SystemBotService` — bot DMs (welcome, admin alerts); `RegistrationGateService` — close/approval gating.
+- Media/emoji: `ImageService` (WebP thumbs), `VideoService`, `EmojiService` (+`.Rendering`) / `EmojiData` / `CustomEmojiService`, `Gifs/` (`GifService`, `KlipyGifProvider`, `GifAdminSettingsService`, `GifFfmpegHelper`), `LinkPreviewService` (+settings), `MediaCacheService` (yt-dlp), `NetworkSecurityHelper` (SSRF).
+- Notifications: `PushNotificationService`, `PushSubscriptionStore`, `IPushSubscriptionPersistence` (`Db`/`Json` impls).
+- Infra: `GeoLocationService` (IP→country), `LocaleResolver`, `ThemeRegistry`, and hosted services `UserActionLogService` / `MediaUploadLogService` / `DiagnosticsCollectorService` (periodic flush).
 
 ## .NET 10 Circuit & Reconnection Features
 
 ### Circuit State Persistence
-When a user disconnects (closes laptop, loses network), the circuit is kept alive for a configurable period. If evicted, properties marked with `[PersistentState]` are serialized and can be restored via `Blazor.resumeCircuit()`.
+When a user disconnects, the circuit is kept alive for a configurable period. If evicted, properties marked `[PersistentState]` are serialized and restored via `Blazor.resumeCircuit()`.
 
-**Configuration in Program.cs:**
+**Program.cs:**
 ```csharp
 .AddInteractiveServerComponents(options =>
 {
-    // Keep circuit alive for 4 hours (default: 3 minutes)
-    options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromHours(4);
+    options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromHours(4); // default: 3 min
     options.DisconnectedCircuitMaxRetained = 1000;
 })
 .RegisterPersistentService<UserStateService>(RenderMode.InteractiveServer)
 .RegisterPersistentService<ChatNavigationState>(RenderMode.InteractiveServer);
 
-// Keep persisted state for 48 hours after circuit eviction
 builder.Services.Configure<CircuitOptions>(options =>
 {
     options.PersistedCircuitInMemoryRetentionPeriod = TimeSpan.FromHours(48);
@@ -192,121 +166,28 @@ builder.Services.Configure<CircuitOptions>(options =>
 ```
 
 ### Reconnection Banner
-Custom Discord-style top banner (not blocking modal):
-- Appears immediately when connection lost
-- Infinite retries every 4 seconds
-- Auto-resumes with persisted state when circuit evicted
+Custom Discord-style top banner (not blocking): appears immediately on disconnect, retries every 4s, auto-resumes persisted state when the circuit is evicted.
+
+Also uses: `CreateInboundActivityHandler` (auto-away), `MapStaticAssets()` (fingerprinted assets), `ResourcePreloader`.
 
 ## Configuration
 
-Settings in `appsettings.json` under `ChatSettings`:
-- `ProjectName`, `RoomName` - Basic app identity
-- `ClearUploadsOnStart` - Whether to clear uploads folder on startup
-- `Persistence.Enabled`, `Persistence.Provider` - SQLite or Postgres
-- `FunnyTexts` - Randomized UI text (welcome messages, join buttons, typing indicators)
+`appsettings.json` → `ChatSettings`: `ProjectName`, `RoomName`, `ClearUploadsOnStart`, `MaxUploadSizeMB`, `WelcomePageEnabled`, `PushSubscriptionStorage` (Db/Json), `Bot` (system bot), `Persistence` (`Enabled`, `Provider` = SQLite/Postgres), `GifSettings` (Klipy provider), and `FunnyTexts` (randomized welcome/join/typing/placeholder strings). Web-push VAPID keys live under top-level `Vapid`. Some runtime toggles (registration gating, bot, link-preview, gif admin) persist to `Data/*-settings.json` and outlive appsettings.
 
 ## Features
 
-- **Real-time messaging** - Instant delivery via Blazor circuit
-- **Multiple rooms** - Create and switch between chat rooms (admin only)
-- **Admin system** - First user becomes admin, can manage rooms (👑 badge)
-- **Direct messages** - Private conversations (persist permanently when DB enabled)
-- **User profiles** - Profile picture, display name, bio; avatars shown in messages (Discord-style)
-- **User status** - Online (green), Away (orange), Invisible (gray) with dropdown selector
-- **Auto-away** - Automatically sets status to Away after 5 minutes idle
-- **Sign out** - Explicit sign out clears session and returns to login
-- **Mailbox indicator** - Unread DM count in header, visible even with sidebar closed
-- **Message actions** - Discord-style hover popup with reactions, edit, delete
-- **Reactions** - ❤️ 😂 🥹 reactions on any message, shown as pills with counts
-- **Edit/Delete** - Edit or delete your own messages (shows "edited" indicator)
-- **Image sharing** - Direct file upload, up to 100MB, drag & drop support, WebP thumbnails
-- **Multiline input** - Discord-style auto-expanding textarea (Shift+Enter for newlines)
-- **Emoji support** - Twemoji rendering with Discord-style picker (category sidebar + scrollable grid)
-- **Custom emojis** - Drop images into `Data/custom-emojis/`, auto-loaded as `:shortcode:` (filename = shortcode)
-- **Tab notifications** - Unread count in title + audio
-- **Online users** - List of users in sidebar with status
-- **Infinite scroll** - Load older messages on scroll, Discord-style
-- **Typing indicators** - See who's typing
-- **Mobile responsive** - Collapsible sidebar
-- **Resilient reconnection** - Auto-reconnect with persistent state restoration
-- **Dark theme** - Discord-inspired UI
-- **Auto-cleanup** - Configurable upload clearing on app start
-- **PWA support** - Installable as app, badge notifications for unread DMs
-- **Database persistence** - Optional SQLite/Postgres storage for messages, channels, reactions
+Real-time messaging · rooms (admin-managed) · DMs (persist permanently) · per-channel permissions · first-user admin (👑) with `/admin` panel · registration gating (close / require-approval) · multi-device sessions with per-device sign-out & passphrase login · user profiles (picture, display name, bio, country) · Online/Away/Invisible status + auto-away · unread DM badges (cross-device sync) · message reactions, edit/delete · image/video uploads (drag & drop, WebP thumbnails) · GIF picker (Klipy) · link previews (OpenGraph) · remote-media caching (yt-dlp) · Apple-style emoji + custom `:shortcode:` emoji · curated themes · infinite scroll · typing indicators · tab title/sound notifications · web push + PWA (installable, badge API) · mobile-responsive sidebar · resilient reconnection.
 
 ## Database Persistence
 
-Optional persistence layer using EF Core. When enabled, all chat data survives app restarts.
+Optional EF Core layer; when enabled all chat data survives restarts. **Write-through cache** (in-memory reads, persist on mutation), **snapshot load on startup**, **graceful in-memory fallback** when disabled. `InitializePersistenceAsync` runs `db.Database.MigrateAsync()` on startup.
 
-### Architecture
-- **Write-through cache**: Fast in-memory reads, persist on every mutation
-- **Load on startup**: Database snapshot loaded into memory when app starts
-- **Graceful fallback**: When disabled, everything works in-memory only
+- **Models = tables** (no separate entity classes). `Channel` → many `ChatMessage` → many `Reaction`. DMs are `Channel`s keyed by `Participant1`/`Participant2` and persist permanently (Discord-style).
+- Singleton `ChatService` uses a **pooled `DbContextFactory`** (`AddPooledDbContextFactory`) to create short-lived contexts.
 
-### What's Persisted
-- **User** - Username, status, last activity (survives app restarts)
-- **Channel** → has many **ChatMessage** → has many **Reaction**
-- **PushSubscription** - Web push notification endpoints per user
-- DMs are identified by `Participant1`/`Participant2` fields on Channel
+## Notes
 
-### Key Design Decisions
-- **DMs persist permanently** (like Discord) - users see chat history when they return
-- **Models = Tables** - No separate entity classes, models are EF-friendly
-- **DbContextFactory** - Used by singleton `ChatService` to create short-lived DbContext instances
-- **Pooled factory** - `AddPooledDbContextFactory` for singleton compatibility and performance
-
-## Technical Details
-
-### .NET 10 Features Used
-- `[PersistentState]` attribute for circuit state persistence
-- `RegisterPersistentService<T>()` for scoped service persistence
-- `Blazor.resumeCircuit()` for session restoration
-- Custom `Blazor.start()` configuration for retry timing
-- `ReconnectModal` component (customized as top banner)
-- `ResourcePreloader` for optimized asset loading
-- `MapStaticAssets()` for fingerprinted static files
-- `CreateInboundActivityHandler` for circuit activity tracking (auto-away)
-
-
-### Custom Emojis
-Drop image files (PNG, SVG, GIF, WebP, JPG) into `Data/custom-emojis/`. The filename (without extension) becomes the shortcode. For example, `pepe.png` becomes `:pepe:`.
-
-- **Scanned on startup** by `CustomEmojiService` (singleton)
-- **Filename rules**: alphanumeric, hyphens, underscores only (`^[a-zA-Z0-9_-]+$`)
-- **Served via** `/custom-emojis/{filename}` static file route
-- **Used in**: messages (`:shortcode:` syntax), emoji picker (shown as first category when present), reactions
-- **EmojiPicker**: when custom emojis exist, a "Custom" section appears first in the picker with the first custom emoji as the sidebar icon
-
-### File Upload & Thumbnails
-Images are uploaded directly in the component using `InputFile`:
-```csharp
-await file.OpenReadStream(maxAllowedSize: 100 * 1024 * 1024).CopyToAsync(stream);
-```
-
-No HTTP multipart, no API endpoint - just direct file I/O.
-
-**Thumbnail generation:**
-- Medium (800px) generated immediately for fast gallery display
-- Large (1600px) generated in background for lightbox
-- All thumbnails are WebP for optimal compression
-- Uses parallel processing when generating for multiple images
-
-### Tab Notifications
-Minimal JavaScript in `wwwroot/js/chat.js`:
-- `setupVisibilityListener` - Detects when tab becomes visible
-- `isPageVisible` - Checks current visibility state
-- `playNotificationSound` - Plays notification audio
-- `scrollToBottom` - Auto-scrolls message list
-
-### PWA (Progressive Web App)
-The app is installable on desktop and mobile:
-- `manifest.webmanifest` - App metadata (name, icons, theme color)
-- `service-worker.js` - Minimal SW for installability (no offline caching)
-- `icon.svg` - Vector app icon (PNG versions needed for full iOS support)
-
-**Badge API** for unread DM notifications:
-- `setAppBadge(count)` / `clearAppBadge()` in chat.js
-- Called from ChatHeader when unread count changes
-- Support: Chrome/Edge on Windows/macOS, Safari on iOS 16.4+
-- Badge only appears when app is installed as PWA
-
+- **Custom emojis**: drop PNG/SVG/GIF/WebP/JPG into `Data/custom-emojis/`; filename (`^[a-zA-Z0-9_-]+$`) becomes the `:shortcode:`. Scanned on startup by `CustomEmojiService`, served at `/custom-emojis/{file}`, usable in messages, picker (first "Custom" section), and reactions.
+- **File upload**: `InputFile` only *picks* files; the transfer is a **tus resumable upload** (`tusdotnet`, `uploadFilesWithTus` in chat.js → `TusEndpoints` at `/api/tus`) with progress + resume. `ChatSettings:UploadUrl` can point at a separate upload subdomain to bypass Cloudflare proxy size limits (CORS policy `TusUpload`). `ImageService` then makes an 800px WebP thumbnail immediately and a 1600px lightbox version in the background.
+- **Emoji rendering**: **Twemoji SVGs** by default (Twemoji CDN). The active set is a compile-time `ActiveEmojiStyle` const in `EmojiService.Rendering.cs` that can flip to Apple images (emoji-datasource CDN) but isn't active. Self-hosted overrides in `wwwroot/emoji-fallback/` take priority in both modes. `EmojiService` output is a raw `MarkupString` — **HTML-encode user free-text before rendering** (stored-XSS sink).
+- **PWA**: `manifest.webmanifest` + minimal `service-worker.js` (installability, no offline caching). Badge API (`setAppBadge`/`clearAppBadge` in chat.js) shows unread DM count when installed.
