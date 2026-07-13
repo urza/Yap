@@ -24,4 +24,11 @@ public interface IGifSourceProvider
 
     /// <summary>Notify provider that a user shared this GIF (TOS / analytics requirement for some providers; no-op for others).</summary>
     Task RegisterShareAsync(string sourceId, string? query, CancellationToken ct);
+
+    /// <summary>
+    /// Fetches the provider's descriptive keywords for a single GIF (tags, title, content
+    /// description — whatever the provider exposes). Used to enrich local search tags on demand.
+    /// Returns an empty list on failure or if the provider has no such endpoint.
+    /// </summary>
+    Task<List<string>> GetItemTagsAsync(string sourceId, CancellationToken ct);
 }

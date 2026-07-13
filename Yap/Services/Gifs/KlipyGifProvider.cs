@@ -131,6 +131,86 @@ public class KlipyGifProvider : IGifSourceProvider
         }
     }
 
+    public async Task<List<string>> GetItemTagsAsync(string sourceId, CancellationToken ct)
+    {
+        if (!IsConfigured || string.IsNullOrEmpty(sourceId)) return new();
+
+        // Documented item lookup (GIF - Items API): GET /gifs/items?slugs={slug} — takes a
+        // comma-separated slug list and returns { result, data: { data: [ {id, slug, title,
+        // file, tags[], type, ...} ] } }. Note: tags[] is often empty; Klipy's catalog is
+        // sparsely tagged, so title is frequently all we get.
+        var url = $"{BaseUrl}{_apiKey}/gifs/items?slugs={Uri.EscapeDataString(sourceId)}" +
+                  $"&customer_id={Uri.EscapeDataString(_customerId)}&locale={_locale}";
+        try
+        {
+            var client = _httpClientFactory.CreateClient("Klipy");
+            using var response = await client.GetAsync(url, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                // Warning, not Debug: this endpoint fires rarely (once per favorite), and a 4xx
+                // here (bad key, rate limit, removed item) should be visible in the console.
+                _logger.LogWarning("Klipy item lookup HTTP {Status} for {SourceId}", response.StatusCode, sourceId);
+                return new();
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(ct);
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+
+            // Documented shape: data.data is an array (batch endpoint; we ask for one slug).
+            // Tolerate object-shaped variants too — Klipy wraps responses inconsistently.
+            var item = doc.RootElement;
+            if (item.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object)
+            {
+                item = data;
+                if (item.TryGetProperty("data", out var inner))
+                {
+                    if (inner.ValueKind == JsonValueKind.Array)
+                    {
+                        if (inner.GetArrayLength() == 0)
+                        {
+                            _logger.LogInformation("Klipy items lookup: no item returned for {SourceId} (removed or unknown slug)", sourceId);
+                            return new();
+                        }
+                        item = inner[0];
+                    }
+                    else if (inner.ValueKind == JsonValueKind.Object)
+                    {
+                        item = inner;
+                    }
+                }
+            }
+            if (item.ValueKind != JsonValueKind.Object) return new();
+
+            var keywords = ParseTagsElement(item);
+            var tagCount = keywords.Count;
+
+            // Title / description come along as phrase keywords — tokenized local search matches
+            // individual words inside them, so one sentence-tag covers many future queries.
+            var title = TryGetString(item, "title", "content_description");
+            if (!string.IsNullOrWhiteSpace(title)) keywords.Add(title!);
+
+            // Breakdown visibility: makes it obvious in the console whether Klipy's tags are
+            // being used or enrichment is effectively title-only. When tags don't parse, the
+            // raw value is dumped so the parser can be adapted to the real shape.
+            if (tagCount > 0)
+                _logger.LogInformation("Klipy item {SourceId}: {TagCount} tags [{Tags}] + title=\"{Title}\"",
+                    sourceId, tagCount, string.Join(", ", keywords.Take(tagCount)), title ?? "-");
+            else
+                _logger.LogInformation("Klipy item {SourceId}: no usable tags (raw tags value: {Raw}), title=\"{Title}\"",
+                    sourceId,
+                    item.TryGetProperty("tags", out var rawTags) ? Truncate(rawTags.GetRawText(), 300) : "(absent)",
+                    title ?? "-");
+
+            return keywords;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Klipy item lookup failed for {SourceId} (non-critical)", sourceId);
+            return new();
+        }
+    }
+
     private string CommonPaginationParams(string? cursor, int limit)
     {
         // Klipy uses 1-based integer page; we store it as a string in our cursor field.
@@ -320,7 +400,40 @@ public class KlipyGifProvider : IGifSourceProvider
             _logger.LogWarning("Klipy item {Id} produced no formats. Top keys: [{TopKeys}]", idStr, topKeys);
             return null;
         }
-        return new GifSearchItem(idStr, title, width, height, full, preview);
+        return new GifSearchItem(idStr, title, width, height, full, preview, ParseTagsElement(r));
+    }
+
+    /// <summary>
+    /// Klipy's per-item "tags" field shape isn't stable across docs and endpoints, so accept
+    /// anything plausible: an array of strings, an array of objects (name/text/tag), or a single
+    /// comma-separated string. Returns empty when absent or unrecognized.
+    /// </summary>
+    private static List<string> ParseTagsElement(JsonElement item)
+    {
+        var result = new List<string>();
+        if (!item.TryGetProperty("tags", out var tags)) return result;
+
+        switch (tags.ValueKind)
+        {
+            case JsonValueKind.Array:
+                foreach (var t in tags.EnumerateArray())
+                {
+                    var s = t.ValueKind switch
+                    {
+                        JsonValueKind.String => t.GetString(),
+                        JsonValueKind.Object => TryGetString(t, "name", "text", "tag"),
+                        _ => null
+                    };
+                    if (!string.IsNullOrWhiteSpace(s)) result.Add(s!);
+                }
+                break;
+
+            case JsonValueKind.String:
+                result.AddRange(tags.GetString()!
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+                break;
+        }
+        return result;
     }
 
     /// <summary>

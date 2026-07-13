@@ -295,7 +295,7 @@
             return;
         }
 
-        localResults = GifService.SearchLocal(query);
+        localResults = GifService.SearchLocal(query, CurrentUserId);
         isSearchingProvider = GifService.IsConfigured;
         Logger.LogInformation("GIF search '{Query}': {LocalCount} local hits, querying provider={Querying}",
             query, localResults.Count, GifService.IsConfigured);
@@ -456,7 +456,7 @@
                 await file.OpenReadStream(50 * 1024 * 1024).CopyToAsync(fs);
 
             var contentType = !string.IsNullOrEmpty(file.ContentType) ? file.ContentType : "application/octet-stream";
-            var att = await GifService.TryAcceptAsGifAsync(tempPath, contentType, isExplicitGif: true, CurrentUserId);
+            var att = await GifService.TryAcceptAsGifAsync(tempPath, contentType, isExplicitGif: true, CurrentUserId, file.Name);
             if (att != null)
                 await OnGifSelected.InvokeAsync(att);
             else

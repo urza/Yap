@@ -16,7 +16,8 @@ public record GifSearchItem(
     int Width,
     int Height,
     List<MediaFormat> Formats,         // Full-quality variants for sending (mp4, webm, gif, etc.)
-    List<MediaFormat> PreviewFormats   // Small variants for picker grid (tinymp4, tinygif, etc.)
+    List<MediaFormat> PreviewFormats,  // Small variants for picker grid (tinymp4, tinygif, etc.)
+    List<string> Tags                  // Provider's descriptive keywords; empty when not supplied
 );
 
 public record MediaFormat(

@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Yap.Data;
 using Yap.Models;
@@ -158,45 +159,84 @@ public class GifService
 
     public GifEntry? GetEntry(Guid id) => _entries.TryGetValue(id, out var e) ? e : null;
 
-    /// <summary>All custom (user-uploaded) GIF/WebP entries, newest first. For the admin listing.</summary>
-    public List<GifEntry> GetCustomUploads() =>
+    /// <summary>Every library entry — custom uploads and provider cache — newest first. For the admin listing.</summary>
+    public List<GifEntry> GetAllEntries() =>
         _entries.Values
-            .Where(e => e.SourceProviderId == null)
+            .Where(e => e.DeletedAt == null)
             .OrderByDescending(e => e.CreatedAt)
             .ToList();
 
+    /// <summary>How many users favorited each entry (entries with zero favorites are absent). For the admin listing.</summary>
+    public Dictionary<Guid, int> GetFavoriteCounts()
+    {
+        var counts = new Dictionary<Guid, int>();
+        foreach (var set in _favoritesByUser.Values)
+        {
+            Guid[] ids;
+            lock (set) ids = set.ToArray();
+            foreach (var id in ids)
+                counts[id] = counts.GetValueOrDefault(id) + 1;
+        }
+        return counts;
+    }
+
     #region Public read API
 
-    /// <summary>Local-first search across the cached library by tag tokens.</summary>
-    public List<GifEntry> SearchLocal(string query, int limit = LocalSearchLimit)
+    /// <summary>
+    /// Local-first search across the cached library. The query is split into words, each word
+    /// substring-matched against tags (order-independent) — "kiss blow" finds an entry tagged
+    /// "blow" + "kisses". All words but one must match: full matches rank first, but one unknown
+    /// word doesn't hide an otherwise-good hit — and clicking such a hit appends the full query
+    /// as a tag, teaching the entry the word it was missing. When <paramref name="userId"/> is
+    /// given, that user's favorites rank above equally-matching entries.
+    /// </summary>
+    public List<GifEntry> SearchLocal(string query, Guid? userId = null, int limit = LocalSearchLimit)
     {
         if (string.IsNullOrWhiteSpace(query)) return new();
-        var q = query.Trim().ToLowerInvariant();
-        if (q.Length < 2) return new();
 
-        var hits = new HashSet<Guid>();
+        var tokens = query.Trim().ToLowerInvariant()
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(t => t.Length >= 2)
+            .Distinct()
+            .ToList();
+        if (tokens.Count == 0) return new();
+
+        // Per-entry count of how many query words matched at least one tag.
+        var matchCounts = new Dictionary<Guid, int>();
 
         lock (_tagIndexLock)
         {
-            // Exact tag hit
-            if (_tagIndex.TryGetValue(q, out var direct))
-                foreach (var id in direct) hits.Add(id);
-
-            // Partial tag match — cheap because the tag index is small.
-            foreach (var (tag, ids) in _tagIndex)
+            foreach (var token in tokens)
             {
-                if (tag.Length > q.Length && tag.Contains(q))
-                    foreach (var id in ids) hits.Add(id);
+                // Entries with any tag containing this token. Contains() covers exact hits too.
+                // A full index sweep per token is cheap — the tag index stays small.
+                var tokenHits = new HashSet<Guid>();
+                foreach (var (tag, ids) in _tagIndex)
+                {
+                    if (tag.Contains(token))
+                        tokenHits.UnionWith(ids);
+                }
+                foreach (var id in tokenHits)
+                    matchCounts[id] = matchCounts.GetValueOrDefault(id) + 1;
             }
         }
 
-        return hits
-            .Select(id => _entries.TryGetValue(id, out var e) ? e : null)
-            .Where(e => e != null && e.DeletedAt == null)
-            .OrderByDescending(e => e!.UseCount)
-            .ThenByDescending(e => e!.LastUsedAt)
+        var requiredMatches = Math.Max(1, tokens.Count - 1);
+
+        var favIds = new HashSet<Guid>();
+        if (userId is Guid uid && _favoritesByUser.TryGetValue(uid, out var favSet))
+            lock (favSet) favIds.UnionWith(favSet);
+
+        return matchCounts
+            .Where(kv => kv.Value >= requiredMatches)
+            .Select(kv => (Entry: _entries.TryGetValue(kv.Key, out var e) ? e : null, Matches: kv.Value))
+            .Where(x => x.Entry != null && x.Entry.DeletedAt == null)
+            .OrderByDescending(x => x.Matches)                    // full matches above tolerated ones
+            .ThenByDescending(x => favIds.Contains(x.Entry!.Id))  // then the searcher's favorites
+            .ThenByDescending(x => x.Entry!.UseCount)
+            .ThenByDescending(x => x.Entry!.LastUsedAt)
             .Take(limit)
-            .Select(e => e!)
+            .Select(x => x.Entry!)
             .ToList();
     }
 
@@ -259,6 +299,11 @@ public class GifService
         {
             entry = existing;
             TouchUsage(entry, query);
+            // The fresh search item carries the provider's title + tags — harvest them even on
+            // cache hits, so entries cached before harvesting existed pick them up on next send.
+            AppendTag(entry, item.Title);
+            foreach (var tag in item.Tags.Take(12))
+                AppendTag(entry, tag);
             _logger.LogInformation("SendProviderGif hit cached entry {EntryId} for sourceId={SourceId}", entry.Id, item.SourceId);
         }
         else
@@ -301,7 +346,7 @@ public class GifService
     /// the file should remain in the regular image/video pipeline.
     /// </summary>
     public async Task<GifAttachment?> TryAcceptAsGifAsync(string sourceFilePath, string originalContentType,
-        bool isExplicitGif, Guid? uploaderUserId, CancellationToken ct = default)
+        bool isExplicitGif, Guid? uploaderUserId, string? originalFileName = null, CancellationToken ct = default)
     {
         if (!File.Exists(sourceFilePath)) return null;
         if (!GifFfmpegHelper.IsAvailable)
@@ -396,6 +441,13 @@ public class GifService
             LastUsedAt = DateTime.UtcNow,
         };
 
+        // Seed search tags from the uploaded file's name — the only free metadata a lazy upload
+        // carries ("facepalm02_00000000.webp" → "facepalm"). Without a seed tag the entry is
+        // unreachable by search, and the organic search-term accumulation never gets a chance to
+        // kick in. Admins can refine tags later in the GIFs panel.
+        foreach (var tag in TagsFromFileName(originalFileName))
+            AppendTag(entry, tag);
+
         await PersistNewEntryAsync(entry);
         IndexEntry(entry);
 
@@ -456,7 +508,7 @@ public class GifService
 
     public async Task<bool> ToggleFavoriteAsync(Guid userId, Guid gifEntryId)
     {
-        if (!_entries.ContainsKey(gifEntryId)) return false;
+        if (!_entries.TryGetValue(gifEntryId, out var entry)) return false;
 
         var set = _favoritesByUser.GetOrAdd(userId, _ => new HashSet<Guid>());
         bool nowFavorite;
@@ -497,8 +549,133 @@ public class GifService
             }
         }
 
+        // Favoriting is a strong "I'll want this again" signal — the moment to ask the provider
+        // for its keywords so the GIF becomes findable by search, not just via the Favorites tab.
+        if (nowFavorite)
+            QueueProviderTagEnrichment(entry);
+
         OnFavoritesChanged?.Invoke(userId);
         return nowFavorite;
+    }
+
+    /// <summary>
+    /// Fire-and-forget: fetches the provider's descriptive keywords (tags, title) for a cached
+    /// provider GIF and merges them into its local tag set. No-op for custom uploads.
+    /// </summary>
+    private void QueueProviderTagEnrichment(GifEntry entry)
+    {
+        if (entry.SourceProviderId != _provider.ProviderId || string.IsNullOrEmpty(entry.SourceId)) return;
+
+        var dedupKey = $"tags:{entry.SourceProviderId}:{entry.SourceId}";
+        if (!_inFlightDownloads.TryAdd(dedupKey, 0)) return;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var keywords = await _provider.GetItemTagsAsync(entry.SourceId!, CancellationToken.None);
+                if (keywords.Count == 0) return;
+
+                foreach (var keyword in keywords.Take(12))
+                    AppendTag(entry, keyword);
+
+                // AppendTag doesn't mark dirty (its usage-path caller does); flag it here so the
+                // flush loop persists the enriched tag set.
+                _dirtyEntries.TryAdd(entry.Id, 0);
+                _logger.LogInformation("Enriched GIF {EntryId} with {Count} provider keywords: [{Keywords}]",
+                    entry.Id, keywords.Count, string.Join(", ", keywords.Take(12)));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Provider tag enrichment failed for {EntryId} (non-critical)", entry.Id);
+            }
+            finally { _inFlightDownloads.TryRemove(dedupKey, out _); }
+        });
+    }
+
+    #endregion
+
+    #region Tags
+
+    /// <summary>Tags of an entry for display/editing (admin panel). Empty list when none.</summary>
+    public List<string> GetTags(GifEntry entry) => DeserializeTags(entry.Tags);
+
+    /// <summary>
+    /// Replaces an entry's full tag set (admin editing). Updates the in-memory tag index — the
+    /// only place tags are ever removed from it — and persists immediately rather than riding
+    /// the 10s dirty-flush, since an explicit admin edit shouldn't be lost to a restart.
+    /// </summary>
+    public async Task<bool> SetTagsAsync(Guid gifEntryId, IEnumerable<string> tags)
+    {
+        if (!_entries.TryGetValue(gifEntryId, out var entry)) return false;
+
+        var newTags = tags
+            .Select(t => t.Trim().ToLowerInvariant())
+            .Where(t => t.Length is >= 2 and <= 64)
+            .Distinct()
+            .ToList();
+
+        var oldTags = DeserializeTags(entry.Tags);
+        entry.Tags = newTags.Count > 0 ? JsonSerializer.Serialize(newTags) : null;
+
+        lock (_tagIndexLock)
+        {
+            foreach (var tag in oldTags.Except(newTags))
+            {
+                if (_tagIndex.TryGetValue(tag, out var set))
+                {
+                    set.Remove(entry.Id);
+                    if (set.Count == 0) _tagIndex.Remove(tag);
+                }
+            }
+            foreach (var tag in newTags)
+            {
+                if (!_tagIndex.TryGetValue(tag, out var set))
+                    _tagIndex[tag] = set = new HashSet<Guid>();
+                set.Add(entry.Id);
+            }
+        }
+
+        if (_dbFactory != null)
+        {
+            try
+            {
+                await using var db = await _dbFactory.CreateDbContextAsync();
+                await db.GifEntries
+                    .Where(g => g.Id == entry.Id)
+                    .ExecuteUpdateAsync(s => s.SetProperty(g => g.Tags, entry.Tags));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to persist tags for GIF {Id}", entry.Id);
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Derives seed tags from an uploaded file's name: splits on separators, strips digit runs
+    /// off token edges ("facepalm02_00000000" → "facepalm"), drops number-only noise. Multi-word
+    /// names also yield the joined phrase so a search like "the office" hits too.
+    /// </summary>
+    internal static List<string> TagsFromFileName(string? fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName)) return new();
+
+        var baseName = Path.GetFileNameWithoutExtension(fileName);
+        var tags = Regex.Split(baseName, @"[^\p{L}\p{Nd}]+")
+            .Select(t => Regex.Replace(t, @"^\p{Nd}+|\p{Nd}+$", "").ToLowerInvariant())
+            .Where(t => t.Length >= 2)
+            .Distinct()
+            .Take(6)
+            .ToList();
+
+        if (tags.Count > 1)
+        {
+            var phrase = string.Join(' ', tags);
+            if (phrase.Length <= 64) tags.Add(phrase);
+        }
+        return tags;
     }
 
     #endregion
@@ -574,6 +751,12 @@ public class GifService
         }
 
         AppendTag(entry, query);
+        // Klipy's human-written title + tags are free metadata: the title is stored as one phrase
+        // tag, which tokenized local search matches word-by-word ("cat dancing" hits "a cat is
+        // dancing"); provider tags land as individual keywords.
+        AppendTag(entry, item.Title);
+        foreach (var tag in item.Tags.Take(12))
+            AppendTag(entry, tag);
 
         await PersistNewEntryAsync(entry);
         IndexEntry(entry);

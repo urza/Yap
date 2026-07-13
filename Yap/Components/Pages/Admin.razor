@@ -751,7 +751,7 @@
         {
             <div class="section-header">
                 <h3>GIFs</h3>
-                <span class="section-count">@gifEntries.Count custom uploads</span>
+                <span class="section-count">@FilteredGifEntries.Count() of @gifEntries.Count entries</span>
             </div>
 
             <div class="media-stats">
@@ -768,8 +768,21 @@
                 </div>
                 <div class="media-stat-card">
                     <span class="media-stat-label">Custom GIFs</span>
-                    <span class="media-stat-value">@gifEntries.Count</span>
+                    <span class="media-stat-value">@gifCustomCount</span>
                 </div>
+                <div class="media-stat-card">
+                    <span class="media-stat-label">Provider Cache</span>
+                    <span class="media-stat-value">@gifProviderCount</span>
+                </div>
+            </div>
+
+            <div class="log-filters">
+                <select class="log-filter-select" @bind="gifFilter">
+                    <option value="all">All entries</option>
+                    <option value="custom">Custom uploads</option>
+                    <option value="provider">Provider cache</option>
+                    <option value="favorited">⭐ Favorited</option>
+                </select>
             </div>
 
             <div class="table-wrapper">
@@ -778,40 +791,72 @@
                         <tr>
                             <th>Preview</th>
                             <th>Date</th>
+                            <th>Source</th>
                             <th>Uploader</th>
                             <th>Format</th>
                             <th>Dimensions</th>
                             <th>Size</th>
                             <th>Uses</th>
+                            <th>Favs</th>
+                            <th>Tags</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var g in gifEntries)
+                        @foreach (var g in FilteredGifEntries)
                         {
                             <tr>
+                                @{ var previewUrl = g.GifUrl ?? g.RemoteGifUrl; }
                                 <td>
-                                    @if (!string.IsNullOrEmpty(g.GifUrl))
+                                    @if (!string.IsNullOrEmpty(previewUrl))
                                     {
-                                        <a href="@g.GifUrl" target="_blank" rel="noopener">
-                                            <img src="@g.GifUrl" alt="" class="gif-admin-thumb" loading="lazy" />
+                                        <a href="@previewUrl" target="_blank" rel="noopener">
+                                            <img src="@previewUrl" alt="" class="gif-admin-thumb" loading="lazy" />
                                         </a>
                                     }
                                 </td>
                                 <td class="date-cell">@FormatLogDate(g.CreatedAt)</td>
+                                <td><span class="action-pill action-default">@(g.SourceProviderId ?? "custom")</span></td>
                                 <td>@GifUploaderName(g)</td>
                                 <td><span class="action-pill action-default">@GifFormat(g)</span></td>
                                 <td>@($"{g.Width} × {g.Height}")</td>
                                 <td>@FormatFileSize(g.FileSizeBytes)</td>
                                 <td>@g.UseCount</td>
+                                <td>@(gifFavCounts.TryGetValue(g.Id, out var favCount) ? $"⭐ {favCount}" : "—")</td>
+                                <td class="gif-tags-cell">
+                                    @if (editingGifTagsId == g.Id)
+                                    {
+                                        <div class="gif-tags-edit">
+                                            <input class="gif-tags-input" @bind="gifTagsDraft" @bind:event="oninput"
+                                                   @onkeydown="HandleGifTagsKeyDown"
+                                                   placeholder="comma, separated, tags" />
+                                            <button class="gif-tags-btn save" title="Save" @onclick="SaveGifTagsAsync">✓</button>
+                                            <button class="gif-tags-btn" title="Cancel" @onclick="CancelEditGifTags">✕</button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        var tags = GifService.GetTags(g);
+                                        <div class="gif-tags-view" title="Click to edit tags" @onclick="@(() => StartEditGifTags(g))">
+                                            @foreach (var tag in tags)
+                                            {
+                                                <span class="gif-tag-chip">@tag</span>
+                                            }
+                                            @if (tags.Count == 0)
+                                            {
+                                                <span class="gif-tags-empty">add tags…</span>
+                                            }
+                                        </div>
+                                    }
+                                </td>
                             </tr>
                         }
                     </tbody>
                 </table>
             </div>
 
-            @if (gifEntries.Count == 0)
+            @if (!FilteredGifEntries.Any())
             {
-                <div class="log-empty">No custom GIFs uploaded yet.</div>
+                <div class="log-empty">@(gifEntries.Count == 0 ? "No GIFs in the library yet." : "No GIFs match this filter.")</div>
             }
         }
 
@@ -1464,16 +1509,32 @@
         return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
     }
 
-    // GIFs tab state — custom (user-uploaded) GIF/WebP entries, sourced live from GifService (in-memory).
+    // GIFs tab state — the whole library (custom uploads + provider cache), sourced live from
+    // GifService (in-memory), so provider GIFs' tags are curatable too.
     private List<GifEntry> gifEntries = new();
+    private Dictionary<Guid, int> gifFavCounts = new();
+    private string gifFilter = "all";
     private long gifTotalBytes;
+    private int gifCustomCount;
+    private int gifProviderCount;
 
     private void SelectGifsTab()
     {
         activeSection = "gifs";
-        gifEntries = GifService.GetCustomUploads();
+        gifEntries = GifService.GetAllEntries();
+        gifFavCounts = GifService.GetFavoriteCounts();
         gifTotalBytes = gifEntries.Sum(g => g.FileSizeBytes);
+        gifCustomCount = gifEntries.Count(g => g.SourceProviderId == null);
+        gifProviderCount = gifEntries.Count - gifCustomCount;
     }
+
+    private IEnumerable<GifEntry> FilteredGifEntries => gifFilter switch
+    {
+        "custom" => gifEntries.Where(g => g.SourceProviderId == null),
+        "provider" => gifEntries.Where(g => g.SourceProviderId != null),
+        "favorited" => gifEntries.Where(g => gifFavCounts.ContainsKey(g.Id)),
+        _ => gifEntries,
+    };
 
     private string GifUploaderName(GifEntry g)
     {
@@ -1487,6 +1548,37 @@
         if (string.IsNullOrEmpty(url)) return "?";
         var ext = Path.GetExtension(url).TrimStart('.').ToLowerInvariant();
         return string.IsNullOrEmpty(ext) ? "?" : ext;
+    }
+
+    // Inline tag editing — tags are what makes a custom GIF findable in the picker's local search,
+    // and uploaders won't tag anything themselves, so the admin curates them here.
+    private Guid? editingGifTagsId;
+    private string gifTagsDraft = "";
+
+    private void StartEditGifTags(GifEntry g)
+    {
+        editingGifTagsId = g.Id;
+        gifTagsDraft = string.Join(", ", GifService.GetTags(g));
+    }
+
+    private void CancelEditGifTags()
+    {
+        editingGifTagsId = null;
+        gifTagsDraft = "";
+    }
+
+    private async Task SaveGifTagsAsync()
+    {
+        if (editingGifTagsId is not Guid id) return;
+        await GifService.SetTagsAsync(id,
+            gifTagsDraft.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        CancelEditGifTags();
+    }
+
+    private async Task HandleGifTagsKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SaveGifTagsAsync();
+        else if (e.Key == "Escape") CancelEditGifTags();
     }
 
     // Diagnostics tab

@@ -58,8 +58,11 @@ public static class TusEndpoints
                     var file = await eventContext.GetFileAsync();
                     var metadata = await file.GetMetadataAsync(eventContext.CancellationToken);
 
-                    var originalFileName = metadata.TryGetValue("filename", out var fName)
-                        ? fName.GetString(System.Text.Encoding.UTF8) : "unknown";
+                    // Null when tus metadata carried no filename; originalFileName keeps the
+                    // "unknown" placeholder for logging, but tag-seeding must not see it.
+                    var uploadedFileName = metadata.TryGetValue("filename", out var fName)
+                        ? fName.GetString(System.Text.Encoding.UTF8) : null;
+                    var originalFileName = uploadedFileName ?? "unknown";
                     var extension = Path.GetExtension(originalFileName).ToLowerInvariant();
                     var kind = metadata.TryGetValue("kind", out var kindMeta)
                         ? kindMeta.GetString(System.Text.Encoding.UTF8) : null;
@@ -98,7 +101,7 @@ public static class TusEndpoints
                     {
                         var contentType = MimeFromExtension(extension);
                         var gifAttachment = await gifService.TryAcceptAsGifAsync(
-                            filePath, contentType, isExplicitGif, user?.Id);
+                            filePath, contentType, isExplicitGif, user?.Id, uploadedFileName);
                         if (gifAttachment != null)
                         {
                             logger.LogDebug("Tus upload classified as GIF: {FileName} ({EntryId})",

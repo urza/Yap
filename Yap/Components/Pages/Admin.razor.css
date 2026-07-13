@@ -975,6 +975,81 @@
     display: block;
 }
 
+/* Inline tag editing in the GIFs table */
+.gif-tags-cell {
+    min-width: 200px;
+}
+
+.gif-tags-view {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    cursor: pointer;
+    padding: 4px;
+    margin: -4px;
+    border-radius: 6px;
+}
+
+.gif-tags-view:hover {
+    background: var(--bg-hover);
+}
+
+.gif-tag-chip {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border-radius: 10px;
+    padding: 2px 8px;
+    font-size: 0.78rem;
+    white-space: nowrap;
+}
+
+.gif-tags-empty {
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 0.8rem;
+}
+
+.gif-tags-edit {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.gif-tags-input {
+    flex: 1;
+    min-width: 140px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border-dark);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.82rem;
+}
+
+.gif-tags-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
+.gif-tags-btn {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    border: none;
+    border-radius: 6px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    line-height: 1;
+}
+
+.gif-tags-btn:hover {
+    color: var(--text-primary);
+}
+
+.gif-tags-btn.save {
+    color: var(--color-success);
+}
+
 /* Media stats cards */
 .media-stats {
     display: flex;
