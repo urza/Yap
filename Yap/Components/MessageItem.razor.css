@@ -430,9 +430,10 @@
     transition: opacity 0.1s ease;
 }
 
-/* Show on hover or when picker is open - pure CSS, no server round-trip */
+/* Show on hover or when picker/menu is open - pure CSS, no server round-trip */
 .message-group:hover:not(.system-message) .message-actions,
-.message-group.picker-open .message-actions {
+.message-group.picker-open .message-actions,
+.message-group.menu-open .message-actions {
     opacity: 1;
     pointer-events: auto;
 }
@@ -469,10 +470,10 @@
     align-self: center;
 }
 
-/* Grey icon buttons (picker, edit, delete, reply) */
+/* Grey icon buttons (picker, edit, more, reply) */
 .action-picker,
 .action-edit,
-.action-delete,
+.action-more,
 .action-reply {
     display: flex;
     align-items: center;
@@ -482,18 +483,15 @@
 
 .action-picker:hover,
 .action-edit:hover,
+.action-more:hover,
 .action-reply:hover {
     background: var(--bg-primary);
     color: var(--text-primary);
 }
 
-.action-delete:hover {
-    background: var(--bg-primary);
-    color: var(--color-danger);
-}
-
-/* Keep hover state when picker is open */
-.message-group.picker-open {
+/* Keep hover state when picker or more-menu is open */
+.message-group.picker-open,
+.message-group.menu-open {
     background: var(--bg-hover);
 }
 
@@ -616,6 +614,206 @@
     margin-left: 4px;
 }
 
+/* ⋯ More overflow menu (copy / delete) */
+.more-menu-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 999;
+}
+
+.more-menu {
+    position: fixed;
+    z-index: 1000;
+    min-width: 190px;
+    padding: 6px;
+    background: var(--bg-sidebar);
+    border-radius: 8px;
+    box-shadow: 0 0 0 1px rgba(4,4,5,0.15), 0 8px 16px rgba(0,0,0,0.24);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    /* Revealed by positionDropdownFixed after placement (desktop);
+       the mobile bottom-sheet override makes it visible directly */
+    visibility: hidden;
+}
+
+.more-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 0.9375rem;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.1s, color 0.1s;
+}
+
+.more-menu-item:hover {
+    background: var(--bg-primary);
+}
+
+.more-menu-item svg {
+    flex-shrink: 0;
+}
+
+/* Delete stays visibly dangerous: red at rest, filled red on hover */
+.menu-item-danger {
+    color: var(--color-danger);
+}
+
+.menu-item-danger:hover {
+    background: var(--color-danger);
+    color: white;
+}
+
+/* Delete confirmation modal */
+.delete-confirm-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.65);
+    z-index: 1100; /* above pickers and the more-menu (999-1000) */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.delete-confirm-dialog {
+    background: var(--bg-primary);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    width: min(440px, 100%);
+    padding: 1.25rem;
+}
+
+.delete-confirm-title {
+    margin: 0 0 0.5rem;
+    font-size: 1.125rem;
+    color: var(--text-white);
+}
+
+.delete-confirm-text {
+    margin: 0 0 0.75rem;
+    color: var(--text-secondary);
+    font-size: 0.9375rem;
+}
+
+/* Mini preview of the message being deleted */
+.delete-confirm-preview {
+    background: var(--bg-sidebar);
+    border-radius: 6px;
+    padding: 10px 12px;
+    box-shadow: 0 0 0 1px rgba(4,4,5,0.15);
+}
+
+.preview-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.preview-username {
+    color: var(--text-white);
+    font-size: 0.9375rem;
+}
+
+.preview-time {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+.preview-content {
+    color: var(--text-primary);
+    font-size: 0.9375rem;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.preview-thumb {
+    display: block;
+    margin-top: 6px;
+    max-width: 120px;
+    max-height: 80px;
+    border-radius: 4px;
+    object-fit: cover;
+}
+
+.preview-attachment-label {
+    margin-top: 4px;
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+    font-style: italic;
+}
+
+.delete-confirm-tip {
+    margin-top: 0.75rem;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+.delete-confirm-tip kbd {
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: var(--bg-sidebar);
+    box-shadow: 0 0 0 1px rgba(4,4,5,0.3);
+    font-family: inherit;
+    font-size: 0.6875rem;
+}
+
+.delete-confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 1rem;
+}
+
+.confirm-cancel,
+.confirm-delete {
+    padding: 8px 18px;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background-color 0.1s, filter 0.1s;
+}
+
+.confirm-cancel {
+    background: transparent;
+    color: var(--text-primary);
+}
+
+.confirm-cancel:hover {
+    text-decoration: underline;
+}
+
+.confirm-delete {
+    background: var(--color-danger);
+    color: white;
+}
+
+.confirm-delete:hover {
+    filter: brightness(0.9);
+}
+
 /* Mobile adjustments */
 @media (max-width: 600px) {
     .message-actions {
@@ -623,9 +821,10 @@
         top: -12px;
     }
 
+    /* Larger touch targets — small icons + tight padding caused fat-finger mistaps */
     .action-btn {
-        padding: 4px 6px;
-        font-size: 0.875rem;
+        padding: 8px 9px;
+        font-size: 1rem;
     }
 
     .message-group {
@@ -681,5 +880,50 @@
 
     .emoji-picker-backdrop {
         background: rgba(0, 0, 0, 0.5);
+    }
+
+    /* More menu becomes a bottom sheet (JS positioning skips mobile) */
+    .more-menu {
+        visibility: visible;
+        top: auto;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        min-width: 0;
+        border-radius: 12px 12px 0 0;
+        padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+    }
+
+    .more-menu-item {
+        padding: 14px 12px;
+        font-size: 1rem;
+    }
+
+    .more-menu-backdrop {
+        background: rgba(0, 0, 0, 0.5);
+    }
+
+    /* Confirm modal: stacked full-width buttons, easy thumb reach */
+    .delete-confirm-tip {
+        display: none; /* no Shift key on phones */
+    }
+
+    .delete-confirm-actions {
+        flex-direction: column-reverse;
+    }
+
+    .confirm-cancel,
+    .confirm-delete {
+        width: 100%;
+        padding: 12px;
+        font-size: 1rem;
+    }
+
+    .confirm-cancel {
+        background: var(--bg-muted);
+    }
+
+    .confirm-cancel:hover {
+        text-decoration: none;
     }
 }

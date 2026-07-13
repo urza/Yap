@@ -8,7 +8,7 @@
 @inject GifService GifService
 @inject UserService UserService
 
-<div class="message-group @(IsSystem ? "system-message" : "") @(ShowHeader ? "has-header" : "") @(showEmojiPicker ? "picker-open" : "") @(ReplyToMessage != null ? "has-reply" : "") @(IsReplyTarget ? "reply-target" : "")"
+<div class="message-group @(IsSystem ? "system-message" : "") @(ShowHeader ? "has-header" : "") @(showEmojiPicker ? "picker-open" : "") @(showMoreMenu ? "menu-open" : "") @(ReplyToMessage != null ? "has-reply" : "") @(IsReplyTarget ? "reply-target" : "")"
      id="msg-@Message.Id"
      @ontouchstart="HandleTouchStart"
      @ontouchstart:stopPropagation>
@@ -259,11 +259,11 @@
                     </svg>
                 </button>
             }
-            @if (IsOwn)
+            @if (HasMenuItems)
             {
-                <button class="action-btn action-delete" @onclick="() => OnDelete.InvokeAsync()" title="Delete">
+                <button class="action-btn action-more" @ref="moreAnchorRef" @onclick="ToggleMoreMenu" @onclick:stopPropagation="true" title="More">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                        <path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
                     </svg>
                 </button>
             }
@@ -275,6 +275,73 @@
             <div class="emoji-picker-wrapper" @ref="pickerWrapperRef">
                 <EmojiPicker RecentEmojis="RecentEmojis"
                              OnEmojiSelected="HandleEmojiSelected" />
+            </div>
+        }
+
+        @* ⋯ overflow menu — dropdown on desktop, bottom sheet on mobile *@
+        @if (showMoreMenu)
+        {
+            <div class="more-menu-backdrop" @onclick="CloseMoreMenu"></div>
+            <div class="more-menu" @ref="moreMenuRef">
+                @if (CanCopyText)
+                {
+                    <button class="more-menu-item" @onclick="HandleCopyText">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                        </svg>
+                        <span>Copy Text</span>
+                    </button>
+                }
+                @if (IsOwn)
+                {
+                    <button class="more-menu-item menu-item-danger" @onclick="HandleDeleteMenuClick">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                        </svg>
+                        <span>Delete Message</span>
+                    </button>
+                }
+            </div>
+        }
+
+        @* Delete confirmation modal with message preview (Shift+click in the menu skips it) *@
+        @if (showDeleteConfirm)
+        {
+            <div class="delete-confirm-overlay" @onclick="CancelDelete" @onkeydown="HandleConfirmKeyDown">
+                <div class="delete-confirm-dialog" @onclick:stopPropagation="true">
+                    <h3 class="delete-confirm-title">Delete Message</h3>
+                    <p class="delete-confirm-text">Are you sure you want to delete this message?</p>
+                    <div class="delete-confirm-preview">
+                        <div class="preview-meta">
+                            <Avatar Username="@Message.Username"
+                                    ProfilePictureUrl="@ProfilePictureUrl"
+                                    Size="AvatarSize.Small" />
+                            <strong class="preview-username">@(DisplayName ?? Message.Username)</strong>
+                            <span class="preview-time">@FormatTimestamp()</span>
+                        </div>
+                        @if (!string.IsNullOrEmpty(Message.Content))
+                        {
+                            <div class="preview-content">@EmojiService.ConvertEmojis(Message.Content, forceSmall: true)</div>
+                        }
+                        @if (Message.HasImages)
+                        {
+                            <img class="preview-thumb" src="@ImageService.GetMediumUrl(Message.ImageUrls[0])" alt="Attachment" />
+                        }
+                        else if (Message.HasVideos)
+                        {
+                            <img class="preview-thumb" src="@VideoService.GetPosterUrl(Message.VideoUrls[0])" alt="Video attachment" />
+                        }
+                        else if (Message.HasGifs)
+                        {
+                            <div class="preview-attachment-label">GIF attachment</div>
+                        }
+                    </div>
+                    <div class="delete-confirm-tip">Pro tip: hold <kbd>Shift</kbd> when deleting to skip this confirmation.</div>
+                    <div class="delete-confirm-actions">
+                        <button class="confirm-cancel" @onclick="CancelDelete">Cancel</button>
+                        <button class="confirm-delete" @ref="confirmDeleteRef" @onclick="ConfirmDelete">Delete</button>
+                    </div>
+                </div>
             </div>
         }
     }
@@ -440,11 +507,96 @@
             }
             catch { /* Ignore JS errors during disconnect */ }
         }
+
+        if (pendingMenuPosition && showMoreMenu)
+        {
+            pendingMenuPosition = false;
+            try
+            {
+                await JS.InvokeVoidAsync("positionDropdownFixed", moreMenuRef, moreAnchorRef);
+            }
+            catch { /* Ignore JS errors during disconnect */ }
+        }
+
+        if (pendingConfirmFocus && showDeleteConfirm)
+        {
+            pendingConfirmFocus = false;
+            // Focus the Delete button so Enter confirms and Escape (via keydown) cancels
+            try { await confirmDeleteRef.FocusAsync(); }
+            catch { /* Ignore JS errors during disconnect */ }
+        }
     }
 
     private void CloseEmojiPicker()
     {
         showEmojiPicker = false;
+    }
+
+    // More menu (copy / delete) + delete confirmation state
+    private bool showMoreMenu;
+    private bool pendingMenuPosition;
+    private bool showDeleteConfirm;
+    private bool pendingConfirmFocus;
+    private ElementReference moreAnchorRef;
+    private ElementReference moreMenuRef;
+    private ElementReference confirmDeleteRef;
+
+    private bool CanCopyText => !string.IsNullOrWhiteSpace(Message.Content);
+    private bool HasMenuItems => CanCopyText || IsOwn;
+
+    private void ToggleMoreMenu()
+    {
+        showMoreMenu = !showMoreMenu;
+        if (showMoreMenu)
+        {
+            pendingMenuPosition = true;
+        }
+    }
+
+    private void CloseMoreMenu()
+    {
+        showMoreMenu = false;
+    }
+
+    private async Task HandleCopyText()
+    {
+        showMoreMenu = false;
+        try { await JS.InvokeVoidAsync("copyTextToClipboard", Message.Content); }
+        catch { /* Ignore JS errors during disconnect */ }
+    }
+
+    private async Task HandleDeleteMenuClick(MouseEventArgs e)
+    {
+        showMoreMenu = false;
+
+        // Shift+click skips the confirmation — power-user path, same as Discord
+        if (e.ShiftKey)
+        {
+            await OnDelete.InvokeAsync();
+            return;
+        }
+
+        showDeleteConfirm = true;
+        pendingConfirmFocus = true;
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        showDeleteConfirm = false;
+        await OnDelete.InvokeAsync();
+    }
+
+    private void HandleConfirmKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            showDeleteConfirm = false;
+        }
     }
 
     private async Task HandleReplyClick()

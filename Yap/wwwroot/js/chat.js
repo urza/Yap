@@ -653,6 +653,59 @@ window.positionEmojiPickerFixed = (wrapper, anchor) => {
     wrapper.style.left = left + 'px';
 };
 
+// Position a small dropdown (e.g. the message ⋯ menu) near its anchor.
+// Unlike positionEmojiPickerFixed this measures the element's real size.
+// The dropdown starts visibility:hidden (CSS) and is revealed only after
+// placement, so it never flashes at its pre-positioned spot.
+window.positionDropdownFixed = (wrapper, anchor) => {
+    if (!wrapper || !anchor) return;
+
+    // On mobile, CSS bottom-sheet handles positioning (and visibility)
+    if (window.innerWidth <= 600) return;
+
+    const anchorRect = anchor.getBoundingClientRect();
+    const width = wrapper.offsetWidth;
+    const height = wrapper.offsetHeight;
+    const margin = 4;
+
+    // Default: below anchor, right-aligned with anchor's right edge
+    let top = anchorRect.bottom + margin;
+    let left = anchorRect.right - width;
+
+    // If not enough space below, position above the anchor
+    if (top + height > window.innerHeight - margin) {
+        top = anchorRect.top - height - margin;
+    }
+
+    // Clamp to viewport edges
+    if (top < margin) top = margin;
+    if (left < margin) left = margin;
+    if (left + width > window.innerWidth - margin) {
+        left = window.innerWidth - width - margin;
+    }
+
+    wrapper.style.top = top + 'px';
+    wrapper.style.left = left + 'px';
+    wrapper.style.visibility = 'visible';
+};
+
+// Copy text to clipboard. Clipboard API needs a secure context, so fall back
+// to the hidden-textarea trick for plain-http access (e.g. LAN testing).
+window.copyTextToClipboard = async (text) => {
+    try {
+        await navigator.clipboard.writeText(text);
+    } catch {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+    }
+};
+
 // Initialize scroll-tracking for emoji picker sidebar highlights.
 // Returns an object with dispose() to clean up the scroll listener.
 window.initEmojiPickerScroll = (contentElement) => {
