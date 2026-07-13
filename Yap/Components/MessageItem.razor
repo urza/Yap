@@ -9,9 +9,7 @@
 @inject UserService UserService
 
 <div class="message-group @(IsSystem ? "system-message" : "") @(ShowHeader ? "has-header" : "") @(showEmojiPicker ? "picker-open" : "") @(showMoreMenu ? "menu-open" : "") @(ReplyToMessage != null ? "has-reply" : "") @(IsReplyTarget ? "reply-target" : "")"
-     id="msg-@Message.Id"
-     @ontouchstart="HandleTouchStart"
-     @ontouchstart:stopPropagation>
+     id="msg-@Message.Id">
 
     @if (ReplyToMessage != null)
     {
@@ -376,7 +374,6 @@
     [Parameter] public EventCallback OnScrollToMessage { get; set; }
 
     // Callbacks
-    [Parameter] public EventCallback OnTouchStart { get; set; }  // For mobile scroll-dismiss
     [Parameter] public EventCallback<string> OnReaction { get; set; }
     [Parameter] public EventCallback OnStartEdit { get; set; }
     [Parameter] public EventCallback OnSaveEdit { get; set; }
@@ -409,11 +406,6 @@
         if (ReplyToMessage.HasMedia && string.IsNullOrEmpty(ReplyToMessage.Content))
             return "Click to see attachment";
         return ReplyToMessage.Content;
-    }
-
-    private async Task HandleTouchStart()
-    {
-        await OnTouchStart.InvokeAsync();
     }
 
     private async Task OnEditInput(ChangeEventArgs e)

@@ -43,10 +43,13 @@
     min-width: 0; /* Allow flex item to shrink below content size */
 }
 
-/* Hide message action popups when scroll-dismissing on mobile */
+/* Hide message action popups on mobile scroll/idle dismiss.
+   The slower transition applies only while this class is present, so the
+   fade-out is gentle but re-show (class removed) uses the snappy base 0.1s. */
 ::deep .messages.scroll-dismissing .message-actions {
     opacity: 0 !important;
     pointer-events: none !important;
+    transition: opacity 0.3s ease;
 }
 
 /* Spacer pushes messages to bottom when few messages */

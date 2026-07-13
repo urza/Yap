@@ -46,7 +46,6 @@
                      ReplyToProfilePictureUrl="@(replyTarget != null ? GetProfilePictureUrl(replyTarget.Username) : null)"
                      OnReply="@(() => StartReply(message))"
                      OnScrollToMessage="@(() => ScrollToMessageAsync(message.ReplyToMessageId!.Value))"
-                     OnTouchStart="ActivateScrollWatch"
                      OnReaction="@(emoji => ToggleReaction(message.Id, emoji))"
                      OnStartEdit="@(() => StartEdit(message))"
                      OnSaveEdit="SaveEdit"

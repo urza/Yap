@@ -864,14 +864,48 @@ window.scrollEmojiPickerToSection = (contentElement, categoryKey) => {
 };
 
 // ==========================================
-// Scroll-to-Dismiss (Mobile message actions)
-// Uses pure CSS class toggling - no Blazor callbacks needed
+// Mobile action-bar dismiss (scroll + idle timeout)
+// Pure client-side CSS class toggling — touchstart is high-frequency, so no
+// Blazor round-trips. Relies on .messages having a STATIC class attribute
+// (Blazor never re-renders it, so our added class can't be clobbered).
 // ==========================================
 
 let scrollWatchActive = false;
 let scrollStartTop = 0;
 let scrollDismissHandler = null;
-const SCROLL_DISMISS_THRESHOLD = 50; // pixels
+let actionsIdleTimer = null;
+const SCROLL_DISMISS_THRESHOLD = 50;  // pixels
+const ACTIONS_IDLE_TIMEOUT = 5000;    // ms of inactivity before the bar fades
+
+const dismissActions = () => {
+    clearTimeout(actionsIdleTimer);
+    // Never hide the bar under an open emoji picker or ⋯ menu; the tap that
+    // eventually closes them lands inside .message-group and re-arms the timer.
+    if (document.querySelector('.picker-open, .menu-open')) return;
+    const messagesEl = document.querySelector('.messages');
+    if (messagesEl) {
+        scrollWatchActive = false;
+        messagesEl.classList.add('scroll-dismissing');
+    }
+};
+
+const armActionsDismiss = () => {
+    const messagesEl = document.querySelector('.messages');
+    if (!messagesEl) return;
+    messagesEl.classList.remove('scroll-dismissing');   // instant re-show, no round-trip
+    scrollStartTop = messagesEl.scrollTop;
+    scrollWatchActive = true;
+    clearTimeout(actionsIdleTimer);
+    actionsIdleTimer = setTimeout(dismissActions, ACTIONS_IDLE_TIMEOUT);
+};
+
+// Any touch on a message (action bar, pickers and backdrops included) re-arms.
+// Capture phase: runs before Blazor's handlers and can't be affected by them —
+// same pattern as the reply-button focuser. Touch-only, so desktop hover
+// behavior is untouched.
+document.addEventListener('touchstart', (e) => {
+    if (e.target.closest('.message-group')) armActionsDismiss();
+}, { capture: true, passive: true });
 
 window.setupScrollDismiss = () => {
     const messagesEl = document.querySelector('.messages');
@@ -887,23 +921,11 @@ window.setupScrollDismiss = () => {
 
         const delta = Math.abs(messagesEl.scrollTop - scrollStartTop);
         if (delta > SCROLL_DISMISS_THRESHOLD) {
-            scrollWatchActive = false;
-            // Add class to hide all message action popups via CSS
-            messagesEl.classList.add('scroll-dismissing');
+            dismissActions();
         }
     };
 
     messagesEl.addEventListener('scroll', scrollDismissHandler, { passive: true });
-};
-
-window.activateScrollWatch = () => {
-    const messagesEl = document.querySelector('.messages');
-    if (messagesEl) {
-        // Remove dismiss class when user taps a message
-        messagesEl.classList.remove('scroll-dismissing');
-        scrollStartTop = messagesEl.scrollTop;
-        scrollWatchActive = true;
-    }
 };
 
 window.cleanupScrollDismiss = () => {
@@ -914,6 +936,7 @@ window.cleanupScrollDismiss = () => {
     }
     scrollDismissHandler = null;
     scrollWatchActive = false;
+    clearTimeout(actionsIdleTimer);
 };
 
 // Focus message input (used after clicking Reply)

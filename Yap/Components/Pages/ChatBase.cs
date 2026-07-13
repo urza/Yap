@@ -385,15 +385,6 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
         catch (Exception ex) { Console.WriteLine($"[ChatBase] Failed to setup scroll dismiss: {ex.Message}"); }
     }
 
-    /// <summary>
-    /// Called on touch start to activate scroll watching (for mobile dismiss).
-    /// </summary>
-    protected void ActivateScrollWatch()
-    {
-        // Fire-and-forget JS call
-        _ = JS.InvokeVoidAsync("activateScrollWatch");
-    }
-
     private async Task CleanupScrollDismissAsync()
     {
         try
