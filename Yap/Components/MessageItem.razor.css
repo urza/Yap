@@ -438,12 +438,23 @@
     pointer-events: auto;
 }
 
-/* Hide actions when reply-preview is hovered/tapped (sibling combinator).
-   On mobile: sticky :hover from tap hides actions so reply-preview click works.
-   On desktop: actions hide only while mouse is over the reply reference. */
+/* Hide actions while the pointer is over the reply reference (sibling combinator),
+   so the reference stays readable/clickable under where the bar overlaps it. */
 .reply-preview:hover ~ .message-actions {
     opacity: 0 !important;
-    pointer-events: none !important;
+}
+
+/* Touch only: also make the hidden bar click-through, so sticky tap-:hover on the
+   reply-preview can't leave an invisible bar stealing the tap meant for it.
+   Deliberately NOT applied for mouse input: with hit-testing disabled, crossing the
+   ~1px strip of reply-preview that peeks below the bar latched it hidden — the cursor
+   then hovered the preview *through* the ghost bar and the bar never came back,
+   making Reply unreachable. With hit-testing kept, the bar re-appears the moment
+   the cursor enters its box (the bar, not the preview, becomes the hovered element). */
+@media (hover: none), (pointer: coarse) {
+    .reply-preview:hover ~ .message-actions {
+        pointer-events: none !important;
+    }
 }
 
 .action-btn {
