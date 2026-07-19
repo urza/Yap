@@ -49,6 +49,7 @@ public class GifService
 
     private const int MaxRecentGifs = 30;
     private const int LocalSearchLimit = 24;
+    private const int PartialMatchLimit = 2; // tolerated (all-but-one-word) search hits — one grid row, enough to keep teach-on-click alive without burying provider results
     private const long MaxDownloadBytes = 64L * 1024 * 1024; // 64MB safety ceiling per file
     private const int DownloadTimeoutMs = 30_000;
 
@@ -187,8 +188,10 @@ public class GifService
     /// substring-matched against tags (order-independent) — "kiss blow" finds an entry tagged
     /// "blow" + "kisses". All words but one must match: full matches rank first, but one unknown
     /// word doesn't hide an otherwise-good hit — and clicking such a hit appends the full query
-    /// as a tag, teaching the entry the word it was missing. When <paramref name="userId"/> is
-    /// given, that user's favorites rank above equally-matching entries.
+    /// as a tag, teaching the entry the word it was missing. Tolerated hits are capped at
+    /// <see cref="PartialMatchLimit"/> when a provider is configured, so near-misses can't crowd
+    /// out the provider section. When <paramref name="userId"/> is given, that user's favorites
+    /// rank above equally-matching entries.
     /// </summary>
     public List<GifEntry> SearchLocal(string query, Guid? userId = null, int limit = LocalSearchLimit)
     {
@@ -227,7 +230,7 @@ public class GifService
         if (userId is Guid uid && _favoritesByUser.TryGetValue(uid, out var favSet))
             lock (favSet) favIds.UnionWith(favSet);
 
-        return matchCounts
+        var ranked = matchCounts
             .Where(kv => kv.Value >= requiredMatches)
             .Select(kv => (Entry: _entries.TryGetValue(kv.Key, out var e) ? e : null, Matches: kv.Value))
             .Where(x => x.Entry != null && x.Entry.DeletedAt == null)
@@ -235,9 +238,16 @@ public class GifService
             .ThenByDescending(x => favIds.Contains(x.Entry!.Id))  // then the searcher's favorites
             .ThenByDescending(x => x.Entry!.UseCount)
             .ThenByDescending(x => x.Entry!.LastUsedAt)
-            .Take(limit)
-            .Select(x => x.Entry!)
             .ToList();
+
+        // Full matches are genuinely relevant — show them all. Tolerated hits exist only to keep
+        // the teach-on-click loop alive, so one grid row is enough: uncapped, a two-word query
+        // degenerates to OR and buries the provider section under one-word near-misses.
+        // With no provider configured there's nothing below to bury — skip the cap.
+        var partialCap = IsConfigured ? PartialMatchLimit : limit;
+        var full = ranked.Where(x => x.Matches == tokens.Count);
+        var partial = ranked.Where(x => x.Matches < tokens.Count).Take(partialCap);
+        return full.Concat(partial).Take(limit).Select(x => x.Entry!).ToList();
     }
 
     public Task<GifSearchResult> SearchProviderAsync(string query, string? cursor, int limit, CancellationToken ct)
