@@ -966,7 +966,8 @@
     font-size: 0.875rem;
 }
 
-.gif-admin-thumb {
+/* Preview thumbnails in the Media and GIFs tables */
+.admin-thumb {
     height: 40px;
     max-width: 72px;
     object-fit: cover;

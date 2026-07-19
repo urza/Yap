@@ -699,6 +699,7 @@
                     <option value="">All types</option>
                     <option value="image" selected="@(mediaFilterType == "image")">Image</option>
                     <option value="video" selected="@(mediaFilterType == "video")">Video</option>
+                    <option value="gif" selected="@(mediaFilterType == "gif")">GIF</option>
                 </select>
                 <input type="text" class="log-filter-input" placeholder="Filter by username..."
                        @bind="mediaFilterUsername" @bind:event="oninput" @bind:after="OnMediaUsernameFilterChanged" />
@@ -708,6 +709,7 @@
                 <table class="users-table logs-table">
                     <thead>
                         <tr>
+                            <th>Preview</th>
                             <th>Date</th>
                             <th>User</th>
                             <th>File</th>
@@ -720,6 +722,16 @@
                         @foreach (var entry in mediaEntries)
                         {
                             <tr>
+                                @{ var (thumbUrl, linkUrl) = GetMediaPreview(entry); }
+                                <td>
+                                    @if (thumbUrl != null)
+                                    {
+                                        <a href="@(linkUrl ?? thumbUrl)" target="_blank" rel="noopener">
+                                            <img src="@thumbUrl" alt="" class="admin-thumb" loading="lazy"
+                                                 onerror="this.parentElement.style.display='none'" />
+                                        </a>
+                                    }
+                                </td>
                                 <td class="date-cell">@FormatLogDate(entry.Date)</td>
                                 <td>@entry.Username</td>
                                 <td class="info-cell" title="@entry.OriginalFileName">@entry.OriginalFileName</td>
@@ -810,7 +822,7 @@
                                     @if (!string.IsNullOrEmpty(previewUrl))
                                     {
                                         <a href="@previewUrl" target="_blank" rel="noopener">
-                                            <img src="@previewUrl" alt="" class="gif-admin-thumb" loading="lazy" />
+                                            <img src="@previewUrl" alt="" class="admin-thumb" loading="lazy" />
                                         </a>
                                     }
                                 </td>
@@ -1499,6 +1511,30 @@
         _mediaFilterCts = new CancellationTokenSource();
         var token = _mediaFilterCts.Token;
         _ = DebounceFilterAsync(token, LoadMedia);
+    }
+
+    // Derives preview URLs from the upload pipeline's naming conventions (ImageService
+    // thumbnails, VideoService posters, GifService library). The log is historical, so the
+    // files may no longer exist — the img's onerror hides dead previews client-side.
+    private (string? Thumb, string? Link) GetMediaPreview(MediaUploadLog entry)
+    {
+        // Also strips the "gif/" prefix from gif entries ("gif/{entryId}" → "{entryId}")
+        var baseName = Path.GetFileNameWithoutExtension(entry.StoredFileName);
+        return entry.FileType switch
+        {
+            "image" => ($"/uploads/{baseName}_800px.webp", $"/uploads/{entry.StoredFileName}"),
+
+            // A recorded compress duration means the video was re-encoded to .mp4 (and a
+            // non-mp4 original deleted), so link to the .mp4 in that case.
+            "video" => ($"/uploads/{baseName}_poster.webp",
+                        entry.CompressDurationMs.HasValue ? $"/uploads/{baseName}.mp4" : $"/uploads/{entry.StoredFileName}"),
+
+            // Routed to the GIF library — resolve live, same preview logic as the GIFs tab.
+            "gif" when Guid.TryParse(baseName, out var gifId) && GifService.GetEntry(gifId) is { } gif
+                => (gif.GifUrl ?? gif.RemoteGifUrl, gif.GifUrl ?? gif.RemoteGifUrl),
+
+            _ => (null, null)
+        };
     }
 
     private static string FormatFileSize(long bytes)
