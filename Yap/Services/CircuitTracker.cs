@@ -10,6 +10,8 @@ namespace Yap.Services;
 public class CircuitTracker
 {
     private readonly ConcurrentDictionary<string, CircuitInfo> _circuits = new();
+    private readonly ConcurrentQueue<CircuitInfo> _recentlyClosed = new();
+    private const int RecentlyClosedCap = 50;
     private int _totalCreated = 0;
 
     // Telemetry lives in init-only extras so the original positional construction stays untouched.
@@ -28,6 +30,7 @@ public class CircuitTracker
         public DateTime? LastSlowEventAt { get; init; }
         public double? LastSendToAppearMs { get; init; } // client-measured: send click → own message in the DOM
         public DateTime? SendTimingAt { get; init; }
+        public DateTime? ClosedAt { get; init; }         // set when the circuit moves into the recently-closed ring
     }
 
     public void OnCircuitOpened(string circuitId)
@@ -44,7 +47,17 @@ public class CircuitTracker
 
     public void OnCircuitClosed(string circuitId)
     {
-        _circuits.TryRemove(circuitId, out _);
+        if (!_circuits.TryRemove(circuitId, out var info))
+            return;
+
+        // Keep a bounded trail of closed circuits so telemetry survives sign-outs and evictions
+        // long enough for an admin to inspect after the fact. In-memory only — gone on restart.
+        // Unlabeled circuits (pre-auth pages, never-hydrated sessions) are noise for diagnostics.
+        if (info.Username is null)
+            return;
+
+        _recentlyClosed.Enqueue(info with { IsConnected = false, ClosedAt = DateTime.UtcNow });
+        while (_recentlyClosed.Count > RecentlyClosedCap && _recentlyClosed.TryDequeue(out _)) { }
     }
 
     /// <summary>
@@ -98,4 +111,6 @@ public class CircuitTracker
     }
 
     public List<CircuitInfo> GetAllCircuits() => _circuits.Values.ToList();
+
+    public List<CircuitInfo> GetRecentlyClosed() => _recentlyClosed.Reverse().ToList(); // newest first
 }

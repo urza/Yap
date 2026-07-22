@@ -912,7 +912,7 @@
 
             <div class="diag-chart-card" style="margin-bottom: 16px;">
                 <h4>Circuits — latency telemetry</h4>
-                @if (diagCircuits.Count == 0)
+                @if (diagCircuits.Count == 0 && diagClosedCircuits.Count == 0)
                 {
                     <p style="color: var(--text-secondary); margin: 0;">No circuits tracked yet.</p>
                 }
@@ -945,6 +945,26 @@
                                     <td>@(c.SlowEventCount == 0 ? "—" : $"{c.SlowEventCount}× (max {c.MaxEventMs:F0}ms)")</td>
                                     <td>@FormatMs(c.LastSendToAppearMs)</td>
                                 </tr>
+                            }
+                            @if (diagClosedCircuits.Count > 0)
+                            {
+                                @* Bounded trail (last 50) — lets an admin inspect a user's numbers after they signed out *@
+                                <tr><td colspan="7" style="color: var(--text-secondary); padding-top: 10px;">Recently closed</td></tr>
+                                @foreach (var c in diagClosedCircuits)
+                                {
+                                    var laggy = c.IsWebSocket == false || c.AvgRttMs > 250;
+                                    <tr style="opacity: 0.55; @(laggy ? "color: var(--color-warning);" : "")">
+                                        <td>@(c.Username ?? "—")</td>
+                                        <td>@(c.ClientIp ?? "—")</td>
+                                        <td>@(c.IsWebSocket switch { true => "WS", false => "⚠ Fallback", null => "—" })</td>
+                                        <td>✗ @FormatAgo(c.ClosedAt)</td>
+                                        <td title="@c.RttSamples samples, last @FormatAgo(c.RttUpdatedAt)">
+                                            @FormatMs(c.LastRttMs) / @FormatMs(c.AvgRttMs) / @FormatMs(c.MaxRttMs)
+                                        </td>
+                                        <td>@(c.SlowEventCount == 0 ? "—" : $"{c.SlowEventCount}× (max {c.MaxEventMs:F0}ms)")</td>
+                                        <td>@FormatMs(c.LastSendToAppearMs)</td>
+                                    </tr>
+                                }
                             }
                         </tbody>
                     </table>
@@ -1663,6 +1683,7 @@
     private IJSObjectReference? _jsModule;
     private DiagnosticsSnapshot? diagLatest;
     private List<CircuitTracker.CircuitInfo> diagCircuits = new();
+    private List<CircuitTracker.CircuitInfo> diagClosedCircuits = new();
     private System.Threading.Timer? _diagTimer;
     private bool diagLoaded;
 
@@ -1711,6 +1732,7 @@
             .OrderByDescending(c => c.IsConnected)
             .ThenBy(c => c.Username)
             .ToList();
+        diagClosedCircuits = CircuitTracker.GetRecentlyClosed();
 
         if (_jsModule == null || snapshots.Count == 0) return;
 
@@ -1757,7 +1779,12 @@
     };
 
     private static string FormatAgo(DateTime? at) => at is DateTime t
-        ? $"{Math.Max(0, (int)(DateTime.UtcNow - t).TotalSeconds)}s ago"
+        ? (DateTime.UtcNow - t) switch
+        {
+            { TotalSeconds: < 120 } ago => $"{Math.Max(0, (int)ago.TotalSeconds)}s ago",
+            { TotalMinutes: < 120 } ago => $"{(int)ago.TotalMinutes}m ago",
+            var ago => $"{(int)ago.TotalHours}h ago"
+        }
         : "never";
 
     // Visitors tab
