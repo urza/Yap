@@ -160,6 +160,7 @@ builder.Services.AddScoped<EmojiService>();
 builder.Services.AddScoped<UserStateService>();
 builder.Services.AddScoped<ChatNavigationState>();
 builder.Services.AddScoped<CircuitHandler, ChatCircuitHandler>();
+builder.Services.AddScoped<CircuitIdentity>();    // circuit-id bridge so components can report per-circuit telemetry
 
 // HTTP context accessor (for device detection in Blazor components)
 builder.Services.AddHttpContextAccessor();

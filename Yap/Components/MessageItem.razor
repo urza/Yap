@@ -9,7 +9,9 @@
 @inject UserService UserService
 
 <div class="message-group @(IsSystem ? "system-message" : "") @(ShowHeader ? "has-header" : "") @(showEmojiPicker ? "picker-open" : "") @(showMoreMenu ? "menu-open" : "") @(ReplyToMessage != null ? "has-reply" : "") @(IsReplyTarget ? "reply-target" : "")"
-     id="msg-@Message.Id">
+     id="msg-@Message.Id"
+     data-author="@Message.Username">
+    @* data-author is a hook for the send→appear latency timer in chat.js — keep it when refactoring *@
 
     @if (ReplyToMessage != null)
     {

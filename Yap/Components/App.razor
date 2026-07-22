@@ -73,6 +73,9 @@
         // Start Blazor with custom reconnection configuration
         Blazor.start({
             circuit: {
+                // Log SignalR negotiation (incl. the selected transport) to the console — a client
+                // stuck on long-polling fallback instead of WebSockets is the #1 per-machine latency suspect.
+                configureSignalR: builder => builder.configureLogging('information'),
                 reconnectionOptions: {
                     // Retry timing: immediate first attempt, then every 4 seconds.
                     retryIntervalMilliseconds: function(previousAttempts, maxRetries) {

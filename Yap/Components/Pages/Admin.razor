@@ -16,6 +16,7 @@
 @inject VideoService VideoService
 @inject NavigationManager Navigation
 @inject DiagnosticsCollectorService DiagCollector
+@inject CircuitTracker CircuitTracker
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
@@ -910,6 +911,47 @@
             }
 
             <div class="diag-chart-card" style="margin-bottom: 16px;">
+                <h4>Circuits — latency telemetry</h4>
+                @if (diagCircuits.Count == 0)
+                {
+                    <p style="color: var(--text-secondary); margin: 0;">No circuits tracked yet.</p>
+                }
+                else
+                {
+                    <table class="users-table logs-table">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>IP</th>
+                                <th title="How this client's SignalR connected — Fallback (SSE/long-polling) instead of WebSockets is the #1 latency suspect">Transport</th>
+                                <th>Connected</th>
+                                <th title="Client-measured circuit round trip: last / average / max">RTT last/avg/max</th>
+                                <th title="Inbound events the server took ≥100ms to process">Slow events</th>
+                                <th title="Client-measured: send click → own message rendered">Send→appear</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var c in diagCircuits)
+                            {
+                                var laggy = c.IsWebSocket == false || c.AvgRttMs > 250;
+                                <tr style="@(laggy ? "color: var(--color-warning);" : "")">
+                                    <td>@(c.Username ?? "—")</td>
+                                    <td>@(c.ClientIp ?? "—")</td>
+                                    <td>@(c.IsWebSocket switch { true => "WS", false => "⚠ Fallback", null => "—" })</td>
+                                    <td>@(c.IsConnected ? "✓" : "✗") @FormatAge(c.CreatedAt)</td>
+                                    <td title="@c.RttSamples samples, last @FormatAgo(c.RttUpdatedAt)">
+                                        @FormatMs(c.LastRttMs) / @FormatMs(c.AvgRttMs) / @FormatMs(c.MaxRttMs)
+                                    </td>
+                                    <td>@(c.SlowEventCount == 0 ? "—" : $"{c.SlowEventCount}× (max {c.MaxEventMs:F0}ms)")</td>
+                                    <td>@FormatMs(c.LastSendToAppearMs)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+
+            <div class="diag-chart-card" style="margin-bottom: 16px;">
                 <h4>Push notifications</h4>
                 @switch (PushService.KeyStatus)
                 {
@@ -1620,6 +1662,7 @@
     // Diagnostics tab
     private IJSObjectReference? _jsModule;
     private DiagnosticsSnapshot? diagLatest;
+    private List<CircuitTracker.CircuitInfo> diagCircuits = new();
     private System.Threading.Timer? _diagTimer;
     private bool diagLoaded;
 
@@ -1664,6 +1707,10 @@
     {
         var snapshots = DiagCollector.GetSnapshots();
         diagLatest = DiagCollector.GetLatest();
+        diagCircuits = CircuitTracker.GetAllCircuits()
+            .OrderByDescending(c => c.IsConnected)
+            .ThenBy(c => c.Username)
+            .ToList();
 
         if (_jsModule == null || snapshots.Count == 0) return;
 
@@ -1699,6 +1746,19 @@
         catch (JSDisconnectedException) { }
         catch (ObjectDisposedException) { }
     }
+
+    // Formatting for the circuits telemetry table — "—" marks values that client hasn't reported yet
+    private static string FormatMs(double? ms) => ms is double v ? $"{v:F0}ms" : "—";
+
+    private static string FormatAge(DateTime createdAt) => (DateTime.UtcNow - createdAt) switch
+    {
+        { TotalHours: >= 1 } age => $"{(int)age.TotalHours}h {age.Minutes}m",
+        var age => $"{Math.Max(0, (int)age.TotalMinutes)}m"
+    };
+
+    private static string FormatAgo(DateTime? at) => at is DateTime t
+        ? $"{Math.Max(0, (int)(DateTime.UtcNow - t).TotalSeconds)}s ago"
+        : "never";
 
     // Visitors tab
     private List<UserActionLog> visitorEntries = new();

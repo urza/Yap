@@ -6,7 +6,9 @@ public static class AdminEndpoints
 {
     public static void MapAdminEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/admin/generate-thumbnails", (ImageService imageService, IWebHostEnvironment env) =>
+        var group = app.MapGroup("/api/admin").RequireAdmin();
+
+        group.MapGet("/generate-thumbnails", (ImageService imageService, IWebHostEnvironment env) =>
         {
             var uploadsPath = Path.Combine(env.WebRootPath, "uploads");
             if (!Directory.Exists(uploadsPath))

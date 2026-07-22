@@ -1327,3 +1327,93 @@ window.applyTheme = (themeId) => {
     document.addEventListener('load', e => markGifLoaded(e.target), true);
     document.addEventListener('error', e => markGifLoaded(e.target), true);
 })();
+
+// =============================================================================
+// Latency telemetry (feeds the admin diagnostics circuits table)
+// =============================================================================
+// RTT probe: times a no-op circuit call with performance.now(). Deliberately measures the FULL
+// experienced round trip — transport + dispatcher queue — because that's the latency the user
+// feels. Each ping carries the PREVIOUS measurement, so one call both measures and reports.
+// Send timer: marks send clicks and reports how long until the sender's own message shows up
+// in the DOM (matched via data-author on .message-group).
+
+let telemetryRef = null;   // refreshed on every setup — a resumed circuit brings a fresh DotNetObjectReference
+let telemetryUser = null;
+let sendMark = null;       // performance.now() of the pending send; null = none pending
+let sendObserver = null;
+
+window.setupLatencyProbe = (dotNetRef, username) => {
+    telemetryRef = dotNetRef;
+    telemetryUser = username;
+
+    if (window._yapProbeTimer) clearInterval(window._yapProbeTimer);
+    let lastRtt = null;
+    let failures = 0;
+
+    const ping = () => {
+        // Hidden tabs get throttled timers — their samples would be garbage, skip them
+        if (document.visibilityState !== 'visible') return;
+        const t0 = performance.now();
+        telemetryRef.invokeMethodAsync('ProbePing', lastRtt)
+            .then(() => { lastRtt = Math.round(performance.now() - t0); failures = 0; })
+            .catch(() => { if (++failures >= 3) clearInterval(window._yapProbeTimer); }); // circuit gone — stop quietly
+    };
+
+    window._yapProbeTimer = setInterval(ping, 10000);
+    ping();
+
+    installSendTimer();
+};
+
+let sendTimerInstalled = false;
+const installSendTimer = () => {
+    if (sendTimerInstalled) return; // document-level listeners are installed once and survive circuit resets
+    sendTimerInstalled = true;
+
+    const isTouch = window.isTouchDevice();
+    const mark = () => {
+        sendMark = performance.now();
+        watchForOwnMessage(sendMark);
+    };
+
+    // Capture phase: observe the same clicks/keys Blazor handles, without interfering.
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.send-button');
+        if (btn && !btn.disabled) mark();
+    }, true);
+
+    document.addEventListener('keydown', (e) => {
+        // Mirrors the server's send condition (Enter only sends on non-touch devices)
+        if (e.key !== 'Enter' || e.shiftKey || isTouch) return;
+        const ta = e.target.closest('.message-input');
+        if (ta && ta.value.trim()) mark();
+    }, true);
+};
+
+const watchForOwnMessage = (myMark) => {
+    const container = document.querySelector('.messages');
+    if (!container) { sendMark = null; return; }
+
+    sendObserver?.disconnect();
+    sendObserver = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            for (const node of mutation.addedNodes) {
+                if (node.nodeType !== 1 || !node.matches?.('.message-group')) continue;
+                if (node.dataset.author !== telemetryUser || sendMark === null) continue;
+                const ms = performance.now() - sendMark;
+                sendMark = null;
+                sendObserver.disconnect();
+                console.log(`[yap] send→appear: ${ms.toFixed(0)}ms`);
+                telemetryRef?.invokeMethodAsync('ReportSendTiming', ms).catch(() => {});
+                return;
+            }
+        }
+    });
+    sendObserver.observe(container, { childList: true });
+
+    // A send that never echoes (error, disconnect) must not leave the observer running.
+    // Guard on myMark so an older send's timeout can't kill a newer pending one.
+    setTimeout(() => {
+        if (sendMark === myMark) { sendMark = null; sendObserver?.disconnect(); }
+    }, 15000);
+};

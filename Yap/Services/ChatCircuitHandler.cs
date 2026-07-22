@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.Components.Server.Circuits;
 using Yap.Helpers;
 using Yap.Models;
@@ -13,10 +14,14 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
     private static readonly TimeSpan IdleTimeout = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan DisconnectGracePeriod = TimeSpan.FromSeconds(30);
 
+    // Inbound activities slower than this get reported to CircuitTracker and logged.
+    private const double SlowInboundEventMs = 100;
+
     private readonly ChatService _chatService;
     private readonly UserStateService _userState;
     private readonly UserService _userService;
     private readonly CircuitTracker _circuitTracker;
+    private readonly CircuitIdentity _identity;
     private readonly UserActionLogService _actionLog;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<ChatCircuitHandler> _logger;
@@ -35,6 +40,7 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
         UserStateService userState,
         UserService userService,
         CircuitTracker circuitTracker,
+        CircuitIdentity circuitIdentity,
         UserActionLogService actionLog,
         IHttpContextAccessor httpContextAccessor,
         ILogger<ChatCircuitHandler> logger)
@@ -43,6 +49,7 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
         _userState = userState;
         _userService = userService;
         _circuitTracker = circuitTracker;
+        _identity = circuitIdentity;
         _actionLog = actionLog;
         _httpContextAccessor = httpContextAccessor;
         _logger = logger;
@@ -51,6 +58,7 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
     public override Task OnCircuitOpenedAsync(Circuit circuit, CancellationToken cancellationToken)
     {
         _circuitId = circuit.Id;
+        _identity.CircuitId = circuit.Id; // components (the latency probe in ChatLayout) report telemetry against this id
         _circuitTracker.OnCircuitOpened(circuit.Id);
 
         // Capture client IP from the initial HTTP request (available during circuit setup)
@@ -60,6 +68,10 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
             _clientIp = IpHelper.GetClientIp(httpContext);
         }
 
+        // Label the circuit for the admin diagnostics table. A non-WebSocket connection means
+        // SignalR fell back to SSE/long-polling — the top suspect when one client feels laggy.
+        _circuitTracker.SetUser(circuit.Id, _userState.Username, _clientIp, httpContext?.WebSockets.IsWebSocketRequest);
+
         _logger.LogDebug("Circuit {CircuitId} opened, starting idle timer ({Timeout})", circuit.Id, IdleTimeout);
         StartIdleTimer();
         return base.OnCircuitOpenedAsync(circuit, cancellationToken);
@@ -68,6 +80,11 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
     public override async Task OnConnectionUpAsync(Circuit circuit, CancellationToken cancellationToken)
     {
         _circuitTracker.OnConnectionUp(circuit.Id);
+
+        // Re-label on every connection-up: the username can hydrate after circuit open, and a
+        // reconnect may arrive on a different transport than the original connection.
+        _circuitTracker.SetUser(circuit.Id, _userState.Username, _clientIp,
+            _httpContextAccessor.HttpContext?.WebSockets.IsWebSocketRequest);
 
         // Reconnected — re-assert this session as visible (a reconnecting circuit is an active tab).
         // The client's visibilitychange listener corrects this if the tab is later backgrounded.
@@ -169,6 +186,8 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
     {
         return async context =>
         {
+            var start = Stopwatch.GetTimestamp();
+
             // Track activity for this session (used by AreAllSessionsIdle)
             if (!string.IsNullOrEmpty(_userState.SessionId))
             {
@@ -191,6 +210,17 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
             }
 
             await next(context);
+
+            // Server-side processing time for this activity (dispatch + handler + renders; network
+            // excluded). Compared with the client RTT probe this separates "slow link" from "busy
+            // server". Information level on purpose — visible at prod's default log level.
+            var elapsedMs = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+            if (elapsedMs >= SlowInboundEventMs && _circuitId is not null)
+            {
+                _circuitTracker.ReportSlowEvent(_circuitId, elapsedMs);
+                _logger.LogInformation("Slow inbound event: {ElapsedMs:F0}ms circuit={CircuitId} user={Username}",
+                    elapsedMs, _circuitId, _userState.Username);
+            }
         };
     }
 
