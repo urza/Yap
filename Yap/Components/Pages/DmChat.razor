@@ -54,6 +54,10 @@
                      OnImageClick="@(args => ShowGallery(args.Images, args.Index))"
                      LinkPreviews="@GetLinkPreviews(message)" />
     }
+
+    @* JS-owned: optimistic pending-send ghosts render here (chat.js send pipeline).
+       Blazor must always render it empty — its children belong to the client. *@
+    <div class="pending-echoes"></div>
 </div>
 
 <MessageInput DmUser="@DmUser" RecentEmojis="@recentEmojis" OnEmojiUsed="HandleInputEmojiUsed"
@@ -145,6 +149,9 @@
         // Get or create new DM channel
         var channel = ChatService.GetOrCreateDMChannel(UserId, Username, otherUser.Id, otherUser.Username);
         channelId = channel.Id;
+
+        // Pending optimistic ghosts belong to the previous channel — their echo can't arrive here
+        try { await JS.InvokeVoidAsync("clearPendingEchoes"); } catch { /* circuit may be dead */ }
 
         // Reset pagination state and load fresh
         ResetPaginationState();

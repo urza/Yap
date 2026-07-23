@@ -173,3 +173,14 @@ h1:focus {
 .custom-emoji {
     object-fit: contain;
 }
+
+/* Optimistic send echo (chat.js send pipeline): a dimmed plain-text stand-in for the
+   just-sent message, swapped for the real render when the round trip completes.
+   Padding mirrors .message-group's text column so the swap doesn't shift layout.
+   Lives here (not scoped css) because ghosts are JS-created without scope attributes. */
+.pending-message {
+    padding: 0.125rem 1rem 0.125rem calc(1rem + 40px + 1rem);
+    opacity: 0.55;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+}

@@ -89,7 +89,6 @@ else
      @ondrop:preventDefault>
     <textarea @bind="messageText" @bind:event="oninput" @bind:after="OnInputChangedInternal"
               placeholder="@placeholder" class="message-input"
-              @onkeydown="HandleKeyDown"
               @onfocus="HandleInputFocus" @onblur="HandleInputBlur"
               rows="1" id="@TextareaId"></textarea>
     <label class="image-upload-button" title="Upload files">
@@ -134,9 +133,10 @@ else
             </div>
         }
     </div>
-    <button class="send-button @(string.IsNullOrWhiteSpace(messageText) ? "disabled" : "")"
+    @* Enabled-look and Enter-to-send are client-side (:placeholder-shown CSS + chat.js
+       send pipeline) so neither waits on a circuit round trip; HandleSend still guards. *@
+    <button class="send-button"
             @onclick="HandleSend"
-            disabled="@string.IsNullOrWhiteSpace(messageText)"
             title="Send message">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
             <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
@@ -197,7 +197,6 @@ else
     // Unique IDs for this instance
     private string TextareaId = $"messageTextarea_{Guid.NewGuid():N}";
     private string FileInputId = $"fileInput_{Guid.NewGuid():N}";
-    private bool isTouchDevice = false;
     private bool isMobileLayout = false;
     private bool isInputFocused = false;
     private DotNetObjectReference<MessageInput>? _layoutRef;
@@ -246,8 +245,6 @@ else
         {
             try { await JS.InvokeVoidAsync("setupDropZone", dropZoneElement, FileInputId); }
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup drop zone"); }
-            try { isTouchDevice = await JS.InvokeAsync<bool>("isTouchDevice"); }
-            catch (Exception ex) { Logger.LogWarning(ex, "Failed to detect touch device"); }
             try { await JS.InvokeVoidAsync("setupEnterKeyHandler", TextareaId); }
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup enter key handler"); }
             try { await JS.InvokeVoidAsync("setupTextareaAutoResize", TextareaId); }
@@ -309,14 +306,11 @@ else
 
     private void UpdatePlaceholder()
     {
-        if (IsDmContext)
-        {
-            placeholder = $"Message @{DmUser}";
-        }
-        else
-        {
-            placeholder = ChatConfig.GetRandomMessagePlaceholder();
-        }
+        // Must never be empty: send-button dimming rides on :placeholder-shown,
+        // which can't match an empty placeholder attribute.
+        placeholder = IsDmContext
+            ? $"Message @{DmUser}"
+            : ChatConfig.GetRandomMessagePlaceholder() is { Length: > 0 } text ? text : "Say something…";
     }
 
     #region Typing Indicator
@@ -438,17 +432,6 @@ else
     }
     private void HandleInputBlur() => isInputFocused = false;
 
-    private async Task HandleKeyDown(KeyboardEventArgs e)
-    {
-        // On touch devices, Enter creates newline (use send button to send)
-        // On desktop, Enter sends message (Shift+Enter for newline)
-        // Note: preventDefault is handled client-side via JS to avoid race conditions
-        if (e.Key == "Enter" && !e.ShiftKey && !isTouchDevice)
-        {
-            await HandleSend();
-        }
-    }
-
     private async Task HandleSend()
     {
         if (string.IsNullOrWhiteSpace(messageText) || !channelId.HasValue) return;
@@ -458,12 +441,11 @@ else
         // reset the focus-driven UI state explicitly so the upload button reappears on mobile.
         isInputFocused = false;
 
+        // The visible textarea was already cleared + resized client-side by the send
+        // pipeline (chat.js) the moment the button was clicked — this resets the
+        // server-side copy so the guard above and the binding stay truthful.
         var content = messageText;
         messageText = "";
-
-        // Reset textarea height after clearing content
-        try { await JS.InvokeVoidAsync("resetTextareaHeight", TextareaId); }
-        catch (Exception ex) { Logger.LogWarning(ex, "Failed to reset textarea height"); }
 
         try
         {

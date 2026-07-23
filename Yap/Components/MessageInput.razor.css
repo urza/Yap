@@ -136,6 +136,15 @@
     cursor: not-allowed;
 }
 
+/* Client-side enablement: dim purely on "is the box empty" via :placeholder-shown —
+   reacts to the value itself, no circuit round trip. Placed after the :hover rule so
+   the muted background wins while dimmed (equal specificity, later wins). */
+.message-input:placeholder-shown ~ .send-button {
+    background: var(--bg-muted);
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 /* Image upload button */
 .image-upload-button {
     flex: 0 0 44px;

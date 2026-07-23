@@ -276,8 +276,9 @@ window.setupSendButtonFocus = (textareaId) => {
     });
 };
 
-// Prevent Enter from inserting newline (handled server-side for sending)
-// This runs client-side to avoid race conditions with server-side preventDefault
+// Desktop Enter-to-send, fully client-side: prevent the newline and route the send
+// through the send button's click, so the button's @onclick stays the single server
+// entry point and typing costs no extra keydown dispatches.
 window.setupEnterKeyHandler = (textareaId) => {
     const textarea = document.getElementById(textareaId);
     if (!textarea) return;
@@ -292,9 +293,13 @@ window.setupEnterKeyHandler = (textareaId) => {
     textarea._enterKeyHandler = (e) => {
         // On touch devices, Enter creates newline (use send button)
         // On desktop, Enter sends message (prevent newline), Shift+Enter for newline
-        if (e.key === 'Enter' && !e.shiftKey && !isTouch) {
-            e.preventDefault();
-        }
+        if (e.key !== 'Enter' || e.shiftKey || isTouch) return;
+        // An IME commit also arrives as Enter (keyCode 229 on some IMEs) — sending
+        // here would eat the composed text, so let the IME have it.
+        if (e.isComposing || e.keyCode === 229) return;
+        e.preventDefault(); // no newline on desktop Enter, even with nothing to send
+        if (!textarea.value.trim()) return;
+        textarea.closest('.message-input-container')?.querySelector('.send-button')?.click();
     };
 
     textarea.addEventListener('keydown', textarea._enterKeyHandler);
@@ -1329,13 +1334,15 @@ window.applyTheme = (themeId) => {
 })();
 
 // =============================================================================
-// Latency telemetry (feeds the admin diagnostics circuits table)
+// Client send pipeline + latency telemetry
 // =============================================================================
 // RTT probe: times a no-op circuit call with performance.now(). Deliberately measures the FULL
 // experienced round trip — transport + dispatcher queue — because that's the latency the user
 // feels. Each ping carries the PREVIOUS measurement, so one call both measures and reports.
-// Send timer: marks send clicks and reports how long until the sender's own message shows up
-// in the DOM (matched via data-author on .message-group).
+// Send pipeline: every text send physically goes through a .send-button click (Enter clicks it
+// too, see setupEnterKeyHandler), so the capture listener below is the one place that runs the
+// instant-feedback work: telemetry mark, optimistic ghost, input clear. The server's HandleSend
+// keeps its own guard and remains the single server entry point.
 
 let telemetryRef = null;   // refreshed on every setup — a resumed circuit brings a fresh DotNetObjectReference
 let telemetryUser = null;
@@ -1361,33 +1368,79 @@ window.setupLatencyProbe = (dotNetRef, username) => {
 
     window._yapProbeTimer = setInterval(ping, 10000);
     ping();
-
-    installSendTimer();
 };
 
-let sendTimerInstalled = false;
-const installSendTimer = () => {
-    if (sendTimerInstalled) return; // document-level listeners are installed once and survive circuit resets
-    sendTimerInstalled = true;
+// Installed at script load, NOT from setupLatencyProbe — the send UX must work even
+// when telemetry never initialized. Capture phase: runs before Blazor's delegated
+// @onclick, so the ghost and the cleared input are painted while the click RPC travels.
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.send-button');
+    if (!btn) return;
+    const textarea = btn.closest('.message-input-container')?.querySelector('.message-input');
+    if (!textarea || !textarea.value.trim()) return;
 
-    const isTouch = window.isTouchDevice();
-    const mark = () => {
+    if (telemetryRef) {
         sendMark = performance.now();
         watchForOwnMessage(sendMark);
-    };
+    }
 
-    // Capture phase: observe the same clicks/keys Blazor handles, without interfering.
-    document.addEventListener('click', (e) => {
-        const btn = e.target.closest('.send-button');
-        if (btn && !btn.disabled) mark();
-    }, true);
+    showPendingEcho(textarea.value);
 
-    document.addEventListener('keydown', (e) => {
-        // Mirrors the server's send condition (Enter only sends on non-touch devices)
-        if (e.key !== 'Enter' || e.shiftKey || isTouch) return;
-        const ta = e.target.closest('.message-input');
-        if (ta && ta.value.trim()) mark();
-    }, true);
+    // Instant clear. Deliberately NO synthetic 'input' event: circuit events are
+    // processed in order, so it would sync messageText='' ahead of this click's RPC
+    // and HandleSend's empty-guard would reject the send.
+    textarea.value = '';
+    window.resetTextareaHeight(textarea.id);
+    window.scrollToBottom();
+}, true);
+
+// Optimistic echo: a dimmed plain-text ghost of the sent message, shown until the real
+// render arrives (or 15s for a send that never echoes — its quiet disappearance is the
+// "didn't send" signal). Ghosts live in .pending-echoes, a container Blazor always
+// renders empty, so JS-owned children survive render batches. textContent only — never
+// parsed as HTML. The ghost class must never be 'message-group': both the telemetry
+// observer and the reconciler below match on that.
+let echoObserver = null;
+let echoTarget = null;     // the .messages element the reconciler is bound to
+
+const showPendingEcho = (text) => {
+    const host = document.querySelector('.pending-echoes');
+    if (!host) return;
+    const ghost = document.createElement('div');
+    ghost.className = 'pending-message';
+    ghost.textContent = text;
+    host.appendChild(ghost);
+    setTimeout(() => ghost.remove(), 15000);
+    watchForEchoConfirm();
+};
+
+// Persistent reconciler, separate from the one-shot telemetry observer: each of the
+// sender's own messages that renders removes the oldest ghost (FIFO), so rapid sends
+// inside one round trip all drain correctly. Re-binds if the .messages element was
+// replaced by navigation. MutationObserver runs pre-paint, so the swap is flicker-free.
+const watchForEchoConfirm = () => {
+    const messages = document.querySelector('.messages');
+    if (!messages) return;
+    if (echoObserver && echoTarget === messages) return;
+    echoObserver?.disconnect();
+    echoTarget = messages;
+    echoObserver = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            for (const node of mutation.addedNodes) {
+                if (node.nodeType !== 1 || !node.matches?.('.message-group')) continue;
+                // Without a known username (telemetry down) the 15s timeout cleans up instead.
+                if (!telemetryUser || node.dataset.author !== telemetryUser) continue;
+                document.querySelector('.pending-echoes .pending-message')?.remove();
+            }
+        }
+    });
+    echoObserver.observe(messages, { childList: true });
+};
+
+// Room/DM switches reuse the same DOM — a pending ghost's echo can never arrive in
+// the new channel, so the switch paths drop ghosts explicitly.
+window.clearPendingEchoes = () => {
+    document.querySelectorAll('.pending-echoes .pending-message').forEach(g => g.remove());
 };
 
 const watchForOwnMessage = (myMark) => {
