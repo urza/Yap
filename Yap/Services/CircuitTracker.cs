@@ -29,6 +29,9 @@ public class CircuitTracker
         public double? MaxEventMs { get; init; }
         public DateTime? LastSlowEventAt { get; init; }
         public double? LastSendToAppearMs { get; init; } // client-measured: send click → own message in the DOM
+        public double? AvgSendToAppearMs { get; init; }  // EWMA, same smoothing as RTT — a single good send must not hide a bad streak
+        public double? MaxSendToAppearMs { get; init; }
+        public int SendSamples { get; init; }
         public DateTime? SendTimingAt { get; init; }
         public DateTime? ClosedAt { get; init; }         // set when the circuit moves into the recently-closed ring
     }
@@ -92,7 +95,14 @@ public class CircuitTracker
         });
 
     public void ReportSendTiming(string circuitId, double ms) =>
-        Update(circuitId, info => info with { LastSendToAppearMs = ms, SendTimingAt = DateTime.UtcNow });
+        Update(circuitId, info => info with
+        {
+            LastSendToAppearMs = ms,
+            AvgSendToAppearMs = info.AvgSendToAppearMs is double avg ? 0.75 * avg + 0.25 * ms : ms,
+            MaxSendToAppearMs = Math.Max(info.MaxSendToAppearMs ?? 0, ms),
+            SendSamples = info.SendSamples + 1,
+            SendTimingAt = DateTime.UtcNow
+        });
 
     // Read-modify-write without a lock: all frequent writers for one circuit run on that circuit's
     // own dispatcher (sequential), so the classic lost-update race can't bite in practice — and a

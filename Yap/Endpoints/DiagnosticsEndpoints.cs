@@ -45,6 +45,9 @@ public static class DiagnosticsEndpoints
                     c.MaxEventMs,
                     c.LastSlowEventAt,
                     c.LastSendToAppearMs,
+                    c.AvgSendToAppearMs,
+                    c.MaxSendToAppearMs,
+                    c.SendSamples,
                     c.SendTimingAt
                 }),
                 summary = new

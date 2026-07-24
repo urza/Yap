@@ -927,7 +927,7 @@
                                 <th>Connected</th>
                                 <th title="Client-measured circuit round trip: last / average / max">RTT last/avg/max</th>
                                 <th title="Inbound events the server took ≥100ms to process">Slow events</th>
-                                <th title="Client-measured: send click → own message rendered">Send→appear</th>
+                                <th title="Client-measured: send click → own message rendered — last / average / max">Send→appear last/avg/max</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -943,7 +943,9 @@
                                         @FormatMs(c.LastRttMs) / @FormatMs(c.AvgRttMs) / @FormatMs(c.MaxRttMs)
                                     </td>
                                     <td>@(c.SlowEventCount == 0 ? "—" : $"{c.SlowEventCount}× (max {c.MaxEventMs:F0}ms)")</td>
-                                    <td>@FormatMs(c.LastSendToAppearMs)</td>
+                                    <td title="@c.SendSamples samples, last @FormatAgo(c.SendTimingAt)">
+                                        @FormatMs(c.LastSendToAppearMs) / @FormatMs(c.AvgSendToAppearMs) / @FormatMs(c.MaxSendToAppearMs)
+                                    </td>
                                 </tr>
                             }
                             @if (diagClosedCircuits.Count > 0)
@@ -962,7 +964,9 @@
                                             @FormatMs(c.LastRttMs) / @FormatMs(c.AvgRttMs) / @FormatMs(c.MaxRttMs)
                                         </td>
                                         <td>@(c.SlowEventCount == 0 ? "—" : $"{c.SlowEventCount}× (max {c.MaxEventMs:F0}ms)")</td>
-                                        <td>@FormatMs(c.LastSendToAppearMs)</td>
+                                        <td title="@c.SendSamples samples, last @FormatAgo(c.SendTimingAt)">
+                                            @FormatMs(c.LastSendToAppearMs) / @FormatMs(c.AvgSendToAppearMs) / @FormatMs(c.MaxSendToAppearMs)
+                                        </td>
                                     </tr>
                                 }
                             }
