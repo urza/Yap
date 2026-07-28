@@ -3,6 +3,7 @@
 @using Yap.Services.Gifs
 @inject GifService GifService
 @inject UserService UserService
+@inject ChatConfigService ChatConfig
 @inject ILogger<GifPicker> Logger
 @inject IJSRuntime JS
 @implements IAsyncDisposable
@@ -21,6 +22,17 @@
                 <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
             </svg>
         </button>
+        @* Hidden (not disabled) when empty: an unused server library is absence, not a
+           misconfiguration the user could fix — unlike the provider tabs below. *@
+        @if (GifService.HasServerGifs)
+        {
+            <button class="category-btn @(selectedTab == GifTab.Server ? "active" : "")"
+                    @onclick="@(() => SelectTab(GifTab.Server))" title="Server library">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                    <path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/>
+                </svg>
+            </button>
+        }
         <button class="category-btn @(selectedTab == GifTab.Trending ? "active" : "")"
                 @onclick="@(() => SelectTab(GifTab.Trending))" title="Trending"
                 disabled="@(!GifService.IsConfigured)">
@@ -29,8 +41,7 @@
             </svg>
         </button>
         <button class="category-btn @(selectedTab == GifTab.Categories ? "active" : "")"
-                @onclick="@(() => SelectTab(GifTab.Categories))" title="Categories"
-                disabled="@(!GifService.IsConfigured)">
+                @onclick="@(() => SelectTab(GifTab.Categories))" title="Browse">
             <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
                 <rect x="3" y="3" width="7" height="7" rx="1"/>
                 <rect x="14" y="3" width="7" height="7" rx="1"/>
@@ -116,10 +127,13 @@
             }
             else if (selectedTab == GifTab.Favorites)
             {
-                @if (favoriteEntries.Count > 0)
+                @if (selectedFavoriteFolder is { } openFavFolder)
                 {
+                    <button class="gif-folder-back" @onclick="@(() => selectedFavoriteFolder = null)" title="Back to Favorites">
+                        ← <span>@openFavFolder</span>
+                    </button>
                     <div class="gif-grid">
-                        @foreach (var e in favoriteEntries)
+                        @foreach (var e in FavoritesInFolder(openFavFolder))
                         {
                             @RenderLocalCard(e)
                         }
@@ -127,7 +141,79 @@
                 }
                 else
                 {
-                    <div class="gif-empty">⭐ Tap the star on any GIF to save it here</div>
+                    @if (favoriteFolders.Count > 0)
+                    {
+                        <div class="gif-tile-grid">
+                            @foreach (var f in favoriteFolders)
+                            {
+                                var folder = f;
+                                @RenderFolderTile(folder, favFolderPreviews.GetValueOrDefault(folder), () => selectedFavoriteFolder = folder)
+                            }
+                        </div>
+                    }
+                    @if (UnsortedFavorites.Count > 0)
+                    {
+                        @if (favoriteFolders.Count > 0)
+                        {
+                            <div class="gif-section-header">Unsorted</div>
+                        }
+                        <div class="gif-grid">
+                            @foreach (var e in UnsortedFavorites)
+                            {
+                                @RenderLocalCard(e)
+                            }
+                        </div>
+                    }
+                    else if (favoriteEntries.Count == 0)
+                    {
+                        <div class="gif-empty">⭐ Tap the star on any GIF to save it here</div>
+                    }
+                }
+                <a class="gif-manage-link" href="/settings">Manage your GIFs in Settings</a>
+            }
+            else if (selectedTab == GifTab.Server)
+            {
+                @if (selectedServerFolder is { } openServerFolder)
+                {
+                    <button class="gif-folder-back" @onclick="@(() => selectedServerFolder = null)" title="Back to the server library">
+                        ← <span>@openServerFolder</span>
+                    </button>
+                    <div class="gif-grid">
+                        @foreach (var e in ServerInFolder(openServerFolder))
+                        {
+                            @RenderLocalCard(e)
+                        }
+                    </div>
+                }
+                else
+                {
+                    @if (serverFolders.Count > 0)
+                    {
+                        <div class="gif-tile-grid">
+                            @foreach (var f in serverFolders)
+                            {
+                                var folder = f;
+                                @RenderFolderTile(folder, serverFolderPreviews.GetValueOrDefault(folder), () => selectedServerFolder = folder)
+                            }
+                        </div>
+                    }
+                    @if (UnsortedServerGifs.Count > 0)
+                    {
+                        @if (serverFolders.Count > 0)
+                        {
+                            <div class="gif-section-header">Unsorted</div>
+                        }
+                        <div class="gif-grid">
+                            @foreach (var e in UnsortedServerGifs)
+                            {
+                                @RenderLocalCard(e)
+                            }
+                        </div>
+                    }
+                    else if (serverEntries.Count == 0)
+                    {
+                        <div class="gif-empty">No server GIFs yet</div>
+                    }
                 }
             }
             else if (selectedTab == GifTab.Trending)
@@ -152,22 +238,38 @@
             }
             else if (selectedTab == GifTab.Categories)
             {
-                @if (categories.Count > 0)
+                @* Browse home: shortcuts into the user's own pools, then provider content.
+                   Trending stands in for real Klipy categories until those are wired up. *@
+                @if (favoriteEntries.Count > 0 || GifService.HasServerGifs)
                 {
-                    <div class="gif-categories">
-                        @foreach (var cat in categories)
+                    <div class="gif-tile-grid">
+                        @if (favoriteEntries.Count > 0)
                         {
-                            var c = cat;
-                            <button class="gif-category-tile" @onclick="@(() => SearchCategory(c))"
-                                    style="background-image: url('@c.ImageUrl')">
-                                <span>@c.Name</span>
-                            </button>
+                            @RenderFolderTile("Favorites", homeFavPreview, () => SelectTab(GifTab.Favorites))
+                        }
+                        @if (GifService.HasServerGifs)
+                        {
+                            @RenderFolderTile(ChatConfig.ProjectName, homeServerPreview, () => SelectTab(GifTab.Server))
                         }
                     </div>
                 }
-                else
+                @if (trendingResults.Count > 0)
+                {
+                    <div class="gif-section-header">Trending</div>
+                    <div class="gif-grid">
+                        @foreach (var item in trendingResults)
+                        {
+                            @RenderProviderCard(item)
+                        }
+                    </div>
+                }
+                else if (GifService.IsConfigured)
                 {
                     <div class="gif-empty">Loading…</div>
+                }
+                else if (favoriteEntries.Count == 0 && !GifService.HasServerGifs)
+                {
+                    <div class="gif-empty">Nothing here yet</div>
                 }
             }
         </div>
@@ -195,7 +297,7 @@
     [Parameter] public EventCallback<GifAttachment> OnGifSelected { get; set; }
     [Parameter] public EventCallback<string> OnUploadError { get; set; }
 
-    private enum GifTab { Recent, Favorites, Trending, Categories }
+    private enum GifTab { Recent, Favorites, Server, Trending, Categories }
 
     private GifTab selectedTab = GifTab.Trending;
     private string searchText = "";
@@ -208,28 +310,58 @@
     private List<GifEntry> recentEntries = new();
     private List<GifEntry> favoriteEntries = new();
     private List<GifSearchItem> trendingResults = new();
-    private List<GifCategory> categories = new();
 
     private List<GifEntry> localResults = new();
     private List<GifSearchItem> providerResults = new();
 
+    // Folders render as Discord-style tiles (random member GIF animating under a blur + name).
+    // null = root view (tiles + unsorted grid); a name = inside that folder.
+    private List<string> favoriteFolders = new();
+    private Dictionary<Guid, string?> favoriteFolderMap = new();
+    private string? selectedFavoriteFolder;
+    private List<GifEntry> serverEntries = new();
+    private List<string> serverFolders = new();
+    private string? selectedServerFolder;
+
+    // Tile previews are picked once per data refresh — picking during render would reshuffle
+    // on every StateHasChanged.
+    private readonly Dictionary<string, GifEntry> favFolderPreviews = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, GifEntry> serverFolderPreviews = new(StringComparer.OrdinalIgnoreCase);
+    private GifEntry? homeFavPreview;
+    private GifEntry? homeServerPreview;
+
+    private List<GifEntry> FavoritesInFolder(string folder) =>
+        favoriteEntries.Where(e => string.Equals(favoriteFolderMap.GetValueOrDefault(e.Id), folder, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    private List<GifEntry> UnsortedFavorites => favoriteFolders.Count == 0
+        ? favoriteEntries
+        : favoriteEntries.Where(e => favoriteFolderMap.GetValueOrDefault(e.Id) == null).ToList();
+
+    private List<GifEntry> ServerInFolder(string folder) =>
+        serverEntries.Where(e => string.Equals(e.ServerFolder, folder, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    private List<GifEntry> UnsortedServerGifs => serverFolders.Count == 0
+        ? serverEntries
+        : serverEntries.Where(e => e.ServerFolder == null).ToList();
+
     protected override async Task OnInitializedAsync()
     {
         recentEntries = GifService.GetRecents(CurrentUsername);
-        favoriteEntries = GifService.GetFavorites(CurrentUserId);
+        RefreshFavoritesData();
+        RefreshServerData();
 
         GifService.OnFavoritesChanged += HandleFavoritesChanged;
         GifService.OnGifEntryUpdated += HandleEntryUpdated;
         GifService.OnGifLibraryChanged += HandleLibraryChanged;
 
-        // Default to Trending if we have a provider, otherwise Recent.
-        selectedTab = GifService.IsConfigured ? GifTab.Trending : GifTab.Recent;
+        // Land on Browse (favorites/server shortcuts + trending); Recent only when there is
+        // nothing to browse at all — no provider, no favorites, no server library.
+        selectedTab = GifService.IsConfigured || favoriteEntries.Count > 0 || GifService.HasServerGifs
+            ? GifTab.Categories
+            : GifTab.Recent;
 
         if (GifService.IsConfigured)
-        {
             _ = LoadTrendingAsync();
-            _ = LoadCategoriesAsync();
-        }
         await Task.CompletedTask;
     }
 
@@ -246,26 +378,74 @@
         catch (Exception ex) { Logger.LogWarning(ex, "GIF trending failed"); }
     }
 
-    private async Task LoadCategoriesAsync()
-    {
-        try
-        {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            categories = await GifService.GetCategoriesAsync(cts.Token);
-        }
-        catch (Exception ex) { Logger.LogWarning(ex, "GIF categories failed"); }
-    }
-
     private void SelectTab(GifTab tab)
     {
         if (selectedTab == tab) return;
         selectedTab = tab;
         ClearSearch();
         if (tab == GifTab.Recent) recentEntries = GifService.GetRecents(CurrentUsername);
-        else if (tab == GifTab.Favorites) favoriteEntries = GifService.GetFavorites(CurrentUserId);
+        else if (tab == GifTab.Favorites) RefreshFavoritesData();
+        else if (tab == GifTab.Server) RefreshServerData();
         else if (tab == GifTab.Trending && trendingResults.Count == 0 && GifService.IsConfigured) _ = LoadTrendingAsync();
-        else if (tab == GifTab.Categories && categories.Count == 0 && GifService.IsConfigured) _ = LoadCategoriesAsync();
+        else if (tab == GifTab.Categories)
+        {
+            RefreshFavoritesData();
+            RefreshServerData();
+            if (trendingResults.Count == 0 && GifService.IsConfigured) _ = LoadTrendingAsync();
+        }
     }
+
+    private void RefreshFavoritesData()
+    {
+        favoriteEntries = GifService.GetFavorites(CurrentUserId);
+        favoriteFolders = GifService.GetFavoriteFolders(CurrentUserId);
+        favoriteFolderMap = GifService.GetFavoriteFolderMap(CurrentUserId);
+
+        favFolderPreviews.Clear();
+        foreach (var folder in favoriteFolders)
+            if (PickRandomPreview(FavoritesInFolder(folder)) is { } preview)
+                favFolderPreviews[folder] = preview;
+        homeFavPreview = PickRandomPreview(favoriteEntries);
+
+        if (selectedFavoriteFolder != null && !favoriteFolders.Contains(selectedFavoriteFolder, StringComparer.OrdinalIgnoreCase))
+            selectedFavoriteFolder = null;
+    }
+
+    private void RefreshServerData()
+    {
+        serverEntries = GifService.GetServerGifs();
+        serverFolders = GifService.GetServerFolders();
+
+        serverFolderPreviews.Clear();
+        foreach (var folder in serverFolders)
+            if (PickRandomPreview(ServerInFolder(folder)) is { } preview)
+                serverFolderPreviews[folder] = preview;
+        homeServerPreview = PickRandomPreview(serverEntries);
+
+        if (selectedServerFolder != null && !serverFolders.Contains(selectedServerFolder, StringComparer.OrdinalIgnoreCase))
+            selectedServerFolder = null;
+    }
+
+    /// <summary>A tile's backdrop, chosen randomly — preferring entries that render as an img.</summary>
+    private static GifEntry? PickRandomPreview(List<GifEntry> entries)
+    {
+        if (entries.Count == 0) return null;
+        var withImage = entries.Where(e => !string.IsNullOrEmpty(e.GifUrl) || !string.IsNullOrEmpty(e.RemoteGifUrl)).ToList();
+        var pool = withImage.Count > 0 ? withImage : entries;
+        return pool[Random.Shared.Next(pool.Count)];
+    }
+
+    private RenderFragment RenderFolderTile(string label, GifEntry? preview, Action onClick) => __builder =>
+    {
+        var (src, ctype) = preview != null ? PickLocalPreviewSource(preview) : (null, null);
+        <button class="gif-folder-tile" @onclick="onClick">
+            @if (!string.IsNullOrEmpty(src) && ctype?.StartsWith("image/") == true)
+            {
+                <img src="@src" loading="lazy" alt="" />
+            }
+            <span>@label</span>
+        </button>
+    };
 
     private async Task OnSearchInputChanged()
     {
@@ -325,12 +505,6 @@
             isSearchingProvider = false;
             await InvokeAsync(StateHasChanged);
         }
-    }
-
-    private async Task SearchCategory(GifCategory cat)
-    {
-        searchText = cat.SearchTerm;
-        await RunSearchAsync(cat.SearchTerm);
     }
 
     private void ClearSearch()
@@ -458,9 +632,17 @@
             var contentType = !string.IsNullOrEmpty(file.ContentType) ? file.ContentType : "application/octet-stream";
             var att = await GifService.TryAcceptAsGifAsync(tempPath, contentType, isExplicitGif: true, CurrentUserId, file.Name);
             if (att != null)
+            {
+                // Uploading through the picker is a deliberate "this is my GIF" act — it joins
+                // the user's pool right away (which also keeps it searchable for them, since
+                // custom uploads are otherwise private to uploader + favoriters).
+                await GifService.SetFavoriteAsync(CurrentUserId, att.GifEntryId, favorite: true);
                 await OnGifSelected.InvokeAsync(att);
+            }
             else
+            {
                 await OnUploadError.InvokeAsync("Could not process this file as a GIF");
+            }
         }
         catch (Exception ex)
         {
@@ -485,7 +667,7 @@
         {
             await InvokeAsync(() =>
             {
-                favoriteEntries = GifService.GetFavorites(CurrentUserId);
+                RefreshFavoritesData();
                 StateHasChanged();
             });
         }
@@ -513,6 +695,9 @@
             await InvokeAsync(() =>
             {
                 if (selectedTab == GifTab.Recent) recentEntries = GifService.GetRecents(CurrentUsername);
+                else if (selectedTab is GifTab.Server or GifTab.Categories) RefreshServerData();
+                // Always re-render: the server-library rail button appears/disappears with
+                // HasServerGifs, whichever tab is active.
                 StateHasChanged();
             });
         }

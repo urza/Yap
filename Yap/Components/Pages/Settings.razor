@@ -447,6 +447,19 @@
         </div>
 
         <div class="settings-section">
+            <h3>My GIFs</h3>
+            <p class="form-hint" style="margin-bottom: 1rem;">
+                Your GIF pool — everything you've starred plus your own uploads. Organize with
+                folders, edit search keywords, or bring a whole collection: import files or a zip,
+                and export everything as a zip you can take anywhere.
+            </p>
+            @if (UserState.UserId is Guid gifUserId)
+            {
+                <GifLibraryManager Mode="GifLibraryMode.User" CurrentUserId="@gifUserId" />
+            }
+        </div>
+
+        <div class="settings-section">
             <details class="debug-info">
                 <summary>DEBUG INFO</summary>
 

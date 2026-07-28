@@ -1,0 +1,369 @@
+.gif-library {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.gif-lib-file-input {
+    display: none;
+}
+
+/* Toolbar: folder chips left, action buttons right; wraps on narrow screens */
+.gif-lib-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.gif-lib-folders {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: thin;
+    max-width: 100%;
+    padding-bottom: 2px; /* keeps the scrollbar off the chips */
+}
+
+.folder-chip {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid transparent;
+    border-radius: 14px;
+    padding: 4px 12px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.folder-chip:hover {
+    color: var(--text-primary);
+}
+
+.folder-chip.active {
+    background: var(--accent-primary);
+    color: #fff;
+}
+
+.gif-lib-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.gif-lib-filter {
+    flex: 0 1 170px;
+    min-width: 110px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border-dark);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 0.82rem;
+}
+
+.gif-lib-filter:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
+.gif-lib-showmore {
+    width: 100%;
+    margin-top: 8px;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: none;
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+
+.gif-lib-showmore:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+}
+
+.gif-lib-action-btn {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-dark);
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    line-height: 1.3;
+}
+
+.gif-lib-action-btn:hover {
+    background: var(--bg-hover);
+}
+
+.gif-lib-action-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: auto; /* keep the tooltip explaining why */
+}
+
+.gif-lib-ffmpeg-note {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-style: italic;
+}
+
+/* Quota */
+.gif-lib-quota {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.gif-lib-quota-track {
+    flex: 1;
+    max-width: 260px;
+    height: 6px;
+    background: var(--bg-tertiary);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.gif-lib-quota-fill {
+    height: 100%;
+    background: var(--accent-primary);
+    border-radius: 3px;
+}
+
+.gif-lib-quota-fill.hot {
+    background: var(--color-warning);
+}
+
+.gif-lib-quota-label {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+}
+
+/* Status strips: upload progress, import progress, notices, errors */
+.gif-lib-strip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.82rem;
+}
+
+.gif-lib-strip.error {
+    color: var(--color-danger);
+}
+
+.gif-lib-strip.done {
+    color: var(--color-success);
+}
+
+.gif-lib-strip-text {
+    white-space: pre-line;
+}
+
+.gif-lib-strip-dismiss {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.82rem;
+    padding: 2px 4px;
+}
+
+.gif-lib-strip-dismiss:hover {
+    color: var(--text-primary);
+}
+
+.gif-lib-empty {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    padding: 1rem 0;
+}
+
+/* Management grid: aligned cells with always-visible controls (deliberately not the
+   picker's masonry — this is a workbench, not a browsing surface) */
+.gif-lib-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.gif-lib-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    padding: 6px;
+}
+
+.gif-lib-thumb {
+    aspect-ratio: 4 / 3;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--bg-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.gif-lib-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.gif-lib-processing {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-style: italic;
+}
+
+/* Tag chips + inline editor (same interaction pattern as the Admin GIFs table) */
+.gif-tags-view {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    cursor: pointer;
+    min-height: 20px;
+    border-radius: 4px;
+    padding: 2px;
+}
+
+.gif-tags-view:hover {
+    background: var(--bg-hover);
+}
+
+.gif-tag-chip {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    border-radius: 8px;
+    padding: 1px 7px;
+    font-size: 0.72rem;
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.gif-tag-chip.more {
+    color: var(--text-muted);
+}
+
+.gif-tags-empty {
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 0.75rem;
+}
+
+.gif-tags-edit {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.gif-tags-input {
+    flex: 1;
+    min-width: 0;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border-dark);
+    border-radius: 5px;
+    padding: 3px 6px;
+    font-size: 0.75rem;
+}
+
+.gif-tags-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
+.gif-tags-btn {
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    border: none;
+    border-radius: 5px;
+    padding: 3px 6px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    line-height: 1;
+}
+
+.gif-tags-btn:hover {
+    color: var(--text-primary);
+}
+
+.gif-tags-btn.save {
+    color: var(--color-success);
+}
+
+/* Per-card folder select + remove/delete row */
+.gif-lib-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.gif-lib-folder-select {
+    flex: 1;
+    min-width: 0;
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-dark);
+    border-radius: 5px;
+    padding: 3px 4px;
+    font-size: 0.72rem;
+}
+
+.gif-lib-newfolder {
+    flex: 1;
+    min-width: 0;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--accent-primary);
+    border-radius: 5px;
+    padding: 3px 6px;
+    font-size: 0.72rem;
+}
+
+.gif-lib-newfolder:focus {
+    outline: none;
+}
+
+.gif-lib-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 3px 5px;
+    border-radius: 5px;
+    flex-shrink: 0;
+}
+
+.gif-lib-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+}
+
+.gif-lib-btn.danger:hover {
+    color: var(--color-danger);
+}
+
+/* Phones: two columns is the sweet spot for thumbnails + controls */
+@media (max-width: 600px) {
+    .gif-lib-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}

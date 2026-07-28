@@ -147,6 +147,8 @@ public class ChatDbContext : DbContext
             entity.Property(g => g.OriginalContentType).HasMaxLength(64);
             entity.Property(g => g.TranscodeStatus).HasConversion<int>();
             entity.Property(g => g.Tags).HasMaxLength(2048);
+            entity.Property(g => g.ServerFolder).HasMaxLength(64);
+            entity.Property(g => g.ContentHash).HasMaxLength(64);
 
             // Unique-when-not-null is enforced via filtered index where supported (SQL Server).
             // For SQLite/Postgres we accept duplicates and dedup in code (the in-memory provider+sourceId
@@ -165,6 +167,7 @@ public class ChatDbContext : DbContext
         modelBuilder.Entity<FavoriteGif>(entity =>
         {
             entity.HasKey(f => new { f.UserId, f.GifEntryId });
+            entity.Property(f => f.Folder).HasMaxLength(64);
 
             entity.HasOne(f => f.User)
                   .WithMany()

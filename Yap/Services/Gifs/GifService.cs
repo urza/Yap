@@ -16,7 +16,7 @@ namespace Yap.Services.Gifs;
 /// in-memory state, fire-and-forget background work with in-flight dedup,
 /// callback events for UI to refresh when async work completes.
 /// </summary>
-public class GifService
+public partial class GifService
 {
     private readonly IDbContextFactory<ChatDbContext>? _dbFactory;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -44,8 +44,13 @@ public class GifService
     private CancellationTokenSource? _flushCts;
     private static readonly TimeSpan FlushInterval = TimeSpan.FromSeconds(10);
 
-    // Per-user favorites (cached in memory, written to DB immediately on toggle).
-    private readonly ConcurrentDictionary<Guid, HashSet<Guid>> _favoritesByUser = new();
+    // Per-user favorites: gifId → folder (null = unsorted). Cached in memory, written to DB
+    // immediately on change. Folder lives on the relationship so the same GIF can sit in
+    // different folders for different users.
+    private readonly ConcurrentDictionary<Guid, Dictionary<Guid, string?>> _favoritesByUser = new();
+
+    // content sha256 hex → entry id, for import dedup (custom uploads only).
+    private readonly ConcurrentDictionary<string, Guid> _byContentHash = new();
 
     private const int MaxRecentGifs = 30;
     private const int LocalSearchLimit = 24;
@@ -81,6 +86,11 @@ public class GifService
         _logger = logger;
         _dbFactory = serviceProvider.GetService<IDbContextFactory<ChatDbContext>>();
 
+        // BYOG quota: generous cap on a user's own custom-upload bytes (imports + uploads).
+        // Admins are exempt; starred provider GIFs are shared cache and never count.
+        var config = serviceProvider.GetService<IConfiguration>();
+        UserQuotaBytes = (config?.GetValue("ChatSettings:GifSettings:UserQuotaMB", 4096) ?? 4096) * 1024L * 1024;
+
         EnsureDirectories();
 
         var lifetime = serviceProvider.GetService<IHostApplicationLifetime>();
@@ -113,14 +123,16 @@ public class GifService
                 _entries[entry.Id] = entry;
                 if (!string.IsNullOrEmpty(entry.SourceProviderId) && !string.IsNullOrEmpty(entry.SourceId))
                     _byProviderSourceId[(entry.SourceProviderId, entry.SourceId)] = entry.Id;
+                if (!string.IsNullOrEmpty(entry.ContentHash))
+                    _byContentHash[entry.ContentHash] = entry.Id;
                 IndexEntryTags(entry);
             }
 
             var favorites = await db.FavoriteGifs.AsNoTracking().ToListAsync();
             foreach (var fav in favorites)
             {
-                var set = _favoritesByUser.GetOrAdd(fav.UserId, _ => new HashSet<Guid>());
-                lock (set) set.Add(fav.GifEntryId);
+                var map = _favoritesByUser.GetOrAdd(fav.UserId, _ => new Dictionary<Guid, string?>());
+                lock (map) map[fav.GifEntryId] = fav.Folder;
             }
 
             _logger.LogInformation("Loaded {EntryCount} GIF entries, {FavCount} favorites", entries.Count, favorites.Count);
@@ -171,10 +183,10 @@ public class GifService
     public Dictionary<Guid, int> GetFavoriteCounts()
     {
         var counts = new Dictionary<Guid, int>();
-        foreach (var set in _favoritesByUser.Values)
+        foreach (var map in _favoritesByUser.Values)
         {
             Guid[] ids;
-            lock (set) ids = set.ToArray();
+            lock (map) ids = map.Keys.ToArray();
             foreach (var id in ids)
                 counts[id] = counts.GetValueOrDefault(id) + 1;
         }
@@ -191,7 +203,11 @@ public class GifService
     /// as a tag, teaching the entry the word it was missing. Tolerated hits are capped at
     /// <see cref="PartialMatchLimit"/> when a provider is configured, so near-misses can't crowd
     /// out the provider section. When <paramref name="userId"/> is given, that user's favorites
-    /// rank above equally-matching entries.
+    /// rank above equally-matching entries, followed by server-library GIFs.
+    ///
+    /// Visibility: custom uploads are private — only their uploader and users who favorited them
+    /// see them here. Server-library and provider-cached entries are public. Receiving a GIF in
+    /// chat and starring it is how a private upload enters another user's searchable pool.
     /// </summary>
     public List<GifEntry> SearchLocal(string query, Guid? userId = null, int limit = LocalSearchLimit)
     {
@@ -227,15 +243,19 @@ public class GifService
         var requiredMatches = Math.Max(1, tokens.Count - 1);
 
         var favIds = new HashSet<Guid>();
-        if (userId is Guid uid && _favoritesByUser.TryGetValue(uid, out var favSet))
-            lock (favSet) favIds.UnionWith(favSet);
+        if (userId is Guid uid && _favoritesByUser.TryGetValue(uid, out var favMap))
+            lock (favMap) favIds.UnionWith(favMap.Keys);
 
         var ranked = matchCounts
             .Where(kv => kv.Value >= requiredMatches)
             .Select(kv => (Entry: _entries.TryGetValue(kv.Key, out var e) ? e : null, Matches: kv.Value))
-            .Where(x => x.Entry != null && x.Entry.DeletedAt == null)
+            .Where(x => x.Entry is { DeletedAt: null } e
+                        && (e.IsServerGif
+                            || e.SourceProviderId != null
+                            || (userId is Guid u && (e.UploadedByUserId == u || favIds.Contains(e.Id)))))
             .OrderByDescending(x => x.Matches)                    // full matches above tolerated ones
-            .ThenByDescending(x => favIds.Contains(x.Entry!.Id))  // then the searcher's favorites
+            .ThenByDescending(x => favIds.Contains(x.Entry!.Id))  // then the searcher's own picks
+            .ThenByDescending(x => x.Entry!.IsServerGif)          // then the curated server library
             .ThenByDescending(x => x.Entry!.UseCount)
             .ThenByDescending(x => x.Entry!.LastUsedAt)
             .ToList();
@@ -261,9 +281,9 @@ public class GifService
 
     public List<GifEntry> GetFavorites(Guid userId)
     {
-        if (!_favoritesByUser.TryGetValue(userId, out var set)) return new();
+        if (!_favoritesByUser.TryGetValue(userId, out var map)) return new();
         Guid[] ids;
-        lock (set) ids = set.ToArray();
+        lock (map) ids = map.Keys.ToArray();
         return ids
             .Select(id => _entries.TryGetValue(id, out var e) ? e : null)
             .Where(e => e != null && e.DeletedAt == null)
@@ -274,8 +294,8 @@ public class GifService
 
     public bool IsFavorite(Guid userId, Guid gifEntryId)
     {
-        if (!_favoritesByUser.TryGetValue(userId, out var set)) return false;
-        lock (set) return set.Contains(gifEntryId);
+        if (!_favoritesByUser.TryGetValue(userId, out var map)) return false;
+        lock (map) return map.ContainsKey(gifEntryId);
     }
 
     public List<GifEntry> GetRecents(string username)
@@ -359,28 +379,48 @@ public class GifService
         bool isExplicitGif, Guid? uploaderUserId, string? originalFileName = null, CancellationToken ct = default)
     {
         if (!File.Exists(sourceFilePath)) return null;
-        if (!GifFfmpegHelper.IsAvailable)
+
+        var sourceExt = Path.GetExtension(sourceFilePath).ToLowerInvariant();
+        var isAnimatedImageSource = sourceExt is ".gif" or ".webp";
+
+        // Only video sources require ffmpeg (they must be transcoded to animated WebP).
+        // .gif/.webp are copied as-is, so a machine without ffmpeg can still accept them —
+        // ImageSharp takes over validation below. Keeps BYOG alive on ffmpeg-less installs.
+        if (!GifFfmpegHelper.IsAvailable && !isAnimatedImageSource)
         {
-            _logger.LogWarning("ffmpeg unavailable — cannot accept custom GIFs");
+            _logger.LogWarning("ffmpeg unavailable — cannot accept video upload as GIF: {Path}", sourceFilePath);
             return null;
         }
 
-        var probe = await _ffmpeg.ProbeAsync(sourceFilePath, ct);
-        if (probe == null)
+        var probe = GifFfmpegHelper.IsAvailable ? await _ffmpeg.ProbeAsync(sourceFilePath, ct) : null;
+        if (probe == null && !isAnimatedImageSource)
         {
             if (isExplicitGif) _logger.LogWarning("ffprobe failed on explicit GIF upload {Path}", sourceFilePath);
             return null;
         }
 
+        // Probe-less gif/webp: ImageSharp must at least recognize the container, otherwise we'd
+        // copy arbitrary bytes into the library.
+        if (probe == null)
+        {
+            var (vw, vh) = TryReadImageDimensions(sourceFilePath);
+            if (vw <= 0 || vh <= 0)
+            {
+                if (isExplicitGif) _logger.LogWarning("Unreadable gif/webp upload rejected: {Path}", sourceFilePath);
+                return null;
+            }
+        }
+
         // Reject obviously-too-long uploads (defends against tar pit and accidental video attaches).
         const double MaxGifDurationSec = 30.0;
-        if (probe.DurationSeconds > MaxGifDurationSec && !isExplicitGif)
+        if (probe != null && probe.DurationSeconds > MaxGifDurationSec && !isExplicitGif)
             return null;
 
         // Auto-classify: short + no audio + has video stream → GIF-like.
         // Explicit kind=gif marker bypasses classification (audio gets stripped on transcode).
         var qualifies = isExplicitGif
-            || (!probe.HasAudio && probe.VideoCodec != null && probe.DurationSeconds <= MaxGifDurationSec && probe.DurationSeconds > 0);
+            || (probe is { HasAudio: false, VideoCodec: not null }
+                && probe.DurationSeconds <= MaxGifDurationSec && probe.DurationSeconds > 0);
         if (!qualifies) return null;
 
         // Produce an animated WebP for any upload. WebP in <img> = instant animation on page load
@@ -389,13 +429,23 @@ public class GifService
         // ffmpeg can't reliably re-encode animated webp anyway); everything else (mp4, mov, webm)
         // goes through ffmpeg's libwebp encoder.
         var entryId = Guid.NewGuid();
-        var sourceExt = Path.GetExtension(sourceFilePath).ToLowerInvariant();
         string localExt;
         string localPath;
         bool produced;
+        string? contentHash = null;
 
         if (sourceExt is ".gif" or ".webp")
         {
+            // Copy-as-is path (the format every exported pack contains): hash the source before
+            // copying — identical bytes mean re-imports of an exported pack, or the same file
+            // picked twice, converge on the existing entry instead of duplicating it on disk.
+            contentHash = TryHashFile(sourceFilePath);
+            if (contentHash != null && FindDuplicateByHash(contentHash, uploaderUserId) is { } dup)
+            {
+                TryDelete(sourceFilePath); // consumed, same contract as a successful accept
+                return new GifAttachment(dup.Id, dup.Width, dup.Height);
+            }
+
             localExt = sourceExt;
             localPath = Path.Combine(CustomUploadsDir, $"{entryId}{localExt}");
             try
@@ -420,8 +470,20 @@ public class GifService
 
         if (!produced) return null;
 
+        // Transcode path: only the produced file has stable bytes to dedup on.
+        if (contentHash == null)
+        {
+            contentHash = TryHashFile(localPath);
+            if (contentHash != null && FindDuplicateByHash(contentHash, uploaderUserId) is { } dup)
+            {
+                TryDelete(localPath);
+                TryDelete(sourceFilePath);
+                return new GifAttachment(dup.Id, dup.Width, dup.Height);
+            }
+        }
+
         // Dimensions: prefer the source probe; fall back to probing the produced output.
-        int width = probe.Width, height = probe.Height;
+        int width = probe?.Width ?? 0, height = probe?.Height ?? 0;
         if (width == 0 || height == 0)
         {
             var outProbe = await _ffmpeg.ProbeAsync(localPath, ct);
@@ -443,12 +505,13 @@ public class GifService
             GifUrl = $"/uploads/gifs/{entryId}{localExt}",
             Width = width,
             Height = height,
-            DurationSeconds = probe.DurationSeconds,
+            DurationSeconds = probe?.DurationSeconds ?? 0,
             FileSizeBytes = SafeFileSize(localPath),
             OriginalContentType = originalContentType,
             TranscodeStatus = GifTranscodeStatus.DoneGif,
             CreatedAt = DateTime.UtcNow,
             LastUsedAt = DateTime.UtcNow,
+            ContentHash = contentHash,
         };
 
         // Seed search tags from the uploaded file's name — the only free metadata a lazy upload
@@ -517,33 +580,66 @@ public class GifService
     #region Favorites
 
     public async Task<bool> ToggleFavoriteAsync(Guid userId, Guid gifEntryId)
+        => await SetFavoriteAsync(userId, gifEntryId, favorite: !IsFavorite(userId, gifEntryId));
+
+    /// <summary>
+    /// Idempotent favorite add/remove. Adding an existing favorite is safe to repeat — pack
+    /// imports and auto-favorite-on-upload re-run without flipping state the way a toggle would.
+    /// A null <paramref name="folder"/> on an existing favorite means "keep its folder" (a re-add
+    /// must not unfile it); use <see cref="SetFavoriteFolderAsync"/> to move one to unsorted.
+    /// Removal ignores the folder. Returns the resulting state.
+    /// </summary>
+    public Task<bool> SetFavoriteAsync(Guid userId, Guid gifEntryId, bool favorite, string? folder = null)
+        => SetFavoriteCoreAsync(userId, gifEntryId, favorite, folder, explicitFolder: folder != null);
+
+    /// <summary>Files a favorite into a folder — null moves it to unsorted. Adds the favorite if missing.</summary>
+    public Task SetFavoriteFolderAsync(Guid userId, Guid gifEntryId, string? folder)
+        => SetFavoriteCoreAsync(userId, gifEntryId, favorite: true, folder, explicitFolder: true);
+
+    private async Task<bool> SetFavoriteCoreAsync(Guid userId, Guid gifEntryId, bool favorite, string? folder, bool explicitFolder)
     {
         if (!_entries.TryGetValue(gifEntryId, out var entry)) return false;
 
-        var set = _favoritesByUser.GetOrAdd(userId, _ => new HashSet<Guid>());
-        bool nowFavorite;
-        lock (set)
+        folder = SanitizeFolder(folder);
+        var map = _favoritesByUser.GetOrAdd(userId, _ => new Dictionary<Guid, string?>());
+
+        // Decide the DB write under the lock, execute it after.
+        bool insert = false, delete = false, moveFolder = false;
+        lock (map)
         {
-            if (set.Contains(gifEntryId))
+            if (favorite && map.TryGetValue(gifEntryId, out var currentFolder))
             {
-                set.Remove(gifEntryId);
-                nowFavorite = false;
+                var effective = explicitFolder ? folder : currentFolder;
+                moveFolder = !string.Equals(currentFolder, effective, StringComparison.Ordinal);
+                if (moveFolder) map[gifEntryId] = effective;
+                folder = effective;
+            }
+            else if (favorite)
+            {
+                map[gifEntryId] = folder;
+                insert = true;
             }
             else
             {
-                set.Add(gifEntryId);
-                nowFavorite = true;
+                delete = map.Remove(gifEntryId);
             }
         }
 
-        if (_dbFactory != null)
+        if (_dbFactory != null && (insert || delete || moveFolder))
         {
             try
             {
                 await using var db = await _dbFactory.CreateDbContextAsync();
-                if (nowFavorite)
+                if (insert)
                 {
-                    db.FavoriteGifs.Add(new FavoriteGif(userId, gifEntryId));
+                    db.FavoriteGifs.Add(new FavoriteGif(userId, gifEntryId) { Folder = folder });
+                    await db.SaveChangesAsync();
+                }
+                else if (moveFolder)
+                {
+                    await db.FavoriteGifs
+                        .Where(f => f.UserId == userId && f.GifEntryId == gifEntryId)
+                        .ExecuteUpdateAsync(s => s.SetProperty(f => f.Folder, folder));
                 }
                 else
                 {
@@ -551,21 +647,21 @@ public class GifService
                         .Where(f => f.UserId == userId && f.GifEntryId == gifEntryId)
                         .ExecuteDeleteAsync();
                 }
-                await db.SaveChangesAsync();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to persist favorite toggle for user {UserId} gif {GifId}", userId, gifEntryId);
+                _logger.LogError(ex, "Failed to persist favorite change for user {UserId} gif {GifId}", userId, gifEntryId);
             }
         }
 
         // Favoriting is a strong "I'll want this again" signal — the moment to ask the provider
         // for its keywords so the GIF becomes findable by search, not just via the Favorites tab.
-        if (nowFavorite)
+        if (insert)
             QueueProviderTagEnrichment(entry);
 
-        OnFavoritesChanged?.Invoke(userId);
-        return nowFavorite;
+        if (insert || delete || moveFolder)
+            OnFavoritesChanged?.Invoke(userId);
+        return favorite;
     }
 
     /// <summary>
@@ -779,8 +875,23 @@ public class GifService
         _entries[entry.Id] = entry;
         if (!string.IsNullOrEmpty(entry.SourceProviderId) && !string.IsNullOrEmpty(entry.SourceId))
             _byProviderSourceId[(entry.SourceProviderId, entry.SourceId)] = entry.Id;
+        if (!string.IsNullOrEmpty(entry.ContentHash))
+            _byContentHash[entry.ContentHash] = entry.Id;
         IndexEntryTags(entry);
     }
+
+    /// <summary>
+    /// Dedup lookup, deliberately scoped: a hash hit only counts when the existing entry is a
+    /// server GIF or belongs to the same uploader. Matching other users' private uploads would
+    /// hand out their entry id (and the "via @user" badge) to someone who was never shown it.
+    /// </summary>
+    private GifEntry? FindDuplicateByHash(string contentHash, Guid? uploaderUserId)
+        => _byContentHash.TryGetValue(contentHash, out var id)
+           && _entries.TryGetValue(id, out var existing)
+           && existing.DeletedAt == null
+           && (existing.IsServerGif || (uploaderUserId != null && existing.UploadedByUserId == uploaderUserId))
+            ? existing
+            : null;
 
     private void IndexEntryTags(GifEntry entry)
     {
@@ -1111,6 +1222,21 @@ public class GifService
         {
             _logger.LogDebug(ex, "ImageSharp could not read dimensions for {Path}", filePath);
             return (0, 0);
+        }
+    }
+
+    /// <summary>SHA-256 of a file's bytes as lowercase hex. Null when the file can't be read.</summary>
+    private string? TryHashFile(string path)
+    {
+        try
+        {
+            using var fs = File.OpenRead(path);
+            return Convert.ToHexStringLower(SHA256.HashData(fs));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not hash {Path} for dedup", path);
+            return null;
         }
     }
 

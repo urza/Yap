@@ -587,16 +587,24 @@ else
             isUploading = false;
             StateHasChanged();
 
-            // Separate into images and videos by type (server already did thumbnails/posters)
-            var imageUrls = result.Files.Where(f => f.Type == "image").Select(f => f.Url).ToList();
-            var videoUrls = result.Files.Where(f => f.Type == "video").Select(f => f.Url).ToList();
+            // Separate by type (server already did thumbnails/posters). Files the server
+            // classified as GIFs come back as library entry ids, not URLs — they post as
+            // first-class GIF attachments, same as a picker send.
+            var imageUrls = result.Files.Where(f => f.Type == "image" && f.Url != null).Select(f => f.Url!).ToList();
+            var videoUrls = result.Files.Where(f => f.Type == "video" && f.Url != null).Select(f => f.Url!).ToList();
+            var gifAttachments = result.Files
+                .Where(f => f.Type == "gif" && f.GifEntryId is not null)
+                .Select(f => new Yap.Models.GifAttachment(f.GifEntryId!.Value, f.Width ?? 0, f.Height ?? 0))
+                .ToList();
 
-            if (imageUrls.Count > 0 || videoUrls.Count > 0)
+            if (imageUrls.Count > 0 || videoUrls.Count > 0 || gifAttachments.Count > 0)
             {
                 await ChatService.SendMessageAsync(channelId.Value, UserId, Username, "",
                     imageUrls.Count > 0 ? imageUrls : null,
-                    videoUrls: videoUrls.Count > 0 ? videoUrls : null);
-                Logger.LogInformation("Message posted with {ImageCount} image(s), {VideoCount} video(s)", imageUrls.Count, videoUrls.Count);
+                    videoUrls: videoUrls.Count > 0 ? videoUrls : null,
+                    gifAttachments: gifAttachments.Count > 0 ? gifAttachments : null);
+                Logger.LogInformation("Message posted with {ImageCount} image(s), {VideoCount} video(s), {GifCount} gif(s)",
+                    imageUrls.Count, videoUrls.Count, gifAttachments.Count);
             }
         }
         catch (Exception ex)
@@ -633,9 +641,9 @@ else
         catch { /* circuit may be dead */ }
     }
 
-    // DTOs for JS interop (same shape as before)
+    // DTOs for JS interop. Gif results carry an entry id instead of a URL.
     private record UploadResult(bool Success, string? Error, UploadedFile[] Files, int TotalCount, int SuccessCount);
-    private record UploadedFile(string Url, string Path, string Type);
+    private record UploadedFile(string? Url, string? Path, string Type, Guid? GifEntryId, int? Width, int? Height);
 
     private void ShowWarning(string title, string message)
     {

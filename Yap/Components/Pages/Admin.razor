@@ -789,12 +789,26 @@
                 </div>
             </div>
 
+            <div class="server-gif-library">
+                <h4>Server library</h4>
+                <p class="section-hint">
+                    A curated GIF set every user sees: its own picker tab, searchable by everyone,
+                    ranked above the general pool. Import files or a zip, organize with folders.
+                    Promote existing entries from the table below.
+                </p>
+                @if (UserState.UserId is Guid adminUserId)
+                {
+                    <GifLibraryManager Mode="GifLibraryMode.Server" CurrentUserId="@adminUserId" InitialVisibleCount="12" />
+                }
+            </div>
+
             <div class="log-filters">
                 <select class="log-filter-select" @bind="gifFilter">
                     <option value="all">All entries</option>
                     <option value="custom">Custom uploads</option>
                     <option value="provider">Provider cache</option>
                     <option value="favorited">⭐ Favorited</option>
+                    <option value="server">Server library</option>
                 </select>
             </div>
 
@@ -812,6 +826,7 @@
                             <th>Uses</th>
                             <th>Favs</th>
                             <th>Tags</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -828,7 +843,13 @@
                                     }
                                 </td>
                                 <td class="date-cell">@FormatLogDate(g.CreatedAt)</td>
-                                <td><span class="action-pill action-default">@(g.SourceProviderId ?? "custom")</span></td>
+                                <td>
+                                    <span class="action-pill action-default">@(g.SourceProviderId ?? "custom")</span>
+                                    @if (g.IsServerGif)
+                                    {
+                                        <span class="action-pill server-pill" title="In the server library">server</span>
+                                    }
+                                </td>
                                 <td>@GifUploaderName(g)</td>
                                 <td><span class="action-pill action-default">@GifFormat(g)</span></td>
                                 <td>@($"{g.Width} × {g.Height}")</td>
@@ -860,6 +881,17 @@
                                             }
                                         </div>
                                     }
+                                </td>
+                                <td class="gif-actions-cell">
+                                    <button class="gif-row-btn @(g.IsServerGif ? "active" : "")"
+                                            title="@(g.IsServerGif ? "Remove from server library" : "Add to server library")"
+                                            @onclick="() => ToggleServerGifAsync(g)">
+                                        @(g.IsServerGif ? "★ server" : "☆ server")
+                                    </button>
+                                    <button class="gif-row-btn danger" title="Delete this GIF everywhere"
+                                            @onclick="() => DeleteGifEntryAsync(g)">
+                                        @(confirmDeleteGifId == g.Id ? "Sure?" : "Delete")
+                                    </button>
                                 </td>
                             </tr>
                         }
@@ -1623,6 +1655,11 @@
     private void SelectGifsTab()
     {
         activeSection = "gifs";
+        RefreshGifEntries();
+    }
+
+    private void RefreshGifEntries()
+    {
         gifEntries = GifService.GetAllEntries();
         gifFavCounts = GifService.GetFavoriteCounts();
         gifTotalBytes = gifEntries.Sum(g => g.FileSizeBytes);
@@ -1635,6 +1672,7 @@
         "custom" => gifEntries.Where(g => g.SourceProviderId == null),
         "provider" => gifEntries.Where(g => g.SourceProviderId != null),
         "favorited" => gifEntries.Where(g => gifFavCounts.ContainsKey(g.Id)),
+        "server" => gifEntries.Where(g => g.IsServerGif),
         _ => gifEntries,
     };
 
@@ -1681,6 +1719,31 @@
     {
         if (e.Key == "Enter") await SaveGifTagsAsync();
         else if (e.Key == "Escape") CancelEditGifTags();
+    }
+
+    // Row actions: server-library promotion and deletion (the eviction lever — works on
+    // provider-cache rows too). Delete uses the same two-tap confirm as GifLibraryManager.
+    private Guid? confirmDeleteGifId;
+
+    private async Task ToggleServerGifAsync(GifEntry g)
+    {
+        confirmDeleteGifId = null;
+        await GifService.SetServerGifAsync(g.Id, !g.IsServerGif);
+        RefreshGifEntries();
+    }
+
+    private async Task DeleteGifEntryAsync(GifEntry g)
+    {
+        if (confirmDeleteGifId != g.Id)
+        {
+            confirmDeleteGifId = g.Id;
+            return;
+        }
+        confirmDeleteGifId = null;
+
+        if (UserState.UserId is not Guid adminId) return;
+        await GifService.DeleteEntryAsync(adminId, g.Id, force: true);
+        RefreshGifEntries();
     }
 
     // Diagnostics tab

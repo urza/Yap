@@ -14,6 +14,7 @@ public class ChatConfigService
     public bool WelcomePageEnabled => _configuration.GetValue<bool>("ChatSettings:WelcomePageEnabled", true);
     public string UploadUrl => _configuration["ChatSettings:UploadUrl"] ?? "";
     public int MaxUploadSizeMB => _configuration.GetValue<int>("ChatSettings:MaxUploadSizeMB", 100);
+    public int GifPackMaxSizeMB => _configuration.GetValue<int>("ChatSettings:GifSettings:MaxPackSizeMB", 1024);
 
     // Bot settings
     public bool BotEnabled => _configuration.GetValue<bool>("ChatSettings:Bot:Enabled", true);

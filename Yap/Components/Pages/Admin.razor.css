@@ -1155,6 +1155,60 @@
     height: 200px;
 }
 
+/* Server GIF library subsection in the GIFs tab */
+.server-gif-library {
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.server-gif-library h4 {
+    margin: 0 0 0.35rem 0;
+    font-size: 0.95rem;
+}
+
+.section-hint {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    margin: 0 0 0.9rem 0;
+}
+
+.action-pill.server-pill {
+    background: var(--accent-primary);
+    color: #fff;
+    margin-left: 4px;
+}
+
+/* Per-row actions in the GIFs table */
+.gif-actions-cell {
+    white-space: nowrap;
+}
+
+.gif-row-btn {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: none;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    margin-right: 4px;
+}
+
+.gif-row-btn:hover {
+    color: var(--text-primary);
+}
+
+.gif-row-btn.active {
+    background: var(--accent-primary);
+    color: #fff;
+}
+
+.gif-row-btn.danger:hover {
+    color: var(--color-danger);
+}
+
 @media (max-width: 600px) {
     .diag-stats {
         gap: 0.5rem;

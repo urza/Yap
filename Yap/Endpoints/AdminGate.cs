@@ -18,4 +18,14 @@ public static class AdminGate
                 ? await next(context)
                 : Results.NotFound();
         });
+
+    /// <summary>
+    /// Any-signed-in-user gate. Unlike RequireAdmin's stealth 404, this returns 401 — these
+    /// endpoints are part of the signed-in surface, so the honest answer is "log in again".
+    /// </summary>
+    public static RouteGroupBuilder RequireUser(this RouteGroupBuilder group) =>
+        group.AddEndpointFilter(async (context, next) =>
+            context.HttpContext.RequestServices.GetRequiredService<UserStateService>().UserId is not null
+                ? await next(context)
+                : Results.Unauthorized());
 }

@@ -1,0 +1,544 @@
+@using Yap.Models
+@using Yap.Services
+@using Yap.Services.Gifs
+@implements IAsyncDisposable
+@inject Yap.Services.Gifs.GifService GifService
+@inject UserService UserService
+@inject ChatConfigService ChatConfig
+@inject IJSRuntime JS
+@inject ILogger<GifLibraryManager> Logger
+
+<div class="gif-library">
+
+    @* Hidden file inputs must stay mounted while JS reads from them. *@
+    <input type="file" id="gif-lib-files-@_uid" class="gif-lib-file-input" multiple
+           accept="@FileAccept" @ref="filesInputRef" @onchange="@(() => StartUploadAsync(isPack: false))" />
+    <input type="file" id="gif-lib-pack-@_uid" class="gif-lib-file-input"
+           accept=".zip" @ref="packInputRef" @onchange="@(() => StartUploadAsync(isPack: true))" />
+
+    <div class="gif-lib-toolbar">
+        <div class="gif-lib-folders">
+            <button class="folder-chip @(selectedFolder == null ? "active" : "")"
+                    @onclick="() => SelectFolder(null)">All</button>
+            @if (folders.Count > 0)
+            {
+                <button class="folder-chip @(selectedFolder == "" ? "active" : "")"
+                        @onclick="@(() => SelectFolder(""))">Unsorted</button>
+                @foreach (var f in folders)
+                {
+                    <button class="folder-chip @(selectedFolder == f ? "active" : "")"
+                            @onclick="() => SelectFolder(f)">@f</button>
+                }
+            }
+        </div>
+
+        @if (items.Count > 8)
+        {
+            <input class="gif-lib-filter" type="search" placeholder="Filter by keyword…"
+                   @bind="filterText" @bind:event="oninput" />
+        }
+
+        <div class="gif-lib-actions">
+            @* `for` is dropped while an upload is running — a label with a for-target opens
+               the file dialog no matter how "disabled" it looks. *@
+            <label for="@(CanUpload ? $"gif-lib-files-{_uid}" : null)"
+                   class="gif-lib-action-btn @(CanUpload ? "" : "disabled")"
+                   title="@AddFilesTitle">
+                @(uploadBusy ? "Uploading…" : "＋ Add GIFs")
+            </label>
+            <label for="@(CanUpload ? $"gif-lib-pack-{_uid}" : null)"
+                   class="gif-lib-action-btn @(CanUpload ? "" : "disabled")"
+                   title="Import a zip — optionally with a gifs.json manifest; subfolders become folders">
+                Import zip
+            </label>
+            @if (items.Count > 0)
+            {
+                <a class="gif-lib-action-btn" href="@ExportUrl" download
+                   title="Download this library as a zip with a gifs.json manifest">Export</a>
+            }
+        </div>
+    </div>
+
+    @if (!VideoSupported)
+    {
+        <div class="gif-lib-ffmpeg-note">ffmpeg not detected — video conversion is off, only .gif/.webp files can be imported.</div>
+    }
+
+    @if (ShowQuota)
+    {
+        var used = GifService.GetUserLibraryBytes(CurrentUserId);
+        var percent = Math.Min(100, (int)(used * 100 / Math.Max(1, GifService.UserQuotaBytes)));
+        <div class="gif-lib-quota" title="Only your own uploads count — starred GIFs are free">
+            <div class="gif-lib-quota-track"><div class="gif-lib-quota-fill @(percent >= 90 ? "hot" : "")" style="width: @(percent)%"></div></div>
+            <span class="gif-lib-quota-label">@FormatSize(used) of @FormatSize(GifService.UserQuotaBytes) used</span>
+        </div>
+    }
+
+    @if (uploadBusy)
+    {
+        <div class="gif-lib-strip">Uploading… @uploadPercent% (@uploadDone of @uploadTotal)</div>
+    }
+
+    @if (currentImport is { } imp)
+    {
+        <div class="gif-lib-strip @(imp.Error != null ? "error" : imp.Completed ? "done" : "")">
+            @if (!imp.Completed)
+            {
+                <span>Importing… @imp.Done of @imp.Total@(imp.SkippedOrFailed > 0 ? $" ({imp.SkippedOrFailed} skipped)" : "")</span>
+            }
+            else
+            {
+                <span>@(imp.Error ?? $"Imported {imp.Done} of {imp.Total}{(imp.SkippedOrFailed > 0 ? $" — {imp.SkippedOrFailed} skipped" : "")}")</span>
+                <button class="gif-lib-strip-dismiss" @onclick="() => currentImport = null">✕</button>
+            }
+        </div>
+    }
+
+    @if (notice != null)
+    {
+        <div class="gif-lib-strip">
+            <span>@notice</span>
+            <button class="gif-lib-strip-dismiss" @onclick="() => notice = null">✕</button>
+        </div>
+    }
+
+    @if (uploadErrors != null)
+    {
+        <div class="gif-lib-strip error">
+            <span class="gif-lib-strip-text">@uploadErrors</span>
+            <button class="gif-lib-strip-dismiss" @onclick="() => uploadErrors = null">✕</button>
+        </div>
+    }
+
+    @{ var filteredItems = FilteredItems; }
+    @if (filteredItems.Count == 0)
+    {
+        <div class="gif-lib-empty">
+            @(items.Count == 0
+                ? Mode == GifLibraryMode.User
+                    ? "Nothing here yet — star GIFs in the picker, or add your collection above."
+                    : "The server library is empty — add GIFs above to give everyone a curated set."
+                : !string.IsNullOrWhiteSpace(filterText)
+                    ? "No GIFs match your filter."
+                    : "Nothing in this folder.")
+        </div>
+    }
+    else
+    {
+        <div class="gif-lib-grid">
+            @foreach (var entry in (showAll ? filteredItems : filteredItems.Take(InitialVisibleCount)))
+            {
+                var preview = entry.GifUrl ?? entry.RemoteGifUrl;
+                <div class="gif-lib-card">
+                    <div class="gif-lib-thumb">
+                        @if (preview != null)
+                        {
+                            <img src="@preview" loading="lazy" alt="" />
+                        }
+                        else
+                        {
+                            <div class="gif-lib-processing">processing…</div>
+                        }
+                    </div>
+
+                    @if (editingTagsId == entry.Id)
+                    {
+                        <div class="gif-tags-edit">
+                            <input class="gif-tags-input" @bind="tagsDraft" @bind:event="oninput"
+                                   @onkeydown="@(e => HandleTagsKeyDownAsync(e))"
+                                   placeholder="comma, separated, tags" />
+                            <button class="gif-tags-btn save" title="Save" @onclick="SaveTagsAsync">✓</button>
+                            <button class="gif-tags-btn" title="Cancel" @onclick="() => editingTagsId = null">✕</button>
+                        </div>
+                    }
+                    else
+                    {
+                        var tags = GifService.GetTags(entry);
+                        <div class="gif-tags-view" title="Click to edit search keywords" @onclick="() => StartEditTags(entry)">
+                            @foreach (var tag in tags.Take(4))
+                            {
+                                <span class="gif-tag-chip">@tag</span>
+                            }
+                            @if (tags.Count > 4)
+                            {
+                                <span class="gif-tag-chip more">+@(tags.Count - 4)</span>
+                            }
+                            @if (tags.Count == 0)
+                            {
+                                <span class="gif-tags-empty">add keywords…</span>
+                            }
+                        </div>
+                    }
+
+                    <div class="gif-lib-controls">
+                        @if (creatingFolderForId == entry.Id)
+                        {
+                            <input class="gif-lib-newfolder" @bind="newFolderDraft" @bind:event="oninput"
+                                   @onkeydown="@(e => HandleNewFolderKeyAsync(e, entry.Id))"
+                                   placeholder="folder name" />
+                        }
+                        else
+                        {
+                            <select class="gif-lib-folder-select" title="Folder"
+                                    value="@(FolderOf(entry.Id) ?? "")"
+                                    @onchange="@(e => HandleFolderChangeAsync(entry.Id, e.Value?.ToString()))">
+                                <option value="">(unsorted)</option>
+                                @foreach (var f in folders)
+                                {
+                                    <option value="@f">@f</option>
+                                }
+                                <option value="__new__">＋ New folder…</option>
+                            </select>
+                        }
+
+                        @if (CanDelete(entry))
+                        {
+                            <button class="gif-lib-btn danger" title="Delete the file itself"
+                                    @onclick="() => DeleteAsync(entry.Id)">
+                                @(confirmDeleteId == entry.Id ? "Sure?" : "Delete")
+                            </button>
+                        }
+                        <button class="gif-lib-btn" title="@RemoveTitle" @onclick="() => RemoveAsync(entry.Id)">✕</button>
+                    </div>
+                </div>
+            }
+        </div>
+        @if (filteredItems.Count > InitialVisibleCount)
+        {
+            <button class="gif-lib-showmore" @onclick="() => showAll = !showAll">
+                @(showAll ? "Show less" : $"Show all {filteredItems.Count} GIFs")
+            </button>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public GifLibraryMode Mode { get; set; } = GifLibraryMode.User;
+    [Parameter] public Guid CurrentUserId { get; set; }
+
+    /// <summary>Cards rendered before the "Show all" button takes over. Admin passes a small
+    /// value so the server library starts collapsed to one row-ish with an expand.</summary>
+    [Parameter] public int InitialVisibleCount { get; set; } = 48;
+
+    private readonly string _uid = Guid.NewGuid().ToString("N")[..8];
+
+    private List<GifEntry> items = new();
+    private Dictionary<Guid, string?> folderMap = new();
+    private List<string> folders = new();
+
+    // null = All, "" = Unsorted, anything else = a folder name.
+    private string? selectedFolder;
+
+    private string filterText = "";
+    private bool showAll;
+
+    private Guid? editingTagsId;
+    private string tagsDraft = "";
+    private Guid? creatingFolderForId;
+    private string newFolderDraft = "";
+    private Guid? confirmDeleteId;
+
+    private bool uploadBusy;
+    private int uploadPercent, uploadDone, uploadTotal;
+    private string? uploadErrors;
+    private string? notice;
+    private GifImportProgress? currentImport;
+
+    private ElementReference filesInputRef;
+    private ElementReference packInputRef;
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<GifLibraryManager>? _selfRef;
+
+    private bool CanUpload => !uploadBusy;
+    private static bool VideoSupported => GifFfmpegHelper.IsAvailable;
+    private string FileAccept => VideoSupported ? ".gif,.webp,.mp4,.webm,.mov" : ".gif,.webp";
+    private string[] AllowedFileExts => VideoSupported
+        ? new[] { ".gif", ".webp", ".mp4", ".webm", ".mov" }
+        : new[] { ".gif", ".webp" };
+    private string AddFilesTitle =>
+        (VideoSupported ? "Add GIF, WebP or short video files" : "Add GIF or WebP files (video conversion needs ffmpeg)")
+        + (SelectedRealFolder != null ? $" to \"{SelectedRealFolder}\"" : "");
+    private bool ShowQuota => Mode == GifLibraryMode.User && !UserService.IsAdmin(CurrentUserId);
+    private string ExportUrl => Mode == GifLibraryMode.Server ? "/api/admin/gifs/export" : "/api/gifs/export";
+    private string RemoveTitle => Mode == GifLibraryMode.Server ? "Remove from server library" : "Remove from your library";
+    private string? SelectedRealFolder => string.IsNullOrEmpty(selectedFolder) ? null : selectedFolder;
+
+    private List<GifEntry> FilteredItems
+    {
+        get
+        {
+            IEnumerable<GifEntry> result = selectedFolder switch
+            {
+                null => items,
+                "" => items.Where(e => FolderOf(e.Id) == null),
+                var f => items.Where(e => string.Equals(FolderOf(e.Id), f, StringComparison.OrdinalIgnoreCase)),
+            };
+
+            if (!string.IsNullOrWhiteSpace(filterText))
+            {
+                var query = filterText.Trim();
+                result = result.Where(e =>
+                    GifService.GetTags(e).Any(t => t.Contains(query, StringComparison.OrdinalIgnoreCase))
+                    || (FolderOf(e.Id)?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false));
+            }
+            return result.ToList();
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        Reload();
+        GifService.OnFavoritesChanged += HandleFavoritesChanged;
+        GifService.OnGifLibraryChanged += HandleLibraryChanged;
+        GifService.OnGifEntryUpdated += HandleEntryUpdated;
+        GifService.OnImportProgress += HandleImportProgress;
+    }
+
+    private void Reload()
+    {
+        if (Mode == GifLibraryMode.User)
+        {
+            items = GifService.GetFavorites(CurrentUserId);
+            folderMap = GifService.GetFavoriteFolderMap(CurrentUserId);
+            folders = GifService.GetFavoriteFolders(CurrentUserId);
+        }
+        else
+        {
+            items = GifService.GetServerGifs();
+            folderMap = items.ToDictionary(e => e.Id, e => e.ServerFolder);
+            folders = GifService.GetServerFolders();
+        }
+
+        // A folder that vanished (last item moved out) can't stay selected.
+        if (SelectedRealFolder != null && !folders.Contains(SelectedRealFolder, StringComparer.OrdinalIgnoreCase))
+            selectedFolder = null;
+    }
+
+    private string? FolderOf(Guid entryId) => folderMap.GetValueOrDefault(entryId);
+
+    private void SelectFolder(string? folder)
+    {
+        selectedFolder = folder;
+        confirmDeleteId = null;
+        showAll = false; // every view starts collapsed
+    }
+
+    private bool CanDelete(GifEntry entry) => Mode == GifLibraryMode.Server
+        || (entry.UploadedByUserId == CurrentUserId && entry.SourceProviderId == null);
+
+    // ---- Tag editing (same interaction as the Admin GIFs table) ----
+
+    private void StartEditTags(GifEntry entry)
+    {
+        editingTagsId = entry.Id;
+        tagsDraft = string.Join(", ", GifService.GetTags(entry));
+    }
+
+    private async Task SaveTagsAsync()
+    {
+        if (editingTagsId is not Guid id) return;
+        await GifService.SetTagsAsync(id, tagsDraft.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        editingTagsId = null;
+    }
+
+    private async Task HandleTagsKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SaveTagsAsync();
+        else if (e.Key == "Escape") editingTagsId = null;
+    }
+
+    // ---- Folder assignment ----
+
+    private async Task HandleFolderChangeAsync(Guid entryId, string? value)
+    {
+        if (value == "__new__")
+        {
+            creatingFolderForId = entryId;
+            newFolderDraft = "";
+            return;
+        }
+        await SetFolderAsync(entryId, string.IsNullOrEmpty(value) ? null : value);
+    }
+
+    private async Task HandleNewFolderKeyAsync(KeyboardEventArgs e, Guid entryId)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(newFolderDraft))
+        {
+            var folder = newFolderDraft;
+            creatingFolderForId = null;
+            await SetFolderAsync(entryId, folder);
+        }
+        else if (e.Key == "Escape")
+        {
+            creatingFolderForId = null;
+        }
+    }
+
+    private async Task SetFolderAsync(Guid entryId, string? folder)
+    {
+        if (Mode == GifLibraryMode.User)
+            await GifService.SetFavoriteFolderAsync(CurrentUserId, entryId, folder);
+        else
+            await GifService.SetServerGifAsync(entryId, isServer: true, folder);
+        // Events refresh the lists; nothing else to do here.
+    }
+
+    // ---- Remove / delete ----
+
+    private async Task RemoveAsync(Guid entryId)
+    {
+        confirmDeleteId = null;
+        if (Mode == GifLibraryMode.User)
+            await GifService.SetFavoriteAsync(CurrentUserId, entryId, favorite: false);
+        else
+            await GifService.SetServerGifAsync(entryId, isServer: false);
+    }
+
+    private async Task DeleteAsync(Guid entryId)
+    {
+        // Two-tap confirm: works identically with mouse and touch, no JS dialog.
+        if (confirmDeleteId != entryId)
+        {
+            confirmDeleteId = entryId;
+            return;
+        }
+        confirmDeleteId = null;
+
+        var result = await GifService.DeleteEntryAsync(CurrentUserId, entryId, force: Mode == GifLibraryMode.Server);
+        notice = result switch
+        {
+            GifDeleteResult.UnstarredOnly => "Still used in chat or by others — removed from your library instead.",
+            GifDeleteResult.NotAllowed => "You can only delete your own uploads.",
+            GifDeleteResult.SoftDeleted => "Deleted. The file stays until messages using it are gone.",
+            _ => null,
+        };
+    }
+
+    // ---- Uploads (tus via the collocated JS module) ----
+
+    private async Task StartUploadAsync(bool isPack)
+    {
+        if (uploadBusy) return;
+
+        uploadBusy = true;
+        uploadErrors = null;
+        uploadPercent = 0; uploadDone = 0; uploadTotal = 0;
+        if (isPack) currentImport = null;
+
+        try
+        {
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./Components/GifLibraryManager.razor.js");
+            _selfRef ??= DotNetObjectReference.Create(this);
+
+            var tusEndpoint = string.IsNullOrEmpty(ChatConfig.UploadUrl) ? "/api/tus" : ChatConfig.UploadUrl;
+            var meta = new Dictionary<string, string>
+            {
+                ["kind"] = isPack ? "gif-pack" : "gif",
+                ["target"] = Mode == GifLibraryMode.Server ? "server" : "user",
+            };
+            // New files land in the folder the user is currently looking at.
+            if (!isPack && SelectedRealFolder != null)
+                meta["folder"] = SelectedRealFolder;
+
+            // Single files share the picker's 50 MB cap; packs get the dedicated pack cap.
+            var maxSizeMB = isPack ? ChatConfig.GifPackMaxSizeMB : 50;
+
+            var result = await _module.InvokeAsync<UploadSummary>("uploadGifLibraryFiles",
+                isPack ? packInputRef : filesInputRef, tusEndpoint, maxSizeMB,
+                isPack ? new[] { ".zip" } : AllowedFileExts, meta, _selfRef);
+
+            if (result.Errors is { Length: > 0 })
+                uploadErrors = string.Join("\n", result.Errors);
+
+            // File uploads surface through OnGifLibraryChanged/OnFavoritesChanged as the server
+            // accepts them; pack progress arrives via OnImportProgress. Reload covers stragglers.
+            Reload();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "GIF library upload failed");
+            uploadErrors = "Upload failed — something went wrong.";
+        }
+        finally
+        {
+            uploadBusy = false;
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnUploadProgress(int percent, int completed, int total)
+    {
+        uploadPercent = percent;
+        uploadDone = completed;
+        uploadTotal = total;
+        try { await InvokeAsync(StateHasChanged); }
+        catch { /* circuit may be dead */ }
+    }
+
+    // ---- GifService events (singleton → scoped component, standard guard pattern) ----
+
+    private void HandleFavoritesChanged(Guid userId)
+    {
+        if (Mode != GifLibraryMode.User || userId != CurrentUserId) return;
+        RefreshFromEvent();
+    }
+
+    private void HandleLibraryChanged(GifEntry _) => RefreshFromEvent();
+
+    private void HandleEntryUpdated(Guid entryId)
+    {
+        if (!items.Any(e => e.Id == entryId)) return;
+        RefreshFromEvent();
+    }
+
+    private void HandleImportProgress(GifImportProgress progress)
+    {
+        var mine = progress.ServerTarget == (Mode == GifLibraryMode.Server)
+                   && (Mode == GifLibraryMode.Server || progress.ActorUserId == CurrentUserId);
+        if (!mine) return;
+
+        currentImport = progress;
+        RefreshFromEvent();
+    }
+
+    private async void RefreshFromEvent()
+    {
+        try
+        {
+            await InvokeAsync(() =>
+            {
+                Reload();
+                StateHasChanged();
+            });
+        }
+        catch (ObjectDisposedException) { }
+        catch (InvalidOperationException) { }
+    }
+
+    private static string FormatSize(long bytes) => bytes switch
+    {
+        >= 1024L * 1024 * 1024 => $"{bytes / (1024.0 * 1024 * 1024):0.#} GB",
+        >= 1024 * 1024 => $"{bytes / (1024.0 * 1024):0.#} MB",
+        >= 1024 => $"{bytes / 1024.0:0.#} KB",
+        _ => $"{bytes} B",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        GifService.OnFavoritesChanged -= HandleFavoritesChanged;
+        GifService.OnGifLibraryChanged -= HandleLibraryChanged;
+        GifService.OnGifEntryUpdated -= HandleEntryUpdated;
+        GifService.OnImportProgress -= HandleImportProgress;
+
+        _selfRef?.Dispose();
+        if (_module != null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { }
+        }
+    }
+
+    // JS interop result shapes (camelCase-mapped from the module's return value).
+    private record UploadSummary(bool Success, string[]? Errors, TusResult[]? Results);
+    private record TusResult(string? Type, Guid? GifEntryId, Guid? ImportId, string? Error);
+}

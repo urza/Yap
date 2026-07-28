@@ -57,8 +57,27 @@ public class GifEntry
 
     public GifTranscodeStatus TranscodeStatus { get; set; } = GifTranscodeStatus.None;
 
-    /// <summary>Reserved for Phase 2 cache-eviction; never set in MVP.</summary>
+    /// <summary>
+    /// Soft-delete marker. Set when an entry still referenced by messages is deleted — the file
+    /// stays on disk so chat history keeps rendering, but the entry vanishes from search,
+    /// favorites, libraries, and quota. Unreferenced entries are hard-deleted instead.
+    /// </summary>
     public DateTime? DeletedAt { get; set; }
+
+    /// <summary>
+    /// Admin-curated server library membership. Server GIFs are visible and searchable to
+    /// everyone and rank above the general pool in local search.
+    /// </summary>
+    public bool IsServerGif { get; set; }
+
+    /// <summary>Optional 1-level folder within the server library. Only meaningful when IsServerGif.</summary>
+    public string? ServerFolder { get; set; }
+
+    /// <summary>
+    /// SHA-256 (lowercase hex) of the produced local file. Custom uploads only — lets re-imports
+    /// of identical content converge on the existing entry instead of duplicating it.
+    /// </summary>
+    public string? ContentHash { get; set; }
 
     // Navigation
     public User? UploadedByUser { get; set; }

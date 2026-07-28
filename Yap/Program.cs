@@ -351,5 +351,6 @@ app.MapPushEndpoints();
 app.MapAuthEndpoints();
 app.MapAdminEndpoints();
 app.MapDiagnosticsEndpoints();
+app.MapGifLibraryEndpoints();
 
 app.Run();
