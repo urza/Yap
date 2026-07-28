@@ -1172,6 +1172,39 @@ public class ChatService
         OnReactionChanged?.Invoke(message);
     }
 
+    /// <summary>
+    /// The user's most-used reaction emojis for the quick-reaction bar. Reads full
+    /// reaction history from the DB when persistence is on; otherwise counts reactions
+    /// on in-memory messages, which ARE the complete history in memory-only mode.
+    /// </summary>
+    public async Task<List<string>> GetTopReactionEmojisAsync(Guid userId, int count)
+    {
+        if (_persistence.IsEnabled)
+            return await _persistence.GetTopReactionEmojisAsync(userId, count);
+
+        var mine = new List<Reaction>();
+        foreach (var (chanId, messages) in _channelMessages)
+        {
+            lock (GetChannelLock(chanId))
+            {
+                foreach (var message in messages)
+                {
+                    lock (message.Reactions)
+                    {
+                        mine.AddRange(message.Reactions.Where(r => r.UserId == userId));
+                    }
+                }
+            }
+        }
+
+        return mine
+            .GroupBy(r => r.Emoji)
+            .OrderByDescending(g => g.Count())
+            .Take(count)
+            .Select(g => g.Key)
+            .ToList();
+    }
+
     #endregion
 
     #region Unread Tracking

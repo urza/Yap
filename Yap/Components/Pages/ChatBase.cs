@@ -167,8 +167,9 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
             // Load recent emojis from localStorage (for full drawer)
             await LoadRecentEmojisAsync();
 
-            // Load emoji counts and compute quick reactions (cached for session)
+            // Load emoji usage counts + compute quick reactions from reaction history (cached for session)
             await LoadEmojiCountsAsync();
+            await LoadQuickReactionsAsync();
 
             // Let derived class initialize
             await OnInitializedChatAsync();
@@ -666,39 +667,41 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
     #endregion
 
-    #region Emoji Counts (Quick Reactions)
+    #region Quick Reactions & Emoji Counts
 
     private static readonly string[] DefaultQuickEmojis = ["❤️", "😂", "👍"];
 
-    private Task LoadEmojiCountsAsync()
+    /// <summary>
+    /// Quick reactions come from actual reaction history (Reactions table, or in-memory
+    /// messages when persistence is off), NOT from EmojiCounts — reacting and typing are
+    /// different habits, so the bar offers what you genuinely react with. Computed once
+    /// per circuit and cached for the session; defaults pad out sparse history.
+    /// </summary>
+    private async Task LoadQuickReactionsAsync()
     {
-        emojiCounts = UserService.GetEmojiCounts(Username);
+        quickReactions = await ChatService.GetTopReactionEmojisAsync(UserId, 3);
 
-        // Compute quick reactions once (cached for session)
-        quickReactions = emojiCounts
-            .OrderByDescending(x => x.Value)
-            .Take(3)
-            .Select(x => x.Key)
-            .ToList();
-
-        // Fill with defaults if needed
         foreach (var emoji in DefaultQuickEmojis)
         {
             if (quickReactions.Count >= 3) break;
             if (!quickReactions.Contains(emoji))
                 quickReactions.Add(emoji);
         }
+    }
 
+    private Task LoadEmojiCountsAsync()
+    {
+        // Quick reactions no longer read this, but it must still be loaded before the
+        // first IncrementEmojiCount: that mutates this dictionary and writes it back
+        // whole, so starting from empty would wipe the stored usage data.
+        emojiCounts = UserService.GetEmojiCounts(Username);
         return Task.CompletedTask;
     }
 
     private void IncrementEmojiCount(string emoji)
     {
-        // Update count in memory
         emojiCounts.TryGetValue(emoji, out var count);
         emojiCounts[emoji] = count + 1;
-
-        // Note: quickReactions is NOT updated here - it stays cached for the session
 
         UserService.UpdateEmojiCounts(UserId, emojiCounts);
     }

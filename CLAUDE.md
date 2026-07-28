@@ -33,6 +33,8 @@ Blazor Server's SignalR round-trip adds latency. Only escape to CSS/JS for **pro
 - **Key interception**: Avoid server-evaluated `@onkeydown:preventDefault` - use client-side JS for timing-critical input handling.
 - **High-frequency events**: Scroll position, mouse movement - debounce or handle in JS, call back to Blazor sparingly.
 
+Guiding rule, validated by prod telemetry (server work ≤ ~70ms per send; a bad link ~900ms per round trip): **the user's fingers never wait for the circuit** — feedback the user watches while acting (button enablement, keystroke effects, their own sent message appearing) derives from local state and reconciles with the server afterward. The server remains the source of truth and its guards stay authoritative; the chat.js send pipeline shows the house patterns (value-driven CSS state like `:placeholder-shown`, client-routed events, optimistic echo with reconciliation).
+
 When using JS interop, keep it minimal and focused. The goal is surgical fixes, not replacing Blazor's model.
 
 ### Mobile Considerations

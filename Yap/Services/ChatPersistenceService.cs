@@ -234,6 +234,35 @@ public class ChatPersistenceService
         }
     }
 
+    /// <summary>
+    /// The emojis this user reacts with most, straight from reaction history.
+    /// Deliberately reactions-only — what you react with and what you type into messages
+    /// are different habits, so typed emojis never influence the quick-reaction bar.
+    /// Ties break toward the most recently used emoji (higher row id = newer reaction).
+    /// </summary>
+    public async Task<List<string>> GetTopReactionEmojisAsync(Guid userId, int count)
+    {
+        if (!IsEnabled) return new();
+
+        try
+        {
+            await using var db = await _dbFactory!.CreateDbContextAsync();
+            return await db.Reactions
+                .Where(r => r.UserId == userId)
+                .GroupBy(r => r.Emoji)
+                .OrderByDescending(g => g.Count())
+                .ThenByDescending(g => g.Max(r => r.Id))
+                .Take(count)
+                .Select(g => g.Key)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load top reaction emojis for user {UserId}", userId);
+            return new();
+        }
+    }
+
     #endregion
 
     #region Read State Operations
