@@ -57,12 +57,13 @@
     margin-right: 0.25rem;
 }
 
-.message-input-container.drag-over {
+/* data-dragging is set by setupDropZone (chat.js) — drag visuals are fully client-side */
+.message-input-container[data-dragging] {
     background: var(--bg-secondary);
     box-shadow: inset 0 0 0 2px var(--accent-primary);
 }
 
-.message-input-container.drag-over::after {
+.message-input-container[data-dragging]::after {
     content: "Drop images here";
     position: absolute;
     top: 50%;
@@ -283,7 +284,7 @@
 /* While a picker is open, lift the textarea above the picker backdrop (z-index 999) — like
    .send-button — so a single click reaches the textarea, focusing it AND dismissing the picker
    in one gesture (HandleInputFocus clears the picker flags). Scoped to .picker-open so the
-   drag-over "Drop images here" hint (container ::after) stays above the textarea otherwise. */
+   [data-dragging] "Drop images here" hint (container ::after) stays above the textarea otherwise. */
 .message-input-container.picker-open .message-input {
     position: relative;
     z-index: 1000;

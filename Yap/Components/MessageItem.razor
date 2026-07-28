@@ -48,11 +48,14 @@
         @if (IsEditing)
         {
             <div class="edit-container">
-                <input type="text" value="@EditContent" @oninput="OnEditInput"
-                       class="edit-input" @onkeydown="HandleEditKeyDown" />
+                @* Draft is local + commit-granularity (plain @bind = change event): typing costs
+                   zero round trips, and unchanged server state means concurrent re-renders never
+                   touch the DOM value. Keys are routed client-side by setupEditBox (chat.js). *@
+                <textarea id="@EditBoxId" class="edit-input" @bind="editDraft" rows="1"></textarea>
                 <div class="edit-actions">
-                    <button class="edit-save" @onclick="() => OnSaveEdit.InvokeAsync()" title="Save">✓</button>
-                    <button class="edit-cancel" @onclick="() => OnCancelEdit.InvokeAsync()" title="Cancel">✕</button>
+                    <button class="edit-save" @onclick="HandleSaveClick" title="Save">✓ Save</button>
+                    <button class="edit-cancel" @onclick="() => OnCancelEdit.InvokeAsync()" title="Cancel">✕ Cancel</button>
+                    <span class="edit-hint">Enter to save · Shift+Enter for newline · Esc to cancel</span>
                 </div>
             </div>
         }
@@ -364,9 +367,13 @@
     private bool IsOwn => Message.Username.Equals(CurrentUsername, StringComparison.OrdinalIgnoreCase);
     private bool IsSystem => Message.Username == "System";
 
-    // Edit state
-    [Parameter] public string EditContent { get; set; } = "";
-    [Parameter] public EventCallback<string> EditContentChanged { get; set; }
+    // Edit state. The draft lives HERE, not on the page: it syncs to the server only on
+    // commit (change event), so typing round-trips nothing — and because the server-side
+    // value stays constant while typing, re-renders never touch the DOM value.
+    private string editDraft = "";
+    private bool wasEditing = false;
+    private bool pendingEditSetup = false;
+    private string EditBoxId => $"editBox_{Message.Id:N}";
 
     // Reply parameters
     [Parameter] public ChatMessage? ReplyToMessage { get; set; }
@@ -378,7 +385,7 @@
     // Callbacks
     [Parameter] public EventCallback<string> OnReaction { get; set; }
     [Parameter] public EventCallback OnStartEdit { get; set; }
-    [Parameter] public EventCallback OnSaveEdit { get; set; }
+    [Parameter] public EventCallback<string> OnSaveEdit { get; set; }
     [Parameter] public EventCallback OnCancelEdit { get; set; }
     [Parameter] public EventCallback OnDelete { get; set; }
     [Parameter] public EventCallback<(List<string> Images, int Index)> OnImageClick { get; set; }
@@ -410,16 +417,9 @@
         return ReplyToMessage.Content;
     }
 
-    private async Task OnEditInput(ChangeEventArgs e)
-    {
-        await EditContentChanged.InvokeAsync(e.Value?.ToString() ?? "");
-    }
-
-    private async Task HandleEditKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter") await OnSaveEdit.InvokeAsync();
-        else if (e.Key == "Escape") await OnCancelEdit.InvokeAsync();
-    }
+    private Task HandleSaveClick()
+        // No-op edits skip the EditMessage round trip + event fan-out entirely.
+        => editDraft == Message.Content ? OnCancelEdit.InvokeAsync() : OnSaveEdit.InvokeAsync(editDraft);
 
     /// <summary>
     /// Groups images into rows of 2 or 3, avoiding single-image rows.
@@ -462,6 +462,14 @@
     {
         if (Message.HasVideos && Message.VideoUrls.Count != videoContainerRefs.Length)
             videoContainerRefs = new ElementReference[Message.VideoUrls.Count];
+
+        // Entering edit mode: seed the local draft from the message exactly once.
+        if (IsEditing && !wasEditing)
+        {
+            editDraft = Message.Content;
+            pendingEditSetup = true;
+        }
+        wasEditing = IsEditing;
     }
 
     private async Task PlayVideoByIndex(int index)
@@ -492,6 +500,13 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (pendingEditSetup && IsEditing)
+        {
+            pendingEditSetup = false;
+            try { await JS.InvokeVoidAsync("setupEditBox", EditBoxId); }
+            catch { /* Ignore JS errors during disconnect */ }
+        }
+
         if (pendingPosition && showEmojiPicker)
         {
             pendingPosition = false;

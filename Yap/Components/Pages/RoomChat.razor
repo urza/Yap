@@ -43,7 +43,11 @@
         var showHeader = !isSystemMessage && ShouldShowHeader(i);
         var replyTarget = GetReplyTarget(message);
 
-        <MessageItem Message="@message"
+        @* @key pins each MessageItem to its message: prepends/deletes shift positions, and
+           positional matching would hand the editing instance (and its local draft) to a
+           different message. Also cheaper diffs on insert/remove. *@
+        <MessageItem @key="message.Id"
+                     Message="@message"
                      ShowHeader="@showHeader"
                      IsEditing="@(editingMessageId == message.Id)"
                      CurrentUsername="@Username"
@@ -53,8 +57,6 @@
                      RecentEmojis="@recentEmojis"
                      QuickReactions="@quickReactions"
                      IsReplyTarget="@(replyingToMessage?.Id == message.Id)"
-                     EditContent="@editContent"
-                     EditContentChanged="@(v => editContent = v)"
                      ReplyToMessage="@replyTarget"
                      ReplyToDisplayName="@(replyTarget != null ? GetDisplayName(replyTarget.Username) : null)"
                      ReplyToProfilePictureUrl="@(replyTarget != null ? GetProfilePictureUrl(replyTarget.Username) : null)"

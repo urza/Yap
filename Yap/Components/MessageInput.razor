@@ -79,14 +79,11 @@ else
     </div>
 }
 
-<div class="message-input-container @(isDraggingOver ? "drag-over" : "") @(ReplyingToMessage != null ? "has-reply-bar" : "") @(showEmojiPicker ? "emoji-open" : "") @(showEmojiPicker || showGifPicker ? "picker-open" : "") @(isInputFocused ? "input-focused" : "")"
-     @ref="dropZoneElement"
-     @ondragenter="HandleDragEnter"
-     @ondragover="HandleDragOver"
-     @ondragover:preventDefault
-     @ondragleave="HandleDragLeave"
-     @ondrop="HandleDrop"
-     @ondrop:preventDefault>
+@* Drag & drop is fully client-side (setupDropZone in chat.js): dragover fires continuously
+   during a drag and must never round-trip; the highlight rides on a JS-set data-dragging
+   attribute, which Blazor's diff never touches (unlike this interpolated class attribute). *@
+<div class="message-input-container @(ReplyingToMessage != null ? "has-reply-bar" : "") @(showEmojiPicker ? "emoji-open" : "") @(showEmojiPicker || showGifPicker ? "picker-open" : "") @(isInputFocused ? "input-focused" : "")"
+     @ref="dropZoneElement">
     <textarea @bind="messageText" @bind:event="oninput" @bind:after="OnInputChangedInternal"
               placeholder="@placeholder" class="message-input"
               @onfocus="HandleInputFocus" @onblur="HandleInputBlur"
@@ -176,7 +173,6 @@ else
 
     // Internal state
     private ElementReference dropZoneElement;
-    private bool isDraggingOver = false;
     private string messageText = "";
     private string placeholder = "";
     private string typingIndicatorText = "";
@@ -199,6 +195,8 @@ else
     private string FileInputId = $"fileInput_{Guid.NewGuid():N}";
     private bool isMobileLayout = false;
     private bool isInputFocused = false;
+    private bool needsElementSetup = true;  // first render + after the ReadOnly branch recreated the subtree
+    private bool wasReadOnly = false;
     private DotNetObjectReference<MessageInput>? _layoutRef;
     private readonly string _layoutWatcherId = Guid.NewGuid().ToString("N");
     private bool showEmojiPicker = false;
@@ -237,12 +235,32 @@ else
         UpdateChannelId();
         UpdatePlaceholder();
         UpdateTypingIndicator();
+
+        // The ReadOnly branch swaps out the entire input subtree; when it swaps back in,
+        // the fresh elements need all their element-bound JS wiring re-attached.
+        if (wasReadOnly && !ReadOnly) needsElementSetup = true;
+        wasReadOnly = ReadOnly;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
+            // Viewport watcher is id-keyed and element-independent — once per component lifetime.
+            try
+            {
+                _layoutRef = DotNetObjectReference.Create(this);
+                isMobileLayout = await JS.InvokeAsync<bool>("setupMobileLayoutWatcher", _layoutRef, _layoutWatcherId);
+                StateHasChanged();
+            }
+            catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup mobile layout watcher"); }
+        }
+
+        // Element-bound wiring: first render, and again after the ReadOnly branch swapped the
+        // input subtree back in (fresh DOM elements — the old listeners died with the old ones).
+        if (needsElementSetup && !ReadOnly)
+        {
+            needsElementSetup = false;
             try { await JS.InvokeVoidAsync("setupDropZone", dropZoneElement, FileInputId); }
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup drop zone"); }
             try { await JS.InvokeVoidAsync("setupEnterKeyHandler", TextareaId); }
@@ -257,13 +275,6 @@ else
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup emoji toggle"); }
             try { await JS.InvokeVoidAsync("setupPasteUpload", TextareaId, FileInputId); }
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup paste upload"); }
-            try
-            {
-                _layoutRef = DotNetObjectReference.Create(this);
-                isMobileLayout = await JS.InvokeAsync<bool>("setupMobileLayoutWatcher", _layoutRef, _layoutWatcherId);
-                StateHasChanged();
-            }
-            catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup mobile layout watcher"); }
         }
     }
 
@@ -637,15 +648,6 @@ else
         warningTitle = "";
         warningMessage = "";
     }
-
-    #endregion
-
-    #region Drag and Drop
-
-    private void HandleDragEnter(DragEventArgs e) => isDraggingOver = true;
-    private void HandleDragOver(DragEventArgs e) => isDraggingOver = true;
-    private void HandleDragLeave(DragEventArgs e) => isDraggingOver = false;
-    private void HandleDrop(DragEventArgs e) => isDraggingOver = false;
 
     #endregion
 

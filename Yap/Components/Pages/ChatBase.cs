@@ -48,7 +48,6 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
     // UI state
     protected Guid? editingMessageId = null;
-    protected string editContent = "";
 
     // Tab notification state
     protected int unreadCount = 0;
@@ -488,26 +487,20 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
         // Scroll handling is done in HandleReactionChanged for all viewers
     }
 
-    protected void StartEdit(ChatMessage message)
-    {
-        editingMessageId = message.Id;
-        editContent = message.Content;
-    }
+    // The edit draft lives in MessageItem (local, commit-granularity sync) — the page only
+    // owns WHICH message is being edited and receives the final text at save time.
+    protected void StartEdit(ChatMessage message) => editingMessageId = message.Id;
 
-    protected async Task SaveEdit()
+    protected async Task SaveEdit(string content)
     {
-        if (editingMessageId.HasValue && !string.IsNullOrWhiteSpace(editContent))
+        if (editingMessageId.HasValue && !string.IsNullOrWhiteSpace(content))
         {
-            await ChatService.EditMessageAsync(editingMessageId.Value, channelId, Username, editContent);
+            await ChatService.EditMessageAsync(editingMessageId.Value, channelId, Username, content);
         }
         CancelEdit();
     }
 
-    protected void CancelEdit()
-    {
-        editingMessageId = null;
-        editContent = "";
-    }
+    protected void CancelEdit() => editingMessageId = null;
 
     protected async Task DeleteMessage(Guid messageId)
     {

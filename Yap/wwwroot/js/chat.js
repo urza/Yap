@@ -160,19 +160,59 @@ window.removeModalKeyboard = () => {
     }
 };
 
-// Drag-drop file handling
+// Drag-drop file handling + drag-over visuals, fully client-side. Blazor never sees drag
+// events — dragover fires continuously during a drag and used to round-trip per event just
+// to re-set a bool. The highlight rides on a data-dragging ATTRIBUTE (not a class): the
+// container's class attribute is Blazor-interpolated and re-renders would clobber JS classes,
+// while Blazor's diff never touches an attribute it doesn't render.
+let _dropDocListenersInstalled = false;
+const installDropDocumentListeners = () => {
+    if (_dropDocListenersInstalled) return; // document-level listeners are installed once
+    _dropDocListenersInstalled = true;
+
+    // Cancelling dragover marks drop targets valid; cancelling drop stops the browser
+    // from navigating to the dropped file.
+    document.addEventListener('dragover', (e) => e.preventDefault());
+    document.addEventListener('drop', (e) => e.preventDefault());
+
+    // A cancelled drag (ESC, dropped outside the window) never fires dragleave — clean up.
+    const resetActive = () => document.querySelectorAll('[data-dragging]').forEach(el => {
+        el._dragDepth = 0;
+        el.removeAttribute('data-dragging');
+    });
+    document.addEventListener('dragend', resetActive);
+    document.addEventListener('drop', resetActive);
+};
+
 window.setupDropZone = (dropZoneElement, fileInputId) => {
     const fileInput = document.getElementById(fileInputId);
     if (!fileInput || !dropZoneElement) return;
 
-    // Handle dragover on the whole document to detect when user is dragging files
-    document.addEventListener('dragover', (e) => e.preventDefault());
-    document.addEventListener('drop', (e) => e.preventDefault());
+    installDropDocumentListeners();
+
+    if (dropZoneElement._dropWired) return; // idempotent per element (re-setup after ReadOnly flips)
+    dropZoneElement._dropWired = true;
+    dropZoneElement._dragDepth = 0;
+
+    // Only real file drags light up the overlay — not text-selection drags.
+    const isFileDrag = (e) => e.dataTransfer?.types?.includes('Files');
+
+    // dragenter/dragleave fire on every child boundary crossing (textarea, buttons) —
+    // the depth counter keeps the highlight stable while moving inside the container.
+    dropZoneElement.addEventListener('dragenter', (e) => {
+        if (!isFileDrag(e)) return;
+        if (++dropZoneElement._dragDepth === 1) dropZoneElement.setAttribute('data-dragging', '');
+    });
+    dropZoneElement.addEventListener('dragleave', () => {
+        if (dropZoneElement._dragDepth > 0 && --dropZoneElement._dragDepth === 0)
+            dropZoneElement.removeAttribute('data-dragging');
+    });
 
     // Handle file drop on drop zone
     dropZoneElement.addEventListener('drop', (e) => {
         e.preventDefault();
-        // Don't stopPropagation - let Blazor's handler also fire to reset drag state
+        dropZoneElement._dragDepth = 0;
+        dropZoneElement.removeAttribute('data-dragging');
 
         const files = e.dataTransfer?.files;
         if (files && files.length > 0) {
@@ -303,6 +343,63 @@ window.setupEnterKeyHandler = (textareaId) => {
     };
 
     textarea.addEventListener('keydown', textarea._enterKeyHandler);
+};
+
+// Message-edit box wiring: autogrow + focus + client-side keys, so editing keystrokes
+// never round-trip (the draft is bound at change granularity server-side).
+// Deliberate INVERSION vs. the send pipeline: the send path must NOT sync the textarea
+// before its click (the empty-guard would reject the send), while Enter-to-save MUST —
+// the synthetic change commits the draft, and in-order circuit processing guarantees it
+// lands before the click's SaveEdit. A direct ✓ click needs no synthetic event: native
+// blur→change→click ordering commits the draft first. Invariant: edit buttons must never
+// get the send button's mousedown-preventDefault (keep-keyboard-open) treatment — it
+// would suppress that blur and silently save stale content.
+window.setupEditBox = (textareaId) => {
+    const textarea = document.getElementById(textareaId);
+    if (!textarea) return;
+
+    window.setupTextareaAutoResize(textareaId);
+    window.autoResizeTextarea(textareaId); // pre-filled multi-line content opens at the right height
+
+    // The edit UI is taller than the message line it replaces — on the LAST message the
+    // actions row would open below the fold. Keep it in view on open and while the box
+    // autogrows. rAF runs after autoResizeTextarea's own rAF (queue order), so the height
+    // is settled first; block:'nearest' is a no-op whenever it's already visible.
+    const actions = textarea.closest('.edit-container')?.querySelector('.edit-actions');
+    const keepActionsVisible = () => requestAnimationFrame(() =>
+        actions?.scrollIntoView({ block: 'nearest' }));
+    keepActionsVisible();
+    if (textarea._editGrowHandler) {
+        textarea.removeEventListener('input', textarea._editGrowHandler);
+    }
+    textarea._editGrowHandler = keepActionsVisible;
+    textarea.addEventListener('input', textarea._editGrowHandler);
+
+    // Focus with caret at the end. On touch devices this won't raise the keyboard
+    // (we're outside the tap gesture) — tapping the box does; accepted.
+    textarea.focus();
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+
+    if (textarea._editKeyHandler) {
+        textarea.removeEventListener('keydown', textarea._editKeyHandler);
+    }
+
+    const isTouch = window.isTouchDevice();
+
+    textarea._editKeyHandler = (e) => {
+        if (e.isComposing || e.keyCode === 229) return; // IME composition owns the keys
+        const container = textarea.closest('.edit-container');
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            container?.querySelector('.edit-cancel')?.click();
+        } else if (e.key === 'Enter' && !e.shiftKey && !isTouch) {
+            e.preventDefault(); // no newline on plain desktop Enter; Shift+Enter keeps it
+            textarea.dispatchEvent(new Event('change', { bubbles: true })); // commit draft BEFORE the save click
+            container?.querySelector('.edit-save')?.click();
+        }
+    };
+
+    textarea.addEventListener('keydown', textarea._editKeyHandler);
 };
 
 // PWA Badge API for unread notifications

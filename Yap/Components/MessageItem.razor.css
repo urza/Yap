@@ -465,7 +465,11 @@
     border-radius: 3px;
     font-size: 1rem;
     line-height: 1;
-    transition: background-color 0.1s;
+    transition: background-color 0.1s, transform 0.08s;
+}
+
+.action-btn:active {
+    transform: scale(0.9); /* instant press feedback — the toggle itself takes a round trip */
 }
 
 .action-btn:hover {
@@ -540,7 +544,11 @@
     padding: 2px 8px;
     font-size: 0.875rem;
     cursor: pointer;
-    transition: background-color 0.1s, border-color 0.1s;
+    transition: background-color 0.1s, border-color 0.1s, transform 0.08s;
+}
+
+.reaction-pill:active {
+    transform: scale(0.9); /* instant press feedback — the toggle itself takes a round trip */
 }
 
 .reaction-pill:hover {
@@ -569,15 +577,26 @@
     gap: 8px;
 }
 
+/* The edit box is deliberately a small message input: same bg/radius/padding/autogrow,
+   so editing feels like composing. Styles duplicated (not shared) because CSS isolation
+   keeps MessageInput's scoped rules invisible here. */
 .edit-input {
     width: 100%;
-    padding: 8px 12px;
+    padding: 0.6875rem 1rem;
     background: var(--bg-input);
-    border: 1px solid var(--border-dark);
-    border-radius: 4px;
+    border: 1px solid transparent;
+    border-radius: 8px;
     color: var(--text-primary);
     font-size: 1rem;
     font-family: inherit;
+    line-height: 1.375;
+    resize: none;
+    min-height: 44px;
+    max-height: 200px;
+    overflow-y: auto;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    scrollbar-width: none;
 }
 
 .edit-input:focus {
@@ -587,26 +606,30 @@
 
 .edit-actions {
     display: flex;
+    align-items: center;
     gap: 8px;
 }
 
 .edit-save,
 .edit-cancel {
-    padding: 4px 12px;
+    padding: 6px 14px;
+    min-height: 36px;
     border: none;
-    border-radius: 3px;
+    border-radius: 8px;
     cursor: pointer;
     font-size: 0.875rem;
     transition: background-color 0.1s;
 }
 
+/* Save is the primary action — accent like the send button, themed by every theme
+   (green stays reserved for status semantics, which themes never override). */
 .edit-save {
-    background: var(--color-success);
-    color: white;
+    background: var(--accent-primary);
+    color: var(--text-white);
 }
 
 .edit-save:hover {
-    background: var(--status-online-hover);
+    background: var(--accent-hover);
 }
 
 .edit-cancel {
@@ -615,7 +638,31 @@
 }
 
 .edit-cancel:hover {
-    background: #5d6269;
+    background: var(--bg-hover);
+}
+
+.edit-hint {
+    color: var(--text-placeholder);
+    font-size: 0.75rem;
+}
+
+/* Touch: no hardware keys — hide the hint, grow the tap targets */
+@media (hover: none), (pointer: coarse) {
+    .edit-hint {
+        display: none;
+    }
+
+    .edit-save,
+    .edit-cancel {
+        min-height: 40px;
+        padding: 8px 16px;
+    }
+}
+
+@media (max-width: 600px) {
+    .edit-input {
+        font-size: 16px; /* Prevents zoom on iOS (same convention as the send box) */
+    }
 }
 
 /* Edited indicator */

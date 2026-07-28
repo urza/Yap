@@ -37,7 +37,9 @@ Guiding rule, validated by prod telemetry (server work ≤ ~70ms per send; a bad
 
 When using JS interop, keep it minimal and focused. The goal is surgical fixes, not replacing Blazor's model.
 
-### Mobile Considerations
+### Desktop + Mobile Together
+**The app must work for both desktop and mobile users.** Every fix and every new feature is designed and verified with both in mind at the same time — never ship a desktop-only interaction (hover, right-click, keyboard) without a mobile equivalent, and never a mobile-only one that degrades desktop.
+
 - Use `@ontouchstart` for touch-specific behavior when needed
 - CSS `:hover` becomes "sticky" after tap on mobile - may need JS class toggling for dismiss behaviors
 - Test on actual devices - mobile browser behavior varies
