@@ -28,22 +28,24 @@ public static class PersistenceServiceExtensions
         if (settings.Enabled)
         {
             // Get connection string based on provider
-            var connectionString = settings.Provider.Equals("Postgres", StringComparison.OrdinalIgnoreCase)
-                ? settings.ConnectionStrings.Postgres
-                : settings.ConnectionStrings.SQLite;
+            var connectionString = settings.ConnectionStrings.SQLite; //settings.Provider.Equals("Postgres", StringComparison.OrdinalIgnoreCase)
+                //? settings.ConnectionStrings.Postgres
+                //: settings.ConnectionStrings.SQLite;
 
             // Register pooled DbContextFactory for singleton services (like ChatService)
             // Pooled factory is singleton-compatible and more efficient
             services.AddPooledDbContextFactory<ChatDbContext>(options =>
             {
-                if (settings.Provider.Equals("Postgres", StringComparison.OrdinalIgnoreCase))
-                {
-                    options.UseNpgsql(connectionString);
-                }
-                else
-                {
-                    options.UseSqlite(connectionString);
-                }
+                options.UseSqlite(connectionString);
+
+                //if (settings.Provider.Equals("Postgres", StringComparison.OrdinalIgnoreCase))
+                //{
+                //    options.UseNpgsql(connectionString);
+                //}
+                //else
+                //{
+                //    options.UseSqlite(connectionString);
+                //}
             });
         }
 

@@ -16,15 +16,17 @@ public class ChatDbContextFactory : IDesignTimeDbContextFactory<ChatDbContext>
 
         var optionsBuilder = new DbContextOptionsBuilder<ChatDbContext>();
 
-        if (usePostgres)
-        {
-            optionsBuilder.UseNpgsql("Host=localhost;Database=yap;Username=yap;Password=yap");
-        }
-        else
-        {
-            // Default to SQLite
-            optionsBuilder.UseSqlite("Data Source=Data/yap.db");
-        }
+        optionsBuilder.UseSqlite("Data Source=Data/yap.db");
+
+        //if (usePostgres)
+        //{
+        //    optionsBuilder.UseNpgsql("Host=localhost;Database=yap;Username=yap;Password=yap");
+        //}
+        //else
+        //{
+        //    // Default to SQLite
+        //    optionsBuilder.UseSqlite("Data Source=Data/yap.db");
+        //}
 
         return new ChatDbContext(optionsBuilder.Options);
     }
