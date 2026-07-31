@@ -20,6 +20,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     [Inject] protected NavigationManager Navigation { get; set; } = default!;
     [Inject] protected IJSRuntime JS { get; set; } = default!;
     [Inject] private IHttpContextAccessor HttpContextAccessor { get; set; } = default!;
+    [Inject] private CircuitIdentity CircuitIdentity { get; set; } = default!;
     [Inject] protected SystemBotService BotService { get; set; } = default!;
     [Inject] protected LinkPreviewService LinkPreviewService { get; set; } = default!;
     [Inject] protected LinkPreviewSettingsService LinkPreviewSettings { get; set; } = default!;
@@ -52,6 +53,23 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     // Tab notification state
     protected int unreadCount = 0;
     protected string currentContext = "";
+
+    // Viewing label this page published to the session (admin Sessions diagnostics) — remembered
+    // so dispose can clear exactly what it set and never a successor page's label.
+    private string? _viewingLabel;
+
+    /// <summary>
+    /// Publishes which channel this session is viewing to the admin Sessions table.
+    /// Call whenever currentContext changes (initial load and in-page channel switches).
+    /// </summary>
+    protected void ReportSessionViewing()
+    {
+        if (string.IsNullOrEmpty(UserState.SessionId) || string.IsNullOrEmpty(currentContext))
+            return;
+
+        _viewingLabel = NavState.CurrentDmUser != null ? $"DM: {currentContext}" : $"#{currentContext}";
+        ChatService.SetSessionViewing(UserState.SessionId, _viewingLabel);
+    }
 
     // Infinite scroll state
     protected bool isLoadingMore = false;
@@ -151,12 +169,16 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
                 {
                     UserState.SessionId = Guid.NewGuid().ToString();
                     var clientIp = HttpContextAccessor.HttpContext?.Items["ClientIp"]?.ToString();
-                    await ChatService.AddUserAsync(UserState.SessionId, UserState.UserId.Value, Username, UserState.Status, UserState.IsMobile, clientIp);
+                    await ChatService.AddUserAsync(UserState.SessionId, UserState.UserId.Value, Username, UserState.Status, UserState.IsMobile, clientIp, CircuitIdentity.CircuitId);
                 }
                 else
                 {
-                    // Session exists - ensure status is correct (might have been set to Invisible during reconnect)
-                    await ChatService.SetUserStatusAsync(UserState.SessionId, UserState.Status);
+                    // Session exists — re-assert status only if it actually drifted (e.g. marked
+                    // Invisible during a reconnect). An unconditional re-set would count as a
+                    // MANUAL status change on every page navigation, wiping the auto-away restore
+                    // record and leaving an auto-away'd user stuck Away while actively chatting.
+                    if (ChatService.GetUserStatus(Username) != UserState.Status)
+                        await ChatService.SetUserStatusAsync(UserState.SessionId, UserState.Status);
                 }
             }
 
@@ -172,6 +194,9 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
             // Let derived class initialize
             await OnInitializedChatAsync();
+
+            // currentContext is populated now — publish what this session is viewing
+            ReportSessionViewing();
 
             await InvokeAsync(StateHasChanged);
             await ScrollToBottomAsync();
@@ -552,7 +577,12 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
         try
         {
             _visibilityRef = DotNetObjectReference.Create(this);
-            await JS.InvokeVoidAsync("setupVisibilityListener", _visibilityRef);
+            // Returns the tab's CURRENT visibility — sync it so a tab loaded/restored in the
+            // background doesn't sit on the server-side default of "visible" until its first
+            // visibilitychange event (a wrongly-visible session suppresses push account-wide).
+            var visible = await JS.InvokeAsync<bool>("setupVisibilityListener", _visibilityRef);
+            if (!string.IsNullOrEmpty(UserState.SessionId))
+                ChatService.SetPageVisibility(UserState.SessionId, visible);
         }
         catch (Exception ex) { Console.WriteLine($"[ChatBase] Failed to setup tab notifications: {ex.Message}"); }
     }
@@ -584,7 +614,14 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
     public async Task OnPageVisibilityChanged(bool visible)
     {
         if (!string.IsNullOrEmpty(UserState.SessionId))
+        {
             ChatService.SetPageVisibility(UserState.SessionId, visible);
+
+            // Foregrounding is a deliberate user action — restore from auto-away NOW rather than
+            // waiting for the next heartbeat, so the catch-up mark-read below isn't Away-gated off.
+            if (visible)
+                ChatService.TryRestoreFromAutoAway(UserState.SessionId);
+        }
 
         if (visible && unreadCount > 0)
         {
@@ -602,7 +639,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
             && ChatService.GetUserStatus(Username) != UserStatus.Away
             && ChatService.GetUnreadCount(UserId, channelId) > 0)
         {
-            await ChatService.MarkChannelAsReadAsync(UserId, channelId, callerSessionId: UserState.SessionId);
+            await ChatService.MarkChannelAsReadAsync(UserId, channelId, callerSessionId: UserState.SessionId, source: "resume");
         }
 
         // On PWA/tab resume, snap back to the bottom. Media (videos, link
@@ -769,6 +806,11 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
     public virtual async ValueTask DisposeAsync()
     {
+        // Before any awaits: if navigation already mounted the next page, its label must survive
+        // this late-arriving dispose (ClearSessionViewing only clears a matching label).
+        if (_viewingLabel != null && !string.IsNullOrEmpty(UserState.SessionId))
+            ChatService.ClearSessionViewing(UserState.SessionId, _viewingLabel);
+
         await CleanupInfiniteScrollAsync();
         await CleanupScrollDismissAsync();
         _visibilityRef?.Dispose();

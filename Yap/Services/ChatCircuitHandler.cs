@@ -6,12 +6,13 @@ using Yap.Models;
 namespace Yap.Services;
 
 /// <summary>
-/// Handles circuit lifecycle events and auto-away detection.
-/// Uses CreateInboundActivityHandler to track ALL user activity (UI events, JS interop).
+/// Handles circuit lifecycle events: diagnostics labeling, status save/restore around reconnects,
+/// and the disconnect-grace auto-away. Idle-based auto-away lives in ChatService, driven by the
+/// client-state heartbeat (chat.js probe → ReportClientStateAsync) — NOT by circuit traffic,
+/// which the probe itself would keep "active" forever.
 /// </summary>
 public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
 {
-    private static readonly TimeSpan IdleTimeout = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan DisconnectGracePeriod = TimeSpan.FromSeconds(30);
 
     // Inbound activities slower than this get reported to CircuitTracker and logged.
@@ -26,11 +27,10 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<ChatCircuitHandler> _logger;
 
-    // Idle timeout uses CancellationTokenSource + Task.Delay pattern:
-    // - On any user activity, we cancel the current delay and start a new one
-    // - If no activity for IdleTimeout, the delay completes and sets user to Away
-    // - This avoids threading issues with System.Timers.Timer (which fires on ThreadPool)
-    private CancellationTokenSource? _idleCts;
+    // Disconnect grace: when the connection drops, wait briefly for a reconnect; if none arrives,
+    // ChatService decides whether the user goes Away. CTS + Task.Delay avoids the threading
+    // issues of System.Timers.Timer (which fires on the ThreadPool).
+    private CancellationTokenSource? _disconnectGraceCts;
     private UserStatus? _statusBeforeDisconnect;
     private string? _circuitId;
     private string? _clientIp;
@@ -72,24 +72,24 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
         // SignalR fell back to SSE/long-polling — the top suspect when one client feels laggy.
         _circuitTracker.SetUser(circuit.Id, _userState.Username, _clientIp, httpContext?.WebSockets.IsWebSocketRequest);
 
-        _logger.LogDebug("Circuit {CircuitId} opened, starting idle timer ({Timeout})", circuit.Id, IdleTimeout);
-        StartIdleTimer();
+        _logger.LogDebug("Circuit {CircuitId} opened", circuit.Id);
         return base.OnCircuitOpenedAsync(circuit, cancellationToken);
     }
 
     public override async Task OnConnectionUpAsync(Circuit circuit, CancellationToken cancellationToken)
     {
         _circuitTracker.OnConnectionUp(circuit.Id);
+        CancelDisconnectGraceTimer();
 
         // Re-label on every connection-up: the username can hydrate after circuit open, and a
         // reconnect may arrive on a different transport than the original connection.
         _circuitTracker.SetUser(circuit.Id, _userState.Username, _clientIp,
             _httpContextAccessor.HttpContext?.WebSockets.IsWebSocketRequest);
 
-        // Reconnected — re-assert this session as visible (a reconnecting circuit is an active tab).
-        // The client's visibilitychange listener corrects this if the tab is later backgrounded.
-        if (!string.IsNullOrEmpty(_userState.SessionId))
-            _chatService.SetPageVisibility(_userState.SessionId, true);
+        // Deliberately NO SetPageVisibility(true) here: a reconnect says nothing about visibility.
+        // Hidden tabs reconnect after every deploy/blip and fire no visibilitychange to correct a
+        // blind "visible" assert — which then suppresses push for the whole account. The probe
+        // heartbeat reports the real state within ~10s.
 
         // User reconnected - restore their previous status if no other sessions changed it
         if (!string.IsNullOrEmpty(_userState.SessionId) && _statusBeforeDisconnect.HasValue)
@@ -117,7 +117,6 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
                 info: _userState.Username, ip: _clientIp);
         }
 
-        StartIdleTimer();
         await base.OnConnectionUpAsync(circuit, cancellationToken);
     }
 
@@ -125,10 +124,9 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
     {
         _circuitTracker.OnConnectionDown(circuit.Id);
 
-        // Don't stop the idle timer — start a shorter disconnect grace period instead.
-        // If the user doesn't reconnect within 30 seconds, they'll be set to Away.
-        // This avoids the bug where users stay green for hours after disconnecting.
-        StartIdleTimer(DisconnectGracePeriod);
+        // If the user doesn't reconnect within the grace period, ChatService decides whether they
+        // go Away. This avoids the bug where users stay green for hours after disconnecting.
+        StartDisconnectGraceTimer();
 
         // Save status for potential restore on reconnect.
         // Don't change user status here — circuit close handles cleanup via RemoveUserAsync.
@@ -162,7 +160,7 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
     public override async Task OnCircuitClosedAsync(Circuit circuit, CancellationToken cancellationToken)
     {
         _circuitTracker.OnCircuitClosed(circuit.Id);
-        StopIdleTimer();
+        CancelDisconnectGraceTimer();
 
         if (!string.IsNullOrEmpty(_userState.SessionId) && !string.IsNullOrEmpty(_userState.Username))
         {
@@ -178,8 +176,10 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
     }
 
     /// <summary>
-    /// Intercepts ALL inbound circuit activity (UI events, JS interop calls).
-    /// Resets the idle timer on any activity.
+    /// Intercepts ALL inbound circuit activity (UI events, JS interop calls) to time slow events.
+    /// Deliberately NOT treated as user activity: inbound traffic includes the latency probe and
+    /// JS interop acks, which would keep any open tab "active" forever. Presence (idle, restore,
+    /// auto-away) is driven by the client-state heartbeat in ChatService.ReportClientStateAsync.
     /// </summary>
     public override Func<CircuitInboundActivityContext, Task> CreateInboundActivityHandler(
         Func<CircuitInboundActivityContext, Task> next)
@@ -187,27 +187,6 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
         return async context =>
         {
             var start = Stopwatch.GetTimestamp();
-
-            // Track activity for this session (used by AreAllSessionsIdle)
-            if (!string.IsNullOrEmpty(_userState.SessionId))
-            {
-                _chatService.TouchSessionActivity(_userState.SessionId);
-            }
-
-            // Reset idle timer on any activity (cancels current delay, starts fresh)
-            StartIdleTimer();
-
-            // Restore from auto-away if user becomes active again.
-            // TryRestoreFromAutoAway is per-user (in ChatService), so ANY circuit can restore —
-            // works across new tabs, page refreshes, and multi-device.
-            if (!string.IsNullOrEmpty(_userState.SessionId))
-            {
-                var restoredStatus = _chatService.TryRestoreFromAutoAway(_userState.SessionId);
-                if (restoredStatus.HasValue)
-                {
-                    _userState.Status = restoredStatus.Value;
-                }
-            }
 
             await next(context);
 
@@ -224,74 +203,44 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
         };
     }
 
-    /// <summary>
-    /// Cancels any pending idle timeout and starts a fresh one.
-    /// Called on circuit open, connection up, and any user activity.
-    /// </summary>
-    private void StartIdleTimer(TimeSpan? timeout = null)
+    private void StartDisconnectGraceTimer()
     {
-        _idleCts?.Cancel();
-        _idleCts?.Dispose();
-        _idleCts = new CancellationTokenSource();
-        _ = IdleTimeoutAsync(_idleCts.Token, timeout ?? IdleTimeout);
+        _disconnectGraceCts?.Cancel();
+        _disconnectGraceCts?.Dispose();
+        _disconnectGraceCts = new CancellationTokenSource();
+        _ = DisconnectGraceAsync(_disconnectGraceCts.Token);
+    }
+
+    private void CancelDisconnectGraceTimer()
+    {
+        _disconnectGraceCts?.Cancel();
+        _disconnectGraceCts?.Dispose();
+        _disconnectGraceCts = null;
     }
 
     /// <summary>
-    /// Cancels any pending idle timeout without starting a new one.
-    /// Called on circuit close.
+    /// Waits out the grace period after a connection drop; if the circuit hasn't reconnected
+    /// (which cancels this), asks ChatService to flip the user Away unless one of their other
+    /// devices is a live foreground client. UserState.Status syncs via ChatHeader's status event.
     /// </summary>
-    private void StopIdleTimer()
-    {
-        _idleCts?.Cancel();
-        _idleCts?.Dispose();
-        _idleCts = null;
-    }
-
-    /// <summary>
-    /// Waits for the specified timeout, then sets user to Away if not cancelled.
-    /// </summary>
-    private async Task IdleTimeoutAsync(CancellationToken token, TimeSpan timeout)
+    private async Task DisconnectGraceAsync(CancellationToken token)
     {
         try
         {
-            await Task.Delay(timeout, token);
-            await SetAutoAwayAsync(timeout);
+            await Task.Delay(DisconnectGracePeriod, token);
+
+            if (!string.IsNullOrEmpty(_userState.SessionId))
+                await _chatService.TrySetAutoAwayAfterDisconnectAsync(_userState.SessionId);
         }
         catch (OperationCanceledException)
         {
-            // Timer was reset or stopped, ignore
+            // Reconnected or circuit closed, ignore
         }
-    }
-
-    private async Task SetAutoAwayAsync(TimeSpan idleThreshold)
-    {
-        if (string.IsNullOrEmpty(_userState.SessionId) || string.IsNullOrEmpty(_userState.Username))
-            return;
-
-        // Don't override if already Away or Invisible
-        var currentStatus = _chatService.GetUserStatus(_userState.Username);
-        if (currentStatus is UserStatus.Away or UserStatus.Invisible)
-            return;
-
-        // Only set auto-away if ALL sessions for this user are idle
-        // Uses the same threshold as the timer that triggered this (5 min for idle, 30s for disconnect)
-        if (!_chatService.AreAllSessionsIdle(_userState.Username, idleThreshold))
-        {
-            _logger.LogDebug("Auto-away skipped for {Username}: another session is still active", _userState.Username);
-            return;
-        }
-
-        _logger.LogDebug("Auto-away: {Username} idle on all sessions, setting to Away", _userState.Username);
-
-        // Pass current status as autoAwayPreviousStatus — ChatService records it for restoration
-        await _chatService.SetUserStatusAsync(_userState.SessionId, UserStatus.Away,
-            autoAwayPreviousStatus: currentStatus ?? UserStatus.Online);
-        _userState.Status = UserStatus.Away;
     }
 
     public void Dispose()
     {
-        _idleCts?.Cancel();
-        _idleCts?.Dispose();
+        _disconnectGraceCts?.Cancel();
+        _disconnectGraceCts?.Dispose();
     }
 }

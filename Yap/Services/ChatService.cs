@@ -21,6 +21,7 @@ public class ChatService
     private readonly LinkPreviewSettingsService _linkPreviewSettings;
     private readonly MediaCacheService _mediaCacheService;
     private readonly GifService _gifService;
+    private readonly NotificationAudit _audit;
     private readonly ILogger<ChatService> _logger;
 
     // Channels (rooms and DMs)
@@ -73,13 +74,22 @@ public class ChatService
     // Cleared on manual status change or when restored.
     private readonly ConcurrentDictionary<string, UserStatus> _statusBeforeAutoAway = new(StringComparer.OrdinalIgnoreCase);
 
-    public record UserSession(Guid UserId, string Username, string SessionId, bool? IsMobile = null, bool PageVisible = true, DateTime LastActivity = default, string? ClientIp = null);
+    // Presence extras live in init-only props so the original positional construction stays untouched
+    // (same idiom as CircuitTracker.CircuitInfo).
+    public record UserSession(Guid UserId, string Username, string SessionId, bool? IsMobile = null, bool PageVisible = true, DateTime LastActivity = default, string? ClientIp = null)
+    {
+        public string? CircuitId { get; init; }       // joins this session to CircuitTracker's transport/RTT telemetry
+        public string? ViewingChannel { get; init; }  // display label of the channel this session has open
+        public DateTime CreatedAt { get; init; }
+        public DateTime LastReportAt { get; init; }   // last client-state heartbeat — stale means frozen/disconnected/legacy client
+    }
 
     public ChatService(PushNotificationService pushService, ChatPersistenceService persistence, UserService userService,
         LinkPreviewService linkPreviewService, LinkPreviewSettingsService linkPreviewSettings,
-        MediaCacheService mediaCacheService, GifService gifService, ILogger<ChatService> logger)
+        MediaCacheService mediaCacheService, GifService gifService, NotificationAudit audit, ILogger<ChatService> logger)
     {
         _pushService = pushService;
+        _audit = audit;
         _persistence = persistence;
         _userService = userService;
         _linkPreviewService = linkPreviewService;
@@ -475,7 +485,7 @@ public class ChatService
 
     #region User Management
 
-    public Task AddUserAsync(string sessionId, Guid userId, string username, UserStatus status = UserStatus.Online, bool? isMobile = null, string? clientIp = null)
+    public Task AddUserAsync(string sessionId, Guid userId, string username, UserStatus status = UserStatus.Online, bool? isMobile = null, string? clientIp = null, string? circuitId = null)
     {
         // Check if this is the first session for this user
         var existingSessions = _users.Values
@@ -483,7 +493,12 @@ public class ChatService
             .ToList();
         var isFirstSession = existingSessions.Count == 0;
 
-        _users[sessionId] = new UserSession(userId, username, sessionId, isMobile, LastActivity: DateTime.UtcNow, ClientIp: clientIp);
+        _users[sessionId] = new UserSession(userId, username, sessionId, isMobile, LastActivity: DateTime.UtcNow, ClientIp: clientIp)
+        {
+            CircuitId = circuitId,
+            CreatedAt = DateTime.UtcNow,
+            LastReportAt = DateTime.UtcNow
+        };
 
         // Set status: only if first session (don't override active status from other devices)
         if (isFirstSession)
@@ -565,6 +580,93 @@ public class ChatService
         return restoreTo;
     }
 
+    // Auto-away: a user goes Away when every session stops showing signs of life (rules below).
+    private static readonly TimeSpan AutoAwayIdleThreshold = TimeSpan.FromMinutes(5);
+
+    // A session whose last heartbeat is older than this has no live client behind it (frozen tab,
+    // dead circuit, legacy JS) — its PageVisible/LastActivity are stale echoes, not presence.
+    private static readonly TimeSpan HeartbeatStaleAfter = TimeSpan.FromSeconds(90);
+
+    // "Live foreground client" = visible and heartbeated within ~3 probe intervals.
+    private static readonly TimeSpan ForegroundReportWindow = TimeSpan.FromSeconds(35);
+
+    /// <summary>
+    /// Per-session client-state heartbeat from the latency probe (~10s foreground, ~60s hidden):
+    /// real page visibility + seconds since last user input. The single source of presence truth —
+    /// replaces inferring activity from circuit traffic, which the probe itself used to pollute
+    /// (a visible idle tab reset the idle timer every 10s and could never go Away).
+    /// </summary>
+    public async Task ReportClientStateAsync(string sessionId, bool visible, double idleSeconds)
+    {
+        if (!double.IsFinite(idleSeconds)) return;                 // client input is untrusted
+        idleSeconds = Math.Clamp(idleSeconds, 0, 86400);
+
+        if (!_users.TryGetValue(sessionId, out var session)) return;
+
+        var now = DateTime.UtcNow;
+        _users[sessionId] = session with
+        {
+            PageVisible = visible,
+            LastActivity = now.AddSeconds(-idleSeconds),
+            LastReportAt = now
+        };
+
+        if (idleSeconds < 30)
+        {
+            TryRestoreFromAutoAway(sessionId);
+        }
+        else if (idleSeconds >= AutoAwayIdleThreshold.TotalSeconds)
+        {
+            await TrySetAutoAwayIfAllIdleAsync(sessionId);
+        }
+    }
+
+    /// <summary>
+    /// Heartbeat-driven auto-away: Away when EVERY session is input-idle past the threshold or has
+    /// stopped heartbeating (frozen/disconnected/legacy client). Called from ReportClientStateAsync.
+    /// </summary>
+    public Task TrySetAutoAwayIfAllIdleAsync(string sessionId)
+    {
+        var now = DateTime.UtcNow;
+        return TrySetAutoAwayCoreAsync(sessionId, sessions => sessions.All(u =>
+            now - u.LastReportAt > HeartbeatStaleAfter ||
+            now - u.LastActivity >= AutoAwayIdleThreshold));
+    }
+
+    /// <summary>
+    /// Disconnect-driven auto-away (circuit grace timer): Away unless another device is a live
+    /// foreground client RIGHT NOW (visible + recently heartbeating). Input-idle alone doesn't
+    /// keep the user Online here — but a visible, heartbeating tab does, even if its user is just
+    /// reading. Prevents the phone-locks → attended-desktop-flaps-to-Away regression.
+    /// </summary>
+    public Task TrySetAutoAwayAfterDisconnectAsync(string sessionId)
+    {
+        var now = DateTime.UtcNow;
+        return TrySetAutoAwayCoreAsync(sessionId, sessions => !sessions.Any(u =>
+            u.PageVisible && now - u.LastReportAt <= ForegroundReportWindow));
+    }
+
+    private async Task TrySetAutoAwayCoreAsync(string sessionId, Func<List<UserSession>, bool> shouldGoAway)
+    {
+        if (!_users.TryGetValue(sessionId, out var session)) return;
+
+        // Never override an explicit Away or Invisible
+        var currentStatus = GetUserStatus(session.Username);
+        if (currentStatus is UserStatus.Away or UserStatus.Invisible) return;
+
+        var sessions = _users.Values
+            .Where(u => u.Username.Equals(session.Username, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (!shouldGoAway(sessions))
+        {
+            _logger.LogDebug("Auto-away skipped for {Username}: another session is active", session.Username);
+            return;
+        }
+
+        _logger.LogDebug("Auto-away: no session for {Username} shows signs of life, setting Away", session.Username);
+        await SetUserStatusAsync(sessionId, UserStatus.Away, autoAwayPreviousStatus: currentStatus ?? UserStatus.Online);
+    }
+
     public void SetPageVisibility(string sessionId, bool visible)
     {
         if (_users.TryGetValue(sessionId, out var session))
@@ -586,6 +688,31 @@ public class ChatService
     /// </summary>
     public bool IsSessionPageVisible(string sessionId) =>
         _users.TryGetValue(sessionId, out var session) && session.PageVisible;
+
+    /// <summary>
+    /// Records which channel a session currently has open (display label, e.g. "#lobby" or "DM: bob").
+    /// Diagnostic — the admin Sessions table uses it to answer "which device is parked on that DM".
+    /// </summary>
+    public void SetSessionViewing(string sessionId, string? label)
+    {
+        if (_users.TryGetValue(sessionId, out var session))
+            _users[sessionId] = session with { ViewingChannel = label };
+    }
+
+    /// <summary>
+    /// Clears the viewing label only if it still matches — a disposing page must not wipe the
+    /// label the NEXT page already set on this session.
+    /// </summary>
+    public void ClearSessionViewing(string sessionId, string label)
+    {
+        if (_users.TryGetValue(sessionId, out var session) && session.ViewingChannel == label)
+            _users[sessionId] = session with { ViewingChannel = null };
+    }
+
+    /// <summary>
+    /// All live sessions across all users — the admin diagnostics "session truth table".
+    /// </summary>
+    public List<UserSession> GetAllSessions() => _users.Values.ToList();
 
     public Task RemoveUserAsync(string circuitId)
     {
@@ -647,33 +774,6 @@ public class ChatService
     /// </summary>
     public bool HasSession(string sessionId) =>
         _users.ContainsKey(sessionId);
-
-    /// <summary>
-    /// Updates the last activity timestamp for a session (called on any inbound activity).
-    /// </summary>
-    public void TouchSessionActivity(string sessionId)
-    {
-        if (_users.TryGetValue(sessionId, out var session))
-        {
-            _users[sessionId] = session with { LastActivity = DateTime.UtcNow };
-        }
-    }
-
-    /// <summary>
-    /// Returns true if ALL sessions for a username have been idle longer than the specified timeout.
-    /// Used by ChatCircuitHandler to determine if auto-away should be applied.
-    /// </summary>
-    public bool AreAllSessionsIdle(string username, TimeSpan idleTimeout)
-    {
-        var now = DateTime.UtcNow;
-        var sessions = _users.Values
-            .Where(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        if (sessions.Count == 0) return true;
-
-        return sessions.All(s => (now - s.LastActivity) > idleTimeout);
-    }
 
     /// <summary>
     /// Checks if any session for a user has the page visible.
@@ -827,7 +927,9 @@ public class ChatService
         }
 
         // Send push notification for DMs (fire-and-forget, doesn't block)
-        // Skip only if recipient is actively viewing the app (page visible + live circuit)
+        // Skip only if the recipient is actively looking: Online AND some session foreground.
+        // Away deliberately does NOT suppress — Away is exactly when the phone push is wanted,
+        // and an idle-but-visible desktop must not eat it.
         if (channel.IsDirectMessage)
         {
             var recipient = channel.GetOtherParticipant(username);
@@ -835,27 +937,31 @@ public class ChatService
             {
                 var recipientStatus = GetUserStatus(recipient);
                 var pageVisible = IsPageVisible(recipient);
+                var sessionsSnapshot = DescribeRecipientSessions(recipient);
+                var subCount = _pushService.GetSubscriptionCount(recipient);
+                var recipientUser = _userService.GetByUsername(recipient);
+                var totalUnread = recipientUser != null
+                    ? GetTotalUnreadDMCount(recipientUser.Id)
+                    : 1;
 
                 // Diagnostic: show which session (device) makes the recipient "visible" and how many
                 // push subscriptions they have — explains skipped pushes / silent phone.
                 _logger.LogDebug("Push DM decision: to={Recipient} status={Status} anyPageVisible={PageVisible} subscriptions={SubCount} sessions=[{Sessions}]",
-                    recipient, recipientStatus, pageVisible, _pushService.GetSubscriptionCount(recipient), DescribeRecipientSessions(recipient));
+                    recipient, recipientStatus, pageVisible, subCount, sessionsSnapshot);
 
-                if (recipientStatus is UserStatus.Online or UserStatus.Away && pageVisible)
+                if (recipientStatus == UserStatus.Online && pageVisible)
                 {
-                    _logger.LogDebug("Push DM skipped: {Recipient} is {Status} and has a visible page",
-                        recipient, recipientStatus);
+                    _audit.RecordPushDecision(username, recipient, "suppressed: Online + visible", sessionsSnapshot, subCount, totalUnread);
+                    _logger.LogDebug("Push DM skipped: {Recipient} is Online and has a visible page",
+                        recipient);
                 }
                 else
                 {
-                    var recipientUser = _userService.GetByUsername(recipient);
-                    var totalUnread = recipientUser != null
-                        ? GetTotalUnreadDMCount(recipientUser.Id)
-                        : 1;
                     var preview = message.HasGifs ? "[GIF]"
                                 : message.HasMedia ? "[Attachment]"
                                 : content;
 
+                    _audit.RecordPushDecision(username, recipient, "push", sessionsSnapshot, subCount, totalUnread);
                     _logger.LogDebug("Push DM: from={From} to={To} totalUnread={UnreadCount} status={Status}",
                         username, recipient, totalUnread, recipientStatus);
 
@@ -1224,10 +1330,11 @@ public class ChatService
     /// <summary>
     /// Marks a channel as read for a user (resets unread count to 0).
     /// Use silent: true when called from event handlers to avoid nested event cascades.
+    /// Source tags the trigger for the unread audit: "open" (navigation), "receive" (message
+    /// arrived while viewing), "resume" (tab foregrounded), "dispose" (leaving the page).
     /// </summary>
-    public async Task MarkChannelAsReadAsync(Guid userId, Guid channelId, bool silent = false, string? callerSessionId = null)
+    public async Task MarkChannelAsReadAsync(Guid userId, Guid channelId, bool silent = false, string? callerSessionId = null, string source = "open")
     {
-        var sw = Stopwatch.StartNew();
         var key = (userId, channelId);
         var now = DateTime.UtcNow;
         var hadUnread = false;
@@ -1254,10 +1361,20 @@ public class ChatService
 
         await _persistence.PersistReadStateAsync(state);
 
-        // TEMPORARY diagnostic: callerSessionId reveals which device cleared unread, to confirm
-        // cross-device read-state clearing (Issue #1). Safe to remove once behavior is verified.
-        _logger.LogDebug("MarkChannelAsRead user={UserId} channel={ChannelId}: cleared={ClearedCount} silent={Silent} caller={CallerSessionId} persist={ElapsedMs}ms",
-            userId, channelId, previousCount, silent, callerSessionId ?? "(none)", sw.ElapsedMilliseconds);
+        // Audit cleared DM badges: which device did it, and was it a legitimate read (foreground,
+        // connected) or a ghost session eating the badge for the whole account.
+        if (hadUnread && _channels.TryGetValue(channelId, out var channel) && channel.IsDirectMessage)
+        {
+            UserSession? callerSession = null;
+            if (callerSessionId != null)
+                _users.TryGetValue(callerSessionId, out callerSession);
+            var username = callerSession?.Username
+                ?? _users.Values.FirstOrDefault(u => u.UserId == userId)?.Username
+                ?? "?";
+
+            _audit.RecordUnreadChange(username, DescribeChannel(channel), "clear", previousCount, source,
+                _audit.DescribeCallerSession(callerSession, GetUserStatus(username)));
+        }
 
         // Notify if there were unread messages that are now cleared
         if (hadUnread && !silent)
@@ -1315,6 +1432,16 @@ public class ChatService
             }
         }
 
+        // Audit DM badge increments (rooms would drown the buffer, and rooms don't push anyway)
+        if (channel.IsDirectMessage && userIdsToIncrement.Count == 1)
+        {
+            var recipientId = userIdsToIncrement[0];
+            var recipientName = channel.Participant1Id == recipientId ? channel.Participant1 : channel.Participant2;
+            var senderName = channel.Participant1Id == senderUserId ? channel.Participant1 : channel.Participant2;
+            _audit.RecordUnreadChange(recipientName ?? "?", DescribeChannel(channel), "+1",
+                GetUnreadCount(recipientId, channelId), $"msg from {senderName}", "—");
+        }
+
         // Single DB call for all users
         var sw = Stopwatch.StartNew();
         await _persistence.IncrementUnreadForUsersAsync(channelId, userIdsToIncrement);
@@ -1324,6 +1451,10 @@ public class ChatService
 
         return userIdsToIncrement;
     }
+
+    /// <summary>Channel label for audit rows — "#room" or "alice ↔ bob" for DMs.</summary>
+    private static string DescribeChannel(Channel channel) =>
+        channel.IsDirectMessage ? $"{channel.Participant1} ↔ {channel.Participant2}" : $"#{channel.Name}";
 
     /// <summary>
     /// Fires OnUnreadChanged for all affected users.

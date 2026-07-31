@@ -30,6 +30,13 @@ window.setupWelcomePage = (dotNetRef) => {
 let dotNetRef = null;
 let notificationAudio = null;
 
+// Last real user input in this tab. The latency probe reports "seconds since input" every tick so
+// the server derives presence (auto-away) from what the user actually does — not from circuit
+// traffic, which the probe itself would otherwise keep "active" forever.
+let lastInputTs = performance.now();
+['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart'].forEach((ev) =>
+    document.addEventListener(ev, () => { lastInputTs = performance.now(); }, { capture: true, passive: true }));
+
 // Pre-load audio on first user interaction
 function ensureAudioLoaded() {
     if (!notificationAudio) {
@@ -43,14 +50,25 @@ function ensureAudioLoaded() {
 document.addEventListener('click', ensureAudioLoaded, { once: true });
 document.addEventListener('keydown', ensureAudioLoaded, { once: true });
 
+let visibilityListenerInstalled = false;
+
 window.setupVisibilityListener = (ref) => {
     dotNetRef = ref;
     ensureAudioLoaded();
-    document.addEventListener('visibilitychange', () => {
-        if (!dotNetRef) return;
-        const visible = document.visibilityState === 'visible';
-        dotNetRef.invokeMethodAsync('OnPageVisibilityChanged', visible);
-    });
+    // Every chat page registers here on navigation; install the document listener once, or a
+    // single visibility flip ends up invoking OnPageVisibilityChanged N times after N navigations.
+    if (!visibilityListenerInstalled) {
+        visibilityListenerInstalled = true;
+        document.addEventListener('visibilitychange', () => {
+            if (!dotNetRef) return;
+            const visible = document.visibilityState === 'visible';
+            if (visible) lastInputTs = performance.now(); // foregrounding is a user action
+            dotNetRef.invokeMethodAsync('OnPageVisibilityChanged', visible);
+        });
+    }
+    // Current visibility, so the caller can sync the server-side session state on load —
+    // a tab loaded/restored in the background must not sit on the server default of "visible".
+    return document.visibilityState === 'visible';
 };
 
 window.isPageVisible = () => document.visibilityState === 'visible';
@@ -1452,15 +1470,17 @@ window.setupLatencyProbe = (dotNetRef, username) => {
 
     if (window._yapProbeTimer) clearInterval(window._yapProbeTimer);
     let lastRtt = null;
-    let failures = 0;
 
     const ping = () => {
-        // Hidden tabs get throttled timers — their samples would be garbage, skip them
-        if (document.visibilityState !== 'visible') return;
+        // Heartbeat + measurement in one call: visibility and input-idle keep the server's
+        // per-session presence truthful even in tabs that never fire a visibilitychange event.
+        // RTT is only measured while visible — hidden tabs get throttled timers, garbage samples.
+        const visible = document.visibilityState === 'visible';
+        const idleSeconds = Math.round((performance.now() - lastInputTs) / 1000);
         const t0 = performance.now();
-        telemetryRef.invokeMethodAsync('ProbePing', lastRtt)
-            .then(() => { lastRtt = Math.round(performance.now() - t0); failures = 0; })
-            .catch(() => { if (++failures >= 3) clearInterval(window._yapProbeTimer); }); // circuit gone — stop quietly
+        telemetryRef.invokeMethodAsync('ProbePing', lastRtt, visible, idleSeconds)
+            .then(() => { lastRtt = visible ? Math.round(performance.now() - t0) : null; })
+            .catch(() => { lastRtt = null; }); // circuit down — keep ticking, reporting resumes with the circuit
     };
 
     window._yapProbeTimer = setInterval(ping, 10000);

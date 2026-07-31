@@ -171,6 +171,7 @@
         canWrite = ChatService.CanUserWrite(channelId, UserId);
         historyLimited = (room?.HistoryLimit != Models.HistoryLimit.Unlimited || room?.SinceJoined == true) && !ChatService.IsAdmin(UserId);
         NavState.SetRoomContext(channelId, currentContext, ChatConfig.GetRandomRoomHeader(currentContext));
+        ReportSessionViewing();
         var route = channelId == ChatService.GetLobbyId() ? "/lobby" : $"/room/{channelId}";
         await JS.InvokeVoidAsync("saveLastRoute", route);
 
@@ -196,7 +197,7 @@
                 // Mark as read only if THIS device is foreground and not Away — otherwise a
                 // backgrounded/away device would clear unread for our other devices.
                 if (ShouldMarkReadOnReceive())
-                    await ChatService.MarkChannelAsReadAsync(UserId, channelId, silent: true, callerSessionId: UserState.SessionId);
+                    await ChatService.MarkChannelAsReadAsync(UserId, channelId, silent: true, callerSessionId: UserState.SessionId, source: "receive");
                 await InvokeAsync(ScrollToBottomAsync);
             }
             catch (Exception ex)
@@ -364,7 +365,7 @@
         // evicted/backgrounded circuit's teardown doesn't clear unread for our other devices.
         if (channelId != Guid.Empty && UserId != Guid.Empty && ShouldMarkReadOnReceive())
         {
-            await ChatService.MarkChannelAsReadAsync(UserId, channelId, callerSessionId: UserState.SessionId);
+            await ChatService.MarkChannelAsReadAsync(UserId, channelId, callerSessionId: UserState.SessionId, source: "dispose");
         }
 
         await base.DisposeAsync();

@@ -53,6 +53,7 @@ public class PushNotificationService
     private readonly WebPushClient _webPushClient;
     private readonly PushSubscriptionStore _subscriptionStore;
     private readonly UserService _userService;
+    private readonly NotificationAudit _audit;
     private readonly ILogger<PushNotificationService> _logger;
     private readonly bool _isConfigured;
     private readonly PushKeyStatus _keyStatus;
@@ -62,10 +63,12 @@ public class PushNotificationService
         IConfiguration configuration,
         PushSubscriptionStore subscriptionStore,
         UserService userService,
+        NotificationAudit audit,
         ILogger<PushNotificationService> logger)
     {
         _subscriptionStore = subscriptionStore;
         _userService = userService;
+        _audit = audit;
         _logger = logger;
 
         var httpClient = new HttpClient(new PushLogHandler(logger))
@@ -195,6 +198,7 @@ public class PushNotificationService
     {
         if (!_isConfigured || _vapidDetails == null)
         {
+            _audit.RecordPushResult(username, 0, 0, 0, muted: false, note: "push not configured");
             _logger.LogDebug("Push not configured, skipping notification to {Username}", username);
             return new PushSendResult(0, 0, 0);
         }
@@ -212,6 +216,7 @@ public class PushNotificationService
         var subscriptions = _subscriptionStore.GetSubscriptions(username).ToList();
         if (subscriptions.Count == 0)
         {
+            _audit.RecordPushResult(username, 0, 0, 0, payload.Muted, "no subscriptions");
             _logger.LogDebug("No push subscriptions for user {Username}", username);
             return new PushSendResult(0, 0, 0);
         }
@@ -222,6 +227,7 @@ public class PushNotificationService
         });
 
         int sent = 0, failed = 0;
+        var notes = new List<string>();
         foreach (var sub in subscriptions)
         {
             try
@@ -237,15 +243,19 @@ public class PushNotificationService
                 // Subscription expired or invalid - remove it
                 _logger.LogInformation("Removing expired push subscription for {Username}", username);
                 await _subscriptionStore.RemoveSubscriptionAsync(sub.Endpoint);
+                notes.Add("removed expired subscription");
                 failed++;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to send push to {Username}", username);
+                notes.Add($"send failed: {ex.GetType().Name}");
                 failed++;
             }
         }
 
+        _audit.RecordPushResult(username, sent, failed, subscriptions.Count, payload.Muted,
+            notes.Count > 0 ? string.Join("; ", notes) : null);
         _logger.LogDebug("Push to {Username}: sent={Sent} failed={Failed} total={Total}", username, sent, failed, subscriptions.Count);
         return new PushSendResult(sent, failed, subscriptions.Count);
     }

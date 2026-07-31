@@ -17,6 +17,7 @@
 @inject NavigationManager Navigation
 @inject DiagnosticsCollectorService DiagCollector
 @inject CircuitTracker CircuitTracker
+@inject NotificationAudit Audit
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
@@ -942,6 +943,60 @@
                 </div>
             }
 
+            @* Presence as the server believes it — first place to look when push/unread misbehaves:
+               a session wrongly counted "visible" suppresses push for the whole account, and if it's
+               also not Away and viewing the channel, it silently clears unread. *@
+            <div class="diag-chart-card" style="margin-bottom: 16px;">
+                <h4>Sessions — presence truth table</h4>
+                @if (diagSessions.Count == 0)
+                {
+                    <p style="color: var(--text-secondary); margin: 0;">No active sessions.</p>
+                }
+                else
+                {
+                    <div class="table-wrapper">
+                        <table class="users-table">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Device</th>
+                                    <th>Transport</th>
+                                    <th>Connected</th>
+                                    <th title="Page visibility as last reported — a visible session suppresses push for the whole account">Visible</th>
+                                    <th>Status</th>
+                                    <th title="Channel this session has open — visible + not Away + viewing = marks incoming messages read">Viewing</th>
+                                    <th title="Time since last real user input (client-reported)">Last input</th>
+                                    <th title="Time since last client-state report — stale means frozen, disconnected, or pre-heartbeat client">Heartbeat</th>
+                                    <th>Age</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var s in diagSessions)
+                                {
+                                    var circuit = s.CircuitId != null ? diagCircuitById.GetValueOrDefault(s.CircuitId) : null;
+                                    var status = ChatService.GetUserStatus(s.Username);
+                                    // The dangerous combo: counted foreground while its circuit is gone or silent.
+                                    // (Only for circuit-backed sessions — the system bot has none and is never a ghost.)
+                                    var ghost = s.PageVisible && s.CircuitId != null && circuit?.IsConnected != true;
+                                    <tr style="@(ghost ? "color: var(--color-warning);" : "")">
+                                        <td>@s.Username</td>
+                                        <td>@(s.IsMobile == true ? "📱" : "🖥️") @(s.ClientIp ?? "—")</td>
+                                        <td>@(circuit?.IsWebSocket switch { true => "WS", false => "⚠ Fallback", null => "—" })</td>
+                                        <td>@(circuit == null ? "—" : circuit.IsConnected ? "✓" : $"✗ {FormatAgo(circuit.DisconnectedAt)}")</td>
+                                        <td>@(s.PageVisible ? "👁 yes" : "no")</td>
+                                        <td>@(status?.ToString() ?? "—")</td>
+                                        <td>@(s.ViewingChannel ?? "—")</td>
+                                        <td>@FormatAgo(s.LastActivity)</td>
+                                        <td>@FormatAgo(s.LastReportAt)</td>
+                                        <td>@FormatAge(s.CreatedAt)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+
             <div class="diag-chart-card" style="margin-bottom: 16px;">
                 <h4>Circuits — latency telemetry</h4>
                 @if (diagCircuits.Count == 0 && diagClosedCircuits.Count == 0)
@@ -1022,6 +1077,112 @@
                     default:
                         <p style="color: var(--text-secondary); margin: 0;">⚠️ Not configured — no VAPID keys set.</p>
                         break;
+                }
+            </div>
+
+            @* Push audit: the decision made for each DM (and why), then what the send actually did.
+               Ring buffers, newest first, in-memory only — enough to answer "why didn't my phone
+               buzz at 14:32" without enabling Debug logging. *@
+            <div class="diag-chart-card" style="margin-bottom: 16px;">
+                <h4>Push audit — decisions & results</h4>
+                @if (diagPushDecisions.Count == 0 && diagPushResults.Count == 0)
+                {
+                    <p style="color: var(--text-secondary); margin: 0;">No DM push activity since restart.</p>
+                }
+                else
+                {
+                    <div class="table-wrapper" style="margin-bottom: 12px;">
+                        <table class="users-table">
+                            <thead>
+                                <tr>
+                                    <th>When</th>
+                                    <th>DM</th>
+                                    <th>Decision</th>
+                                    <th title="Recipient's total unread DMs at decision time (rides in the push payload as the badge count)">Unread</th>
+                                    <th title="Recipient's push subscriptions at decision time">Subs</th>
+                                    <th title="Recipient's sessions at decision time — the device forcing a suppression shows up here">Sessions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var d in diagPushDecisions.Take(50))
+                                {
+                                    <tr style="@(d.Outcome.StartsWith("suppressed") ? "color: var(--color-warning);" : "")">
+                                        <td>@FormatAgo(d.At)</td>
+                                        <td>@d.From → @d.To</td>
+                                        <td>@d.Outcome</td>
+                                        <td>@d.TotalUnread</td>
+                                        <td>@d.Subscriptions</td>
+                                        <td style="font-size: 0.75rem;">@d.Sessions</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="users-table">
+                            <thead>
+                                <tr>
+                                    <th>When</th>
+                                    <th>To</th>
+                                    <th title="Devices the push service accepted / rejected / total attempted">Sent/Failed/Total</th>
+                                    <th title="Muted users get badge-only pushes (no banner)">Muted</th>
+                                    <th>Note</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var r in diagPushResults.Take(50))
+                                {
+                                    <tr style="@(r.Failed > 0 || r.Total == 0 ? "color: var(--color-warning);" : "")">
+                                        <td>@FormatAgo(r.At)</td>
+                                        <td>@r.To</td>
+                                        <td>@r.Sent / @r.Failed / @r.Total</td>
+                                        <td>@(r.Muted ? "🔕" : "—")</td>
+                                        <td>@(r.Note ?? "—")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+
+            @* Unread audit: every DM badge increment and every clear — including WHICH device
+               cleared it and whether that device was foreground/connected at that moment. *@
+            <div class="diag-chart-card" style="margin-bottom: 16px;">
+                <h4>Unread audit — DM badge changes</h4>
+                @if (diagUnreadChanges.Count == 0)
+                {
+                    <p style="color: var(--text-secondary); margin: 0;">No DM unread activity since restart.</p>
+                }
+                else
+                {
+                    <div class="table-wrapper">
+                        <table class="users-table">
+                            <thead>
+                                <tr>
+                                    <th>When</th>
+                                    <th title="Whose badge changed">User</th>
+                                    <th>Channel</th>
+                                    <th title="+1 → new total on arrival; clear (n) = n unread wiped">Change</th>
+                                    <th title="What triggered it: open, receive, resume, dispose, or the sender">Trigger</th>
+                                    <th title="State of the clearing device at that moment">Device state</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var u in diagUnreadChanges.Take(50))
+                                {
+                                    <tr>
+                                        <td>@FormatAgo(u.At)</td>
+                                        <td>@u.User</td>
+                                        <td>@u.Channel</td>
+                                        <td>@(u.Kind == "clear" ? $"clear ({u.Count})" : $"+1 → {u.Count}")</td>
+                                        <td>@u.Source</td>
+                                        <td style="font-size: 0.75rem;">@u.SessionState</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
                 }
             </div>
 
@@ -1751,6 +1912,11 @@
     private DiagnosticsSnapshot? diagLatest;
     private List<CircuitTracker.CircuitInfo> diagCircuits = new();
     private List<CircuitTracker.CircuitInfo> diagClosedCircuits = new();
+    private List<ChatService.UserSession> diagSessions = new();
+    private Dictionary<string, CircuitTracker.CircuitInfo> diagCircuitById = new();
+    private IReadOnlyList<NotificationAudit.PushDecision> diagPushDecisions = Array.Empty<NotificationAudit.PushDecision>();
+    private IReadOnlyList<NotificationAudit.PushResult> diagPushResults = Array.Empty<NotificationAudit.PushResult>();
+    private IReadOnlyList<NotificationAudit.UnreadChange> diagUnreadChanges = Array.Empty<NotificationAudit.UnreadChange>();
     private System.Threading.Timer? _diagTimer;
     private bool diagLoaded;
 
@@ -1800,6 +1966,14 @@
             .ThenBy(c => c.Username)
             .ToList();
         diagClosedCircuits = CircuitTracker.GetRecentlyClosed();
+        diagSessions = ChatService.GetAllSessions()
+            .OrderBy(s => s.Username)
+            .ThenBy(s => s.CreatedAt)
+            .ToList();
+        diagCircuitById = diagCircuits.ToDictionary(c => c.CircuitId);
+        diagPushDecisions = Audit.GetPushDecisions();
+        diagPushResults = Audit.GetPushResults();
+        diagUnreadChanges = Audit.GetUnreadChanges();
 
         if (_jsModule == null || snapshots.Count == 0) return;
 

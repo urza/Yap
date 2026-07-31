@@ -123,4 +123,8 @@ public class CircuitTracker
     public List<CircuitInfo> GetAllCircuits() => _circuits.Values.ToList();
 
     public List<CircuitInfo> GetRecentlyClosed() => _recentlyClosed.Reverse().ToList(); // newest first
+
+    /// <summary>Connection state of one circuit — null when unknown/closed.</summary>
+    public bool? IsCircuitConnected(string circuitId) =>
+        _circuits.TryGetValue(circuitId, out var info) ? info.IsConnected : null;
 }

@@ -165,6 +165,7 @@
         // Update context
         currentContext = DmUser;
         NavState.SetDmContext(DmUser);
+        ReportSessionViewing();
         await JS.InvokeVoidAsync("saveLastRoute", $"/dm/{Uri.EscapeDataString(DmUser)}");
 
         await UpdatePageTitleAsync();
@@ -189,7 +190,7 @@
                 // Mark as read only if THIS device is foreground and not Away — otherwise a
                 // backgrounded/away device would clear unread for our other devices.
                 if (ShouldMarkReadOnReceive())
-                    await ChatService.MarkChannelAsReadAsync(UserId, channelId, silent: true, callerSessionId: UserState.SessionId);
+                    await ChatService.MarkChannelAsReadAsync(UserId, channelId, silent: true, callerSessionId: UserState.SessionId, source: "receive");
                 await InvokeAsync(ScrollToBottomAsync);
             }
             catch (Exception ex)
@@ -284,7 +285,7 @@
         // evicted/backgrounded circuit's teardown doesn't clear unread for our other devices.
         if (channelId != Guid.Empty && UserId != Guid.Empty && ShouldMarkReadOnReceive())
         {
-            await ChatService.MarkChannelAsReadAsync(UserId, channelId, callerSessionId: UserState.SessionId);
+            await ChatService.MarkChannelAsReadAsync(UserId, channelId, callerSessionId: UserState.SessionId, source: "dispose");
         }
 
         await base.DisposeAsync();

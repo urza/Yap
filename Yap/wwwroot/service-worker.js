@@ -137,6 +137,18 @@ self.addEventListener('push', (event) => {
         );
     }
 
+    // Delivery receipt (best-effort): closes the gap between "push service accepted the send" and
+    // "this device actually received it" — Settings shows the last confirmed delivery per device.
+    promises.push(
+        self.registration.pushManager.getSubscription()
+            .then((sub) => sub && fetch('/api/push/delivered', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ endpoint: sub.endpoint, tag: data.tag, shown: !data.muted })
+            }))
+            .catch(() => { }) // a failed receipt must never affect the notification itself
+    );
+
     event.waitUntil(Promise.all(promises));
 });
 

@@ -64,8 +64,24 @@ public static class PushEndpoints
             await store.RemoveSubscriptionAsync(body.Endpoint);
             return Results.Ok(new { success = true });
         });
+
+        // Delivery receipt from the service worker's push handler. Anonymous by design: it fires
+        // while the app is closed, where the auth cookie may be absent or expired in SW context.
+        // The subscription endpoint URL is itself a high-entropy secret — presenting one proves
+        // the caller received a push for it; unknown endpoints get 404.
+        group.MapPost("/delivered", async (HttpContext context, PushSubscriptionStore store) =>
+        {
+            var body = await context.Request.ReadFromJsonAsync<PushDeliveredRequest>();
+            if (body == null || string.IsNullOrEmpty(body.Endpoint))
+                return Results.BadRequest(new { error = "Invalid request" });
+
+            return store.MarkDelivered(body.Endpoint)
+                ? Results.Ok(new { success = true })
+                : Results.NotFound();
+        });
     }
 
     private record PushSubscribeRequest(string Username, string Endpoint, string? P256dh, string? Auth);
     private record PushUnsubscribeRequest(string Endpoint);
+    private record PushDeliveredRequest(string Endpoint, string? Tag, bool? Shown);
 }

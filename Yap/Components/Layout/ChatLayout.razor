@@ -81,11 +81,16 @@
 
     // The probe reports one interval late: each ping carries the PREVIOUS round trip, so a single
     // call both measures (its own duration, timed in JS) and delivers. Render-free by design.
+    // Doubles as the presence heartbeat: real visibility + input-idle let ChatService keep
+    // per-session foreground/away state truthful even in tabs that never fire visibilitychange.
     [JSInvokable]
-    public void ProbePing(double? prevRttMs)
+    public async Task ProbePing(double? prevRttMs, bool visible, double idleSeconds)
     {
         if (prevRttMs is double ms && CircuitIdentity.CircuitId is string id)
             CircuitTracker.ReportRtt(id, ms);
+
+        if (UserState.SessionId is string sessionId)
+            await ChatService.ReportClientStateAsync(sessionId, visible, idleSeconds);
     }
 
     // Client-measured "send clicked → own message in the DOM" — the send latency the user actually saw.

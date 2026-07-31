@@ -299,6 +299,10 @@
                                     <span class="session-ip">@DescribePushEndpoint(device.Endpoint)</span>
                                 </div>
                                 <span class="session-activity">Added @FormatRelativeTime(device.CreatedAt)</span>
+                                @if (PushStore.GetLastDelivered(device.Endpoint) is DateTime delivered)
+                                {
+                                    <span class="session-activity">Delivered @FormatRelativeTime(delivered)</span>
+                                }
                             </div>
                             <button class="remove-button" style="margin-left: auto; padding: 0.25rem 0.625rem; font-size: 0.75rem; flex-shrink: 0;"
                                     @onclick="() => RemovePushDevice(device.Endpoint)" title="Remove this device">

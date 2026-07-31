@@ -15,6 +15,10 @@ public class PushSubscriptionStore
     // Endpoint -> Subscription (endpoint is unique per device/browser)
     private readonly ConcurrentDictionary<string, PushSubscription> _subscriptions = new();
 
+    // Endpoint -> last time that device's service worker confirmed it received a push.
+    // In-memory only ("since restart") — the honest, migration-free version of delivery status.
+    private readonly ConcurrentDictionary<string, DateTime> _lastDelivered = new();
+
     public PushSubscriptionStore(IPushSubscriptionPersistence persistence, ILogger<PushSubscriptionStore> logger)
     {
         _persistence = persistence;
@@ -72,10 +76,27 @@ public class PushSubscriptionStore
         }
     }
 
+    /// <summary>
+    /// Stamps a service-worker delivery receipt — proof the device actually received a push, not
+    /// just that the push service accepted it. False when the endpoint is unknown.
+    /// </summary>
+    public bool MarkDelivered(string endpoint)
+    {
+        if (!_subscriptions.ContainsKey(endpoint)) return false;
+        _lastDelivered[endpoint] = DateTime.UtcNow;
+        _logger.LogDebug("Push delivery confirmed, endpoint={Endpoint}", endpoint[..Math.Min(50, endpoint.Length)]);
+        return true;
+    }
+
+    /// <summary>Last confirmed delivery for a device, if any since restart.</summary>
+    public DateTime? GetLastDelivered(string endpoint) =>
+        _lastDelivered.TryGetValue(endpoint, out var at) ? at : null;
+
     public async Task RemoveSubscriptionAsync(string endpoint)
     {
         if (_subscriptions.TryRemove(endpoint, out var removed))
         {
+            _lastDelivered.TryRemove(endpoint, out _);
             _logger.LogDebug("RemoveSubscription: removed for {Username}, endpoint={Endpoint}, remaining={Total}",
                 removed.Username, endpoint[..Math.Min(50, endpoint.Length)], _subscriptions.Count);
 
