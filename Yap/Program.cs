@@ -291,6 +291,19 @@ app.UseStaticFiles(new StaticFileOptions
     OnPrepareResponse = cacheImmutable
 });
 
+// Built-in emoji packs (wwwroot/emoji-packs/{pack}/) ship in the build output at a STABLE url, so
+// they must NOT be immutable — redrawing one has to propagate on the next deploy. A day of max-age
+// still kills the per-image revalidation that every picker render would otherwise trigger.
+var emojiPacksPath = Path.Combine(app.Environment.WebRootPath, "emoji-packs");
+Directory.CreateDirectory(emojiPacksPath); // PhysicalFileProvider throws if the root is missing
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(emojiPacksPath),
+    RequestPath = "/emoji-packs",
+    OnPrepareResponse = ctx =>
+        ctx.Context.Response.Headers.CacheControl = "public, max-age=86400"
+});
+
 app.UseStaticFiles();
 
 // Serve custom emojis from Data/custom-emojis/ folder

@@ -12,14 +12,13 @@
                 title="Recent">
             @EmojiService.GetEmojiHtml("🕐")
         </button>
-        @* Custom tab (if custom emojis exist) *@
-        @if (CustomEmojiService.HasCustomEmojis)
+        @* One tab per image-emoji pack: server customs first, then built-in packs *@
+        @foreach (var pack in CustomEmojiService.Packs)
         {
-            var firstCustom = CustomEmojiService.GetAll().First();
-            <button class="category-btn" data-category="custom"
-                    @onclick="() => ScrollToCategory(CustomCategory)"
-                    title="Custom">
-                @EmojiService.RenderCustomEmoji(firstCustom)
+            <button class="category-btn" data-category="@pack.Key"
+                    @onclick="() => ScrollToCategory(pack.Key)"
+                    title="@pack.DisplayName">
+                @EmojiService.RenderCustomEmoji(pack.Emojis[0])
             </button>
         }
         @foreach (var category in EmojiData.Categories)
@@ -113,13 +112,13 @@
                 </div>
             </div>
 
-            @* Custom section *@
-            @if (CustomEmojiService.HasCustomEmojis)
+            @* Image-emoji sections, one per pack *@
+            @foreach (var pack in CustomEmojiService.Packs)
             {
-                <div class="emoji-section" data-section="custom">
-                    <div class="section-header">Custom</div>
+                <div class="emoji-section" data-section="@pack.Key">
+                    <div class="section-header">@pack.DisplayName</div>
                     <div class="emoji-grid">
-                        @foreach (var emoji in CustomEmojiService.GetAll())
+                        @foreach (var emoji in pack.Emojis)
                         {
                             var shortcode = $":{emoji.Shortcode}:";
                             <button class="emoji-btn" data-emoji="@shortcode" @attributes="GetClickAttributes(shortcode)" title="@shortcode">
@@ -155,7 +154,6 @@
     [Parameter] public string TextareaId { get; set; } = "";
 
     private const string RecentCategory = "recent";
-    private const string CustomCategory = "custom";
     private ElementReference pickerElement;
     private ElementReference contentElement;
     private IJSObjectReference? scrollTracker;
