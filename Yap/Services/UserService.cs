@@ -213,6 +213,17 @@ public class UserService
     }
 
     /// <summary>
+    /// Finds the user whose display name matches (case-insensitive).
+    /// Login guard: a display name typed into the login form must not silently
+    /// become a brand-new account (the doppelgänger / duplicate-DM-channel bug).
+    /// </summary>
+    public User? FindByDisplayName(string displayName) =>
+        string.IsNullOrWhiteSpace(displayName)
+            ? null
+            : _users.Values.FirstOrDefault(u =>
+                string.Equals(u.DisplayName, displayName.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
     /// Checks if a username is already taken.
     /// </summary>
     public bool IsUsernameTaken(string username)

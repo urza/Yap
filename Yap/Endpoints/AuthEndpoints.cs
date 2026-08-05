@@ -114,6 +114,16 @@ public static class AuthEndpoints
             }
             else
             {
+                // Unknown username about to become a brand-new account. If it matches an
+                // existing member's display name, this is almost certainly that member
+                // typing the name they now go by — creating the account would silently
+                // fork their identity (doppelgänger user + duplicate DM channels).
+                if (userService.FindByDisplayName(username) is not null)
+                {
+                    actionLog.Log(null, UserActionLog.KnownActions.LOGIN_FAIL, info: $"displayname_collision:{username}", ip: ip ?? "unknown", userAgent: ua);
+                    return Results.Redirect($"/login?reason=displayname&u={Uri.EscapeDataString(username)}");
+                }
+
                 if (registrationGate.RegistrationClosed)
                 {
                     actionLog.Log(null, UserActionLog.KnownActions.LOGIN_FAIL, info: $"registration_closed:{username}", ip: ip ?? "unknown", userAgent: ua);

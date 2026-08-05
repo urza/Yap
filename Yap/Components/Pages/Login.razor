@@ -55,6 +55,12 @@
                     @errorMessage
                 </div>
             }
+            @if (_willCreateNewAccount && !showError && !_showMultiDeviceGuide)
+            {
+                <div class="new-account-hint">
+                    New here? Joining creates a fresh account named <strong>@usernameInput</strong>.
+                </div>
+            }
             @if (_showMultiDeviceGuide)
             {
                 <div class="multidevice-guide">
@@ -77,6 +83,14 @@
     [SupplyParameterFromQuery]
     public string? ReturnUrl { get; set; }
 
+    // Set when /auth/signin bounced the attempt (currently only reason=displayname),
+    // with the rejected name echoed back so the form can explain in place.
+    [SupplyParameterFromQuery(Name = "reason")]
+    public string? Reason { get; set; }
+
+    [SupplyParameterFromQuery(Name = "u")]
+    public string? AttemptedName { get; set; }
+
     private enum LoginState { Normal, Closed, WaitingApproval }
     private LoginState _state = LoginState.Normal;
 
@@ -93,6 +107,7 @@
     private bool _smartModeMatch = false;
     private bool _showMultiDeviceGuide = false;
     private bool _wasRejected = false;
+    private bool _willCreateNewAccount = false;
 
     private Timer? _pollTimer;
     private string? _clientIp;
@@ -155,6 +170,15 @@
         welcomeMessage = ChatConfig.GetRandomWelcomeMessage();
         joinButtonText = ChatConfig.GetRandomJoinButtonText();
         usernamePlaceholder = ChatConfig.GetRandomUsernamePlaceholder();
+
+        // Bounced back by the /auth/signin display-name guard: re-show the typed name so
+        // ValidateUsername flags it in place with the full explanation.
+        if (Reason == "displayname" && !string.IsNullOrWhiteSpace(AttemptedName))
+        {
+            usernameInput = AttemptedName;
+            hasBlurred = true;
+            ValidateUsername();
+        }
     }
 
     protected override void OnAfterRender(bool firstRender)
@@ -174,6 +198,7 @@
         _usernameHasPassword = false;
         _smartModeMatch = false;
         _showMultiDeviceGuide = false;
+        _willCreateNewAccount = false;
 
         if (string.IsNullOrWhiteSpace(usernameInput))
             return;
@@ -216,6 +241,22 @@
             hasError = true;
             errorMessage = "Nice try! 🤖";
             return;
+        }
+
+        // A display name is not a login. Letting it through would silently create a
+        // doppelgänger account (and duplicate DM channels), so block with an explanation.
+        // Real usernames win: this only runs when no account has the typed name.
+        if (!UserService.IsUsernameTaken(usernameInput))
+        {
+            if (UserService.FindByDisplayName(usernameInput) is not null)
+            {
+                hasError = true;
+                errorMessage = $"\"{usernameInput}\" is a member's display name. If that's you, log in with your original username — changing your display name never changes your login. Otherwise, pick a different name.";
+                return;
+            }
+
+            // Genuinely new name: make it obvious that joining creates a fresh account.
+            _willCreateNewAccount = true;
         }
     }
 
@@ -379,6 +420,7 @@
         _wasRejected = false;
         usernameInput = "";
         hasError = false;
+        _willCreateNewAccount = false;
         welcomeMessage = ChatConfig.GetRandomWelcomeMessage();
         joinButtonText = ChatConfig.GetRandomJoinButtonText();
         usernamePlaceholder = ChatConfig.GetRandomUsernamePlaceholder();
