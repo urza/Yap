@@ -12,7 +12,8 @@
     <link rel="stylesheet" href="@Assets["themes.css"]" />
     <link rel="stylesheet" href="@Assets["Yap.styles.css"]" />
     <link rel="icon" type="image/svg+xml" href="icon.svg" />
-    <link rel="manifest" href="manifest.webmanifest" />
+    <!-- use-credentials: the manifest fetch must send the auth cookie, or every install would get the anonymous (untokenized) start_url -->
+    <link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials" />
     <link rel="apple-touch-icon" href="icon-192.png" />
     <meta name="theme-color" content="#1a1a2e" />
     <meta name="apple-mobile-web-app-capable" content="yes" />

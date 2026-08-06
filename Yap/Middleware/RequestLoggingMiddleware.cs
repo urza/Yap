@@ -49,11 +49,17 @@ public class RequestLoggingMiddleware
 
             var clientIp = IpHelper.GetClientIp(context) ?? "unknown";
 
+            // /pwa-launch's lt query value is a bearer login credential — redact it before
+            // it reaches any sink (the CSV file and the action-log DB both get the full URL).
+            var loggedUrl = path.Equals("/pwa-launch", StringComparison.OrdinalIgnoreCase) && context.Request.QueryString.HasValue
+                ? path + "?lt=REDACTED"
+                : path + context.Request.QueryString;
+
             var entry = new RequestLogEntry
             {
                 Timestamp = DateTime.UtcNow,
                 Method = context.Request.Method,
-                Path = path + context.Request.QueryString,
+                Path = loggedUrl,
                 StatusCode = context.Response.StatusCode,
                 DurationMs = stopwatch.ElapsedMilliseconds,
                 ClientIp = clientIp,
@@ -69,7 +75,7 @@ public class RequestLoggingMiddleware
             _actionLog.Log(
                 userState.UserId?.ToString(),
                 UserActionLog.KnownActions.HTTP_REQUEST,
-                url: path + context.Request.QueryString,
+                url: loggedUrl,
                 ip: clientIp,
                 userAgent: context.Request.Headers.UserAgent.ToString());
         }
