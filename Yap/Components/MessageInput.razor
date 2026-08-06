@@ -88,8 +88,11 @@ else
    CSS reacts. Opening a picker or focusing the box never waits on the circuit. *@
 <div class="message-input-container @(ReplyingToMessage != null ? "has-reply-bar" : "")"
      @ref="dropZoneElement">
-    <textarea @bind="messageText" @bind:event="oninput" @bind:after="OnInputChangedInternal"
-              placeholder="@placeholder" class="message-input"
+    @* Plain @bind (change granularity): keystrokes never round-trip. The send pipeline
+       (chat.js) commits the draft with a synthetic change right before the send click's
+       RPC — in-order circuit processing lands it ahead of HandleSend. Typing-indicator
+       bursts come from setupTypingTracker, ~2 dispatches per burst. *@
+    <textarea @bind="messageText" placeholder="@placeholder" class="message-input"
               rows="1" id="@TextareaId"></textarea>
     <label class="image-upload-button" title="Upload files">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
@@ -192,17 +195,14 @@ else
     private string typingIndicatorText = "";
     private string warningTitle = "";
     private string warningMessage = "";
+    // Mirrors the last typing transition the server saw. Keystrokes never reach the
+    // server (plain @bind); the JS tracker dispatches burst start/stop only.
     private bool isTyping = false;
     private bool isUploading = false;
     private int uploadingCount = 0;
     private int uploadedFileCount = 0;
     private int uploadPercent = 0;
     private DotNetObjectReference<MessageInput>? _uploadRef;
-    // Typing timeout uses CancellationTokenSource + Task.Delay pattern:
-    // - On each keystroke, cancel current delay and start new 3s delay
-    // - If user stops typing for 3s, delay completes and calls StopTypingAsync
-    // - This avoids threading issues with System.Timers.Timer
-    private CancellationTokenSource? typingCts;
 
     // Unique IDs for this instance
     private string TextareaId = $"messageTextarea_{Guid.NewGuid():N}";
@@ -246,7 +246,15 @@ else
 
     protected override void OnParametersSet()
     {
+        var previousChannelId = channelId;
         UpdateChannelId();
+        // Typing state is per-channel: a switch mid-burst must stop the indicator in the
+        // channel we left, or it lingers there until something else happens to clear it.
+        if (isTyping && previousChannelId is { } oldChannelId && oldChannelId != channelId)
+        {
+            isTyping = false;
+            _ = ChatService.StopTypingAsync(oldChannelId, Username);
+        }
         UpdatePlaceholder();
         UpdateTypingIndicator();
 
@@ -285,6 +293,8 @@ else
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup enter key handler"); }
             try { await JS.InvokeVoidAsync("setupTextareaAutoResize", TextareaId); }
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup textarea auto-resize"); }
+            try { await JS.InvokeVoidAsync("setupTypingTracker", TextareaId, _layoutRef); }
+            catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup typing tracker"); }
             try { await JS.InvokeVoidAsync("setupCaretTracking", TextareaId); }
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup caret tracking"); }
             try { await JS.InvokeVoidAsync("setupSendButtonFocus", TextareaId); }
@@ -411,6 +421,16 @@ else
         }
     }
 
+    // Burst transitions dispatched by the JS typing tracker (setupTypingTracker): Start
+    // on the first keystroke of a burst, Stop after 3s idle or when the box empties.
+    // The tracker owns the timeout; these stay idempotent via isTyping for the other
+    // callers (HandleSend's stop, DisposeAsync's cleanup, the channel-switch stop).
+    [JSInvokable]
+    public Task ReportTypingStarted() => StartTypingAsync();
+
+    [JSInvokable]
+    public Task ReportTypingStopped() => StopTypingAsync();
+
     private async Task StartTypingAsync()
     {
         if (isTyping || !channelId.HasValue) return;
@@ -423,53 +443,11 @@ else
         if (!isTyping || !channelId.HasValue) return;
         isTyping = false;
         await ChatService.StopTypingAsync(channelId.Value, Username);
-
-        typingCts?.Cancel();
-        typingCts?.Dispose();
-        typingCts = null;
     }
 
     #endregion
 
     #region Input Handling
-
-    private async Task OnInputChangedInternal()
-    {
-        // Auto-resize runs client-side via setupTextareaAutoResize — no round-trip needed here.
-
-        // Handle typing state
-        if (!string.IsNullOrWhiteSpace(messageText) && !isTyping)
-        {
-            await StartTypingAsync();
-        }
-        else if (string.IsNullOrWhiteSpace(messageText) && isTyping)
-        {
-            await StopTypingAsync();
-        }
-
-        // Reset typing timeout - cancel previous and start new
-        typingCts?.Cancel();
-        typingCts?.Dispose();
-
-        if (!string.IsNullOrWhiteSpace(messageText))
-        {
-            typingCts = new CancellationTokenSource();
-            _ = StopTypingAfterDelayAsync(typingCts.Token);
-        }
-    }
-
-    private async Task StopTypingAfterDelayAsync(CancellationToken token)
-    {
-        try
-        {
-            await Task.Delay(3000, token);
-            await StopTypingAsync();
-        }
-        catch (OperationCanceledException)
-        {
-            // Timer was reset or cancelled, ignore
-        }
-    }
 
     private async Task HandleSend()
     {
@@ -667,8 +645,6 @@ else
 
     public async ValueTask DisposeAsync()
     {
-        typingCts?.Cancel();
-        typingCts?.Dispose();
         _uploadRef?.Dispose();
         try { await JS.InvokeVoidAsync("teardownMobileLayoutWatcher", _layoutWatcherId); }
         catch { /* circuit may be dead */ }

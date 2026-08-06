@@ -940,6 +940,9 @@ window.setupEmojiPickerClick = (textareaId, dotNetRef) => {
 
         // Intentionally do NOT focus the textarea — on mobile, focus() within a user gesture
         // pops the keyboard, which we don't want while the picker is open.
+        // The synthetic input feeds client-side listeners only (typing tracker, auto-resize);
+        // with plain @bind the server's draft syncs via the send pipeline's pre-send change,
+        // so inserting emoji costs zero circuit traffic.
         textarea.dispatchEvent(new Event('input', { bubbles: true }));
         window.autoResizeTextarea(tid);
 
@@ -961,6 +964,46 @@ window.setupTextareaAutoResize = (textareaId) => {
     }
     textarea._autoResizeHandler = () => window.autoResizeTextarea(textareaId);
     textarea.addEventListener('input', textarea._autoResizeHandler);
+};
+
+// Typing-indicator bursts, client-driven. The message box is plain @bind (change
+// granularity) so keystrokes carry zero circuit traffic — the typing signal can't ride
+// the binding anymore. This tracker dispatches exactly two calls per burst: Start on
+// the first keystroke, Stop after 3s idle or when the box empties. The send pipeline
+// resets the local flag WITHOUT a Stop dispatch — HandleSend broadcasts that stop.
+window.setupTypingTracker = (textareaId, dotNetRef) => {
+    const textarea = document.getElementById(textareaId);
+    if (!textarea) return;
+
+    if (textarea._typingInputHandler) {
+        textarea.removeEventListener('input', textarea._typingInputHandler);
+        textarea._typingLocalReset?.();
+    }
+
+    let typing = false;
+    let timer = null;
+
+    const stop = () => {
+        clearTimeout(timer);
+        timer = null;
+        if (!typing) return;
+        typing = false;
+        dotNetRef.invokeMethodAsync('ReportTypingStopped').catch(() => { });
+    };
+
+    textarea._typingInputHandler = () => {
+        if (!textarea.value.trim()) { stop(); return; }
+        if (!typing) {
+            typing = true;
+            dotNetRef.invokeMethodAsync('ReportTypingStarted').catch(() => { });
+        }
+        clearTimeout(timer);
+        timer = setTimeout(stop, 3000);
+    };
+    textarea.addEventListener('input', textarea._typingInputHandler);
+
+    // Silent reset for the send pipeline: the next keystroke starts a fresh burst.
+    textarea._typingLocalReset = () => { clearTimeout(timer); timer = null; typing = false; };
 };
 
 // Track the textarea caret for the emoji picker. Captured on `blur` — the instant focus
@@ -1603,7 +1646,29 @@ document.addEventListener('click', (e) => {
     if (!btn) return;
     const container = btn.closest('.message-input-container');
     const textarea = container?.querySelector('.message-input');
-    if (!textarea || !textarea.value.trim()) return;
+    if (!textarea) return;
+
+    if (!textarea.value.trim()) {
+        // Nothing to send — but still commit the (empty) draft. A stale earlier commit
+        // (text blurred in, then deleted with no blur since) would otherwise sit in
+        // messageText, pass HandleSend's guard, and send ghost-of-the-past content.
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+        return;
+    }
+
+    // Commit the draft BEFORE the click's RPC: the box is plain @bind (change
+    // granularity — typing costs zero dispatches), and Blazor serializes the value
+    // synchronously during this dispatchEvent. In-order circuit processing lands the
+    // change ahead of the click, so HandleSend's guard reads fresh messageText.
+    // Invariant (supersedes the old "no synthetic input" rule): the synthetic change
+    // carries the FULL value and fires BEFORE the clear below — and never anything
+    // after the clear, for the original reason: a post-clear event would sync
+    // messageText='' ahead of the click and the guard would reject the send.
+    // (This is the edit-box save pattern applied to send.)
+    textarea.dispatchEvent(new Event('change', { bubbles: true }));
+
+    // Typing: reset the local burst flag only — HandleSend broadcasts its own stop.
+    textarea._typingLocalReset?.();
 
     // Sending closes an open picker and ends "composing" (client-owned state; the old
     // server-side HandleSend flags are gone). Explicit here because the send button's
@@ -1618,9 +1683,7 @@ document.addEventListener('click', (e) => {
 
     showPendingEcho(textarea.value);
 
-    // Instant clear. Deliberately NO synthetic 'input' event: circuit events are
-    // processed in order, so it would sync messageText='' ahead of this click's RPC
-    // and HandleSend's empty-guard would reject the send.
+    // Instant clear (the draft above was committed pre-clear).
     textarea.value = '';
     window.resetTextareaHeight(textarea.id);
     window.scrollToBottom();
