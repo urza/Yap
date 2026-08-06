@@ -589,8 +589,17 @@
     {
         Logger.LogInformation("GifPicker click: cached entry {EntryId}", gifEntryId);
         var att = await GifService.SendCachedGifAsync(gifEntryId, searchText, CurrentUserId, CurrentUsername);
-        if (att != null) await OnGifSelected.InvokeAsync(att);
-        else Logger.LogWarning("GifPicker click: SendCachedGifAsync returned null for {EntryId}", gifEntryId);
+        if (att != null)
+        {
+            await OnGifSelected.InvokeAsync(att);
+        }
+        else
+        {
+            // The client-side pipeline (chat.js) already hid the picker on the tap — tell the
+            // user instead of failing silently; their optimistic ghost quietly expires on its own.
+            Logger.LogWarning("GifPicker click: SendCachedGifAsync returned null for {EntryId}", gifEntryId);
+            await OnUploadError.InvokeAsync("That GIF isn't available anymore — try another one.");
+        }
     }
 
     private async Task SendProviderAsync(GifSearchItem item)
@@ -598,8 +607,15 @@
         Logger.LogInformation("GifPicker click: provider item {SourceId} (formats={Formats}, previews={Previews})",
             item.SourceId, item.Formats.Count, item.PreviewFormats.Count);
         var att = await GifService.SendProviderGifAsync(item, searchText, CurrentUserId, CurrentUsername);
-        if (att != null) await OnGifSelected.InvokeAsync(att);
-        else Logger.LogWarning("GifPicker click: SendProviderGifAsync returned null for {SourceId}", item.SourceId);
+        if (att != null)
+        {
+            await OnGifSelected.InvokeAsync(att);
+        }
+        else
+        {
+            Logger.LogWarning("GifPicker click: SendProviderGifAsync returned null for {SourceId}", item.SourceId);
+            await OnUploadError.InvokeAsync("That GIF isn't available anymore — try another one.");
+        }
     }
 
     private async Task ToggleFavoriteAsync(Guid gifEntryId)

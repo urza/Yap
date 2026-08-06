@@ -532,7 +532,13 @@ else
 
     private void HandleGifUploadError(string error)
     {
-        ShowWarning("GIF upload failed", error);
+        // The gif-card capture listener (chat.js) hides the picker the moment a card is
+        // tapped — converge the server flags so the next toggle click reopens in one tap
+        // instead of first "closing" an already-invisible picker. Upload failures land here
+        // too; closing before the modal is fine — the modal explains what happened.
+        showGifPicker = false;
+        showEmojiPicker = false;
+        ShowWarning("Couldn't send GIF", error);
     }
 
     #endregion

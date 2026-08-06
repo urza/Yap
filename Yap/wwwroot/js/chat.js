@@ -1520,15 +1520,21 @@ document.addEventListener('click', (e) => {
 let echoObserver = null;
 let echoTarget = null;     // the .messages element the reconciler is bound to
 
-const showPendingEcho = (text) => {
+// Shared tail of every optimistic echo (text and GIF): mount in the JS-owned
+// container, arm the 15s "never sent" self-remove, ensure the reconciler is watching.
+const appendPendingEcho = (ghost) => {
     const host = document.querySelector('.pending-echoes');
     if (!host) return;
-    const ghost = document.createElement('div');
-    ghost.className = 'pending-message';
-    ghost.textContent = text;
     host.appendChild(ghost);
     setTimeout(() => ghost.remove(), 15000);
     watchForEchoConfirm();
+};
+
+const showPendingEcho = (text) => {
+    const ghost = document.createElement('div');
+    ghost.className = 'pending-message';
+    ghost.textContent = text;
+    appendPendingEcho(ghost);
 };
 
 // Persistent reconciler, separate from the one-shot telemetry observer: each of the
@@ -1559,6 +1565,61 @@ const watchForEchoConfirm = () => {
 window.clearPendingEchoes = () => {
     document.querySelectorAll('.pending-echoes .pending-message').forEach(g => g.remove());
 };
+
+// GIF-select instant feedback: tapping a picker card hides the picker at once and
+// shows an optimistic ghost of the chosen GIF; the real message (and the server-side
+// picker close) arrive one round trip later. Capture phase, installed at script load —
+// same rationale as the send-button listener above. Blazor's @onclick still fires:
+// display:none doesn't stop event propagation. Inline style (not a class) because the
+// incoming render batch removes these exact nodes (showGifPicker=false), so the style
+// dies with them and the next open renders fresh visible nodes — nothing to clean up.
+document.addEventListener('click', (e) => {
+    const card = e.target.closest('.gif-picker .gif-card');
+    if (!card) return;
+    // The favorite star lives inside the card — starring must not close or ghost.
+    // (Its Blazor stopPropagation is bubble-phase; this capture listener runs first.)
+    if (e.target.closest('.gif-fav-btn')) return;
+
+    // Hide the picker container + its backdrop (on mobile this is the CombinedPicker sheet).
+    const wrap = card.closest('.emoji-picker-container');
+    if (wrap) {
+        wrap.style.display = 'none';
+        const backdrop = wrap.parentElement?.querySelector(':scope > .emoji-picker-backdrop');
+        if (backdrop) backdrop.style.display = 'none';
+    }
+
+    // Ghost built from the preview the user actually saw — it's in the browser cache,
+    // so it paints instantly. createElement + property assignment only (XSS-safe).
+    const img = card.querySelector('img');
+    const vid = card.querySelector('video');
+    const src = img?.src || vid?.src;
+    if (!src) return; // no preview to echo — close-only
+
+    // Class must include pending-message (all echo machinery keys on it) and must
+    // never be message-group (both MutationObservers match on that).
+    const ghost = document.createElement('div');
+    ghost.className = 'pending-message pending-gif';
+
+    let media;
+    if (img) {
+        media = document.createElement('img');
+    } else {
+        media = document.createElement('video');
+        media.muted = true;
+        media.autoplay = true;
+        media.loop = true;
+        media.playsInline = true;
+        media.className = 'gif-card-video'; // rides the document-level canplay autoplay wiring
+    }
+    media.src = src;
+    // The card carries the true aspect ratio inline — copying it reserves the ghost's
+    // height before the preview paints, so the message list doesn't jump.
+    if (card.style.aspectRatio) media.style.aspectRatio = card.style.aspectRatio;
+    ghost.appendChild(media);
+
+    appendPendingEcho(ghost);
+    window.scrollToBottom();
+}, true);
 
 const watchForOwnMessage = (myMark) => {
     const container = document.querySelector('.messages');

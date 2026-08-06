@@ -184,3 +184,17 @@ h1:focus {
     white-space: pre-wrap;
     overflow-wrap: break-word;
 }
+
+/* GIF variant of the send echo: an <img>/<video> stand-in built from the picker card's
+   preview, dimmed by the .pending-message opacity. Sized like the real render (360px
+   cap, 8px radius — see MessageItem's gif-message) so the swap barely moves. Fixed
+   360px width (not min(360px, natural)) because the client doesn't know the full-size
+   dimensions at click time — narrow GIFs shrink slightly when the real message lands.
+   The inline aspect-ratio (copied from the card) reserves height before the preview paints. */
+.pending-message.pending-gif img,
+.pending-message.pending-gif video {
+    display: block;
+    width: 360px;
+    max-width: 100%;
+    border-radius: 8px;
+}
