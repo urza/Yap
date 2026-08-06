@@ -8,7 +8,7 @@
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
-<div class="gif-picker">
+<div class="gif-picker" @ref="rootElement">
     <div class="gif-sidebar">
         <button class="category-btn @(selectedTab == GifTab.Recent ? "active" : "")"
                 @onclick="@(() => SelectTab(GifTab.Recent))" title="Recent">
@@ -306,6 +306,8 @@
     private CancellationTokenSource? _searchCts;
     private CancellationTokenSource? _debounceCts;
     private ElementReference resultsElement;
+    private ElementReference rootElement;
+    private DotNetObjectReference<GifPicker>? _dotNetRef;
 
     private List<GifEntry> recentEntries = new();
     private List<GifEntry> favoriteEntries = new();
@@ -360,9 +362,41 @@
             ? GifTab.Categories
             : GifTab.Recent;
 
-        if (GifService.IsConfigured)
-            _ = LoadTrendingAsync();
+        // Trending is deliberately NOT fetched here: the picker mounts hidden at page
+        // load, and the provider call would fire for users who never open it. The first
+        // OnPickerOpened pays it instead.
         await Task.CompletedTask;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        // Refresh-on-open hook: the picker mounts hidden and lives across many opens —
+        // chat.js invokes OnPickerOpened each time the pane becomes visible.
+        try
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("registerPickerOpenHook", rootElement, _dotNetRef);
+        }
+        catch { /* circuit may be dead */ }
+    }
+
+    /// <summary>
+    /// Called from chat.js each time the mounted-hidden picker becomes visible. Per-open
+    /// freshness lives here instead of OnInitialized (which now runs once per page):
+    /// recents move with usage, a leftover search from the previous open is cleared, and
+    /// the first open pays the deferred trending fetch. Favorites/server data need
+    /// nothing — their change events keep them live.
+    /// </summary>
+    [JSInvokable]
+    public async Task OnPickerOpened()
+    {
+        recentEntries = GifService.GetRecents(CurrentUsername);
+        ClearSearch();
+        if (trendingResults.Count == 0 && GifService.IsConfigured)
+            _ = LoadTrendingAsync();
+        try { await InvokeAsync(StateHasChanged); }
+        catch { /* circuit may be dead */ }
     }
 
     private async Task LoadTrendingAsync()
@@ -670,9 +704,9 @@
             // TryAcceptAsGifAsync deletes the source on success; clean up on any failure path.
             try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
             isUploading = false;
-            // On success the parent closes the picker (OnGifSelected → showGifPicker = false),
-            // so this component may already be tearing down — guard the re-render.
-            try { await InvokeAsync(StateHasChanged); } catch { /* picker closing / circuit dead */ }
+            // On success the picker hides via the client-owned data-picker flip; the
+            // component stays mounted, but guard anyway — the circuit may be tearing down.
+            try { await InvokeAsync(StateHasChanged); } catch { /* circuit may be dead */ }
         }
     }
 
@@ -728,6 +762,7 @@
     {
         _debounceCts?.Cancel();
         _searchCts?.Cancel();
+        _dotNetRef?.Dispose();
         GifService.OnFavoritesChanged -= HandleFavoritesChanged;
         GifService.OnGifEntryUpdated -= HandleEntryUpdated;
         GifService.OnGifLibraryChanged -= HandleLibraryChanged;

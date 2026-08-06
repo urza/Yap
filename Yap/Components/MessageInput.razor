@@ -82,11 +82,14 @@ else
 @* Drag & drop is fully client-side (setupDropZone in chat.js): dragover fires continuously
    during a drag and must never round-trip; the highlight rides on a JS-set data-dragging
    attribute, which Blazor's diff never touches (unlike this interpolated class attribute). *@
-<div class="message-input-container @(ReplyingToMessage != null ? "has-reply-bar" : "") @(showEmojiPicker ? "emoji-open" : "") @(showEmojiPicker || showGifPicker ? "picker-open" : "") @(isInputFocused ? "input-focused" : "")"
+@* Picker visibility and composing state are client-owned view state: chat.js flips
+   data-picker / data-composing ATTRIBUTES on this container (its class attribute is
+   Blazor-interpolated and would clobber JS classes — the data-dragging precedent), and
+   CSS reacts. Opening a picker or focusing the box never waits on the circuit. *@
+<div class="message-input-container @(ReplyingToMessage != null ? "has-reply-bar" : "")"
      @ref="dropZoneElement">
     <textarea @bind="messageText" @bind:event="oninput" @bind:after="OnInputChangedInternal"
               placeholder="@placeholder" class="message-input"
-              @onfocus="HandleInputFocus" @onblur="HandleInputBlur"
               rows="1" id="@TextareaId"></textarea>
     <label class="image-upload-button" title="Upload files">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
@@ -98,36 +101,47 @@ else
         <InputFile OnChange="HandleFileSelected" accept="image/*,video/*" multiple style="display: none;" id="@FileInputId" />
     </label>
     <div class="emoji-toggle-wrapper">
-        <button class="gif-toggle-button @(showGifPicker ? "active" : "")" @onclick="ToggleGifPicker" title="GIF picker">
+        @* The pickers mount ONCE in the background (pickersMounted flips ~1.2s after page
+           load, or on the first early toggle tap via EnsurePickersMounted) and stay in the
+           DOM behind display:none — opening is then a pure CSS attribute flip in chat.js.
+           PickerPane stops parent re-render cascades from re-diffing the hidden subtrees. *@
+        <button class="gif-toggle-button" data-picker-toggle="gif" title="GIF picker">
             <span class="gif-toggle-badge">GIF</span>
         </button>
-        @if (showGifPicker)
+        @if (pickersMounted && !isMobileLayout)
         {
-            <div class="emoji-picker-backdrop" @onclick="CloseGifPicker"></div>
-            <div class="emoji-picker-container">
-                <GifPicker CurrentUserId="@UserId" CurrentUsername="@Username"
-                           OnGifSelected="HandleGifSelected" OnUploadError="HandleGifUploadError" />
-            </div>
+            <PickerPane>
+                <div class="emoji-picker-backdrop" data-picker-pane="gif"></div>
+                <div class="emoji-picker-container" data-picker-pane="gif">
+                    <GifPicker CurrentUserId="@UserId" CurrentUsername="@Username"
+                               OnGifSelected="HandleGifSelected" OnUploadError="HandleGifUploadError" />
+                </div>
+            </PickerPane>
         }
-        <button class="emoji-toggle-button @(showEmojiPicker ? "active" : "")" @onclick="ToggleEmojiPicker" title="Emoji picker">
+        <button class="emoji-toggle-button" data-picker-toggle="emoji" title="Emoji picker">
             <span class="emoji-toggle-icon" id="@EmojiIconId"
                   style="--grey-col: @greyCol; --grey-row: @greyRow; --color-col: @colorCol; --color-row: @colorRow;"></span>
         </button>
-        @if (showEmojiPicker)
+        @if (pickersMounted)
         {
-            <div class="emoji-picker-backdrop" @onclick="CloseEmojiPicker"></div>
-            <div class="emoji-picker-container">
-                @if (isMobileLayout)
-                {
-                    <CombinedPicker CurrentUserId="@UserId" CurrentUsername="@Username"
-                                    OnGifSelected="HandleGifSelected" OnUploadError="HandleGifUploadError"
-                                    RecentEmojis="@RecentEmojis" OnEmojiUsed="@OnEmojiUsed" TextareaId="@TextareaId" />
-                }
-                else
-                {
-                    <EmojiPicker RecentEmojis="@RecentEmojis" OnEmojiUsed="@OnEmojiUsed" TextareaId="@TextareaId" />
-                }
-            </div>
+            @* @key: a mobile↔desktop flip must rebuild this pane with the right picker
+               inside — PickerPane blocks ordinary re-renders, so the swap needs the
+               fresh instance a changed key provides. *@
+            <PickerPane @key="isMobileLayout">
+                <div class="emoji-picker-backdrop" data-picker-pane="emoji"></div>
+                <div class="emoji-picker-container" data-picker-pane="emoji">
+                    @if (isMobileLayout)
+                    {
+                        <CombinedPicker CurrentUserId="@UserId" CurrentUsername="@Username"
+                                        OnGifSelected="HandleGifSelected" OnUploadError="HandleGifUploadError"
+                                        RecentEmojis="@RecentEmojis" OnEmojiUsed="@OnEmojiUsed" TextareaId="@TextareaId" />
+                    }
+                    else
+                    {
+                        <EmojiPicker RecentEmojis="@RecentEmojis" OnEmojiUsed="@OnEmojiUsed" TextareaId="@TextareaId" />
+                    }
+                </div>
+            </PickerPane>
         }
     </div>
     @* Enabled-look and Enter-to-send are client-side (:placeholder-shown CSS + chat.js
@@ -194,13 +208,13 @@ else
     private string TextareaId = $"messageTextarea_{Guid.NewGuid():N}";
     private string FileInputId = $"fileInput_{Guid.NewGuid():N}";
     private bool isMobileLayout = false;
-    private bool isInputFocused = false;
     private bool needsElementSetup = true;  // first render + after the ReadOnly branch recreated the subtree
     private bool wasReadOnly = false;
     private DotNetObjectReference<MessageInput>? _layoutRef;
     private readonly string _layoutWatcherId = Guid.NewGuid().ToString("N");
-    private bool showEmojiPicker = false;
-    private bool showGifPicker = false;
+    // The picker subtrees mount once (hidden) shortly after load; open/close is
+    // client-owned (data-picker attribute in chat.js). See MountPickersAfterIdleAsync.
+    private bool pickersMounted = false;
 
     // Emoji button sprite grid: 960x192 PNG, 48px cells = 20 cols x 4 rows
     private const int SpriteCols = 20;
@@ -254,6 +268,10 @@ else
                 StateHasChanged();
             }
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup mobile layout watcher"); }
+
+            // Mount the (hidden) pickers once the page has settled — off every critical
+            // path, so opening them later is a pure CSS flip with zero round trips.
+            _ = MountPickersAfterIdleAsync();
         }
 
         // Element-bound wiring: first render, and again after the ReadOnly branch swapped the
@@ -275,7 +293,29 @@ else
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup emoji toggle"); }
             try { await JS.InvokeVoidAsync("setupPasteUpload", TextareaId, FileInputId); }
             catch (Exception ex) { Logger.LogWarning(ex, "Failed to setup paste upload"); }
+            try { await JS.InvokeVoidAsync("registerPickerHost", dropZoneElement, _layoutRef); }
+            catch (Exception ex) { Logger.LogWarning(ex, "Failed to register picker host"); }
         }
+    }
+
+    /// <summary>
+    /// Background mount of the hidden picker subtrees. The delay is a priority hint, not
+    /// a contract — a toggle tap that beats it lands in <see cref="EnsurePickersMounted"/>
+    /// via chat.js and skips the wait.
+    /// </summary>
+    private async Task MountPickersAfterIdleAsync()
+    {
+        await Task.Delay(1200);
+        await EnsurePickersMounted();
+    }
+
+    [JSInvokable]
+    public async Task EnsurePickersMounted()
+    {
+        if (pickersMounted) return;
+        pickersMounted = true;
+        try { await InvokeAsync(StateHasChanged); }
+        catch { /* circuit may be dead */ }
     }
 
     [JSInvokable]
@@ -283,9 +323,8 @@ else
     {
         if (isMobileLayout == isMobile) return;
         isMobileLayout = isMobile;
-        // Closing on layout flip avoids the desktop picker getting stuck in a bottom-sheet container (or vice versa).
-        showEmojiPicker = false;
-        showGifPicker = false;
+        // chat.js already closed any open picker on the flip (client-owned state);
+        // this re-render swaps which picker component is mounted for the new layout.
         try { await InvokeAsync(StateHasChanged); }
         catch { /* circuit may be dead */ }
     }
@@ -432,25 +471,12 @@ else
         }
     }
 
-    private void HandleInputFocus()
-    {
-        isInputFocused = true;
-        // One-gesture dismiss: while a picker is open the textarea sits above the picker backdrop
-        // (.picker-open CSS), so this click focuses it directly — clear the picker flags here to
-        // finish the same gesture. Mirrors HandleSend, which also clears showEmojiPicker on click.
-        showEmojiPicker = false;
-        showGifPicker = false;
-    }
-    private void HandleInputBlur() => isInputFocused = false;
-
     private async Task HandleSend()
     {
         if (string.IsNullOrWhiteSpace(messageText) || !channelId.HasValue) return;
 
-        showEmojiPicker = false;
-        // Send button preventDefaults mousedown to keep keyboard open, so blur won't fire —
-        // reset the focus-driven UI state explicitly so the upload button reappears on mobile.
-        isInputFocused = false;
+        // Open-picker close and composing-state reset happen client-side in the send
+        // pipeline (chat.js) — no server-owned view state is left to clear here.
 
         // The visible textarea was already cleared + resized client-side by the send
         // pipeline (chat.js) the moment the button was clicked — this resets the
@@ -477,40 +503,17 @@ else
 
     #region Emoji Picker
 
-    private void ToggleEmojiPicker()
-    {
-        showEmojiPicker = !showEmojiPicker;
-        if (showEmojiPicker) showGifPicker = false;
-    }
-
     private async Task HandleCancelReply()
     {
         await OnCancelReply.InvokeAsync();
     }
 
-    private void CloseEmojiPicker()
-    {
-        showEmojiPicker = false;
-    }
-
-    private void ToggleGifPicker()
-    {
-        showGifPicker = !showGifPicker;
-        if (showGifPicker) showEmojiPicker = false;
-    }
-
-    private void CloseGifPicker()
-    {
-        showGifPicker = false;
-    }
-
     private async Task HandleGifSelected(Yap.Models.GifAttachment att)
     {
         if (!channelId.HasValue) return;
-        // On mobile the GIF is picked from CombinedPicker, which is gated on showEmojiPicker (not
-        // showGifPicker). Clear both so the picker closes after sending on every layout.
-        showGifPicker = false;
-        showEmojiPicker = false;
+        // Card taps were already closed client-side by the gif-card listener; uploads
+        // through the picker have no card tap, so close here too (idempotent for taps).
+        try { await JS.InvokeVoidAsync("closePickers"); } catch { /* circuit may be dead */ }
         try
         {
             await ChatService.SendMessageAsync(channelId.Value, UserId, Username, "",
@@ -532,12 +535,9 @@ else
 
     private void HandleGifUploadError(string error)
     {
-        // The gif-card capture listener (chat.js) hides the picker the moment a card is
-        // tapped — converge the server flags so the next toggle click reopens in one tap
-        // instead of first "closing" an already-invisible picker. Upload failures land here
-        // too; closing before the modal is fine — the modal explains what happened.
-        showGifPicker = false;
-        showEmojiPicker = false;
+        // Card-tap failures: the picker was already hidden client-side at tap time, and
+        // there is no server-side picker state left to converge. Upload failures: the
+        // picker stays open behind the modal, ready for a retry. Both get the explanation.
         ShowWarning("Couldn't send GIF", error);
     }
 

@@ -62,17 +62,21 @@ public partial class EmojiService
     /// <summary>Twin of <see cref="GetPickerEmojiHtml"/> for the emoji picker grid/sidebar.</summary>
     /// <remarks>No Twemoji <c>onerror</c> fallback: every picker emoji comes from the curated
     /// EmojiData set and is present in the chosen CDN, so the fallback would only bloat ~1400
-    /// cached cells.</remarks>
+    /// cached cells. Cells are <c>loading="lazy"</c> — load-bearing for the mounted-hidden
+    /// picker: inside <c>display:none</c> a lazy image never intersects, so ~1000 CDN fetches
+    /// wait until the picker actually opens and cells scroll near view.</remarks>
     public MarkupString GetEmojiHtml(string emoji)
-        => _emojiCache.GetOrAdd(emoji, e => ConvertEmojis(e, forceSmall: true, withFallback: false));
+        => _emojiCache.GetOrAdd(emoji, e => ConvertEmojis(e, forceSmall: true, withFallback: false, lazyImg: true));
 
     /// <summary>
     /// Converts Unicode emoji in <paramref name="text"/> to <c>&lt;img&gt;</c> tags for the active
     /// emoji set (<see cref="ActiveEmojiStyle"/>). Custom <c>:shortcode:</c> emoji and all sizing
     /// behaviour match the Twemoji backup path. When <paramref name="withFallback"/> is true, each
     /// Unicode-emoji image gets an <c>onerror</c> handler that falls back to the Twemoji CDN.
+    /// <paramref name="lazyImg"/> adds <c>loading="lazy"</c> — picker cells only; message content
+    /// stays eager so emoji never pop in while reading.
     /// </summary>
-    public MarkupString ConvertEmojis(string text, bool forceSmall = false, bool inline = false, bool withFallback = true)
+    public MarkupString ConvertEmojis(string text, bool forceSmall = false, bool inline = false, bool withFallback = true, bool lazyImg = false)
     {
         if (string.IsNullOrEmpty(text))
             return new MarkupString(text);
@@ -96,7 +100,7 @@ public partial class EmojiService
             if (emoji == null)
                 return match.Value;
 
-            return $"<img src=\"{emoji.Url}\" alt=\":{emoji.Shortcode}:\" class=\"emoji custom-emoji\" " +
+            return $"<img src=\"{emoji.Url}\"{(lazyImg ? " loading=\"lazy\"" : "")} alt=\":{emoji.Shortcode}:\" class=\"emoji custom-emoji\" " +
                    $"style=\"width: {emojiSize}; height: {emojiSize}; vertical-align: {verticalAlign}; display: inline-block; object-fit: contain;\" />";
         });
 
@@ -138,7 +142,7 @@ public partial class EmojiService
                 if (string.IsNullOrEmpty(codePoint) || codePoint == "fffd")
                     sb.Append(emoji);
                 else
-                    sb.Append(BuildEmojiImg(emoji, codePoint, emojiSize, verticalAlign, withFallback));
+                    sb.Append(BuildEmojiImg(emoji, codePoint, emojiSize, verticalAlign, withFallback, lazyImg));
 
                 lastEnd = seqEnd;
                 i = next;
@@ -204,7 +208,7 @@ public partial class EmojiService
     /// CDN (<see cref="ActiveEmojiStyle"/> — Apple or Twemoji), with an optional <c>onerror</c>
     /// fallback to the Twemoji CDN.
     /// </summary>
-    private string BuildEmojiImg(string emoji, string appleCp, string size, string verticalAlign, bool withFallback)
+    private string BuildEmojiImg(string emoji, string appleCp, string size, string verticalAlign, bool withFallback, bool lazyImg = false)
     {
         var twemojiCp = GetCodePoint(emoji); // Twemoji naming (FE0F stripped, minimal width)
         var twemojiUrl = (!string.IsNullOrEmpty(twemojiCp) && twemojiCp != "fffd")
@@ -225,7 +229,7 @@ public partial class EmojiService
         if (withFallback && twemojiUrl != null && src != twemojiUrl)
             onError = $" onerror=\"this.onerror=null;this.src='{twemojiUrl}'\"";
 
-        return $"<img src=\"{src}\"{onError} alt=\"{emoji}\" class=\"emoji\" " +
+        return $"<img src=\"{src}\"{onError}{(lazyImg ? " loading=\"lazy\"" : "")} alt=\"{emoji}\" class=\"emoji\" " +
                $"style=\"width: {size}; height: {size}; vertical-align: {verticalAlign}; display: inline-block;\" />";
     }
 

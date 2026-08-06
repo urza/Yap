@@ -680,17 +680,14 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
     protected void AddRecentEmoji(string emoji)
     {
-        // Remove if already exists (to move to front)
+        // Mutates the SAME list instance (move-to-front + in-place trim): the mounted
+        // emoji picker holds this reference as its RecentEmojis parameter behind the
+        // PickerPane render firewall, so in-place edits are what keep its per-open
+        // recents refresh (OnPickerOpened) honest.
         recentEmojis.Remove(emoji);
-
-        // Add to front
         recentEmojis.Insert(0, emoji);
-
-        // Limit size
-        if (recentEmojis.Count > MaxRecentEmojis)
-        {
-            recentEmojis = recentEmojis.Take(MaxRecentEmojis).ToList();
-        }
+        while (recentEmojis.Count > MaxRecentEmojis)
+            recentEmojis.RemoveAt(recentEmojis.Count - 1);
 
         UserService.UpdateRecentEmojis(UserId, recentEmojis);
     }

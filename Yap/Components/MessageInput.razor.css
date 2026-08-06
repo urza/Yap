@@ -222,8 +222,9 @@
     transition: background-color 0.15s;
 }
 
+/* Active state rides on the container's data-picker attribute (client-owned, chat.js) */
 .gif-toggle-button:hover .gif-toggle-badge,
-.gif-toggle-button.active .gif-toggle-badge {
+.message-input-container[data-picker="gif"] .gif-toggle-button .gif-toggle-badge {
     background: var(--text-primary);
 }
 
@@ -251,7 +252,7 @@
 }
 
 .emoji-toggle-button:hover .emoji-toggle-icon,
-.emoji-toggle-button.active .emoji-toggle-icon {
+.message-input-container[data-picker="emoji"] .emoji-toggle-button .emoji-toggle-icon {
     /* Color state: remove mask, show color sprite */
     -webkit-mask-image: none;
     mask-image: none;
@@ -281,11 +282,25 @@
     z-index: 999;
 }
 
-/* While a picker is open, lift the textarea above the picker backdrop (z-index 999) — like
-   .send-button — so a single click reaches the textarea, focusing it AND dismissing the picker
-   in one gesture (HandleInputFocus clears the picker flags). Scoped to .picker-open so the
-   [data-dragging] "Drop images here" hint (container ::after) stays above the textarea otherwise. */
-.message-input-container.picker-open .message-input {
+/* Mounted-hidden pickers: the panes live in the DOM from shortly after page load and are
+   revealed by the data-picker attribute chat.js flips on the container — opening costs
+   zero round trips. Lazy-loaded picker images don't fetch while display:none. */
+.emoji-picker-backdrop[data-picker-pane],
+.emoji-picker-container[data-picker-pane] {
+    display: none;
+}
+
+.message-input-container[data-picker="gif"] [data-picker-pane="gif"],
+.message-input-container[data-picker="emoji"] [data-picker-pane="emoji"] {
+    display: block;
+}
+
+/* While a picker is open (data-picker set by chat.js), lift the textarea above the picker
+   backdrop (z-index 999) — like .send-button — so a single click reaches the textarea,
+   focusing it AND dismissing the picker in one gesture (the focusin handler in chat.js
+   clears data-picker). Scoped to [data-picker] so the [data-dragging] "Drop images here"
+   hint (container ::after) stays above the textarea otherwise. */
+.message-input-container[data-picker] .message-input {
     position: relative;
     z-index: 1000;
 }
@@ -433,9 +448,10 @@
         display: none;
     }
 
-    /* Reclaim space for the textarea while the user is actively composing.
-       Reset back to visible after send (HandleSend clears isInputFocused). */
-    .message-input-container.input-focused .image-upload-button {
+    /* Reclaim space for the textarea while the user is actively composing. data-composing
+       is set/cleared client-side (chat.js): focusin sets it, focusout clears it, and the
+       send pipeline clears it explicitly (send keeps focus, so no focusout fires there). */
+    .message-input-container[data-composing] .image-upload-button {
         display: none;
     }
 
@@ -460,7 +476,7 @@
     }
 
     /* Push input above the fixed emoji picker so it stays visible */
-    .message-input-container.emoji-open {
+    .message-input-container[data-picker="emoji"] {
         margin-bottom: min(50vh, 400px);
     }
 }

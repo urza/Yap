@@ -126,7 +126,11 @@
 
 /* Each category section */
 .emoji-section {
-    /* No extra spacing needed — header + grid handle it */
+    /* Skip layout/paint for offscreen sections — with ~1000 cells mounted (hidden)
+       this is what keeps the grid cheap. The intrinsic-size estimate only affects
+       scrollbar accuracy until a section first renders. */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 320px;
 }
 
 /* Sticky category header */

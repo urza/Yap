@@ -1,6 +1,8 @@
 # Coding Plan: GIF Select — Instant Close + Optimistic GIF Ghost
 
-*Item 1 of the input-locality roadmap (`docs/input-locality-analysis.md`). 2026-08-06. Status: IMPLEMENTED as specified below — awaiting build + manual test (checklist at bottom).*
+*Item 1 of the input-locality roadmap (`docs/input-locality-analysis.md`). 2026-08-06. Status: DONE, user-verified in the app.*
+
+> **Superseded detail (item 2):** the close mechanism changed when pickers became always-mounted — the gif-card listener now removes the container's `data-picker` attribute (the client-owned visibility state) instead of inline-style-hiding the pane, and `HandleGifUploadError` no longer clears picker flags (they no longer exist). The ghost pipeline is unchanged. See `docs/picker-mount-client-toggle-plan.md`.
 
 ## Goal
 

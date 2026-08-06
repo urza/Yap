@@ -245,8 +245,10 @@ public partial class EmojiService
 
     public MarkupString RenderCustomEmoji(CustomEmoji emoji, string size = "18px")
     {
+        // Picker-only renderer (grid cells + sidebar tabs) — lazy so the mounted-hidden
+        // picker doesn't fetch every custom emoji at page load.
         return new MarkupString(
-            $"<img src=\"{emoji.Url}\" alt=\":{emoji.Shortcode}:\" class=\"emoji custom-emoji\" " +
+            $"<img src=\"{emoji.Url}\" loading=\"lazy\" alt=\":{emoji.Shortcode}:\" class=\"emoji custom-emoji\" " +
             $"style=\"width: {size}; height: {size}; vertical-align: -3px; display: inline-block; object-fit: contain;\" />");
     }
 

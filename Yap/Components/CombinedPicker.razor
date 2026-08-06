@@ -1,28 +1,26 @@
 @using Yap.Models
 
-<div class="combined-picker">
+@* Tab switching is client-side: chat.js flips data-active-tab on this root and CSS shows
+   the matching pane — no circuit round trip. Both pickers stay mounted so switches lose
+   no state (GIF search, scroll position), and the active tab survives close/reopen of
+   the sheet (the component itself now lives across opens). No @code state at all. *@
+<div class="combined-picker" data-active-tab="emoji">
     <div class="combined-tabs">
-        <button type="button" class="combined-tab @(activeTab == Tab.Gifs ? "active" : "")"
-                @onclick="@(() => SwitchTab(Tab.Gifs))">GIFs</button>
-        <button type="button" class="combined-tab @(activeTab == Tab.Emoji ? "active" : "")"
-                @onclick="@(() => SwitchTab(Tab.Emoji))">Emoji</button>
+        <button type="button" class="combined-tab" data-combined-tab="gifs">GIFs</button>
+        <button type="button" class="combined-tab" data-combined-tab="emoji">Emoji</button>
     </div>
     <div class="combined-body">
-        @* Both pickers stay mounted so tab switches don't dispose state (GIF search, scroll position). *@
-        <div class="combined-pane @(activeTab == Tab.Gifs ? "active" : "")">
+        <div class="combined-pane" data-combined-pane="gifs">
             <GifPicker CurrentUserId="@CurrentUserId" CurrentUsername="@CurrentUsername"
                        OnGifSelected="OnGifSelected" OnUploadError="OnUploadError" />
         </div>
-        <div class="combined-pane @(activeTab == Tab.Emoji ? "active" : "")">
+        <div class="combined-pane" data-combined-pane="emoji">
             <EmojiPicker RecentEmojis="@RecentEmojis" OnEmojiUsed="@OnEmojiUsed" TextareaId="@TextareaId" />
         </div>
     </div>
 </div>
 
 @code {
-    public enum Tab { Gifs, Emoji }
-
-    [Parameter] public Tab InitialTab { get; set; } = Tab.Emoji;
     [Parameter] public Guid CurrentUserId { get; set; }
     [Parameter] public string CurrentUsername { get; set; } = "";
     [Parameter] public EventCallback<GifAttachment> OnGifSelected { get; set; }
@@ -30,13 +28,4 @@
     [Parameter] public List<string> RecentEmojis { get; set; } = new();
     [Parameter] public Action<string>? OnEmojiUsed { get; set; }
     [Parameter] public string TextareaId { get; set; } = "";
-
-    private Tab activeTab;
-
-    protected override void OnInitialized()
-    {
-        activeTab = InitialTab;
-    }
-
-    private void SwitchTab(Tab tab) => activeTab = tab;
 }

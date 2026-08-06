@@ -301,6 +301,9 @@ const _mobileLayoutWatchers = new Map(); // id -> { mq, handler }
 window.setupMobileLayoutWatcher = (dotnetRef, id) => {
     const mq = window.matchMedia('(max-width: 600px)');
     const handler = (e) => {
+        // An open picker's pane is about to be swapped for the other layout's — close
+        // the client-owned picker state before Blazor rebuilds the pane.
+        window.closePickers();
         try { dotnetRef.invokeMethodAsync('OnMobileLayoutChanged', e.matches); }
         catch { /* circuit may be gone */ }
     };
@@ -1001,7 +1004,9 @@ const dismissActions = () => {
     clearTimeout(actionsIdleTimer);
     // Never hide the bar under an open emoji picker or ⋯ menu; the tap that
     // eventually closes them lands inside .message-group and re-arms the timer.
-    if (document.querySelector('.picker-open, .menu-open')) return;
+    // (.picker-open/.menu-open = MessageItem's reaction picker & menu; [data-picker]
+    // = the input pickers, whose open state is client-owned.)
+    if (document.querySelector('.picker-open, .menu-open, .message-input-container[data-picker]')) return;
     const messagesEl = document.querySelector('.messages');
     if (messagesEl) {
         scrollWatchActive = false;
@@ -1449,6 +1454,109 @@ window.applyTheme = (themeId) => {
 })();
 
 // =============================================================================
+// Picker visibility — client-owned view state
+// =============================================================================
+// Opening/closing the emoji & GIF pickers is pure presentation: Blazor mounts the panes
+// (hidden) shortly after page load, and visibility rides on a data-picker attribute this
+// file flips on .message-input-container — no circuit round trip. That div's CLASS is
+// Blazor-interpolated, so JS state lives in attributes Blazor never renders (the
+// data-dragging precedent). Every close rule lives here too: backdrop tap, textarea
+// focus, send (send pipeline below), GIF pick (gif-card listener), layout flip.
+
+window.closePickers = () => document.querySelectorAll('.message-input-container[data-picker]')
+    .forEach(el => el.removeAttribute('data-picker'));
+
+// A pane just became visible: let its Blazor components refresh stale-able data behind
+// the already-open UI (emoji recents, GIF recents + first-open trending), and nudge the
+// emoji scroll-highlight, whose init ran inside display:none where every offsetTop was 0.
+const notifyPickerOpened = (container, which) => {
+    const pane = container.querySelector(`.emoji-picker-container[data-picker-pane="${which}"]`);
+    if (!pane) {
+        // The tap beat the ~1.2s background mount. Ask Blazor to mount now — the pane
+        // arrives already-open (the attribute is set) and registerPickerOpenHook fires
+        // the open hook once the components exist.
+        container._pickerHostRef?.invokeMethodAsync('EnsurePickersMounted').catch(() => { });
+        return;
+    }
+    pane.querySelectorAll('.emoji-picker, .gif-picker').forEach(p =>
+        p._openRef?.invokeMethodAsync('OnPickerOpened').catch(() => { }));
+    pane.querySelectorAll('.emoji-content').forEach(c => c.dispatchEvent(new Event('scroll')));
+};
+
+document.addEventListener('click', (e) => {
+    // GIF / emoji toggle buttons
+    const toggle = e.target.closest('[data-picker-toggle]');
+    if (toggle) {
+        const container = toggle.closest('.message-input-container');
+        if (!container) return;
+        const which = toggle.dataset.pickerToggle;
+        if (container.dataset.picker === which) {
+            container.removeAttribute('data-picker');
+        } else {
+            container.dataset.picker = which; // single-valued: also swaps picker→picker directly
+            notifyPickerOpened(container, which);
+        }
+        return;
+    }
+
+    // Backdrop tap closes
+    if (e.target.classList.contains('emoji-picker-backdrop')) {
+        window.closePickers();
+        return;
+    }
+
+    // CombinedPicker (mobile) tabs: both panes stay mounted — switching is a local flip
+    const tab = e.target.closest('[data-combined-tab]');
+    if (tab) tab.closest('.combined-picker')?.setAttribute('data-active-tab', tab.dataset.combinedTab);
+});
+
+// Focusing the message box closes any open picker (one-gesture dismiss — the textarea
+// sits above the backdrop, see [data-picker] .message-input) and marks composing state
+// (mobile CSS trades the upload button for textarea width). focusin/focusout bubble,
+// focus/blur don't. The send pipeline clears data-composing explicitly: the send
+// button's mousedown-preventDefault keeps focus, so no focusout fires on send.
+document.addEventListener('focusin', (e) => {
+    if (!e.target.classList?.contains('message-input')) return;
+    window.closePickers();
+    e.target.closest('.message-input-container')?.setAttribute('data-composing', '');
+});
+document.addEventListener('focusout', (e) => {
+    if (!e.target.classList?.contains('message-input')) return;
+    e.target.closest('.message-input-container')?.removeAttribute('data-composing');
+});
+
+// Blazor refs for client-owned picker state: the MessageInput host (EnsurePickersMounted,
+// for taps that beat the background mount) and each picker component (OnPickerOpened,
+// refresh-on-open), stashed on their DOM elements — same pattern as _emojiDotNetRef.
+window.registerPickerHost = (containerElement, dotNetRef) => {
+    if (containerElement) containerElement._pickerHostRef = dotNetRef;
+};
+
+window.registerPickerOpenHook = (el, dotNetRef) => {
+    if (!el) return;
+    el._openRef = dotNetRef;
+    // If this pane is already open (the user's tap beat the background mount), the
+    // toggle-time notification found no components — fire the hook now they exist.
+    const pane = el.closest('[data-picker-pane]');
+    const container = el.closest('.message-input-container');
+    if (pane && container && container.dataset.picker === pane.dataset.pickerPane) {
+        dotNetRef.invokeMethodAsync('OnPickerOpened').catch(() => { });
+        el.querySelector('.emoji-content')?.dispatchEvent(new Event('scroll'));
+    }
+};
+
+// Instant category jump inside the emoji picker: scroll client-side in the tap's own
+// frame. The Blazor @onclick still runs — it clears an active search and re-scrolls
+// (idempotent) once the round trip lands.
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.emoji-picker .category-btn[data-category]');
+    if (!btn) return;
+    const content = btn.closest('.emoji-picker')?.querySelector('.emoji-content');
+    content?.querySelector(`.emoji-section[data-section="${btn.dataset.category}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}, true);
+
+// =============================================================================
 // Client send pipeline + latency telemetry
 // =============================================================================
 // RTT probe: times a no-op circuit call with performance.now(). Deliberately measures the FULL
@@ -1493,8 +1601,15 @@ window.setupLatencyProbe = (dotNetRef, username) => {
 document.addEventListener('click', (e) => {
     const btn = e.target.closest('.send-button');
     if (!btn) return;
-    const textarea = btn.closest('.message-input-container')?.querySelector('.message-input');
+    const container = btn.closest('.message-input-container');
+    const textarea = container?.querySelector('.message-input');
     if (!textarea || !textarea.value.trim()) return;
+
+    // Sending closes an open picker and ends "composing" (client-owned state; the old
+    // server-side HandleSend flags are gone). Explicit here because the send button's
+    // mousedown-preventDefault keeps focus on the textarea — no focusout will fire.
+    container.removeAttribute('data-picker');
+    container.removeAttribute('data-composing');
 
     if (telemetryRef) {
         sendMark = performance.now();
@@ -1566,13 +1681,11 @@ window.clearPendingEchoes = () => {
     document.querySelectorAll('.pending-echoes .pending-message').forEach(g => g.remove());
 };
 
-// GIF-select instant feedback: tapping a picker card hides the picker at once and
-// shows an optimistic ghost of the chosen GIF; the real message (and the server-side
-// picker close) arrive one round trip later. Capture phase, installed at script load —
-// same rationale as the send-button listener above. Blazor's @onclick still fires:
-// display:none doesn't stop event propagation. Inline style (not a class) because the
-// incoming render batch removes these exact nodes (showGifPicker=false), so the style
-// dies with them and the next open renders fresh visible nodes — nothing to clean up.
+// GIF-select instant feedback: tapping a picker card closes the picker at once and
+// shows an optimistic ghost of the chosen GIF; the real message arrives one round trip
+// later. Capture phase, installed at script load — same rationale as the send-button
+// listener above. Blazor's @onclick still fires: the close is just an attribute flip
+// (the mounted pane goes display:none) and the event keeps propagating.
 document.addEventListener('click', (e) => {
     const card = e.target.closest('.gif-picker .gif-card');
     if (!card) return;
@@ -1580,13 +1693,8 @@ document.addEventListener('click', (e) => {
     // (Its Blazor stopPropagation is bubble-phase; this capture listener runs first.)
     if (e.target.closest('.gif-fav-btn')) return;
 
-    // Hide the picker container + its backdrop (on mobile this is the CombinedPicker sheet).
-    const wrap = card.closest('.emoji-picker-container');
-    if (wrap) {
-        wrap.style.display = 'none';
-        const backdrop = wrap.parentElement?.querySelector(':scope > .emoji-picker-backdrop');
-        if (backdrop) backdrop.style.display = 'none';
-    }
+    // Close instantly — the same client-owned data-picker state the toggle buttons flip.
+    card.closest('.message-input-container')?.removeAttribute('data-picker');
 
     // Ghost built from the preview the user actually saw — it's in the browser cache,
     // so it paints instantly. createElement + property assignment only (XSS-safe).

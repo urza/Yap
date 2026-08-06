@@ -170,11 +170,20 @@
 
     private bool IsClientInsertionMode => !string.IsNullOrEmpty(TextareaId);
 
+    // Set by OnPickerOpened: the always-mounted picker needs one re-render per open.
+    private bool _openRefreshPending;
+
     protected override bool ShouldRender()
     {
         if (!_hasRenderedOnce)
         {
             _hasRenderedOnce = true;
+            _lastRenderedSearchText = searchText;
+            return true;
+        }
+        if (_openRefreshPending)
+        {
+            _openRefreshPending = false;
             _lastRenderedSearchText = searchText;
             return true;
         }
@@ -184,6 +193,24 @@
             return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// Called from chat.js each time the mounted-hidden picker becomes visible (input-mode
+    /// only — reaction-mode instances mount fresh per open and never receive this). The
+    /// component now lives across many opens, so per-open state refreshes here instead of
+    /// OnInitialized: recents re-freeze Discord-style (updated between opens, never
+    /// shifting under the user's fingers mid-open) and a leftover search is cleared.
+    /// RecentEmojis stays live because ChatBase mutates the same list instance in place.
+    /// </summary>
+    [JSInvokable]
+    public async Task OnPickerOpened()
+    {
+        frozenRecents = new List<string>(RecentEmojis);
+        searchText = "";
+        _openRefreshPending = true;
+        try { await InvokeAsync(StateHasChanged); }
+        catch { /* circuit may be dead */ }
     }
 
     protected override void OnInitialized()
@@ -208,6 +235,14 @@
             {
                 _dotNetRef = DotNetObjectReference.Create(this);
                 await JS.InvokeVoidAsync("setupEmojiPickerClick", TextareaId, _dotNetRef);
+            }
+            catch { /* Ignore JS errors */ }
+
+            // Refresh-on-open hook for the always-mounted input picker (chat.js ignores
+            // reaction-mode instances — they don't sit inside a data-picker-pane).
+            try
+            {
+                await JS.InvokeVoidAsync("registerPickerOpenHook", pickerElement, _dotNetRef);
             }
             catch { /* Ignore JS errors */ }
         }
