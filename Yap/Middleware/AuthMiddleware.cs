@@ -1,3 +1,4 @@
+using Yap.Helpers;
 using Yap.Models;
 using Yap.Services;
 
@@ -38,6 +39,23 @@ public class AuthMiddleware
                 // intentionally NOT loaded — they're auto-detected per device.)
                 userState.DateFormat = user.DateFormat;
                 userState.Status = UserStatus.Online;
+
+                // Re-issue the cookie on plain document loads. This silently upgrades
+                // cookies minted before the SameSite=Lax change below (a Strict cookie
+                // is withheld on installed-PWA launch navigations, so those users landed
+                // on the login page and re-registered under new names) and slides the
+                // one-year expiry for active users. /auth/* is excluded so signin/signout
+                // stay the only cookie writers on their own responses.
+                if (HttpMethods.IsGet(context.Request.Method)
+                    && !context.Request.Path.StartsWithSegments("/auth")
+                    && context.Request.Headers.Accept.ToString().Contains("text/html"))
+                {
+                    SetAuthCookie(context, token);
+
+                    // Also refresh smart-login's IP memory here: long-lived cookie sessions
+                    // never re-login, so page loads are where their current network shows up.
+                    userService.RecordKnownIp(user.Id, IpHelper.GetClientIp(context));
+                }
             }
         }
 
@@ -53,7 +71,12 @@ public class AuthMiddleware
         {
             HttpOnly = true,
             Secure = true,
-            SameSite = SameSiteMode.Strict,
+            // Lax, not Strict: launching an installed PWA or tapping a push notification
+            // is an app-initiated navigation, and browsers withhold Strict cookies from
+            // those — every PWA launch looked signed-out (prod incident: one user made
+            // seven accounts). Lax still keeps the cookie off cross-site POSTs and
+            // subresource requests, which is the CSRF protection that matters here.
+            SameSite = SameSiteMode.Lax,
             MaxAge = TimeSpan.FromDays(365), // Long-lived for "remember me" behavior
             Path = "/"
         });
@@ -68,7 +91,7 @@ public class AuthMiddleware
         {
             HttpOnly = true,
             Secure = true,
-            SameSite = SameSiteMode.Strict,
+            SameSite = SameSiteMode.Lax, // keep in lockstep with SetAuthCookie
             Path = "/"
         });
     }

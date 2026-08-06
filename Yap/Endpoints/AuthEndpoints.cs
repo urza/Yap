@@ -94,12 +94,16 @@ public static class AuthEndpoints
                 if (registrationGate.SmartMode && !existingUser.SmartLoginOptOut)
                 {
                     var chatService = context.RequestServices.GetRequiredService<ChatService>();
-                    if (chatService.HasActiveSessionFromIp(username, ip))
+                    // Live session OR an IP this user was recently seen from (persisted,
+                    // 14-day TTL) — the latter keeps smart login working across server
+                    // restarts and closed browsers. Logged distinctly for auditability.
+                    var liveMatch = chatService.HasActiveSessionFromIp(username, ip);
+                    if (liveMatch || userService.HasRecentKnownIp(username, ip))
                     {
                         user = existingUser;
                         newDeviceMethod = "smart";
                         actionLog.Log(user.Id.ToString(), UserActionLog.KnownActions.SMART_LOGIN,
-                            info: username, ip: ip ?? "unknown");
+                            info: liveMatch ? username : $"known_ip:{username}", ip: ip ?? "unknown");
                     }
                     else
                     {
@@ -143,6 +147,9 @@ public static class AuthEndpoints
         }
 
         AuthMiddleware.SetAuthCookie(context, user.Token);
+
+        // Remember this IP so smart login recognizes the user's networks (14-day window)
+        userService.RecordKnownIp(user.Id, ip);
 
         actionLog.Log(user.Id.ToString(), UserActionLog.KnownActions.LOGIN, info: username, ip: ip ?? "unknown", userAgent: ua);
 

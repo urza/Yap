@@ -112,7 +112,12 @@ public class UserService
 
         var user = new User(username, token)
         {
-            IsAdmin = isAdmin
+            IsAdmin = isAdmin,
+            // Every account is born with a secret code. Without one, a user whose next
+            // context started signed out (installed PWA, second browser) had no way back
+            // into their account and would register a fresh name instead — one real user
+            // forked into seven accounts that way. The welcome DM shows them the code.
+            Password = GeneratePassphrase()
         };
 
         // Atomic uniqueness check — TryAdd returns false if username already exists
@@ -605,6 +610,79 @@ public class UserService
         return _users.TryGetValue(userId, out var user) ? user.Password : null;
     }
 
+    #region Smart Login Known IPs
+
+    // Smart login's IP memory. Exact-string matches only — never prefixes: CGNAT pools
+    // are shared with thousands of strangers, and a /24-wide match would let them log in
+    // as each other. The TTL bounds how long a recycled IP + username grants passwordless
+    // entry; the SmartMode and per-user SmartLoginOptOut gates still apply at call sites.
+    private static readonly TimeSpan KnownIpTtl = TimeSpan.FromDays(14);
+    private static readonly TimeSpan KnownIpRefreshThrottle = TimeSpan.FromHours(1);
+    private const int MaxKnownIps = 5;
+
+    private sealed record KnownIpEntry(string Ip, DateTime LastSeenUtc);
+
+    /// <summary>
+    /// Records that this user was seen from an IP (login, authenticated page load).
+    /// In-memory only; the DB write batches with the dirty-user flush. Throttled so
+    /// routine page loads from an already-known IP don't churn the dirty set.
+    /// </summary>
+    public void RecordKnownIp(Guid userId, string? ip)
+    {
+        if (string.IsNullOrEmpty(ip) || !_users.TryGetValue(userId, out var user))
+            return;
+
+        var entries = ParseKnownIps(user.KnownIps);
+
+        var existing = entries.FirstOrDefault(e => string.Equals(e.Ip, ip, StringComparison.Ordinal));
+        if (existing != null && DateTime.UtcNow - existing.LastSeenUtc < KnownIpRefreshThrottle)
+            return;
+
+        entries.RemoveAll(e => string.Equals(e.Ip, ip, StringComparison.Ordinal));
+        entries.Insert(0, new KnownIpEntry(ip, DateTime.UtcNow));
+        if (entries.Count > MaxKnownIps)
+            entries.RemoveRange(MaxKnownIps, entries.Count - MaxKnownIps);
+
+        user.KnownIps = System.Text.Json.JsonSerializer.Serialize(entries);
+        _dirtyEmojiUsers.TryAdd(userId, 0);
+    }
+
+    /// <summary>
+    /// Smart login: was this user seen from this exact IP within the TTL? Complements
+    /// ChatService.HasActiveSessionFromIp so smart login keeps working after restarts
+    /// and closed sessions instead of requiring a circuit to still be alive.
+    /// </summary>
+    public bool HasRecentKnownIp(string username, string? ip)
+    {
+        if (string.IsNullOrEmpty(ip))
+            return false;
+
+        var user = GetByUsername(username);
+        if (user == null)
+            return false;
+
+        return ParseKnownIps(user.KnownIps).Any(e =>
+            string.Equals(e.Ip, ip, StringComparison.Ordinal) &&
+            DateTime.UtcNow - e.LastSeenUtc <= KnownIpTtl);
+    }
+
+    private static List<KnownIpEntry> ParseKnownIps(string? json)
+    {
+        if (string.IsNullOrEmpty(json))
+            return [];
+
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<List<KnownIpEntry>>(json) ?? [];
+        }
+        catch
+        {
+            return []; // corrupt blob — start fresh rather than break logins
+        }
+    }
+
+    #endregion
+
     /// <summary>
     /// Generates a random passphrase in "color animal NN" format.
     /// </summary>
@@ -835,7 +913,8 @@ public class UserService
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(u => u.RecentEmojis, user.RecentEmojis)
                         .SetProperty(u => u.EmojiCounts, user.EmojiCounts)
-                        .SetProperty(u => u.RecentGifs, user.RecentGifs));
+                        .SetProperty(u => u.RecentGifs, user.RecentGifs)
+                        .SetProperty(u => u.KnownIps, user.KnownIps));
             }
         }
         catch (Exception ex)

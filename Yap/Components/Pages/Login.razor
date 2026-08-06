@@ -8,6 +8,7 @@
 @inject IHttpContextAccessor HttpContextAccessor
 @inject UserActionLogService ActionLog
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 @implements IDisposable
 
 <PageTitle>@ChatConfig.ProjectName</PageTitle>
@@ -64,13 +65,24 @@
             @if (_showMultiDeviceGuide)
             {
                 <div class="multidevice-guide">
-                    <strong>Almost there!</strong> To log in as <strong>@usernameInput</strong> on this device:
-                    <ol>
-                        <li>Open the app on your original device</li>
-                        <li>Go to <strong>Settings</strong></li>
-                        <li>Under <strong>Multi-Device Login</strong>, tap <strong>Enable Secret Code</strong></li>
-                        <li>Come back here and try again</li>
-                    </ol>
+                    @if (_isStandalone)
+                    {
+                        <strong>Almost there!</strong> <span>This installed app starts signed out — your login for <strong>@usernameInput</strong> stayed in the browser you joined from.</span>
+                        <ol>
+                            <li>Open <strong>@ChatConfig.ProjectName</strong> in your browser — you should still be logged in there</li>
+                            <li>In <strong>Settings → Multi-Device Login</strong>, grab your <strong>Secret Code</strong> (enable it if there isn't one)</li>
+                            <li>Come back here and try again</li>
+                        </ol>
+                    }
+                    else
+                    {
+                        <strong>Almost there!</strong> <span>To log in as <strong>@usernameInput</strong> on this device:</span>
+                        <ol>
+                            <li>Open the app on the device where you're already logged in</li>
+                            <li>In <strong>Settings → Multi-Device Login</strong>, grab your <strong>Secret Code</strong> (enable it if there isn't one)</li>
+                            <li>Come back here and try again</li>
+                        </ol>
+                    }
                     <button type="button" @onclick="RetryMultiDevice" class="retry-link">Done, try again</button>
                 </div>
             }
@@ -108,6 +120,7 @@
     private bool _showMultiDeviceGuide = false;
     private bool _wasRejected = false;
     private bool _willCreateNewAccount = false;
+    private bool _isStandalone = false;
 
     private Timer? _pollTimer;
     private string? _clientIp;
@@ -187,6 +200,24 @@
         {
             var destination = SafeReturnUrl ?? "/lobby";
             Navigation.NavigateTo(destination);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        try
+        {
+            // Standalone = running as the installed app. Its cookie jar can start empty,
+            // so the multi-device guide must not send these users to an "original device"
+            // — this IS that device; the login they're missing lives in the browser
+            // sitting right next to this app.
+            _isStandalone = await JS.InvokeAsync<bool>("isPwaInstalled");
+        }
+        catch (Exception)
+        {
+            // Cosmetic only — fall back to the generic guide wording
         }
     }
 
@@ -280,7 +311,9 @@
             if (targetUser != null && !targetUser.SmartLoginOptOut)
             {
                 var clientIp = HttpContextAccessor.HttpContext?.Items["ClientIp"]?.ToString();
-                if (ChatService.HasActiveSessionFromIp(usernameInput, clientIp))
+                // Live session OR recently-seen IP (persisted, 14-day TTL) — mirrors HandleSignIn
+                if (ChatService.HasActiveSessionFromIp(usernameInput, clientIp)
+                    || UserService.HasRecentKnownIp(usernameInput, clientIp))
                 {
                     _smartModeMatch = true;
                     return;

@@ -102,6 +102,14 @@ public class User
     public bool SmartLoginOptOut { get; set; }
 
     /// <summary>
+    /// JSON-serialized list of {Ip, LastSeenUtc} this user was recently seen from
+    /// (newest first, max 5). Smart login accepts an exact match within a 14-day TTL,
+    /// so "log in from a network you've used recently" survives server restarts and
+    /// closed browsers instead of depending on a live circuit.
+    /// </summary>
+    public string? KnownIps { get; set; }
+
+    /// <summary>
     /// JSON-serialized List&lt;string&gt; of recently used emojis (most recent first, max 20).
     /// </summary>
     public string? RecentEmojis { get; set; }

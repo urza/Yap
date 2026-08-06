@@ -308,12 +308,24 @@ public class SystemBotService
 
         var channel = _chatService.GetOrCreateDMChannel(_botUserId, _botUsername, user.Id, user.Username);
 
-        // Build welcome message: base message + PWA install line for mobile users
+        // Build welcome message: base message + PWA install line for mobile users + secret code
         var message = string.Format(WelcomeMessage, ProjectName);
 
         if (_chatService.IsUserMobile(user.Username))
         {
             message += "\n\n📱 I noticed you're on a phone. It's a much better experience if you [pwa-install] to your homescreen — it will look and feel like a normal app. Please also allow notifications when prompted so you don't miss messages. You can change this anytime in Settings.";
+        }
+
+        // Their secret code, born with the account (UserService.CreateUserAsync). This DM
+        // is the one place they can always find it again: when a fresh context greets them
+        // with the login page (installed app, new browser, new device), the code is the way
+        // back into THIS account instead of registering a doppelgänger.
+        if (user.Password != null)
+        {
+            message += $"\n\n🔑 One more thing — your secret code is: {user.Password}\n" +
+                       "If you ever see the login screen again (new device, new browser, reinstalled app), " +
+                       "enter your username and this code to get back into your account. " +
+                       "You can view or change it anytime in Settings.";
         }
 
         await _chatService.SendMessageAsync(channel.Id, _botUserId, _botUsername, message);
