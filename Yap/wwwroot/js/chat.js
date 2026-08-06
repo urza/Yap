@@ -846,6 +846,7 @@ window.initEmojiPickerScroll = (contentElement) => {
 
         // Find the section whose top is at or above the container's scroll position
         for (const section of sections) {
+            if (section.offsetParent === null) continue; // hidden by an active search filter
             if (section.offsetTop <= contentElement.scrollTop + 8) {
                 activeKey = section.getAttribute('data-section');
             }
@@ -1017,16 +1018,6 @@ window.setupCaretTracking = (textareaId) => {
     }
     textarea._emojiCaretHandler = () => { textarea._emojiCaret = textarea.selectionStart; };
     textarea.addEventListener('blur', textarea._emojiCaretHandler);
-};
-
-// Smooth-scroll emoji picker content to a specific category section.
-window.scrollEmojiPickerToSection = (contentElement, categoryKey) => {
-    if (!contentElement) return;
-
-    const section = contentElement.querySelector(`.emoji-section[data-section="${categoryKey}"]`);
-    if (section) {
-        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
 };
 
 // ==========================================
@@ -1509,6 +1500,45 @@ window.applyTheme = (themeId) => {
 window.closePickers = () => document.querySelectorAll('.message-input-container[data-picker]')
     .forEach(el => el.removeAttribute('data-picker'));
 
+// Emoji search is fully client-side: filter the mounted grid in place against each
+// cell's data-kw (rendered lowercase by EmojiPicker). Cells and emptied sections hide
+// via JS-set attributes that Blazor never renders — re-renders can't clobber them.
+// Delegated events, so the input picker and reaction-mode pickers behave identically.
+const filterEmojiPicker = (picker, rawQuery) => {
+    const q = (rawQuery || '').trim().toLowerCase();
+    const content = picker?.querySelector('.emoji-content');
+    if (!content) return;
+    let total = 0;
+    content.querySelectorAll('.emoji-section').forEach(section => {
+        let hits = 0;
+        section.querySelectorAll('.emoji-btn[data-emoji]').forEach(btn => {
+            const hit = !q || (btn.dataset.kw || '').includes(q);
+            btn.toggleAttribute('data-search-miss', !hit);
+            if (hit) hits++;
+        });
+        section.toggleAttribute('data-search-empty', hits === 0);
+        total += hits;
+    });
+    picker.querySelector('.emoji-search-empty')?.toggleAttribute('hidden', !q || total > 0);
+    if (q) content.scrollTop = 0;             // surface the first matches, like the old results list
+    content.dispatchEvent(new Event('scroll')); // re-sync the sidebar highlight to the new layout
+};
+
+// Clear a picker's search box + filter state (root may be the .emoji-picker itself or
+// any ancestor). Used by the ✕ button, category jumps, and the reopen reset.
+const resetEmojiSearchIn = (root) => {
+    const pickers = root.matches?.('.emoji-picker') ? [root] : root.querySelectorAll('.emoji-picker');
+    pickers.forEach(p => {
+        const input = p.querySelector('.emoji-search input');
+        if (input && input.value) { input.value = ''; filterEmojiPicker(p, ''); }
+    });
+};
+
+document.addEventListener('input', (e) => {
+    if (!e.target.matches?.('.emoji-picker .emoji-search input')) return;
+    filterEmojiPicker(e.target.closest('.emoji-picker'), e.target.value);
+});
+
 // A pane just became visible: let its Blazor components refresh stale-able data behind
 // the already-open UI (emoji recents, GIF recents + first-open trending), and nudge the
 // emoji scroll-highlight, whose init ran inside display:none where every offsetTop was 0.
@@ -1523,6 +1553,7 @@ const notifyPickerOpened = (container, which) => {
     }
     pane.querySelectorAll('.emoji-picker, .gif-picker').forEach(p =>
         p._openRef?.invokeMethodAsync('OnPickerOpened').catch(() => { }));
+    resetEmojiSearchIn(pane); // a leftover query from the previous open would hide the grid
     pane.querySelectorAll('.emoji-content').forEach(c => c.dispatchEvent(new Event('scroll')));
 };
 
@@ -1545,6 +1576,14 @@ document.addEventListener('click', (e) => {
     // Backdrop tap closes
     if (e.target.classList.contains('emoji-picker-backdrop')) {
         window.closePickers();
+        return;
+    }
+
+    // Emoji search ✕ — clear the query and re-filter, all local
+    const searchClear = e.target.closest('.emoji-search-clear');
+    if (searchClear) {
+        const picker = searchClear.closest('.emoji-picker');
+        if (picker) resetEmojiSearchIn(picker);
         return;
     }
 
@@ -1584,18 +1623,21 @@ window.registerPickerOpenHook = (el, dotNetRef) => {
     const container = el.closest('.message-input-container');
     if (pane && container && container.dataset.picker === pane.dataset.pickerPane) {
         dotNetRef.invokeMethodAsync('OnPickerOpened').catch(() => { });
+        resetEmojiSearchIn(el);
         el.querySelector('.emoji-content')?.dispatchEvent(new Event('scroll'));
     }
 };
 
-// Instant category jump inside the emoji picker: scroll client-side in the tap's own
-// frame. The Blazor @onclick still runs — it clears an active search and re-scrolls
-// (idempotent) once the round trip lands.
+// Category jump inside the emoji picker — fully client-side (the sidebar buttons carry
+// no Blazor handlers): clear any active search first (it hides sections, so the jump
+// would have no target), then scroll the section into view.
 document.addEventListener('click', (e) => {
     const btn = e.target.closest('.emoji-picker .category-btn[data-category]');
     if (!btn) return;
-    const content = btn.closest('.emoji-picker')?.querySelector('.emoji-content');
-    content?.querySelector(`.emoji-section[data-section="${btn.dataset.category}"]`)
+    const picker = btn.closest('.emoji-picker');
+    resetEmojiSearchIn(picker);
+    picker.querySelector('.emoji-content')
+        ?.querySelector(`.emoji-section[data-section="${btn.dataset.category}"]`)
         ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }, true);
 

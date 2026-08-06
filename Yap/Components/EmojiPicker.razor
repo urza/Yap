@@ -6,26 +6,21 @@
 
 <div class="emoji-picker" data-textarea-id="@TextareaId" @ref="pickerElement">
     <div class="emoji-sidebar">
-        @* Recent tab *@
-        <button class="category-btn" data-category="recent"
-                @onclick="() => ScrollToCategory(RecentCategory)"
-                title="Recent">
+        @* Category jumps are client-side (chat.js): the tap clears any active search and
+           scrolls the section into view — no Blazor handlers, no round trips. *@
+        <button class="category-btn" data-category="recent" title="Recent">
             @EmojiService.GetEmojiHtml("🕐")
         </button>
         @* One tab per image-emoji pack: server customs first, then built-in packs *@
         @foreach (var pack in CustomEmojiService.Packs)
         {
-            <button class="category-btn" data-category="@pack.Key"
-                    @onclick="() => ScrollToCategory(pack.Key)"
-                    title="@pack.DisplayName">
+            <button class="category-btn" data-category="@pack.Key" title="@pack.DisplayName">
                 @EmojiService.RenderCustomEmoji(pack.Emojis[0])
             </button>
         }
         @foreach (var category in EmojiData.Categories)
         {
-            <button class="category-btn" data-category="@category.Key"
-                    @onclick="() => ScrollToCategory(category.Key)"
-                    title="@CapitalizeFirst(category.Key)">
+            <button class="category-btn" data-category="@category.Key" title="@CapitalizeFirst(category.Key)">
                 @EmojiService.GetEmojiHtml(category.Value.Icon)
             </button>
         }
@@ -33,116 +28,82 @@
 
     <div class="emoji-content" @ref="contentElement">
         <div class="emoji-search">
-            <input type="text" @bind="searchText" @bind:event="oninput" placeholder="Search emojis..." />
-            @if (!string.IsNullOrEmpty(searchText))
-            {
-                <button class="emoji-search-clear" @onclick="ClearSearch" title="Clear search">✕</button>
-            }
+            @* Search is fully client-side: chat.js (filterEmojiPicker) filters the mounted
+               grid in place against each cell's data-kw — zero round trips, results appear
+               grouped under their section headers. The ✕ is CSS-hidden while the box is
+               empty (:placeholder-shown — the placeholder must never be empty) and JS
+               clears + re-filters on click. *@
+            <input type="text" placeholder="Search emojis..." />
+            <button class="emoji-search-clear" title="Clear search">✕</button>
+        </div>
+        <div class="emoji-empty emoji-search-empty" hidden>No emojis found</div>
+
+        @* Recent section *@
+        <div class="emoji-section" data-section="recent">
+            <div class="section-header">Recent</div>
+            <div class="emoji-grid">
+                @if (frozenRecents.Count > 0)
+                {
+                    @foreach (var emoji in frozenRecents)
+                    {
+                        var e = emoji;
+                        <button class="emoji-btn" data-emoji="@e" data-kw="@GetKeywords(e)" @attributes="GetClickAttributes(e)">
+                            @if (IsCustomEmojiString(e))
+                            {
+                                var ce = GetCustomEmojiFromString(e);
+                                if (ce != null)
+                                {
+                                    @EmojiService.RenderCustomEmoji(ce)
+                                }
+                                else
+                                {
+                                    @e
+                                }
+                            }
+                            else
+                            {
+                                @EmojiService.GetEmojiHtml(e)
+                            }
+                        </button>
+                    }
+                }
+                else
+                {
+                    <div class="emoji-empty">No recent emojis yet</div>
+                }
+            </div>
         </div>
 
-        @if (!string.IsNullOrEmpty(searchText))
+        @* Image-emoji sections, one per pack *@
+        @foreach (var pack in CustomEmojiService.Packs)
         {
-            var results = GetSearchResults();
-            @if (results.Count > 0)
-            {
-                <div class="emoji-section">
-                    <div class="section-header">Search Results</div>
-                    <div class="emoji-grid">
-                        @foreach (var result in results)
-                        {
-                            var e = result;
-                            <button class="emoji-btn" data-emoji="@e" @attributes="GetClickAttributes(e)">
-                                @if (IsCustomEmojiString(e))
-                                {
-                                    var ce = GetCustomEmojiFromString(e);
-                                    if (ce != null)
-                                    {
-                                        @EmojiService.RenderCustomEmoji(ce, "22px")
-                                    }
-                                }
-                                else
-                                {
-                                    @EmojiService.GetEmojiHtml(e)
-                                }
-                            </button>
-                        }
-                    </div>
-                </div>
-            }
-            else
-            {
-                <div class="emoji-empty">No emojis found</div>
-            }
-        }
-        else
-        {
-            @* Recent section *@
-            <div class="emoji-section" data-section="recent">
-                <div class="section-header">Recent</div>
+            <div class="emoji-section" data-section="@pack.Key">
+                <div class="section-header">@pack.DisplayName</div>
                 <div class="emoji-grid">
-                    @if (frozenRecents.Count > 0)
+                    @foreach (var emoji in pack.Emojis)
                     {
-                        @foreach (var emoji in frozenRecents)
-                        {
-                            var e = emoji;
-                            <button class="emoji-btn" data-emoji="@e" @attributes="GetClickAttributes(e)">
-                                @if (IsCustomEmojiString(e))
-                                {
-                                    var ce = GetCustomEmojiFromString(e);
-                                    if (ce != null)
-                                    {
-                                        @EmojiService.RenderCustomEmoji(ce)
-                                    }
-                                    else
-                                    {
-                                        @e
-                                    }
-                                }
-                                else
-                                {
-                                    @EmojiService.GetEmojiHtml(e)
-                                }
-                            </button>
-                        }
-                    }
-                    else
-                    {
-                        <div class="emoji-empty">No recent emojis yet</div>
+                        var shortcode = $":{emoji.Shortcode}:";
+                        <button class="emoji-btn" data-emoji="@shortcode" data-kw="@GetKeywords(shortcode)" @attributes="GetClickAttributes(shortcode)" title="@shortcode">
+                            @EmojiService.RenderCustomEmoji(emoji, "22px")
+                        </button>
                     }
                 </div>
             </div>
+        }
 
-            @* Image-emoji sections, one per pack *@
-            @foreach (var pack in CustomEmojiService.Packs)
-            {
-                <div class="emoji-section" data-section="@pack.Key">
-                    <div class="section-header">@pack.DisplayName</div>
-                    <div class="emoji-grid">
-                        @foreach (var emoji in pack.Emojis)
-                        {
-                            var shortcode = $":{emoji.Shortcode}:";
-                            <button class="emoji-btn" data-emoji="@shortcode" @attributes="GetClickAttributes(shortcode)" title="@shortcode">
-                                @EmojiService.RenderCustomEmoji(emoji, "22px")
-                            </button>
-                        }
-                    </div>
+        @* Standard categories *@
+        @foreach (var category in EmojiData.Categories)
+        {
+            <div class="emoji-section" data-section="@category.Key">
+                <div class="section-header">@CapitalizeFirst(category.Key)</div>
+                <div class="emoji-grid">
+                    @foreach (var emoji in category.Value.Emojis)
+                    {
+                        var e = emoji;
+                        <button class="emoji-btn" data-emoji="@e" data-kw="@GetKeywords(e)" @attributes="GetClickAttributes(e)">@EmojiService.GetEmojiHtml(e)</button>
+                    }
                 </div>
-            }
-
-            @* Standard categories *@
-            @foreach (var category in EmojiData.Categories)
-            {
-                <div class="emoji-section" data-section="@category.Key">
-                    <div class="section-header">@CapitalizeFirst(category.Key)</div>
-                    <div class="emoji-grid">
-                        @foreach (var emoji in category.Value.Emojis)
-                        {
-                            var e = emoji;
-                            <button class="emoji-btn" data-emoji="@e" @attributes="GetClickAttributes(e)">@EmojiService.GetEmojiHtml(e)</button>
-                        }
-                    </div>
-                </div>
-            }
+            </div>
         }
     </div>
 </div>
@@ -153,43 +114,34 @@
     [Parameter] public Action<string>? OnEmojiUsed { get; set; }
     [Parameter] public string TextareaId { get; set; } = "";
 
-    private const string RecentCategory = "recent";
     private ElementReference pickerElement;
     private ElementReference contentElement;
     private IJSObjectReference? scrollTracker;
     private DotNetObjectReference<EmojiPicker>? _dotNetRef;
-    private string searchText = "";
 
     // Snapshot of recents taken on init — won't shift under the user's fingers
     private List<string> frozenRecents = new();
 
-    // Re-render only when our own search state changes. Skips the cascade
-    // of zero-change diffs when parents re-render (e.g., MessageInput on @bind:after).
     private bool _hasRenderedOnce;
-    private string _lastRenderedSearchText = "";
-
-    private bool IsClientInsertionMode => !string.IsNullOrEmpty(TextareaId);
 
     // Set by OnPickerOpened: the always-mounted picker needs one re-render per open.
     private bool _openRefreshPending;
 
+    private bool IsClientInsertionMode => !string.IsNullOrEmpty(TextareaId);
+
+    // Renders are rare by design: the grid is static after mount — only the first render
+    // and the per-open recents refresh re-diff it. Search, category jumps and insertion
+    // are all client-side (chat.js), so parent cascades have nothing to update here.
     protected override bool ShouldRender()
     {
         if (!_hasRenderedOnce)
         {
             _hasRenderedOnce = true;
-            _lastRenderedSearchText = searchText;
             return true;
         }
         if (_openRefreshPending)
         {
             _openRefreshPending = false;
-            _lastRenderedSearchText = searchText;
-            return true;
-        }
-        if (searchText != _lastRenderedSearchText)
-        {
-            _lastRenderedSearchText = searchText;
             return true;
         }
         return false;
@@ -198,16 +150,15 @@
     /// <summary>
     /// Called from chat.js each time the mounted-hidden picker becomes visible (input-mode
     /// only — reaction-mode instances mount fresh per open and never receive this). The
-    /// component now lives across many opens, so per-open state refreshes here instead of
+    /// component lives across many opens, so per-open state refreshes here instead of
     /// OnInitialized: recents re-freeze Discord-style (updated between opens, never
-    /// shifting under the user's fingers mid-open) and a leftover search is cleared.
+    /// shifting under the user's fingers mid-open); chat.js resets the search box itself.
     /// RecentEmojis stays live because ChatBase mutates the same list instance in place.
     /// </summary>
     [JSInvokable]
     public async Task OnPickerOpened()
     {
         frozenRecents = new List<string>(RecentEmojis);
-        searchText = "";
         _openRefreshPending = true;
         try { await InvokeAsync(StateHasChanged); }
         catch { /* circuit may be dead */ }
@@ -248,9 +199,9 @@
         }
     }
 
-    // Built per render in client-insertion mode it returns null, so no Blazor event
-    // handler is attached and the click is handled purely by chat.js. In reaction mode
-    // (no TextareaId — e.g., MessageItem) it attaches @onclick → SelectEmoji as before.
+    // In client-insertion mode it returns null, so no Blazor event handler is attached
+    // and the click is handled purely by chat.js. In reaction mode (no TextareaId —
+    // e.g., MessageItem) it attaches @onclick → SelectEmoji as before.
     private IReadOnlyDictionary<string, object>? GetClickAttributes(string emoji)
     {
         if (IsClientInsertionMode) return null;
@@ -266,53 +217,22 @@
         OnEmojiUsed?.Invoke(emoji);
     }
 
-    private async Task ScrollToCategory(string key)
-    {
-        searchText = "";
-        try
-        {
-            await JS.InvokeVoidAsync("scrollEmojiPickerToSection", contentElement, key);
-        }
-        catch { /* Ignore JS errors */ }
-    }
-
     private async Task SelectEmoji(string emoji)
     {
         await OnEmojiSelected.InvokeAsync(emoji);
     }
 
-    private void ClearSearch()
-    {
-        searchText = "";
-    }
-
-    private List<string> GetSearchResults()
-    {
-        var query = searchText.Trim();
-        if (string.IsNullOrEmpty(query))
-            return new();
-
-        var results = new List<string>();
-
-        // Search custom emojis by shortcode
-        if (CustomEmojiService.HasCustomEmojis)
-        {
-            foreach (var ce in CustomEmojiService.GetAll())
-            {
-                if (ce.Shortcode.Contains(query, StringComparison.OrdinalIgnoreCase))
-                    results.Add($":{ce.Shortcode}:");
-            }
-        }
-
-        // Search standard emojis by keywords
-        foreach (var kvp in EmojiData.EmojiKeywords)
-        {
-            if (kvp.Value.Contains(query, StringComparison.OrdinalIgnoreCase))
-                results.Add(kvp.Key);
-        }
-
-        return results;
-    }
+    /// <summary>
+    /// The client-side search corpus for one cell, rendered as its data-kw attribute
+    /// (~40KB across the grid, riding the background mount). Custom emojis match on
+    /// their shortcode; standard emojis on their curated keyword string — the same
+    /// substring semantics the old server-side search had. Lowercased here so chat.js
+    /// compares with a plain includes().
+    /// </summary>
+    private static string GetKeywords(string e) =>
+        IsCustomEmojiString(e)
+            ? e[1..^1].ToLowerInvariant()
+            : EmojiData.EmojiKeywords.GetValueOrDefault(e)?.ToLowerInvariant() ?? "";
 
     private static string CapitalizeFirst(string s) =>
         string.IsNullOrEmpty(s) ? s : char.ToUpper(s[0]) + s[1..];

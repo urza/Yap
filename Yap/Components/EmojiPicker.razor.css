@@ -111,6 +111,20 @@
     background: var(--bg-input);
 }
 
+/* The ✕ appears only while a query exists — value-driven via :placeholder-shown, same
+   pattern as the send button. Requires a non-empty placeholder on the input. */
+.emoji-search input:placeholder-shown ~ .emoji-search-clear {
+    display: none;
+}
+
+/* Client-side search filter (chat.js filterEmojiPicker): non-matching cells and emptied
+   sections hide via JS-set attributes — Blazor never renders these, so re-renders can't
+   clobber them; reopening the picker resets them client-side too. */
+.emoji-btn[data-search-miss],
+.emoji-section[data-search-empty] {
+    display: none;
+}
+
 .emoji-content::-webkit-scrollbar {
     width: 8px;
 }
