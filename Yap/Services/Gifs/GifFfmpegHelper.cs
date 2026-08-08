@@ -146,7 +146,8 @@ public class GifFfmpegHelper
             // -an                   → strip audio
             // -fps_mode passthrough → preserve frame timing (successor of the deprecated -vsync 0)
             // -map_metadata -1      → strip metadata
-            var args = $"-y -i \"{srcPath}\" " +
+            // -hide_banner -nostats → stderr carries only warnings/errors, so failure logs show the cause
+            var args = $"-hide_banner -nostats -y -i \"{srcPath}\" " +
                        $"-vf \"fps={fps},scale='min({maxWidth},iw)':-1:flags=lanczos\" " +
                        $"-vcodec libwebp -loop 0 -lossless 0 -q:v {quality} -compression_level 4 " +
                        $"-an -fps_mode passthrough -map_metadata -1 \"{dstPath}\"";
@@ -154,7 +155,7 @@ public class GifFfmpegHelper
             var (exit, _, stderr) = await RunProcessAsync("ffmpeg", args, TranscodeTimeoutMs, ct);
             if (exit != 0)
             {
-                _logger.LogWarning("ffmpeg webp transcode failed (exit={Exit}): {Stderr}", exit, Truncate(stderr));
+                _logger.LogWarning("ffmpeg webp transcode failed for {Src} (exit={Exit}): {Stderr}", srcPath, exit, TruncateTail(stderr));
                 TryDelete(dstPath);
                 return false;
             }
@@ -204,8 +205,10 @@ public class GifFfmpegHelper
         try { if (File.Exists(path)) File.Delete(path); } catch { }
     }
 
-    private static string Truncate(string s, int max = 400)
-        => s.Length <= max ? s : s[..max] + "…";
+    // ffmpeg puts the actionable error at the END of stderr — the head is banner/config/input-dump
+    // noise (a full banner alone once ate the whole 400-char budget and hid a prod failure's cause).
+    private static string TruncateTail(string s, int max = 600)
+        => s.Length <= max ? s : "…" + s[^max..];
 }
 
 public record MediaProbeResult(

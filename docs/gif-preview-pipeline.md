@@ -111,5 +111,8 @@ no ffmpeg → false; adopt existing file; threshold check; transcode; set URL.
 - [ ] Chat messages still render full-size files (no preview URLs in message HTML)
 - [ ] Delete an owned GIF → both `{id}.webp` and `{id}.p.webp` disappear from disk
 - [ ] Second restart: backfill logs nothing new (all previews adopted/present)
-- [ ] Prod container: `ffmpeg -version` ≥ 7.1 — **failed 2026-08-08** (6.1.1 from the Ubuntu-noble
-  default base; `exit=69` warns in the prod log); re-check after the `10.0-resolute` rebuild
+- [x] Prod container: `ffmpeg -version` ≥ 7.1 — first boot failed (noble base, 6.1.1); **8.0.1
+  confirmed live 2026-08-08** after the `10.0-resolute` rebuild. Residual `exit=69` on ≥1 entry
+  even on 8.0.1 ⇒ per-file, not version (truncated/corrupt source suspected: demuxer opens it,
+  frames don't decode — fails on any ffmpeg). Helper warn now names the source file and logs the
+  stderr **tail** (`-hide_banner -nostats`), so the next occurrence shows its actual cause.
