@@ -19,26 +19,24 @@ Access at `http://localhost:5221` - it's up to you how to make this accessible f
 
 ## Features
 
-- **No registration required** - Just log in with username
+- **No registration required** - Just log in with username, no passwords or social logins
 - **User profiles** - Set profile picture, display name, and bio; avatars shown in chat
-- **Database optional** - Everything can be ephemeral and live only in memory (wiped on app reset) or you can use SQLite/Postgres for persistence
+- **Database optional** - Everything can be ephemeral and live only in memory (wiped on app reset) or you can use SQLite for persistence
 - **Customizable labels in config** - make it fun or serious
 - **Emoji support** - Beautiful Twemoji rendering 
 - **Custom emojis** - Drop image files into `Data/custom-emojis/` (data volume) folder and they become available for your users
-- **Dark theme hardcoded** - because I know what's best for you
-- **Multiple rooms/channels** - admin can create new
-- **Direct messages** - Private conversations between users
-- **Image sharing** - Upload image(s) and see them in inline gallery
+- **Gifs** - gifs by Klipy + your own, server collections curated by server admin, user favs + customs, bulk import / export
+- **Themes** - Dark, Midnight, Nord, Ocean, Sunset, Aurora, Daylight
+- **Multiple rooms/channels** - admin can create new, nobody will come anyway
+- **Direct messages** - Private conversations between users, not encrypted, treat accordingly
 - **Message actions** - Discord-style hover popup with reactions, edit, delete
-- **Reactions** - React to messages with emojis
+- **Reactions** - React to messages with emojis, even custom ones
 - **Tab notifications** - Unread count in browser tab + audio notifications
-- **Typing indicators** - See who's typing with customizable message
+- **Typing indicators** - See who's typing with customizable messages
 - **Mobile responsive** - Works great(TM) on all devices with collapsible sidebar
-- **PWA installable** - Add to home screen on mobile, install as app on desktop
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+- **PWA installable** - Add to home screen on mobile, install as app on desktop, get notifications
+- **Image/Video sharing** - Upload image(s) or videos and see them in inline gallery
+- **Social media previews/embeds** - Yap downloads that tiktok/youtube video so users dont need to go to these evil sites
 
 ## License
 
