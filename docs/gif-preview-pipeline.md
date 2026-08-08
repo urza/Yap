@@ -1,9 +1,9 @@
 # GIF Picker Preview Pipeline
 
-**Status: deployed 2026-08-08. Same-day prod finding: the base image's ffmpeg was 6.1 (Ubuntu
-noble), so webp-source previews were skipped — Dockerfile now pins `aspnet:10.0-resolute`
-(Ubuntu 26.04, ffmpeg 8.0); rebuild with `docker compose build --pull` and the startup backfill
-heals the skipped entries.**
+**Status: deployed 2026-08-08. Prod follow-up the same night: animated-WebP decode turned out to
+need ffmpeg ≥ 9.0 (noble 6.1, resolute 8.0.1, even 8.1.2 all fail) — Dockerfile now ships pinned
+static ffmpeg 9.0 (`mwader/static-ffmpeg`) on the default `aspnet:10.0` base. Rebuild + redeploy,
+then the startup backfill heals every skipped entry.**
 
 ## Problem
 
@@ -49,19 +49,23 @@ Decisions:
 
 ## ffmpeg requirement (verified empirically)
 
-- **Animated-WebP sources decode only on ffmpeg ≥ 7.1.** Below that (tested 7.0.2 and a 2024-06
-  git build) the transcode **fails hard and clean**: "skipping unsupported chunk: ANIM …
-  image data not found", non-zero exit, 0-byte output which the helper deletes. So on old ffmpeg
-  previews are simply skipped — no guard code, no corrupt output. `.gif` and video sources
-  transcode on any ffmpeg.
-- **Docker prod gotcha (hit live 2026-08-08)**: for .NET 10 Microsoft made **Ubuntu 24.04 noble**
-  the distro behind the bare `aspnet:10.0` tag and **stopped publishing Debian variants entirely**
-  (trixie-slim tags exist only for `10.0-preview.*`) — so the earlier "base = trixie = ffmpeg
-  7.1.5" assumption was doubly wrong. Noble's apt ffmpeg is **6.1.1**: every webp-source preview
-  failed with exit 69 (ffmpeg's decode-error-rate-exceeded code — all ANIM frames undecodable),
-  while gif/video-source entries still got previews. `Yap/Dockerfile` now pins
-  **`aspnet:10.0-resolute`** (Ubuntu 26.04 LTS, apt ffmpeg **8.0.1**). Rebuild with
-  `docker compose build --pull`, then verify: `docker exec <container> ffmpeg -version`.
+- **Animated-WebP sources need ffmpeg ≥ 9.0.** The decoder landed on master after the 8.1 branch;
+  no 6.x/7.x/8.x release has it — old builds log "skipping unsupported chunk: ANIM/ANMF … image
+  data not found" and exit 69 (decode-error-rate-exceeded) with a 0-byte output the helper
+  deletes. Previews are simply skipped (PreviewUrl stays null, renderers fall back) and the
+  startup backfill retries them after any ffmpeg upgrade. `.gif` and video sources transcode on
+  any ffmpeg. The original "≥ 7.1" claim here was an unverified inference — only 7.0.2, a 2024-06
+  git build and master had actually been tested. Verified matrix (2026-08-08, real library
+  files): 6.1.1 ❌ (prod noble) · 7.1.5 ❌ · 8.0.1 ❌ (prod resolute) · 8.1.2 ❌ ·
+  master-2026-08-07 ✅ · **9.0 ✅** (dev Gyan build and `mwader/static-ffmpeg:9.0`,
+  byte-identical preview outputs to master).
+- **Docker resolution (after two wrong turns the same night)**: .NET 10's bare `aspnet:10.0` tag
+  is Ubuntu noble (ffmpeg 6.1.1), and Microsoft publishes **no Debian variants** for stable
+  .NET 10 (the "trixie = 7.1.5" note was wrong); re-pinning to `10.0-resolute` (8.0.1) still
+  failed because no release has the decoder at all. Final fix: base back on plain `aspnet:10.0`;
+  ffmpeg/ffprobe come from **`COPY --from=mwader/static-ffmpeg:9.0`** (pinned, multi-arch,
+  ffprobe included) and ffmpeg is dropped from apt. Verify:
+  `docker exec <container> ffmpeg -version` → 9.0.
 - Video-source entries sidestep the requirement entirely: their preview is cut from the temp
   mp4/webm while it's still on disk, not from the produced webp.
 
@@ -111,8 +115,7 @@ no ffmpeg → false; adopt existing file; threshold check; transcode; set URL.
 - [ ] Chat messages still render full-size files (no preview URLs in message HTML)
 - [ ] Delete an owned GIF → both `{id}.webp` and `{id}.p.webp` disappear from disk
 - [ ] Second restart: backfill logs nothing new (all previews adopted/present)
-- [x] Prod container: `ffmpeg -version` ≥ 7.1 — first boot failed (noble base, 6.1.1); **8.0.1
-  confirmed live 2026-08-08** after the `10.0-resolute` rebuild. Residual `exit=69` on ≥1 entry
-  even on 8.0.1 ⇒ per-file, not version (truncated/corrupt source suspected: demuxer opens it,
-  frames don't decode — fails on any ffmpeg). Helper warn now names the source file and logs the
-  stderr **tail** (`-hide_banner -nostats`), so the next occurrence shows its actual cause.
+- [ ] Prod container: `ffmpeg -version` → **9.0** (static). History: noble 6.1.1 failed, resolute
+  8.0.1 failed too — animated-WebP decode is a ≥ 9.0 feature, see above. After the static-9.0
+  rebuild, the backfill should generate previews for every webp-source entry with zero exit-69
+  warns (the improved helper warn — source path + stderr tail — stays for future cases).

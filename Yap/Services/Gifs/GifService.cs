@@ -536,7 +536,7 @@ public partial class GifService
 
         // Picker preview: from the original video when there was one (decodes on any ffmpeg; the
         // source is consumed below), else from the copied gif/webp itself — animated WebP decode
-        // needs ffmpeg ≥ 7.1, and on older builds this skips cleanly (renderers fall back).
+        // needs ffmpeg ≥ 9.0, and on older builds this skips cleanly (renderers fall back).
         await TryGeneratePreviewAsync(entry, isAnimatedImageSource ? localPath : sourceFilePath);
 
         await PersistNewEntryAsync(entry);
@@ -1048,7 +1048,7 @@ public partial class GifService
     /// Produces the small animated-WebP preview (/gif-cache/{id}.p.webp) that the picker and
     /// management grids render instead of the full-size file. Skipped when the full file is
     /// already light enough to be its own preview, or when ffmpeg can't decode the source
-    /// (animated-WebP inputs need ffmpeg ≥ 7.1 — older builds fail the transcode cleanly).
+    /// (animated-WebP inputs need ffmpeg ≥ 9.0 — older builds fail the transcode cleanly).
     /// PreviewUrl simply stays null on any skip: every renderer falls back to the full file.
     /// Adopts a preview file already on disk, so restarts and re-imports never re-encode.
     /// </summary>

@@ -127,8 +127,9 @@ public class GifFfmpegHelper
     /// <summary>
     /// Cuts the small picker/management-grid preview: 12fps, max-width 320px, q60 — measured
     /// 6–57× lighter than the full files it stands in for, at ~0.5s per file. Works from any
-    /// source ffmpeg can decode; animated-WebP inputs decode only on ffmpeg ≥ 7.1, older builds
-    /// fail cleanly here (non-zero exit) and the caller treats that as "no preview".
+    /// source ffmpeg can decode; animated-WebP inputs decode only on ffmpeg ≥ 9.0 (no 7.x/8.x
+    /// release has the decoder) — older builds fail cleanly here (non-zero exit) and the caller
+    /// treats that as "no preview".
     /// </summary>
     public Task<bool> TranscodeToPreviewWebpAsync(string srcPath, string dstPath, CancellationToken ct = default)
         => TranscodeToWebpCoreAsync(srcPath, dstPath, fps: 12, maxWidth: 320, quality: 60, ct);

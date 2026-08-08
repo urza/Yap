@@ -1,8 +1,10 @@
-# Ubuntu 26.04 (resolute) pinned on purpose: the bare `:10.0` tag means Ubuntu 24.04 noble, whose
-# apt ffmpeg is 6.1 — too old to decode animated-WebP sources for the GIF preview pipeline
-# (needs >= 7.1; resolute ships 8.0). Microsoft publishes no Debian images for stable .NET 10.
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-resolute AS base
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg python3 curl \
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+# ffmpeg/ffprobe are pinned static builds, not distro packages: the GIF preview pipeline decodes
+# animated WebP, which needs ffmpeg >= 9.0 — no 6.x/7.x/8.x release has the decoder, so no distro
+# repo qualifies (noble ships 6.1, resolute 8.0; verified against real library files 2026-08-08).
+# yt-dlp and every other media path use these same binaries via PATH.
+COPY --from=mwader/static-ffmpeg:9.0 /ffmpeg /ffprobe /usr/local/bin/
+RUN apt-get update && apt-get install -y --no-install-recommends python3 curl \
     && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
     && chmod a+rx /usr/local/bin/yt-dlp \
     && rm -rf /var/lib/apt/lists/*
