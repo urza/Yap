@@ -57,6 +57,7 @@ public partial class GifService
     private const int PartialMatchLimit = 2; // tolerated (all-but-one-word) search hits — one grid row, enough to keep teach-on-click alive without burying provider results
     private const long MaxDownloadBytes = 64L * 1024 * 1024; // 64MB safety ceiling per file
     private const int DownloadTimeoutMs = 30_000;
+    private const long PreviewMinSourceBytes = 300 * 1024; // below this, the full file is effectively its own preview
 
     /// <summary>Raised when an entry's state changes (download/transcode complete). UI filters by attached entryId.</summary>
     public event Action<Guid>? OnGifEntryUpdated;
@@ -160,6 +161,18 @@ public partial class GifService
             {
                 _logger.LogInformation("Backfilling dimensions for {Count} custom GIF uploads", dimsBackfill.Count);
                 _ = Task.Run(() => BackfillCustomUploadDimensionsAsync(dimsBackfill));
+            }
+
+            // Cut picker previews for entries that predate the preview pipeline. Background work
+            // through the transcode semaphore (~0.5s/file); open pickers refresh live via
+            // OnGifEntryUpdated as each preview lands.
+            var previewBackfill = entries
+                .Where(e => e.DeletedAt == null && e.PreviewUrl == null)
+                .ToList();
+            if (previewBackfill.Count > 0 && GifFfmpegHelper.IsAvailable)
+            {
+                _logger.LogInformation("Backfilling picker previews for up to {Count} GIF entries", previewBackfill.Count);
+                _ = Task.Run(() => BackfillPreviewsAsync(previewBackfill));
             }
         }
         catch (Exception ex)
@@ -521,6 +534,11 @@ public partial class GifService
         foreach (var tag in TagsFromFileName(originalFileName))
             AppendTag(entry, tag);
 
+        // Picker preview: from the original video when there was one (decodes on any ffmpeg; the
+        // source is consumed below), else from the copied gif/webp itself — animated WebP decode
+        // needs ffmpeg ≥ 7.1, and on older builds this skips cleanly (renderers fall back).
+        await TryGeneratePreviewAsync(entry, isAnimatedImageSource ? localPath : sourceFilePath);
+
         await PersistNewEntryAsync(entry);
         IndexEntry(entry);
 
@@ -573,6 +591,40 @@ public partial class GifService
         }
         if (fixedCount > 0)
             _logger.LogInformation("Backfilled dimensions for {Count} custom GIF uploads", fixedCount);
+    }
+
+    /// <summary>
+    /// One-time catch-up for entries created before the preview pipeline existed (and a retry for
+    /// ones whose generation failed, e.g. animated-WebP sources on a pre-7.1 ffmpeg).
+    /// TryGeneratePreviewAsync adopts files already on disk, so an interrupted run resumes free.
+    /// </summary>
+    private async Task BackfillPreviewsAsync(List<GifEntry> entries)
+    {
+        var made = 0;
+        foreach (var entry in entries)
+        {
+            try
+            {
+                if (ResolveLocalFile(entry) is not { } sourcePath) continue; // remote-only, or files gone
+                if (!await TryGeneratePreviewAsync(entry, sourcePath)) continue;
+
+                if (_dbFactory != null)
+                {
+                    await using var db = await _dbFactory.CreateDbContextAsync();
+                    await db.GifEntries
+                        .Where(g => g.Id == entry.Id)
+                        .ExecuteUpdateAsync(s => s.SetProperty(g => g.PreviewUrl, entry.PreviewUrl));
+                }
+                made++;
+                OnGifEntryUpdated?.Invoke(entry.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Preview backfill failed for GIF {Id}", entry.Id);
+            }
+        }
+        if (made > 0)
+            _logger.LogInformation("Generated {Count} GIF picker previews (backfill)", made);
     }
 
     #endregion
@@ -952,6 +1004,7 @@ public partial class GifService
             }
             entry.GifUrl = $"/gif-cache/{entry.Id}{ext}";
             entry.FileSizeBytes = SafeFileSize(localPath);
+            await TryGeneratePreviewAsync(entry, localPath);
         }
         else
         {
@@ -974,16 +1027,45 @@ public partial class GifService
                 {
                     if (!await DownloadAsync(videoUrl, tempVideo, CancellationToken.None)) { MarkFailed(entry); return; }
                     if (!await _ffmpeg.TranscodeToAnimatedWebpAsync(tempVideo, webpPath, CancellationToken.None)) { MarkFailed(entry); return; }
+                    // Cut the picker preview from the source video while it's still on disk —
+                    // that decode works on any ffmpeg, unlike re-reading the animated webp.
+                    entry.FileSizeBytes = SafeFileSize(webpPath);
+                    await TryGeneratePreviewAsync(entry, tempVideo);
                 }
                 finally { TryDelete(tempVideo); }
             }
             entry.GifUrl = $"/gif-cache/{entry.Id}.webp";
             entry.FileSizeBytes = SafeFileSize(webpPath);
+            await TryGeneratePreviewAsync(entry, webpPath); // no-op when made above; covers the file-already-existed path
         }
 
         entry.TranscodeStatus |= GifTranscodeStatus.DoneGif;
         await PersistFormatsAsync(entry);
         OnGifEntryUpdated?.Invoke(entry.Id);
+    }
+
+    /// <summary>
+    /// Produces the small animated-WebP preview (/gif-cache/{id}.p.webp) that the picker and
+    /// management grids render instead of the full-size file. Skipped when the full file is
+    /// already light enough to be its own preview, or when ffmpeg can't decode the source
+    /// (animated-WebP inputs need ffmpeg ≥ 7.1 — older builds fail the transcode cleanly).
+    /// PreviewUrl simply stays null on any skip: every renderer falls back to the full file.
+    /// Adopts a preview file already on disk, so restarts and re-imports never re-encode.
+    /// </summary>
+    private async Task<bool> TryGeneratePreviewAsync(GifEntry entry, string sourcePath)
+    {
+        if (entry.PreviewUrl != null) return true;
+        if (!GifFfmpegHelper.IsAvailable) return false;
+
+        var previewPath = Path.Combine(CacheDir, $"{entry.Id}.p.webp");
+        if (!File.Exists(previewPath))
+        {
+            if (entry.FileSizeBytes > 0 && entry.FileSizeBytes < PreviewMinSourceBytes) return false;
+            if (!await _ffmpeg.TranscodeToPreviewWebpAsync(sourcePath, previewPath)) return false;
+        }
+
+        entry.PreviewUrl = $"/gif-cache/{entry.Id}.p.webp";
+        return true;
     }
 
     /// <summary>
@@ -1149,6 +1231,7 @@ public partial class GifService
                     .SetProperty(g => g.Mp4Url, entry.Mp4Url)
                     .SetProperty(g => g.WebmUrl, entry.WebmUrl)
                     .SetProperty(g => g.GifUrl, entry.GifUrl)
+                    .SetProperty(g => g.PreviewUrl, entry.PreviewUrl)
                     .SetProperty(g => g.FileSizeBytes, entry.FileSizeBytes)
                     .SetProperty(g => g.TranscodeStatus, entry.TranscodeStatus));
         }

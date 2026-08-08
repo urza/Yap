@@ -141,6 +141,7 @@ public class ChatDbContext : DbContext
             entity.Property(g => g.Mp4Url).HasMaxLength(512);
             entity.Property(g => g.WebmUrl).HasMaxLength(512);
             entity.Property(g => g.GifUrl).HasMaxLength(512);
+            entity.Property(g => g.PreviewUrl).HasMaxLength(512);
             entity.Property(g => g.RemoteMp4Url).HasMaxLength(1024);
             entity.Property(g => g.RemoteWebmUrl).HasMaxLength(1024);
             entity.Property(g => g.RemoteGifUrl).HasMaxLength(1024);

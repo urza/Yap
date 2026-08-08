@@ -25,6 +25,15 @@ public class GifEntry
     public string? WebmUrl { get; set; }
     public string? GifUrl { get; set; }
 
+    /// <summary>
+    /// Small derived animated-WebP (~320px / 12fps) at /gif-cache/{Id}.p.webp, rendered by the
+    /// picker and management grids instead of the multi-MB full file — chat always embeds the
+    /// full-size original. Null when the full file is light enough to be its own preview, or when
+    /// ffmpeg couldn't decode the source (animated-WebP inputs need ffmpeg ≥ 7.1); every consumer
+    /// falls back to <see cref="GifUrl"/>.
+    /// </summary>
+    public string? PreviewUrl { get; set; }
+
     // Remote URLs — provider CDN fallbacks. Always present for provider-sourced entries, null for custom uploads.
     public string? RemoteMp4Url { get; set; }
     public string? RemoteWebmUrl { get; set; }

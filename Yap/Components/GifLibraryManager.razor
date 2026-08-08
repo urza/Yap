@@ -128,7 +128,7 @@
         <div class="gif-lib-grid">
             @foreach (var entry in (showAll ? filteredItems : filteredItems.Take(InitialVisibleCount)))
             {
-                var preview = entry.GifUrl ?? entry.RemoteGifUrl;
+                var preview = entry.PreviewUrl ?? entry.GifUrl ?? entry.RemoteGifUrl;
                 <div class="gif-lib-card">
                     <div class="gif-lib-thumb">
                         @if (preview != null)

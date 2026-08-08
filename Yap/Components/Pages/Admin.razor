@@ -834,12 +834,17 @@
                         @foreach (var g in FilteredGifEntries)
                         {
                             <tr>
-                                @{ var previewUrl = g.GifUrl ?? g.RemoteGifUrl; }
+                                @* Thumb renders the derived preview when one exists; the link
+                                   always opens the full-size file. *@
+                                @{
+                                    var gifThumbUrl = g.PreviewUrl ?? g.GifUrl ?? g.RemoteGifUrl;
+                                    var gifFullUrl = g.GifUrl ?? g.RemoteGifUrl;
+                                }
                                 <td>
-                                    @if (!string.IsNullOrEmpty(previewUrl))
+                                    @if (!string.IsNullOrEmpty(gifThumbUrl))
                                     {
-                                        <a href="@previewUrl" target="_blank" rel="noopener">
-                                            <img src="@previewUrl" alt="" class="admin-thumb" loading="lazy" />
+                                        <a href="@(gifFullUrl ?? gifThumbUrl)" target="_blank" rel="noopener">
+                                            <img src="@gifThumbUrl" alt="" class="admin-thumb" loading="lazy" />
                                         </a>
                                     }
                                 </td>
@@ -1788,9 +1793,10 @@
             "video" => ($"/uploads/{baseName}_poster.webp",
                         entry.CompressDurationMs.HasValue ? $"/uploads/{baseName}.mp4" : $"/uploads/{entry.StoredFileName}"),
 
-            // Routed to the GIF library — resolve live, same preview logic as the GIFs tab.
+            // Routed to the GIF library — resolve live, same preview logic as the GIFs tab
+            // (thumb prefers the derived preview, the link opens the full file).
             "gif" when Guid.TryParse(baseName, out var gifId) && GifService.GetEntry(gifId) is { } gif
-                => (gif.GifUrl ?? gif.RemoteGifUrl, gif.GifUrl ?? gif.RemoteGifUrl),
+                => (gif.PreviewUrl ?? gif.GifUrl ?? gif.RemoteGifUrl, gif.GifUrl ?? gif.RemoteGifUrl),
 
             _ => (null, null)
         };

@@ -609,7 +609,9 @@
 
     private (string? Url, string? ContentType) PickLocalPreviewSource(GifEntry e)
     {
-        // Animated-image first (img tag, no autoplay drama), video fallback for older entries.
+        // Derived preview first (~10–30× lighter than the chat-size file), then animated-image
+        // full (img tag, no autoplay drama), video fallback for older entries.
+        if (!string.IsNullOrEmpty(e.PreviewUrl)) return (e.PreviewUrl, "image/webp");
         if (!string.IsNullOrEmpty(e.GifUrl)) return (e.GifUrl, "image/gif");
         if (!string.IsNullOrEmpty(e.RemoteGifUrl)) return (e.RemoteGifUrl, "image/gif");
         if (!string.IsNullOrEmpty(e.WebmUrl)) return (e.WebmUrl, "video/webm");
