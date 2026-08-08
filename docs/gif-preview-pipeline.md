@@ -1,6 +1,9 @@
 # GIF Picker Preview Pipeline
 
-**Status: implemented 2026-08-08 — needs `dotnet ef migrations add GifPreviewUrl` + build + prod test**
+**Status: deployed 2026-08-08. Same-day prod finding: the base image's ffmpeg was 6.1 (Ubuntu
+noble), so webp-source previews were skipped — Dockerfile now pins `aspnet:10.0-resolute`
+(Ubuntu 26.04, ffmpeg 8.0); rebuild with `docker compose build --pull` and the startup backfill
+heals the skipped entries.**
 
 ## Problem
 
@@ -51,9 +54,14 @@ Decisions:
   image data not found", non-zero exit, 0-byte output which the helper deletes. So on old ffmpeg
   previews are simply skipped — no guard code, no corrupt output. `.gif` and video sources
   transcode on any ffmpeg.
-- **Docker prod is fine**: `Yap/Dockerfile` installs ffmpeg from the `aspnet:10.0` base image's
-  Debian trixie repos = **ffmpeg 7.1.5**. Verify in the running container once:
-  `docker exec <container> ffmpeg -version`.
+- **Docker prod gotcha (hit live 2026-08-08)**: for .NET 10 Microsoft made **Ubuntu 24.04 noble**
+  the distro behind the bare `aspnet:10.0` tag and **stopped publishing Debian variants entirely**
+  (trixie-slim tags exist only for `10.0-preview.*`) — so the earlier "base = trixie = ffmpeg
+  7.1.5" assumption was doubly wrong. Noble's apt ffmpeg is **6.1.1**: every webp-source preview
+  failed with exit 69 (ffmpeg's decode-error-rate-exceeded code — all ANIM frames undecodable),
+  while gif/video-source entries still got previews. `Yap/Dockerfile` now pins
+  **`aspnet:10.0-resolute`** (Ubuntu 26.04 LTS, apt ffmpeg **8.0.1**). Rebuild with
+  `docker compose build --pull`, then verify: `docker exec <container> ffmpeg -version`.
 - Video-source entries sidestep the requirement entirely: their preview is cut from the temp
   mp4/webm while it's still on disk, not from the produced webp.
 
@@ -103,4 +111,5 @@ no ffmpeg → false; adopt existing file; threshold check; transcode; set URL.
 - [ ] Chat messages still render full-size files (no preview URLs in message HTML)
 - [ ] Delete an owned GIF → both `{id}.webp` and `{id}.p.webp` disappear from disk
 - [ ] Second restart: backfill logs nothing new (all previews adopted/present)
-- [ ] Prod container: `ffmpeg -version` ≥ 7.1
+- [ ] Prod container: `ffmpeg -version` ≥ 7.1 — **failed 2026-08-08** (6.1.1 from the Ubuntu-noble
+  default base; `exit=69` warns in the prod log); re-check after the `10.0-resolute` rebuild

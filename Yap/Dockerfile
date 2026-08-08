@@ -1,4 +1,7 @@
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+# Ubuntu 26.04 (resolute) pinned on purpose: the bare `:10.0` tag means Ubuntu 24.04 noble, whose
+# apt ffmpeg is 6.1 — too old to decode animated-WebP sources for the GIF preview pipeline
+# (needs >= 7.1; resolute ships 8.0). Microsoft publishes no Debian images for stable .NET 10.
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-resolute AS base
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg python3 curl \
     && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
     && chmod a+rx /usr/local/bin/yt-dlp \
