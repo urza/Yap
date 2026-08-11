@@ -263,6 +263,8 @@ Search-as-you-type over ~900 emoji, at keystroke speed, on any connection. One m
 
 Blazor still does what Blazor is good at here: recent-emoji lists refresh behind the already-open picker through a small `[JSInvokable]` open-hook, arriving one round trip *after* the picker opened rather than gating it.
 
+This pattern has enough moving parts — the render firewall, the open hook, the tap-beats-mount race — that we gave it a dedicated deep dive: [The Mounted-Hidden Picker Pattern](article-mounted-hidden-picker-pattern.md).
+
 ## The rules of coexistence
 
 JS and Blazor sharing a DOM is where this approach either stays elegant or rots. Every bug we hit traced back to violating one of four rules:
