@@ -19,23 +19,23 @@ When in doubt, choose the simpler path. Refactor when patterns emerge, not in an
 ### Blazor-First Development
 Embrace Blazor's declarative, binding-based model as the default approach:
 
-- **Data binding**: Let UI reflect state automatically - modify properties, UI updates. Avoid manual DOM manipulation.
+- **Data binding**: Let UI reflect state automatically - modify properties, UI updates. Avoid manual DOM manipulation outside the sanctioned local-feedback patterns below.
 - **Component composition**: Break UI into reusable components with clear `[Parameter]` contracts.
 - **Event callbacks**: Use `EventCallback<T>` for child-to-parent communication.
 - **Cascading values**: Use for deeply-nested shared state (e.g., theme, user context).
 - **State management**: Keep state in services (singleton for shared, scoped for per-user), let components subscribe to changes.
 - **Read Blazor documentation**: Feel free to lookup Blazor Server best practices and Documentation.
 
-### Blazor Server Latency Exceptions
-Blazor Server's SignalR round-trip adds latency. Only escape to CSS/JS for **proven** performance issues:
+### Round Trips & Local Feedback (house doctrine)
+Blazor Server pays a full SignalR round trip for every server-handled interaction. Prod telemetry and multi-day live use settled where the time goes: our server work is cheap (≤ ~70ms per send) while a bad link costs ~900ms per round trip — the wire, not the server, is what users feel. The doctrine, field-validated in production: **the user's fingers never wait for the circuit.**
 
-- **Rapid hover effects**: Use CSS `:hover` when Blazor `@onmouseenter`/`@onmouseleave` causes visible lag (e.g., message action popups).
-- **Key interception**: Avoid server-evaluated `@onkeydown:preventDefault` - use client-side JS for timing-critical input handling.
-- **High-frequency events**: Scroll position, mouse movement - debounce or handle in JS, call back to Blazor sparingly.
+- **Feedback the user watches while acting is local, by default** — button enablement, keystroke effects, hover/press states, picker open/close and search, their own sent message or GIF appearing. It derives from client state (CSS/JS) instantly and reconciles with the server afterward. This is the standard design for the main chat loop, not an exception needing case-by-case justification.
+- **The server remains the source of truth.** State, validation, guards, persistence, and fan-out stay server-side; optimistic UI reconciles to whatever the server decides. Never let local state lie about permissions or outcomes.
+- **Don't fight Blazor either.** The client layer is thin and surgical, not a parallel framework: value-driven CSS state (`:placeholder-shown`), client-routed events (Enter → `button.click()`), optimistic ghost + reconciliation, client-owned `data-*` attributes for UI-only state, high-frequency events (scroll, mousemove) debounced in JS. Components, binding, services, and events stay idiomatic Blazor. Go local when it's easy and clean; if the JS version grows into a state machine wrestling the framework, reconsider.
+- **Coexistence rules**: JS-owned DOM lives in Blazor-rendered, always-empty containers; any element whose classes/attributes JS toggles must keep that attribute static on the Blazor side (an interpolated attribute clobbers JS changes on the next render).
+- **Where waiting is honest, let it wait**: settings saves, admin actions, navigation — flows where a visible round trip tells the truth and the latency is fine.
 
-Guiding rule, validated by prod telemetry (server work ≤ ~70ms per send; a bad link ~900ms per round trip): **the user's fingers never wait for the circuit** — feedback the user watches while acting (button enablement, keystroke effects, their own sent message appearing) derives from local state and reconciles with the server afterward. The server remains the source of truth and its guards stay authoritative; the chat.js send pipeline shows the house patterns (value-driven CSS state like `:placeholder-shown`, client-routed events, optimistic echo with reconciliation).
-
-When using JS interop, keep it minimal and focused. The goal is surgical fixes, not replacing Blazor's model.
+The chat.js send pipeline and the picker/typing/emoji-search work are the reference implementations; per-feature invariants are recorded in `docs/` (input-locality analysis and the per-item plan records).
 
 ### Desktop + Mobile Together
 **The app must work for both desktop and mobile users.** Every fix and every new feature is designed and verified with both in mind at the same time — never ship a desktop-only interaction (hover, right-click, keyboard) without a mobile equivalent, and never a mobile-only one that degrades desktop.
