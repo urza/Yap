@@ -1,18 +1,18 @@
 # Your Fingers Never Wait for the Circuit
 
-### Making a Blazor Server chat app feel instant on a 900 ms connection
+### How we made a Blazor Server chat app fast on a 900 ms connection
 
-Blazor Server has a dirty secret that every tutorial glosses over: **every UI interaction is a network round trip.** Click a button — round trip. Type a character into a bound input — round trip. Open a dropdown — round trip. On localhost this is invisible. On a real user's phone, on carrier NAT, three countries away from your server, it is the whole user experience.
+Blazor Server has a property that most tutorials do not make clear: each UI interaction is a network round trip. When you click a button, the click goes to the server. When you type a character into a bound input, the keystroke goes to the server. When you open a dropdown, the request goes to the server. On localhost, you do not see the delay. For a real user on a phone, behind carrier NAT, three countries away from your server, the delay is the full user experience.
 
-We run [Yap](https://github.com/urza/Yap), a small self-hosted chat app built on Blazor Server (.NET 10) — rooms, DMs, reactions, GIFs, emoji, push notifications. It worked great in testing and felt sluggish in production for exactly the users a chat app exists for: people far from the server on imperfect connections. Typing lagged. The send button enabled a beat after you started typing. Sent messages appeared after a pause long enough to make you tap again. The emoji picker took a second to open.
+We operate [Yap](https://github.com/urza/Yap), a small self-hosted chat application built with Blazor Server (.NET 10). It has rooms, direct messages, reactions, GIFs, emoji, and push notifications. The app was fast in tests. In production, it was slow for exactly the users a chat app exists for: people far from the server, on bad connections. Text input was slow. The send button became active a moment after the user started to type. Sent messages appeared after a delay long enough to cause a second tap. The emoji picker opened after approximately one second.
 
-This is the story of how we fixed it without abandoning Blazor Server — and the small set of patterns that emerged, now validated by real users in production. The punchline up front:
+This article tells how we corrected this and kept Blazor Server. It gives the small set of patterns that came out of the work. Real users in production have validated these patterns. The primary rule:
 
-> **The user's fingers never wait for the circuit.** Feedback the user watches while acting derives from local state (CSS/JS) and reconciles with the server afterward. The server remains the source of truth.
+> The user's fingers never wait for the circuit. Feedback that the user watches during an action comes from local state (CSS or JS). The client reconciles that state with the server after the action. The server stays the source of truth.
 
 ## Measure before you optimize: the wire is the problem
 
-Our first instinct was the classic one — profile the server. We instrumented the send pipeline end to end and added a client-side RTT probe that times a no-op circuit call every 10 seconds:
+Our first idea was the usual one: profile the server. We instrumented the send pipeline from end to end. We also added a client-side RTT probe that times a no-op circuit call every 10 seconds:
 
 ```js
 const ping = () => {
@@ -22,34 +22,34 @@ const ping = () => {
 };
 ```
 
-The probe deliberately measures the *full experienced* round trip — transport plus Blazor's dispatcher queue — because that's the latency the user feels, not the ping ICMP would report.
+The probe measures the full round trip that the user gets: the transport plus the Blazor dispatcher queue. This is the latency that the user feels, not the ping that ICMP reports.
 
-The numbers settled the argument immediately:
+The numbers gave a clear answer:
 
 | | Worst case measured in prod |
 |---|---|
 | Server work per message send (incl. SQLite persist) | **≤ 71 ms** |
 | Circuit round trip for our remote users | **~904 ms** |
 
-The server was cheap. The wire was 13× the cost, and it's the one thing we don't control. Every server-side optimization we could dream up was optimizing 7% of the problem. The fix had to be architectural: **take the round trip off the perceived-feedback path entirely.**
+The server was fast. The wire cost 13 times more than the server, and the wire is the one thing we do not control. Each possible server-side optimization could only decrease 7 percent of the problem. The correction had to be architectural: remove the round trip from the perceived-feedback path.
 
-One more amplifier made it worse: SignalR processes circuit messages in order, and Blazor caps unacknowledged batches. On a slow link, chatty per-keystroke traffic doesn't just lag — it queues, and everything behind it (including your message send) waits in line. Every dispatch you eliminate helps every dispatch that remains.
+One more effect made it worse. SignalR processes circuit messages in sequence, and Blazor sets a limit on unacknowledged batches. On a slow link, per-keystroke traffic does not only add delay. It makes a queue, and all messages behind it wait, which includes your message send. Each dispatch that you remove helps each dispatch that stays.
 
 ## The doctrine
 
-The trap here is overcorrecting — ripping out Blazor's model and rebuilding half the app in JavaScript, at which point why are you running Blazor Server at all? We wanted a narrower rule, and after shipping it across the whole main chat loop, it holds up:
+There is a risk of too much correction here: you remove the Blazor model and build half of the app again in JavaScript. At that point, Blazor Server gives you no advantage. We wanted a narrower rule. After we applied it across the full main chat loop, the rule holds:
 
-- **Feedback the user watches while acting is local, by default.** Button enablement, keystroke effects, picker open/close, search-as-you-type, your own sent message appearing — all client-side, instantly, reconciled with the server afterward.
-- **The server remains the source of truth.** State, validation, guards, persistence, and fan-out to other users stay server-side. Optimistic UI reconciles to whatever the server decides. Local state never lies about permissions or outcomes.
-- **Don't fight Blazor.** The client layer is thin and surgical — CSS selectors, `data-*` attributes, a few event listeners. Components, binding, services, and events stay idiomatic Blazor. If the local version grows into a state machine wrestling the framework, reconsider.
+- Feedback that the user watches during an action is local, by default. This includes button enablement, keystroke effects, picker open and close, search while the user types, and the user's own sent message. All of these are client-side and immediate. The client reconciles them with the server after the action.
+- The server stays the source of truth. State, validation, guards, persistence, and fan-out to other users stay on the server. Optimistic UI reconciles to the server decision. Local state must not lie about permissions or results.
+- Do not fight Blazor. The client layer is thin: CSS selectors, `data-*` attributes, a few event listeners. Components, binding, services, and events stay idiomatic Blazor. If the local version becomes a state machine that fights the framework, examine the design again.
 
-What follows are the five patterns that implement this, with the actual shipped code.
+The five patterns below apply this rule. The code is the shipped code.
 
-## Pattern 1: Value-driven CSS state
+## Pattern 1: CSS state from the input value
 
-The send button should look enabled exactly when the textarea has content. The obvious Blazor way — bind the input, compute `disabled` from the bound value — re-renders the button one round trip after each keystroke. On our slow link, the button visibly lagged the user's typing.
+The send button must look enabled exactly when the textarea has content. The usual Blazor method binds the input and computes `disabled` from the bound value. That method renders the button again one round trip after each keystroke. On our slow link, the button was visibly late behind the user's keys.
 
-The fix is zero lines of C# and zero lines of JS. The DOM already knows whether the textarea is empty — CSS can react to *the value itself* via `:placeholder-shown`:
+The correction has zero lines of C# and zero lines of JS. The DOM knows if the textarea is empty. CSS can react to the value itself with `:placeholder-shown`:
 
 ```css
 /* Client-side enablement: dim purely on "is the box empty" —
@@ -61,17 +61,17 @@ The fix is zero lines of C# and zero lines of JS. The DOM already knows whether 
 }
 ```
 
-The button dims when the box is empty and lights up on the first character, at monitor refresh rate. The only requirement is that the placeholder is never an empty string (no placeholder means `:placeholder-shown` never matches).
+The button is dim when the box is empty. It becomes bright at the first character, at monitor refresh rate. There is one requirement: the placeholder must not be an empty string. If there is no placeholder, `:placeholder-shown` never matches.
 
-The same trick appears in our emoji picker's search box, where the ✕ clear button shows only while a query exists — again `:placeholder-shown`, again no round trip.
+The search box of our emoji picker uses the same method. The clear button (✕) shows only while a query exists. Again `:placeholder-shown`, again no round trip.
 
-This is the cheapest pattern in the set, and the mental shift it teaches generalizes: before reaching for component state, ask whether the DOM already knows.
+This is the least expensive pattern in the set, and the lesson applies widely. Before you add component state, ask if the DOM already knows.
 
 ## Pattern 2: Client-routed events
 
-Enter-to-send is timing-critical: `@onkeydown:preventDefault` in Blazor evaluates *on the server*, which means the decision to suppress a newline takes a full round trip — the newline is long since in the textarea by the time the answer arrives. And subscribing `@onkeydown` at all means every keystroke ships an event to the server.
+Enter-to-send is timing-critical. In Blazor, `@onkeydown:preventDefault` makes its decision on the server. The decision to block a newline thus takes a full round trip. The newline is in the textarea long before the answer arrives. Also, a subscription to `@onkeydown` sends each keystroke to the server.
 
-Instead, the key handling lives client-side, and the send is *routed through the existing button*:
+Instead, the key handling lives on the client, and the send goes through the existing button:
 
 ```js
 textarea._enterKeyHandler = (e) => {
@@ -86,20 +86,20 @@ textarea._enterKeyHandler = (e) => {
 };
 ```
 
-The important line is the last one. We don't invoke a .NET method from JS; we *click the send button*. The button's `@onclick="HandleSend"` stays the **single server entry point**, whether the user clicks it or presses Enter. There's exactly one code path into the server, it's idiomatic Blazor, and all the client-side instant feedback (next two patterns) hangs off that one physical click.
+The last line is the important one. We do not invoke a .NET method from JS. We click the send button. The button's `@onclick="HandleSend"` stays the single server entry point, for a click and for the Enter key. There is exactly one code path into the server, and it is idiomatic Blazor. All the client-side immediate feedback (the next two patterns) connects to that one physical click.
 
-## Pattern 3: Change-granularity binding, with a commit-before-click handshake
+## Pattern 3: Bind at change granularity, and commit before the click
 
-The default Blazor pattern for an input — `@bind-Value` with `@oninput` granularity, or an `@onkeydown` handler — costs one circuit dispatch per keystroke. On a 900 ms link, typing a 20-character message generates a queue of 20 server events that everything else waits behind.
+The default Blazor pattern for an input costs one circuit dispatch per keystroke. This applies to `@bind-Value` with `@oninput` granularity, and to an `@onkeydown` handler. On a 900 ms link, a 20-character message makes a queue of 20 server events. All other traffic waits behind them.
 
-So the message box is bound at **change granularity** — plain `@bind`, which syncs on the `change` event, i.e. normally on blur:
+Thus the message box binds at change granularity: plain `@bind`, which syncs on the `change` event, normally on blur:
 
 ```razor
 <textarea @bind="messageText" placeholder="@placeholder" class="message-input"
           rows="1" id="@TextareaId"></textarea>
 ```
 
-Typing now costs *zero* circuit dispatches. The typing indicator — the one thing that genuinely needs the server mid-burst, since other users see it — becomes a small JS tracker that calls the server about twice per burst (start, and stop after 3 s idle) instead of on every key:
+Text input now costs zero circuit dispatches. Only the typing indicator needs the server in the middle of a burst, because other users see it. A small JS tracker calls the server approximately two times per burst: at the start, and at the stop after 3 seconds without input. It does not call on each key:
 
 ```js
 textarea._typingInputHandler = () => {
@@ -113,7 +113,7 @@ textarea._typingInputHandler = () => {
 };
 ```
 
-But change granularity creates a puzzle: when the user hits send, the server's `messageText` may be stale — no blur has happened, so the draft was never committed. The solution leans on a guarantee Blazor gives you for free: **circuit messages process in order.** A capture-phase listener on the send button dispatches a synthetic `change` (committing the full draft) immediately before the click's RPC:
+But change granularity makes a problem. When the user sends, the server's `messageText` can be stale. No blur occurred, thus the client did not commit the draft. The solution uses a guarantee that Blazor gives you: the circuit processes messages in sequence. A capture-phase listener on the send button dispatches a synthetic `change` event, which commits the full draft, immediately before the RPC of the click:
 
 ```js
 // Capture phase: runs before Blazor's delegated @onclick.
@@ -135,7 +135,7 @@ document.addEventListener('click', (e) => {
 }, true);
 ```
 
-Two dispatches per send (change, then click), zero per keystroke, and `HandleSend` keeps its authoritative guard:
+The result is two dispatches per send (change, then click) and zero per keystroke. `HandleSend` keeps its authoritative guard:
 
 ```csharp
 private async Task HandleSend()
@@ -145,13 +145,13 @@ private async Task HandleSend()
 }
 ```
 
-Note what the pattern is *not*: we didn't take message state away from Blazor. `messageText` is still the bound field, `HandleSend` still validates it. We only changed *when* the value syncs — and used event ordering to make "just in time" correct.
+Note what the pattern does not do. It does not take message state away from Blazor. `messageText` stays the bound field, and `HandleSend` still validates it. We only changed when the value syncs, and we used the event sequence to make the late sync correct.
 
 ## Pattern 4: Optimistic echo with reconciliation
 
-The heaviest perceived latency was the send itself: tap send, then watch nothing happen for a full round trip until the message renders. Users double-sent because the app gave no acknowledgment their tap worked.
+The send itself had the largest perceived latency. The user tapped send, then saw no change for a full round trip, until the message rendered. Users sent messages two times, because the app gave no signal that the tap worked.
 
-The fix is a **ghost**: the instant the send button is clicked (same capture listener as above), JS appends a dimmed, plain-text copy of the message to the bottom of the list. The real message replaces it one round trip later:
+The correction is a ghost. When the user clicks the send button, the same capture listener as above adds a dim, plain-text copy of the message at the bottom of the list. The real message replaces it one round trip later:
 
 ```js
 const showPendingEcho = (text) => {
@@ -168,7 +168,7 @@ const appendPendingEcho = (ghost) => {
 };
 ```
 
-Reconciliation is a `MutationObserver` watching the message list. When one of *the sender's own* messages renders, the oldest ghost is removed — FIFO, so rapid-fire sends inside a single round trip all drain correctly. `MutationObserver` callbacks run before paint, so the ghost-to-real swap is flicker-free:
+Reconciliation is a `MutationObserver` that watches the message list. When one of the sender's own messages renders, the observer removes the oldest ghost. The sequence is FIFO, thus many sends inside a single round trip all drain correctly. `MutationObserver` callbacks run before paint, thus the swap from ghost to real message shows no flicker:
 
 ```js
 echoObserver = new MutationObserver((mutations) => {
@@ -182,9 +182,9 @@ echoObserver = new MutationObserver((mutations) => {
 echoObserver.observe(messages, { childList: true });
 ```
 
-The failure mode is honest by construction: if the send never echoes (circuit dropped, server rejected it), the ghost quietly disappears after 15 seconds and the input still holds nothing — the vanished ghost *is* the "didn't send" signal, and nothing false ever entered the authoritative message list.
+The failure mode is honest by construction. If the send never echoes (the circuit dropped, or the server rejected the message), the ghost disappears after 15 seconds. The ghost that disappeared is the signal that the message did not send. No false message entered the authoritative message list.
 
-Where does the ghost live? That's the load-bearing detail — see the coexistence rules below:
+Where does the ghost live? That is the load-bearing detail. See the coexistence rules below:
 
 ```razor
 @* RoomChat.razor / DmChat.razor — Blazor renders this container, always empty *@
@@ -194,13 +194,13 @@ Where does the ghost live? That's the load-bearing detail — see the coexistenc
 </div>
 ```
 
-The same machinery handles GIFs. Tapping a card in the GIF picker closes the picker instantly (Pattern 5) and ghosts the very preview the user was just looking at — it's already in the browser cache, so it paints in the same frame, with the card's inline `aspect-ratio` copied over so the list doesn't jump when the real message swaps in. Selecting a GIF went from "tap… wait… wait… there it is" to feeling native.
+The same machinery applies to GIFs. When the user taps a card in the GIF picker, the picker closes immediately (Pattern 5), and the ghost shows the same preview the user looked at. That preview is already in the browser cache, thus it paints in the same frame. The card's inline `aspect-ratio` copies over, thus the list does not jump when the real message arrives. Before this change, the user tapped a GIF and then waited through the full round trip. Now the selection feels immediate.
 
 ## Pattern 5: Client-owned UI state in `data-*` attributes
 
-Opening the emoji picker used to be: click → round trip → server flips `showEmojiPicker` → re-render mounts a large component tree → picker appears. About a second on the bad link, for pure *local* UI state — the server has no business knowing whether your picker is open.
+Before, the emoji picker opened in these steps: click, round trip, the server flips `showEmojiPicker`, a render mounts a large component tree, the picker appears. On the bad link, this took approximately one second, for pure local UI state. The server has no reason to know if your picker is open.
 
-Now the pickers are **mounted once, hidden**, and open/close is an attribute flip that never leaves the browser:
+Now the pickers mount one time and stay hidden. Open and close are an attribute flip that never leaves the browser:
 
 ```js
 document.addEventListener('click', (e) => {
@@ -224,11 +224,11 @@ document.addEventListener('click', (e) => {
 }
 ```
 
-Blazor renders the picker *content*; the client owns its *visibility*. The same idea covers "is the user composing" (`data-composing`, flipped on focusin/focusout — mobile CSS trades the upload button for textarea width) and the mobile picker's active tab (`data-active-tab`).
+Blazor renders the picker content. The client owns the picker visibility. The same idea covers "is the user composing" (`data-composing`, flipped on focusin and focusout; the mobile CSS trades the upload button for textarea width) and the active tab of the mobile picker (`data-active-tab`).
 
-Two supporting pieces make always-mounted viable:
+Two more parts make the always-mounted picker possible.
 
-**A render firewall.** `MessageInput` re-renders constantly (typing indicators, reply bar, upload progress), and each re-render would re-diff the large hidden picker subtrees. A trivial wrapper component blocks exactly those parent-cascade renders:
+The first part is a render firewall. `MessageInput` renders again constantly (typing indicators, the reply bar, upload progress), and each render would diff the large hidden picker subtrees again. A small wrapper component blocks exactly those parent-cascade renders:
 
 ```razor
 @* PickerPane.razor — ShouldRender=false blocks parent cascades; the pickers'
@@ -242,7 +242,7 @@ Two supporting pieces make always-mounted viable:
 }
 ```
 
-**Client-side search.** With the grid always mounted, emoji search stops being "send query to server, re-render results" and becomes an in-place filter. Each emoji cell carries a prerendered lowercase `data-kw` keyword string, and JS toggles attributes Blazor never renders — so a Blazor re-render can't clobber the filter state:
+The second part is client-side search. With the grid always mounted, emoji search does not send a query to the server for a new render. It becomes an in-place filter. Each emoji cell has a prerendered lowercase `data-kw` keyword string, and JS toggles attributes that Blazor never renders. Thus a Blazor render cannot overwrite the filter state:
 
 ```js
 const filterEmojiPicker = (picker, rawQuery) => {
@@ -259,47 +259,47 @@ const filterEmojiPicker = (picker, rawQuery) => {
 };
 ```
 
-Search-as-you-type over ~900 emoji, at keystroke speed, on any connection. One more detail earns its keep: picker cells render with `loading="lazy"`, and `display: none` + lazy images means the hidden pickers fetch **zero** images until first opened — always-mounted doesn't mean always-paid.
+The result is search while the user types, across approximately 900 emoji, at keystroke speed, on any connection. One more detail is important. Picker cells render with `loading="lazy"`, and `display: none` plus lazy images means the hidden pickers download zero images until the first open. Thus the always-mounted pickers have no image cost before the user opens them.
 
-Blazor still does what Blazor is good at here: recent-emoji lists refresh behind the already-open picker through a small `[JSInvokable]` open-hook, arriving one round trip *after* the picker opened rather than gating it.
+Blazor still does what Blazor does well here. The recent-emoji lists refresh behind the open picker, through a small `[JSInvokable]` open hook. The data arrives one round trip after the picker opened. It does not delay the open.
 
-This pattern has enough moving parts — the render firewall, the open hook, the tap-beats-mount race — that we gave it a dedicated deep dive: [The Mounted-Hidden Picker Pattern](article-mounted-hidden-picker-pattern.md).
+This pattern has many parts: the render firewall, the open hook, and the race between a fast tap and the mount. Thus it has its own article: [The Mounted-Hidden Picker Pattern](article-mounted-hidden-picker-pattern.md).
 
 ## The rules of coexistence
 
-JS and Blazor sharing a DOM is where this approach either stays elegant or rots. Every bug we hit traced back to violating one of four rules:
+JS and Blazor share one DOM. This is where the approach stays clean or decays. Each bug we hit came from a violation of one of four rules:
 
-1. **JS-owned DOM lives in containers Blazor renders empty.** The ghosts go in `<div class="pending-echoes"></div>` — Blazor diffs it as "empty div, unchanged" every render, so it never touches the JS-appended children. JS elements inserted *between* Blazor-rendered siblings get destroyed or duplicated by the next diff.
-2. **If JS toggles an attribute, Blazor's side of that attribute must be static.** `class="messages @someFlag"` re-interpolates on every render and clobbers whatever JS set. Our rule: Blazor owns `class`, JS owns `data-*` state attributes (plus attributes on elements Blazor created but never updates).
-3. **Capture phase runs before Blazor.** Blazor's event handlers are delegated at the root and run in the bubble phase. A capture-phase listener is guaranteed to run first — that's what lets the send listener paint the ghost and clear the input while the click's RPC is still being serialized. And the Blazor handler still fires afterward; you're prepending behavior, not replacing it.
-4. **In-order circuit processing is an API you can lean on.** Dispatch a `change` before a `click`, and the server processes them in that order, always. The commit-before-click handshake in Pattern 3 is only correct because of this guarantee.
+1. JS-owned DOM lives in containers that Blazor renders empty. The ghosts go in `<div class="pending-echoes"></div>`. Blazor diffs it as an empty, unchanged div on each render, thus Blazor never touches the JS-appended children. If JS inserts elements between Blazor-rendered siblings, the next diff destroys or duplicates them.
+2. If JS toggles an attribute, the Blazor side of that attribute must be static. `class="messages @someFlag"` interpolates again on each render and overwrites what JS set. Our rule: Blazor owns `class`, and JS owns the `data-*` state attributes, plus attributes on elements that Blazor made but never updates.
+3. The capture phase runs before Blazor. Blazor delegates its event handlers at the root, in the bubble phase. A capture-phase listener always runs first. This lets the send listener paint the ghost and clear the input while the browser serializes the click RPC. The Blazor handler still fires after it. You add behavior before Blazor. You do not replace it.
+4. In-sequence circuit processing is an API that you can trust. Dispatch a `change` before a `click`, and the server processes them in that sequence, always. The commit-before-click handshake in Pattern 3 is correct only because of this guarantee.
 
-And one meta-rule: **keep measuring the truth.** The send→appear telemetry (a `MutationObserver` timing the real message's render against the click) kept reporting the honest ~900 ms round trip throughout — perceived latency improved because feedback went local, and the telemetry ensures the good feeling never masks an actual link problem.
+One more rule: continue to measure the truth. The send-to-appear telemetry (a `MutationObserver` that times the real message render against the click) reported the honest ~900 ms round trip through all of this. The perceived latency improved because the feedback became local. The telemetry makes sure that the good feeling does not hide a real link problem.
 
 ## What stayed on the server
 
-Deliberately untouched, because a visible round trip there is *honest*:
+We deliberately did not change these, because a visible round trip there is honest:
 
-- **Settings saves, admin actions, channel management** — the user expects a save to take a moment; optimistic UI would add risk without adding felt speed.
-- **Anything where optimistic state could lie in a way that matters** — permissions, moderation, account state.
-- **All validation and guards.** `HandleSend` still checks emptiness, channel membership, write permissions. If a hand-crafted request bypasses the client niceties, the server verdict is the only one that counts.
+- Settings saves, admin actions, and channel management. The user expects a save to take a moment. Optimistic UI would add risk and no felt speed.
+- All state where an optimistic value could lie in a way that matters: permissions, moderation, account state.
+- All validation and guards. `HandleSend` still checks for empty text, channel membership, and write permissions. If a hand-made request goes around the client behavior, only the server verdict counts.
 
 ## Results
 
-Every interaction in the main chat loop — typing, send feedback, message echo, picker open/close, tab switch, emoji search, category jump, GIF select — now happens at local speed, on a connection where each round trip costs ~900 ms. Server traffic per message went from dozens of dispatches (keystrokes, picker state, key handling) to roughly three: typing-started, the draft commit, the send click.
+Each interaction in the main chat loop now occurs at local speed, on a connection where each round trip costs approximately 900 ms. This includes text input, send feedback, the message echo, picker open and close, tab switches, emoji search, category jumps, and GIF selection. Before, one message caused tens of dispatches (keystrokes, picker state, key handling). Now it causes approximately three: typing-started, the draft commit, and the send click.
 
-After running in production with real users on genuinely bad connections — the first round of fixes for weeks, the full set for days — the verdict from the field is what you'd hope: the app stopped feeling like a remote terminal and started feeling like a chat app.
+The app has run in production with real users on truly bad connections: the first round of corrections for weeks, the full set for days. The verdict from the field is what you would hope. Users say the app stopped feeling like a remote terminal and started feeling like a chat app.
 
-The takeaways, if you're running Blazor Server with users beyond your LAN:
+If you operate Blazor Server with users outside your LAN, keep these points:
 
-1. **Measure the split first.** Our server work was ≤ 71 ms; the wire was ~904 ms. Know your numbers before optimizing the wrong side.
-2. **The user's fingers never wait for the circuit** — feedback the user watches while acting derives from local state and reconciles afterward.
-3. **Escalate cheaply**: CSS that reacts to values (`:placeholder-shown`) → client-routed events into one Blazor entry point → change-granularity binding with a pre-click commit → optimistic ghosts with observer reconciliation → `data-*` attributes for client-owned UI state.
-4. **Follow the coexistence rules** — empty containers for JS-owned DOM, static Blazor attributes where JS toggles, capture phase to get ahead of Blazor, in-order processing to stay correct.
-5. **Don't fight Blazor.** State, truth, validation, and fan-out stay server-side. The moment your JS grows a state machine, you've gone too far.
+1. Measure the split first. Our server work was ≤ 71 ms. The wire was ~904 ms. Know your numbers before you optimize the wrong side.
+2. The user's fingers never wait for the circuit. Feedback that the user watches during an action comes from local state, and reconciles with the server afterward.
+3. Increase complexity only in small steps. Start with CSS that reacts to values (`:placeholder-shown`). Then route client events into one Blazor entry point. Then bind at change granularity, with a commit before the click. Then add optimistic ghosts with observer reconciliation. Then put client-owned UI state in `data-*` attributes.
+4. Obey the coexistence rules. Keep JS-owned DOM in containers that Blazor renders empty. Keep the Blazor side static where JS toggles an attribute. Use the capture phase to run before Blazor. Trust the in-sequence processing to stay correct.
+5. Do not fight Blazor. State, truth, validation, and fan-out stay on the server. If your JS grows a state machine, you went too far.
 
-Blazor Server's programming model is a genuine joy — one language, no API layer, real-time for free. It just needs you to respect the one thing it can't abstract away: the speed of light, plus queuing. Keep the wire off the feedback path, and the model earns its keep even at 900 ms.
+The Blazor Server programming model is a real pleasure: one language, no API layer, real-time updates included. But you must respect the one thing it cannot remove: the speed of light, plus the queue. Keep the wire out of the feedback path, and the model is worth its cost, even at 900 ms.
 
 ---
 
-*Yap is open source — the patterns above live mostly in [`chat.js`](https://github.com/urza/Yap/blob/main/Yap/wwwroot/js/chat.js), [`MessageInput.razor`](https://github.com/urza/Yap/blob/main/Yap/Components/MessageInput.razor), and the components' scoped CSS.*
+*Yap is open source. The patterns above live mostly in [`chat.js`](https://github.com/urza/Yap/blob/main/Yap/wwwroot/js/chat.js), [`MessageInput.razor`](https://github.com/urza/Yap/blob/main/Yap/Components/MessageInput.razor), and the components' scoped CSS.*

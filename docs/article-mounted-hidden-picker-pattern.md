@@ -1,12 +1,12 @@
 # The Mounted-Hidden Picker Pattern
 
-### Instant popups in Blazor Server: mount once, hide with CSS, open at tap speed
+### Instant popups in Blazor Server: mount one time, hide with CSS, open at tap speed
 
-This is a companion piece to [Your Fingers Never Wait for the Circuit](article-responsiveness-in-blazor-server.md), where we described making our self-hosted Blazor Server chat app, [Yap](https://github.com/urza/Yap), feel instant for users on ~900 ms connections. One of the five patterns there deserves its own write-up, because it sounds like one trick but is actually a small system with three problems to solve: **the always-mounted, CSS-revealed picker.** Our GIF picker exercises all three, so it's the example throughout.
+This article is a companion to [Your Fingers Never Wait for the Circuit](article-responsiveness-in-blazor-server.md). That article tells how we made our self-hosted Blazor Server chat app, [Yap](https://github.com/urza/Yap), feel immediate for users on ~900 ms connections. One of the five patterns there gets its own article here, because it sounds like one trick but is a small system with three problems to solve: the always-mounted, CSS-revealed picker. Our GIF picker has all three problems, thus it is the example through the article.
 
-## The old way, and why it was slow twice
+## The old pattern, and why it paid two times
 
-The naive Blazor pattern for any popup is the one every tutorial teaches:
+The usual Blazor pattern for a popup is in every tutorial:
 
 ```razor
 @if (showGifPicker)
@@ -15,13 +15,13 @@ The naive Blazor pattern for any popup is the one every tutorial teaches:
 }
 ```
 
-Tap the GIF button and you pay **twice**. First the round trip: in Blazor Server the tap travels to the server, flips `showGifPicker`, and the new render travels back — ~900 ms on a bad link before anything happens on screen. Then the mount: the picker component initializes *from scratch* — builds its render tree, fetches trending GIFs from the provider, and the browser starts downloading a wall of animated preview images. And because closing destroys the subtree, the next open pays the mount cost all over again. Every single time.
+When you tap the GIF button, you pay two times. The first cost is the round trip. In Blazor Server, the tap travels to the server, the server flips `showGifPicker`, and the new render travels back. On a bad link, ~900 ms pass before the screen changes. The second cost is the mount. The picker component initializes from zero: it builds its render tree, gets trending GIFs from the provider, and the browser starts to download many animated preview images. And because a close destroys the subtree, the next open pays the mount cost again, every time.
 
-The insight that unlocks the fix: open/close is pure **local UI state**. The server has no business knowing whether your picker is open. So invert the lifecycle — *mount the picker once, keep it alive but invisible, and make "open" a CSS state change that never leaves the browser.*
+The key insight: open and close are pure local UI state. The server has no reason to know if your picker is open. Thus invert the lifecycle. Mount the picker one time, keep it alive but invisible, and make "open" a CSS state change that never leaves the browser.
 
-## Alive but asleep
+## Mounted and hidden
 
-The picker mounts about a second after the page loads — not at time zero, because the first render should spend its budget on messages, not on a picker the user may never open:
+The picker mounts approximately one second after the page loads. It does not mount at time zero, because the first render must spend its budget on messages, not on a picker that the user possibly never opens:
 
 ```csharp
 /// Background mount of the hidden picker subtrees. The delay is a priority
@@ -43,7 +43,7 @@ public async Task EnsurePickersMounted()
 }
 ```
 
-When `pickersMounted` flips, the pane renders into the DOM — wrapped in a render firewall we'll meet in a moment, tagged with a `data-picker-pane` attribute, and immediately swallowed by `display: none`:
+When `pickersMounted` flips, the pane renders into the DOM. It is wrapped in a render firewall (see below), it has a `data-picker-pane` attribute, and `display: none` hides it immediately:
 
 ```razor
 <button class="gif-toggle-button" data-picker-toggle="gif" title="GIF picker">
@@ -61,7 +61,7 @@ When `pickersMounted` flips, the pane renders into the DOM — wrapped in a rend
 }
 ```
 
-Notice the toggle button carries **no Blazor handler at all** — no `@onclick`. Its entire behavior is the `data-picker-toggle="gif"` attribute, picked up by one delegated listener in our site-wide `chat.js`:
+Note that the toggle button has no Blazor handler at all. There is no `@onclick`. Its full behavior is the `data-picker-toggle="gif"` attribute, which one delegated listener in our site-wide `chat.js` reads:
 
 ```js
 document.addEventListener('click', (e) => {
@@ -78,7 +78,7 @@ document.addEventListener('click', (e) => {
 });
 ```
 
-And the CSS turns that one attribute into visibility:
+The CSS turns that one attribute into visibility:
 
 ```css
 .emoji-picker-container[data-picker-pane] { display: none; }
@@ -88,15 +88,15 @@ And the CSS turns that one attribute into visibility:
 }
 ```
 
-That's the whole open path: tap → attribute flip → CSS reveal, in the same frame as the tap. The `data-picker` attribute is *single-valued* on the container, which buys a subtle nicety for free — tapping the emoji button while the GIF picker is open just overwrites the value, so picker→picker swaps are also instant, with no "close one, round trip, open the other" dance.
+That is the full open path: tap, attribute flip, CSS reveal, in the same frame as the tap. The `data-picker` attribute has a single value on the container, which gives a small extra function at no cost. When the user taps the emoji button while the GIF picker is open, the tap only overwrites the value. Thus a swap from picker to picker is also immediate, without a close, a round trip, and a second open.
 
-Simple so far. Now the three problems that naive always-mounting runs into, and how each one resolves.
+That part is simple. Now the three problems that naive always-mounted pickers run into, and the solution for each one.
 
-## Problem 1: a mounted picker gets re-rendered to death
+## Problem 1: parent renders hit the mounted picker constantly
 
-Here's the trap that makes naive always-mounting a performance *regression*. The component hosting our pickers — the message input — re-renders constantly: typing indicators, the reply bar, upload progress. Blazor re-renders cascade down to children, which means every one of those events would re-diff the entire hidden GIF grid. You'd be paying render tax on a picker nobody is looking at.
+This trap can make a naive always-mounted picker a performance regression. The component that holds our pickers, the message input, renders again constantly: typing indicators, the reply bar, upload progress. Blazor renders cascade down to the children. Thus each of those events would diff the full hidden GIF grid again. You would pay a render cost for a picker that nobody sees.
 
-`PickerPane` is the firewall — nine lines that make the whole architecture viable:
+`PickerPane` is the firewall. These nine lines make the full architecture possible:
 
 ```razor
 @* Render firewall for the always-mounted pickers. ShouldRender=false blocks
@@ -110,9 +110,9 @@ Here's the trap that makes naive always-mounting a performance *regression*. The
 }
 ```
 
-`ShouldRender() => false` blocks exactly the parent cascades. But the picker isn't frozen — this is the part that surprises people: **Blazor renders from the component that handled the event, not from the root.** Click a tab *inside* the GIF picker and `GifPicker` handles that event and re-renders itself normally; `PickerPane` never gets a vote. Only renders arriving *from above* are stopped.
+`ShouldRender() => false` blocks exactly the parent cascades. But the picker is not frozen. This is the part that surprises people: Blazor renders from the component that handled the event, not from the root. Click a tab inside the GIF picker, and `GifPicker` handles that event and renders itself as usual. `PickerPane` gets no vote. The firewall stops only the renders that come from above.
 
-The firewall has one escape hatch worth knowing about. Because ordinary re-renders can't restructure the pane's contents, a change to the content's *shape* needs a fresh component instance — and `@key` provides exactly that. Our emoji pane swaps between a desktop picker and a combined mobile picker, so it's keyed on the layout:
+The firewall has one deliberate opening that you must know. Ordinary renders cannot change the structure of the pane contents. Thus a change to the content shape needs a fresh component instance, and `@key` supplies exactly that. Our emoji pane swaps between a desktop picker and a combined mobile picker, thus its key is the layout:
 
 ```razor
 @* A mobile↔desktop flip must rebuild this pane with the right picker inside —
@@ -123,11 +123,11 @@ The firewall has one escape hatch worth knowing about. Because ordinary re-rende
 </PickerPane>
 ```
 
-A changed key tears down the old instance and mounts a new one — and a *first* render always happens regardless of `ShouldRender`. Firewall intact, shape changes still possible.
+A changed key removes the old instance and mounts a new one, and a first render always occurs, independent of `ShouldRender`. The firewall stays intact, and shape changes stay possible.
 
-## Problem 2: a component that initializes once but opens many times
+## Problem 2: a component that initializes one time but opens many times
 
-The old picker's `OnInitializedAsync` ran fresh on every open, so "load trending, show current recents, empty search box" happened naturally. The mounted picker initializes **once per page** and then lives across dozens of opens. Two things go wrong immediately: data goes stale (send a GIF, reopen the picker — "Recent" doesn't include it), and any provider fetch in the initializer now fires for every user at page load, whether or not they ever open the picker. So the fetch moved out:
+The old picker's `OnInitializedAsync` ran fresh on each open. Thus "load trending, show current recents, empty search box" occurred naturally. The mounted picker initializes one time per page and then lives across tens of opens. Two things go wrong immediately. Data becomes stale: send a GIF, open the picker again, and "Recent" does not include it. And each provider fetch in the initializer now fires for every user at page load, also for users who never open the picker. Thus the fetch moved out:
 
 ```csharp
 // Trending is deliberately NOT fetched here: the picker mounts hidden at page
@@ -135,7 +135,7 @@ The old picker's `OnInitializedAsync` ran fresh on every open, so "load trending
 // first OnPickerOpened pays it instead.
 ```
 
-The replacement for "init runs on open" is an explicit **open hook**. The picker registers itself with chat.js on first render:
+The replacement for "init runs on open" is an explicit open hook. The picker registers itself with chat.js at the first render:
 
 ```csharp
 protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -146,7 +146,7 @@ protected override async Task OnAfterRenderAsync(bool firstRender)
 }
 ```
 
-…and chat.js calls it back each time the pane becomes visible (the `notifyPickerOpened` from the toggle listener). Per-open freshness lives there instead of in `OnInitialized`:
+Then chat.js calls it back each time the pane becomes visible (the `notifyPickerOpened` from the toggle listener). Per-open freshness lives there, not in `OnInitialized`:
 
 ```csharp
 [JSInvokable]
@@ -161,15 +161,15 @@ public async Task OnPickerOpened()
 }
 ```
 
-The timing is the elegant part: the picker is *already open and painted* when this fires. Trending arrives one round trip later and pops in behind the open UI — the round trip still happens, it just stopped gating anything. Favorites and the server GIF library need nothing here at all, because they're event-driven — service events (`OnFavoritesChanged` and friends) keep them live even while the picker sleeps.
+The timing is the good part. The picker is already open and painted when this hook fires. Trending arrives one round trip later and appears behind the open UI. The round trip still occurs. It only stopped as a gate for the open. Favorites and the server GIF library need nothing here at all, because they are event-driven. Service events (`OnFavoritesChanged` and others) keep them current while the picker is hidden.
 
-There's a structural reason the hook must exist, not just a convenience. The `PickerPane` firewall blocks parameter flow into the sleeping subtree — that was the whole point — which means nothing per-open can ride the normal Blazor parameter mechanism. **The render firewall closes the parameter door, so the open hook becomes the doorbell.** Everything that needs to reach the picker per-open goes through it.
+The hook must exist for a structural reason, not only for convenience. The `PickerPane` firewall blocks parameter flow into the hidden subtree. That was the goal. Thus no per-open data can travel on the normal Blazor parameter mechanism. The render firewall closes the parameter path, thus each per-open signal must go through the open hook.
 
-## Problem 3: the tap that beats the mount
+## Problem 3: the tap that comes before the mount
 
-There's a race baked into the 1.2-second delay: a fast user can tap the GIF button before the background mount ever ran. The naive outcome is a dead button. The fix handles it from both sides.
+The 1.2-second delay contains a race. A fast user can tap the GIF button before the background mount ran. The naive result is a dead button. The correction works from both sides.
 
-The JS side notices there's nothing to show and asks Blazor to mount *now*:
+The JS side sees that there is nothing to show and asks Blazor to mount now:
 
 ```js
 const notifyPickerOpened = (container, which) => {
@@ -188,9 +188,9 @@ const notifyPickerOpened = (container, which) => {
 };
 ```
 
-Note what happened *before* this call: the toggle listener already set `container.dataset.picker = "gif"`. The client-owned state says "the GIF picker is open" — there's just no pane in the DOM yet. So when `EnsurePickersMounted` renders one a round trip later, the CSS selector `[data-picker="gif"] [data-picker-pane="gif"]` matches **the instant the element exists**, and the picker appears already open. No second tap, no reconciliation code — the declarative CSS did the reconciling.
+Note what occurred before this call. The toggle listener already set `container.dataset.picker = "gif"`. The client-owned state says "the GIF picker is open". There is only no pane in the DOM yet. Thus when `EnsurePickersMounted` renders one a round trip later, the CSS selector `[data-picker="gif"] [data-picker-pane="gif"]` matches at the moment the element exists, and the picker appears already open. The user does not tap a second time, and no reconciliation code is necessary. The declarative CSS did the reconciliation.
 
-The Blazor side closes the loop. That late-arriving picker missed its `OnPickerOpened` call (it fired into an empty DOM), so the registration hook checks whether it's being born into an already-open pane:
+The Blazor side closes the loop. The late picker missed its `OnPickerOpened` call, because the call fired into an empty DOM. Thus the registration hook checks if the new component arrives in a pane that is already open:
 
 ```js
 window.registerPickerOpenHook = (el, dotNetRef) => {
@@ -205,37 +205,37 @@ window.registerPickerOpenHook = (el, dotNetRef) => {
 };
 ```
 
-So the early tap degrades to exactly one round trip of wait — what *every* open used to cost — and only for a user who taps within the first second of page load. That's the honest cost of this pattern, and we accepted it.
+Thus the early tap degrades to exactly one round trip of wait, which is what every open cost before. And it applies only to a user who taps in the first second after page load. That is the honest cost of this pattern, and we accepted it.
 
-## What the hidden picker doesn't cost
+## What the hidden picker does not cost
 
-One last detail makes "always mounted" cheap enough to be free. A GIF picker's weight isn't its DOM — it's the images. Every cell renders with `loading="lazy"`, and lazy-loading composes beautifully with the reveal mechanism: elements inside `display: none` have no layout, and images with no layout are never "near the viewport," so **the hidden picker downloads zero images**. The browser starts fetching previews only when the attribute flips and the pane gets geometry. The DOM sits warm; the bandwidth waits for intent.
+One last detail makes "always mounted" almost free. The weight of a GIF picker is not its DOM. It is the images. Every cell renders with `loading="lazy"`, and lazy images and the reveal mechanism work well together. Elements inside `display: none` have no layout. Images with no layout are never "near the viewport". Thus the hidden picker downloads zero images. The browser starts to fetch previews only when the attribute flips and the pane gets geometry. The DOM is ready before the first open, and the bandwidth cost comes only when the user opens the picker.
 
-The always-mounted grid also unlocks a follow-on win covered in the companion article: search stops being "query the server, re-render results" and becomes an in-place client-side filter over the mounted cells — instant on any connection.
+The always-mounted grid also opens a follow-on win, covered in the companion article. Search does not query the server for a new render. It becomes an in-place client-side filter over the mounted cells, immediate on any connection.
 
-## The shape of it
+## The division of labor
 
-Step back and the division of labor is clean:
+Step back, and the division of labor is clean:
 
 | Concern | Owner |
 |---|---|
-| Is the picker open? | Client — `data-picker` attribute + CSS |
-| What's in the picker? | Blazor — `GifPicker` renders content, services push updates |
-| Protecting the sleeping subtree | `PickerPane` — `ShouldRender() => false` |
+| Is the picker open? | Client: `data-picker` attribute + CSS |
+| What is in the picker? | Blazor: `GifPicker` renders content, services push updates |
+| Protection of the hidden subtree | `PickerPane`: `ShouldRender() => false` |
 | Per-open freshness | The `OnPickerOpened` JSInvokable hook |
-| The early-tap race | Both sides — `EnsurePickersMounted` + the hook's already-open check |
+| The early-tap race | Both sides: `EnsurePickersMounted` + the hook's already-open check |
 
-Blazor never learns the picker opened (except the deliberate open-hook ping), and JS never learns what a GIF is. Each side owns the thing it's structurally good at: the client owns *visibility*, the server owns *content*.
+Blazor never learns that the picker opened, except through the deliberate open-hook ping. JS never learns what a GIF is. Each side owns the thing it does well: the client owns visibility, and the server owns content.
 
-If you take one checklist away, it's this — always-mounting a Blazor Server popup takes four pieces, and skipping any of them bites:
+If you keep one checklist, keep this one. An always-mounted Blazor Server popup needs four pieces, and each piece that you skip causes a defect:
 
-1. **Defer the mount** a beat past page load, with a JSInvokable rush path for taps that beat it.
-2. **Firewall the subtree** (`ShouldRender() => false` wrapper) or the host's re-renders will diff your hidden DOM forever; use `@key` on the wrapper when the content's shape must change.
-3. **Add an open hook** for per-open freshness — the firewall blocks parameters, so refresh-on-open must arrive by explicit call.
-4. **Let CSS reconcile state and DOM** — client-owned `data-*` attribute plus an attribute selector means even a pane that mounts late appears in the right state the moment it exists.
+1. Delay the mount a moment after page load, with a JSInvokable rush path for taps that come first.
+2. Put a firewall around the subtree (a `ShouldRender() => false` wrapper). Without it, the host renders diff your hidden DOM forever. Use `@key` on the wrapper when the content shape must change.
+3. Add an open hook for per-open freshness. The firewall blocks parameters, thus refresh-on-open must arrive by an explicit call.
+4. Let CSS reconcile state and DOM. A client-owned `data-*` attribute plus an attribute selector means that a pane that mounts late also appears in the correct state at the moment it exists.
 
-Behind those four pieces, opening a picker on a 900 ms connection costs the same as on localhost: one attribute, one frame, zero round trips.
+With these four pieces, a picker on a 900 ms connection opens at the same cost as on localhost: one attribute, one frame, zero round trips.
 
 ---
 
-*Yap is open source — this pattern lives in [`MessageInput.razor`](https://github.com/urza/Yap/blob/main/Yap/Components/MessageInput.razor), [`PickerPane.razor`](https://github.com/urza/Yap/blob/main/Yap/Components/PickerPane.razor), [`GifPicker.razor`](https://github.com/urza/Yap/blob/main/Yap/Components/GifPicker.razor), and [`chat.js`](https://github.com/urza/Yap/blob/main/Yap/wwwroot/js/chat.js).*
+*Yap is open source. This pattern lives in [`MessageInput.razor`](https://github.com/urza/Yap/blob/main/Yap/Components/MessageInput.razor), [`PickerPane.razor`](https://github.com/urza/Yap/blob/main/Yap/Components/PickerPane.razor), [`GifPicker.razor`](https://github.com/urza/Yap/blob/main/Yap/Components/GifPicker.razor), and [`chat.js`](https://github.com/urza/Yap/blob/main/Yap/wwwroot/js/chat.js).*
