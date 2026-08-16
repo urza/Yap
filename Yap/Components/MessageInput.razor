@@ -88,67 +88,73 @@ else
    CSS reacts. Opening a picker or focusing the box never waits on the circuit. *@
 <div class="message-input-container @(ReplyingToMessage != null ? "has-reply-bar" : "")"
      @ref="dropZoneElement">
-    @* Plain @bind (change granularity): keystrokes never round-trip. The send pipeline
-       (chat.js) commits the draft with a synthetic change right before the send click's
-       RPC — in-order circuit processing lands it ahead of HandleSend. Typing-indicator
-       bursts come from setupTypingTracker, ~2 dispatches per burst. *@
-    <textarea @bind="messageText" placeholder="@placeholder" class="message-input"
-              rows="1" id="@TextareaId"></textarea>
-    <label class="image-upload-button" title="Upload files">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-            <circle cx="8.5" cy="8.5" r="1.5"></circle>
-            <polyline points="21 15 16 10 5 21"></polyline>
-        </svg>
-        <InputFile OnChange="HandleFileSelected" accept="image/*,video/*" multiple style="display: none;" id="@FileInputId" />
-    </label>
-    <div class="emoji-toggle-wrapper">
-        @* The pickers mount ONCE in the background (pickersMounted flips ~1.2s after page
-           load, or on the first early toggle tap via EnsurePickersMounted) and stay in the
-           DOM behind display:none — opening is then a pure CSS attribute flip in chat.js.
-           PickerPane stops parent re-render cascades from re-diffing the hidden subtrees. *@
-        <button class="gif-toggle-button" data-picker-toggle="gif" title="GIF picker">
-            <span class="gif-toggle-badge">GIF</span>
-        </button>
-        @if (pickersMounted && !isMobileLayout)
-        {
-            <PickerPane>
-                <div class="emoji-picker-backdrop" data-picker-pane="gif"></div>
-                <div class="emoji-picker-container" data-picker-pane="gif">
-                    <GifPicker CurrentUserId="@UserId" CurrentUsername="@Username"
-                               OnGifSelected="HandleGifSelected" OnUploadError="HandleGifUploadError" />
-                </div>
-            </PickerPane>
-        }
-        <button class="emoji-toggle-button" data-picker-toggle="emoji" title="Emoji picker">
-            <span class="emoji-toggle-icon" id="@EmojiIconId"
-                  style="--grey-col: @greyCol; --grey-row: @greyRow; --color-col: @colorCol; --color-row: @colorRow;"></span>
-        </button>
-        @if (pickersMounted)
-        {
-            @* @key: a mobile↔desktop flip must rebuild this pane with the right picker
-               inside — PickerPane blocks ordinary re-renders, so the swap needs the
-               fresh instance a changed key provides. *@
-            <PickerPane @key="isMobileLayout">
-                <div class="emoji-picker-backdrop" data-picker-pane="emoji"></div>
-                <div class="emoji-picker-container" data-picker-pane="emoji">
-                    @if (isMobileLayout)
-                    {
-                        <CombinedPicker CurrentUserId="@UserId" CurrentUsername="@Username"
-                                        OnGifSelected="HandleGifSelected" OnUploadError="HandleGifUploadError"
-                                        RecentEmojis="@RecentEmojis" OnEmojiUsed="@OnEmojiUsed" TextareaId="@TextareaId" />
-                    }
-                    else
-                    {
-                        <EmojiPicker RecentEmojis="@RecentEmojis" OnEmojiUsed="@OnEmojiUsed" TextareaId="@TextareaId" />
-                    }
-                </div>
-            </PickerPane>
-        }
+    @* Discord-style layout: one rounded box holds the + upload button, the textarea, and
+       the picker toggles. The send button sits OUTSIDE the box and is revealed/collapsed
+       by pure CSS (:placeholder-shown + data-picker) — none of it waits on the circuit. *@
+    <div class="input-box">
+        <label class="image-upload-button" title="Upload files">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <InputFile OnChange="HandleFileSelected" accept="image/*,video/*" multiple style="display: none;" id="@FileInputId" />
+        </label>
+        @* Plain @bind (change granularity): keystrokes never round-trip. The send pipeline
+           (chat.js) commits the draft with a synthetic change right before the send click's
+           RPC — in-order circuit processing lands it ahead of HandleSend. Typing-indicator
+           bursts come from setupTypingTracker, ~2 dispatches per burst. *@
+        <textarea @bind="messageText" placeholder="@placeholder" class="message-input"
+                  rows="1" id="@TextareaId"></textarea>
+        <div class="emoji-toggle-wrapper">
+            @* The pickers mount ONCE in the background (pickersMounted flips ~1.2s after page
+               load, or on the first early toggle tap via EnsurePickersMounted) and stay in the
+               DOM behind display:none — opening is then a pure CSS attribute flip in chat.js.
+               PickerPane stops parent re-render cascades from re-diffing the hidden subtrees. *@
+            <button class="gif-toggle-button" data-picker-toggle="gif" title="GIF picker">
+                <span class="gif-toggle-badge">GIF</span>
+            </button>
+            @if (pickersMounted && !isMobileLayout)
+            {
+                <PickerPane>
+                    <div class="emoji-picker-backdrop" data-picker-pane="gif"></div>
+                    <div class="emoji-picker-container" data-picker-pane="gif">
+                        <GifPicker CurrentUserId="@UserId" CurrentUsername="@Username"
+                                   OnGifSelected="HandleGifSelected" OnUploadError="HandleGifUploadError" />
+                    </div>
+                </PickerPane>
+            }
+            <button class="emoji-toggle-button" data-picker-toggle="emoji" title="Emoji picker">
+                <span class="emoji-toggle-icon" id="@EmojiIconId"
+                      style="--grey-col: @greyCol; --grey-row: @greyRow; --color-col: @colorCol; --color-row: @colorRow;"></span>
+            </button>
+            @if (pickersMounted)
+            {
+                @* @key: a mobile↔desktop flip must rebuild this pane with the right picker
+                   inside — PickerPane blocks ordinary re-renders, so the swap needs the
+                   fresh instance a changed key provides. *@
+                <PickerPane @key="isMobileLayout">
+                    <div class="emoji-picker-backdrop" data-picker-pane="emoji"></div>
+                    <div class="emoji-picker-container" data-picker-pane="emoji">
+                        @if (isMobileLayout)
+                        {
+                            <CombinedPicker CurrentUserId="@UserId" CurrentUsername="@Username"
+                                            OnGifSelected="HandleGifSelected" OnUploadError="HandleGifUploadError"
+                                            RecentEmojis="@RecentEmojis" OnEmojiUsed="@OnEmojiUsed" TextareaId="@TextareaId" />
+                        }
+                        else
+                        {
+                            <EmojiPicker RecentEmojis="@RecentEmojis" OnEmojiUsed="@OnEmojiUsed" TextareaId="@TextareaId" />
+                        }
+                    </div>
+                </PickerPane>
+            }
+        </div>
     </div>
-    @* Enabled-look and Enter-to-send are client-side (:placeholder-shown CSS + chat.js
-       send pipeline) so neither waits on a circuit round trip; HandleSend still guards. *@
+    @* Enter-to-send is client-side (chat.js send pipeline) and the show/hide of this
+       button is pure CSS on the box's content state — neither waits on a circuit round
+       trip; HandleSend still guards. The button stays in the DOM while collapsed so the
+       Enter handler's .click() always has a target. *@
     <button class="send-button"
             @onclick="HandleSend"
             title="Send message">

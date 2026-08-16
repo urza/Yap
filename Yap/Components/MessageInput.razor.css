@@ -48,13 +48,19 @@
     padding-top: 0;
 }
 
-.message-input-container.has-reply-bar .message-input {
-    border-radius: 0 0 8px 8px;
+.message-input-container.has-reply-bar .input-box {
+    border-radius: 0 0 22px 22px;
 }
 
-/* Keep some breathing room between textarea and the buttons */
-.message-input {
-    margin-right: 0.25rem;
+/* The single rounded box (Discord-style): + upload on the left, textarea in the middle,
+   picker toggles on the right. The send button lives OUTSIDE it, as a container sibling. */
+.input-box {
+    flex: 1 1 0%;
+    min-width: 0;
+    display: flex;
+    align-items: flex-end;
+    background: var(--bg-input);
+    border-radius: 22px;
 }
 
 /* data-dragging is set by setupDropZone (chat.js) — drag visuals are fully client-side */
@@ -75,14 +81,14 @@
     pointer-events: none;
 }
 
+/* Transparent inside the box — the .input-box paints the shared background. */
 .message-input {
     flex: 1 1 0%;
     min-width: 0;
-    padding: 0.6875rem 1rem;
+    padding: 0.6875rem 0.25rem;
     border: none;
-    border-radius: 8px;
     font-size: 1rem;
-    background: var(--bg-input);
+    background: transparent;
     color: var(--text-primary);
     word-break: break-word;
     overflow-wrap: break-word;
@@ -118,12 +124,17 @@
     justify-content: center;
     width: 44px;
     height: 44px;
+    margin-left: 8px;
+    padding: 0;
     background: var(--accent-primary);
     color: var(--text-white);
     border: none;
     border-radius: 50%;
     cursor: pointer;
-    transition: background-color 0.2s, opacity 0.2s;
+    overflow: hidden;
+    transition: background-color 0.2s, opacity 0.2s,
+                flex-basis 0.15s ease, width 0.15s ease,
+                margin-left 0.15s ease, transform 0.15s ease;
 }
 
 .send-button:hover:not(:disabled) {
@@ -137,10 +148,20 @@
     cursor: not-allowed;
 }
 
-/* Client-side enablement: dim purely on "is the box empty" via :placeholder-shown —
-   reacts to the value itself, no circuit round trip. Placed after the :hover rule so
-   the muted background wins while dimmed (equal specificity, later wins). */
-.message-input:placeholder-shown ~ .send-button {
+/* Client-side visibility, no circuit round trip: the button collapses away while the box
+   is empty AND no picker is open (:placeholder-shown reacts to the value itself;
+   data-picker is the client-owned picker state chat.js flips). It collapses instead of
+   display:none so the width animates AND the Enter handler's .click() keeps a live target. */
+.message-input-container:not([data-picker]):has(.message-input:placeholder-shown) .send-button {
+    flex-basis: 0;
+    width: 0;
+    margin-left: 0;
+    transform: scale(0);
+}
+
+/* Picker open over an empty box: the button is visible (a reassurance the user asked
+   for) but dimmed — there is nothing to send yet, and HandleSend still guards. */
+.message-input-container[data-picker]:has(.message-input:placeholder-shown) .send-button {
     background: var(--bg-muted);
     opacity: 0.5;
     cursor: not-allowed;
@@ -203,6 +224,17 @@
     border-radius: 50%;
     cursor: pointer;
     padding: 0;
+    overflow: hidden;
+    transition: flex-basis 0.15s ease, width 0.15s ease, transform 0.15s ease;
+}
+
+/* A GIF sends as its own message — it can't be inserted into a draft. While the user is
+   typing text, collapse the GIF button (Discord's gift/mic move); emoji stays, since
+   emojis DO insert into the draft. Pure sibling CSS off the textarea's value. */
+.message-input:not(:placeholder-shown) ~ .emoji-toggle-wrapper .gif-toggle-button {
+    flex-basis: 0;
+    width: 0;
+    transform: scale(0);
 }
 
 .gif-toggle-badge {
@@ -295,11 +327,20 @@
     display: block;
 }
 
-/* While a picker is open (data-picker set by chat.js), lift the textarea above the picker
-   backdrop (z-index 999) — like .send-button — so a single click reaches the textarea,
-   focusing it AND dismissing the picker in one gesture (the focusin handler in chat.js
-   clears data-picker). Scoped to [data-picker] so the [data-dragging] "Drop images here"
-   hint (container ::after) stays above the textarea otherwise. */
+/* While a picker is open (data-picker set by chat.js), lift the whole input box above the
+   picker backdrop (z-index 999) — like .send-button — so a single click reaches the
+   textarea, focusing it AND dismissing the picker in one gesture (the focusin handler in
+   chat.js clears data-picker). The textarea is transparent now, so lifting only it would
+   float bare text over the mobile backdrop; the box brings its background along. Scoped
+   to [data-picker] so the [data-dragging] "Drop images here" hint (container ::after)
+   stays above the box otherwise. */
+.message-input-container[data-picker] .input-box {
+    position: relative;
+    z-index: 1000;
+}
+
+/* The box is now a stacking context holding the backdrop (z 999) — the static textarea
+   would paint UNDER it. Lift the textarea within the box so one click still reaches it. */
 .message-input-container[data-picker] .message-input {
     position: relative;
     z-index: 1000;
@@ -408,10 +449,6 @@
         gap: 0;
     }
 
-    .message-input {
-        margin-right: 0.125rem;
-    }
-
     .typing-indicator-container {
         height: 18px;
     }
@@ -425,33 +462,33 @@
         font-size: 16px; /* Prevents zoom on iOS */
     }
 
+    /* 40px buttons in the 44px-min box: 2px bottom margin keeps them optically centered
+       (the box is align-items: flex-end for multi-line growth). */
     .image-upload-button {
         flex: 0 0 40px;
         width: 40px;
         height: 40px;
+        margin-bottom: 2px;
     }
 
     .send-button {
         flex: 0 0 40px;
         width: 40px;
         height: 40px;
+        margin-bottom: 2px;
     }
 
     .emoji-toggle-button {
         flex: 0 0 40px;
         width: 40px;
         height: 40px;
+        margin-bottom: 2px;
     }
 
-    /* On phone, GIFs and emoji share one button (the emoji icon) — the picker has tabs. */
+    /* On phone, GIFs and emoji share one button (the emoji icon) — the picker has tabs.
+       The + upload button stays visible while composing (Discord keeps it too); the old
+       data-composing hide is gone — the send button hiding while idle repays the space. */
     .gif-toggle-button {
-        display: none;
-    }
-
-    /* Reclaim space for the textarea while the user is actively composing. data-composing
-       is set/cleared client-side (chat.js): focusin sets it, focusout clears it, and the
-       send pipeline clears it explicitly (send keeps focus, so no focusout fires there). */
-    .message-input-container[data-composing] .image-upload-button {
         display: none;
     }
 
