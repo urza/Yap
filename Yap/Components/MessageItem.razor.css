@@ -504,6 +504,19 @@
     color: var(--text-primary);
 }
 
+/* GIF favorite toggle in the bar — mobile-only (revealed in the mobile media query).
+   Desktop keeps the hover star on the GIF itself, where there's no bar collision. */
+.action-gif-fav {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+}
+
+.action-gif-fav.favorited {
+    color: #ffc107;
+}
+
 /* Keep hover state when picker or more-menu is open */
 .message-group.picker-open,
 .message-group.menu-open {
@@ -883,6 +896,21 @@
     .action-btn {
         padding: 8px 9px;
         font-size: 1rem;
+    }
+
+    /* GIF favoriting moves into the actions bar (the bar covers the GIF's corner
+       on narrow screens). The corner star stays as a favorited-only indicator:
+       inert so a tap near it can't race the bar, and never revealed while empty. */
+    .action-gif-fav {
+        display: flex;
+    }
+
+    .gif-message-fav {
+        pointer-events: none;
+    }
+
+    .gif-message:hover .gif-message-fav:not(.favorited) {
+        opacity: 0;
     }
 
     .message-group {

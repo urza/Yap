@@ -254,6 +254,20 @@
                     <path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/>
                 </svg>
             </button>
+            @if (Message.HasGifs && GifService.GetEntry(Message.GifAttachments[0].GifEntryId) is { } favEntry)
+            {
+                // Mobile-only (CSS-hidden on desktop): on phones the bar covers the GIF's
+                // corner star, so favoriting lives here and the corner star is a passive
+                // indicator. Acts on the first GIF — messages carry one in practice.
+                var barFav = GifService.IsFavorite(CurrentUserId, favEntry.Id);
+                <button class="action-btn action-gif-fav @(barFav ? "favorited" : "")"
+                        @onclick="@(() => ToggleGifFavorite(favEntry.Id))"
+                        title="@(barFav ? "Remove from favorites" : "Add to favorites")">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                    </svg>
+                </button>
+            }
             @if (IsOwn && !Message.HasMedia)
             {
                 <button class="action-btn action-edit" @onclick="() => OnStartEdit.InvokeAsync()" title="Edit">
