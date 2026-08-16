@@ -2,6 +2,7 @@
 @inject UserStateService UserState
 @inject UserService UserService
 @inject ChatService ChatService
+@inject ChatConfigService ChatConfig
 @inject UserActionLogService ActionLog
 @inject PushSubscriptionStore PushStore
 @inject PushNotificationService PushService
@@ -575,6 +576,62 @@
                 </label>
             </div>
 
+            @* Read-only how-tos: these two live in appsettings.json (per deployment), not in
+               runtime toggles — both are useless without a matching DNS record, so an admin
+               switch here could only lie about what the infrastructure supports. *@
+            <div class="section-header" style="margin-top: 2rem;">
+                <h3>Deployment</h3>
+                <span class="section-count">Set in appsettings.json, per instance</span>
+            </div>
+
+            <div class="howto-list">
+                <details class="howto-box">
+                    <summary>
+                        <span class="toggle-label">Upload subdomain (tus)</span>
+                        @if (string.IsNullOrEmpty(ChatConfig.UploadUrl))
+                        {
+                            <span class="howto-status">off — uploads use /api/tus on this domain</span>
+                        }
+                        else
+                        {
+                            <span class="howto-status on">@ChatConfig.UploadUrl</span>
+                        }
+                    </summary>
+                    <div class="howto-body">
+                        <p>Uploads that pass through the Cloudflare proxy hit its request size limit. A direct subdomain avoids that limit, so large files upload without errors.</p>
+                        <ol>
+                            <li>Add a DNS record for <code>upload.your-domain.com</code>. Make it DNS-only (grey cloud). Point it at this server.</li>
+                            <li>Give this server a trusted TLS certificate for that hostname (for example Let's Encrypt). Cloudflare origin certificates do not work here, because the browser connects directly.</li>
+                            <li>Set <code>ChatSettings:UploadUrl</code> to <code>https://upload.your-domain.com/api/tus</code> and restart. In Docker, set the env var <code>ChatSettings__UploadUrl</code> instead.</li>
+                        </ol>
+                        <p>Leave the setting empty to upload through the main domain.</p>
+                    </div>
+                </details>
+
+                <details class="howto-box">
+                    <summary>
+                        <span class="toggle-label">IPv4 beacon</span>
+                        @if (string.IsNullOrEmpty(ChatConfig.Ipv4BeaconUrl))
+                        {
+                            <span class="howto-status">off — dualstack clients show IPv6 only</span>
+                        }
+                        else
+                        {
+                            <span class="howto-status on">@ChatConfig.Ipv4BeaconUrl</span>
+                        }
+                    </summary>
+                    <div class="howto-body">
+                        <p>A dualstack client connects over IPv6, so its IPv4 never reaches the server. The beacon makes the browser send one background request to an IPv4-only hostname. That request reveals the client's IPv4, and the Diagnostics sessions table then shows both addresses.</p>
+                        <ol>
+                            <li>Add a DNS <strong>A record only</strong> (no AAAA) for <code>ip4.your-domain.com</code>. Make it DNS-only (grey cloud). Point it at this server.</li>
+                            <li>Give this server a trusted TLS certificate for that hostname, same as for the upload subdomain.</li>
+                            <li>Set <code>ChatSettings:Ipv4BeaconUrl</code> to <code>https://ip4.your-domain.com</code> and restart. In Docker, set the env var <code>ChatSettings__Ipv4BeaconUrl</code> instead.</li>
+                        </ol>
+                        <p>Leave the setting empty to disable. The value is display-only and never affects login decisions.</p>
+                    </div>
+                </details>
+            </div>
+
             @if (pendingUsersList.Count > 0)
             {
                 <div class="section-header" style="margin-top: 2rem;">
@@ -981,11 +1038,17 @@
                                     var circuit = s.CircuitId != null ? diagCircuitById.GetValueOrDefault(s.CircuitId) : null;
                                     var status = ChatService.GetUserStatus(s.Username);
                                     // The dangerous combo: counted foreground while its circuit is gone or silent.
-                                    // (Only for circuit-backed sessions — the system bot has none and is never a ghost.)
+                                    // (Only for circuit-backed sessions — a session without a circuit is never a ghost.)
                                     var ghost = s.PageVisible && s.CircuitId != null && circuit?.IsConnected != true;
                                     <tr style="@(ghost ? "color: var(--color-warning);" : "")">
                                         <td>@s.Username</td>
-                                        <td>@(s.IsMobile == true ? "📱" : "🖥️") @(s.ClientIp ?? "—")</td>
+                                        <td>
+                                            @(s.IsMobile == true ? "📱" : "🖥️") @(s.ClientIp ?? "—")
+                                            @if (s.ClientIpv4 != null && s.ClientIpv4 != s.ClientIp)
+                                            {
+                                                <span style="color: var(--text-secondary);" title="IPv4 reported by the beacon — the circuit itself connected over IPv6">· v4 @s.ClientIpv4</span>
+                                            }
+                                        </td>
                                         <td>@(circuit?.IsWebSocket switch { true => "WS", false => "⚠ Fallback", null => "—" })</td>
                                         <td>@(circuit == null ? "—" : circuit.IsConnected ? "✓" : $"✗ {FormatAgo(circuit.DisconnectedAt)}")</td>
                                         <td>@(s.PageVisible ? "👁 yes" : "no")</td>
@@ -1972,14 +2035,18 @@
             .ThenBy(c => c.Username)
             .ToList();
         diagClosedCircuits = CircuitTracker.GetRecentlyClosed();
+        // The system bot is not a real client: its always-online pseudo-session has no circuit,
+        // and audit rows where the bot is the recipient (no device, no badge) are pure noise.
+        // Rows where the bot SENDS to a real user stay — those are genuine pushes worth auditing.
         diagSessions = ChatService.GetAllSessions()
+            .Where(s => !BotService.IsBotUser(s.Username))
             .OrderBy(s => s.Username)
             .ThenBy(s => s.CreatedAt)
             .ToList();
         diagCircuitById = diagCircuits.ToDictionary(c => c.CircuitId);
-        diagPushDecisions = Audit.GetPushDecisions();
-        diagPushResults = Audit.GetPushResults();
-        diagUnreadChanges = Audit.GetUnreadChanges();
+        diagPushDecisions = Audit.GetPushDecisions().Where(d => !BotService.IsBotUser(d.To)).ToList();
+        diagPushResults = Audit.GetPushResults().Where(r => !BotService.IsBotUser(r.To)).ToList();
+        diagUnreadChanges = Audit.GetUnreadChanges().Where(u => !BotService.IsBotUser(u.User)).ToList();
 
         if (_jsModule == null || snapshots.Count == 0) return;
 

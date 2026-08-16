@@ -180,6 +180,20 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
                     if (ChatService.GetUserStatus(Username) != UserState.Status)
                         await ChatService.SetUserStatusAsync(UserState.SessionId, UserState.Status);
                 }
+
+                // Opt-in IPv4 beacon: a dualstack client's circuit arrives over IPv6, which
+                // hides its v4 from the admin panel. Fire on every page load (idempotent
+                // overwrite) so a failed first attempt self-heals on the next navigation.
+                // The fetch carries a single-use nonce, never the sessionId.
+                if (!string.IsNullOrEmpty(ChatConfig.Ipv4BeaconUrl) && !string.IsNullOrEmpty(UserState.SessionId))
+                {
+                    try
+                    {
+                        var nonce = ChatService.CreateBeaconNonce(UserState.SessionId);
+                        await JS.InvokeVoidAsync("fireIpv4Beacon", ChatConfig.Ipv4BeaconUrl, nonce);
+                    }
+                    catch { /* JS not available yet — beacon is best-effort */ }
+                }
             }
 
             // Setup tab notifications

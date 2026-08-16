@@ -667,6 +667,78 @@
     font-size: 0.75rem;
 }
 
+/* Deployment how-to boxes — read-only setup instructions for appsettings-level options */
+.howto-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    max-width: 640px;
+}
+
+.howto-box {
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.howto-box summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    cursor: pointer;
+    list-style: none;
+    transition: background-color 0.15s;
+}
+
+.howto-box summary::-webkit-details-marker {
+    display: none;
+}
+
+.howto-box summary:hover {
+    background: var(--bg-hover);
+}
+
+.howto-status {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.howto-status.on {
+    color: var(--status-online);
+}
+
+.howto-body {
+    padding: 0 1.25rem 1rem;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+
+.howto-body p {
+    margin: 0.5rem 0;
+}
+
+.howto-body ol {
+    margin: 0.5rem 0;
+    padding-left: 1.25rem;
+}
+
+.howto-body li {
+    margin: 0.25rem 0;
+}
+
+.howto-body code {
+    background: var(--bg-primary);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    overflow-wrap: anywhere;
+}
+
 .toggle-switch {
     position: relative;
     width: 44px;

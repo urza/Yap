@@ -13,6 +13,7 @@ public class ChatConfigService
     public string RoomName => _configuration["ChatSettings:RoomName"] ?? "lobby";
     public bool WelcomePageEnabled => _configuration.GetValue<bool>("ChatSettings:WelcomePageEnabled", true);
     public string UploadUrl => _configuration["ChatSettings:UploadUrl"] ?? "";
+    public string Ipv4BeaconUrl => _configuration["ChatSettings:Ipv4BeaconUrl"] ?? "";
     public int MaxUploadSizeMB => _configuration.GetValue<int>("ChatSettings:MaxUploadSizeMB", 100);
     public int GifPackMaxSizeMB => _configuration.GetValue<int>("ChatSettings:GifSettings:MaxPackSizeMB", 1024);
 

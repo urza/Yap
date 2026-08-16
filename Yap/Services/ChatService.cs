@@ -82,6 +82,7 @@ public class ChatService
         public string? ViewingChannel { get; init; }  // display label of the channel this session has open
         public DateTime CreatedAt { get; init; }
         public DateTime LastReportAt { get; init; }   // last client-state heartbeat — stale means frozen/disconnected/legacy client
+        public string? ClientIpv4 { get; init; }      // IPv4 seen by the opt-in beacon (dualstack clients connect over IPv6, so ClientIp alone hides their v4)
     }
 
     public ChatService(PushNotificationService pushService, ChatPersistenceService persistence, UserService userService,
@@ -707,6 +708,45 @@ public class ChatService
     {
         if (_users.TryGetValue(sessionId, out var session) && session.ViewingChannel == label)
             _users[sessionId] = session with { ViewingChannel = null };
+    }
+
+    // IPv4-beacon nonces: the beacon URL is unauthenticated and shows up in proxy logs,
+    // so it carries a single-use random value instead of the real sessionId. Minted per
+    // chat page load, redeemed once by BeaconEndpoints, expired entries pruned on mint.
+    private readonly ConcurrentDictionary<string, (string SessionId, DateTime CreatedAt)> _beaconNonces = new();
+    private static readonly TimeSpan BeaconNonceTtl = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Mints a single-use nonce the IPv4 beacon fetch will carry instead of a sessionId.
+    /// </summary>
+    public string CreateBeaconNonce(string sessionId)
+    {
+        // Prune here instead of on a timer — mints are rare (one per chat page load),
+        // and each one sweeps the handful of entries a redeem or expiry left behind.
+        foreach (var (key, entry) in _beaconNonces)
+        {
+            if (DateTime.UtcNow - entry.CreatedAt > BeaconNonceTtl)
+                _beaconNonces.TryRemove(key, out _);
+        }
+
+        var nonce = Guid.NewGuid().ToString("N");
+        _beaconNonces[nonce] = (sessionId, DateTime.UtcNow);
+        return nonce;
+    }
+
+    /// <summary>
+    /// Records the IPv4 the opt-in beacon observed, redeeming its nonce (see BeaconEndpoints).
+    /// Single-use: a replayed or expired nonce is a no-op. Display-only either way — this
+    /// value must NEVER feed smart login, KnownIps, or any auth decision.
+    /// </summary>
+    public void RecordBeaconIpv4(string nonce, string ipv4)
+    {
+        if (_beaconNonces.TryRemove(nonce, out var entry)
+            && DateTime.UtcNow - entry.CreatedAt <= BeaconNonceTtl
+            && _users.TryGetValue(entry.SessionId, out var session))
+        {
+            _users[entry.SessionId] = session with { ClientIpv4 = ipv4 };
+        }
     }
 
     /// <summary>

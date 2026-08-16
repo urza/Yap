@@ -375,5 +375,6 @@ app.MapPwaEndpoints();
 app.MapAdminEndpoints();
 app.MapDiagnosticsEndpoints();
 app.MapGifLibraryEndpoints();
+app.MapBeaconEndpoints();
 
 app.Run();
