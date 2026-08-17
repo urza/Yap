@@ -1,8 +1,6 @@
 # Yap - Blazor Server Chat Application
 
 ## Claude Instructions
-- **Do NOT run `dotnet build` or `dotnet run`** - always ask the user to build/run and report results
-- The dev environment uses .NET 10 which may not be available in the CLI environment
 - **Project lives in a `Yap/` subfolder of the repo root.** The repo root is `/mnt/d/PROJECTS/Yap/` (has `.git`, `.sln`, this file); the .NET project is in `/mnt/d/PROJECTS/Yap/Yap/` (has `Yap.csproj`). All paths in the structure tree below are relative to that inner `Yap/`, so e.g. `Components/MessageInput.razor` → `/mnt/d/PROJECTS/Yap/Yap/Components/MessageInput.razor` (note the doubled `Yap/Yap/`).
 - **DB is deployed in production with real user data.** Any schema change needs an EF Core migration (the user runs the commands). Never suggest deleting `yap.db`.
 
@@ -16,15 +14,18 @@
 
 When in doubt, choose the simpler path. Refactor when patterns emerge, not in anticipation of hypothetical needs.
 
+### Comments Explain "Why", at the Site
+Comments carry the reasoning the code can't show — never restate what the code does. Specifically:
+- **Record the "why"**: the constraint, bug, or trade-off that shaped the code (e.g. "the bar covers the GIF's corner on narrow screens, so favoriting lives here").
+- **Guard invariants where they'd be broken**: when a line looks removable or wrong but is deliberate (a `pointer-events: none`, a static class attribute JS owns, an inverse filename rule), say so *at that line* — that's exactly where a future cleanup would silently break it.
+- **Keep it at the code site**, not only in docs or commit messages — the next reader has the file open, nothing else.
+
 ### Blazor-First Development
 Embrace Blazor's declarative, binding-based model as the default approach:
 
 - **Data binding**: Let UI reflect state automatically - modify properties, UI updates. Avoid manual DOM manipulation outside the sanctioned local-feedback patterns below.
-- **Component composition**: Break UI into reusable components with clear `[Parameter]` contracts.
-- **Event callbacks**: Use `EventCallback<T>` for child-to-parent communication.
-- **Cascading values**: Use for deeply-nested shared state (e.g., theme, user context).
-- **State management**: Keep state in services (singleton for shared, scoped for per-user), let components subscribe to changes.
-- **Read Blazor documentation**: Feel free to lookup Blazor Server best practices and Documentation.
+- **State management**: Keep state in services (singleton for shared, scoped for per-user), let components subscribe to changes. Not cascading values - theme and user context deliberately live in scoped services, not `CascadingValue`.
+- **Component composition**: Break UI into small, focused components with clear `[Parameter]` contracts.
 
 ### Round Trips & Local Feedback (house doctrine)
 Blazor Server pays a full SignalR round trip for every server-handled interaction. Prod telemetry and multi-day live use settled where the time goes: our server work is cheap (≤ ~70ms per send) while a bad link costs ~900ms per round trip — the wire, not the server, is what users feel. The doctrine, field-validated in production: **the user's fingers never wait for the circuit.**
