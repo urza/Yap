@@ -126,7 +126,7 @@
     else
     {
         <div class="gif-lib-grid">
-            @foreach (var entry in (showAll ? filteredItems : filteredItems.Take(InitialVisibleCount)))
+            @foreach (var entry in filteredItems.Take(visibleCount))
             {
                 var preview = entry.PreviewUrl ?? entry.GifUrl ?? entry.RemoteGifUrl;
                 <div class="gif-lib-card">
@@ -205,8 +205,14 @@
         </div>
         @if (filteredItems.Count > InitialVisibleCount)
         {
-            <button class="gif-lib-showmore" @onclick="() => showAll = !showAll">
-                @(showAll ? "Show less" : $"Show all {filteredItems.Count} GIFs")
+            var remaining = filteredItems.Count - visibleCount;
+            <button class="gif-lib-showmore" @onclick="() => ShowMoreOrCollapse(filteredItems.Count)">
+                @(remaining switch
+                {
+                    <= 0 => "Show less",
+                    > LoadBatchSize => $"Show {LoadBatchSize} more ({remaining} left)",
+                    _ => $"Show {remaining} more",
+                })
             </button>
         }
     }
@@ -216,9 +222,12 @@
     [Parameter] public GifLibraryMode Mode { get; set; } = GifLibraryMode.User;
     [Parameter] public Guid CurrentUserId { get; set; }
 
-    /// <summary>Cards rendered before the "Show all" button takes over. Admin passes a small
-    /// value so the server library starts collapsed to one row-ish with an expand.</summary>
+    /// <summary>Cards rendered before the load-more button takes over. Settings passes 6 so the
+    /// section stays short; Admin passes more. Each tap reveals another <see cref="LoadBatchSize"/>.</summary>
     [Parameter] public int InitialVisibleCount { get; set; } = 48;
+
+    /// <summary>Cards revealed per "Show more" tap.</summary>
+    private const int LoadBatchSize = 24;
 
     private readonly string _uid = Guid.NewGuid().ToString("N")[..8];
 
@@ -229,8 +238,14 @@
     // null = All, "" = Unsorted, anything else = a folder name.
     private string? selectedFolder;
 
-    private string filterText = "";
-    private bool showAll;
+    // A new filter means a new result set, so the view collapses back to the first rows.
+    private string filterText
+    {
+        get => _filterText;
+        set { _filterText = value; visibleCount = InitialVisibleCount; }
+    }
+    private string _filterText = "";
+    private int visibleCount;
 
     private Guid? editingTagsId;
     private string tagsDraft = "";
@@ -287,6 +302,8 @@
 
     protected override void OnInitialized()
     {
+        // Not OnParametersSet — that refires on every parent render and would collapse the view.
+        visibleCount = InitialVisibleCount;
         Reload();
         GifService.OnFavoritesChanged += HandleFavoritesChanged;
         GifService.OnGifLibraryChanged += HandleLibraryChanged;
@@ -320,7 +337,15 @@
     {
         selectedFolder = folder;
         confirmDeleteId = null;
-        showAll = false; // every view starts collapsed
+        visibleCount = InitialVisibleCount; // every view starts collapsed
+    }
+
+    private void ShowMoreOrCollapse(int totalCount)
+    {
+        if (visibleCount < totalCount)
+            visibleCount += LoadBatchSize;
+        else
+            visibleCount = InitialVisibleCount;
     }
 
     private bool CanDelete(GifEntry entry) => Mode == GifLibraryMode.Server
