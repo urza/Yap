@@ -4,6 +4,9 @@
     height: 100%;
     padding: 1.5rem;
     overflow-y: auto;
+    /* overflow-y: auto makes overflow-x compute to auto too, so any accidentally wide
+       section gives the whole page a sideways wobble on touch scroll — clip instead. */
+    overflow-x: hidden;
 }
 
 .settings-header {

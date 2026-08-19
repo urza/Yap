@@ -361,9 +361,12 @@
     color: var(--color-danger);
 }
 
-/* Phones: two columns is the sweet spot for thumbnails + controls */
+/* Phones: two columns is the sweet spot for thumbnails + controls.
+   minmax(0, 1fr), not bare 1fr — 1fr's auto minimum lets a long nowrap tag chip or
+   folder option inflate a track past the viewport, making the whole page wobble
+   sideways on touch scroll. With the track clamped, chips ellipsize instead. */
 @media (max-width: 600px) {
     .gif-lib-grid {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }

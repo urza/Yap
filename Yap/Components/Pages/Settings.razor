@@ -459,7 +459,8 @@
             </p>
             @if (UserState.UserId is Guid gifUserId)
             {
-                <GifLibraryManager Mode="GifLibraryMode.User" CurrentUserId="@gifUserId" />
+                @* Small InitialVisibleCount keeps the section short — "Show all" expands in place. *@
+                <GifLibraryManager Mode="GifLibraryMode.User" CurrentUserId="@gifUserId" InitialVisibleCount="6" />
             }
         </div>
 
