@@ -203,18 +203,7 @@
                 </div>
             }
         </div>
-        @if (filteredItems.Count > InitialVisibleCount)
-        {
-            var remaining = filteredItems.Count - visibleCount;
-            <button class="gif-lib-showmore" @onclick="() => ShowMoreOrCollapse(filteredItems.Count)">
-                @(remaining switch
-                {
-                    <= 0 => "Show less",
-                    > LoadBatchSize => $"Show {LoadBatchSize} more ({remaining} left)",
-                    _ => $"Show {remaining} more",
-                })
-            </button>
-        }
+        <ShowMoreButton Total="filteredItems.Count" Initial="InitialVisibleCount" @bind-Visible="visibleCount" />
     }
 </div>
 
@@ -222,12 +211,9 @@
     [Parameter] public GifLibraryMode Mode { get; set; } = GifLibraryMode.User;
     [Parameter] public Guid CurrentUserId { get; set; }
 
-    /// <summary>Cards rendered before the load-more button takes over. Settings passes 6 so the
-    /// section stays short; Admin passes more. Each tap reveals another <see cref="LoadBatchSize"/>.</summary>
+    /// <summary>Cards rendered before the <see cref="ShowMoreButton"/> takes over. Settings passes 6
+    /// so the section stays short; Admin passes more. Each tap reveals another batch.</summary>
     [Parameter] public int InitialVisibleCount { get; set; } = 48;
-
-    /// <summary>Cards revealed per "Show more" tap.</summary>
-    private const int LoadBatchSize = 24;
 
     private readonly string _uid = Guid.NewGuid().ToString("N")[..8];
 
@@ -338,14 +324,6 @@
         selectedFolder = folder;
         confirmDeleteId = null;
         visibleCount = InitialVisibleCount; // every view starts collapsed
-    }
-
-    private void ShowMoreOrCollapse(int totalCount)
-    {
-        if (visibleCount < totalCount)
-            visibleCount += LoadBatchSize;
-        else
-            visibleCount = InitialVisibleCount;
     }
 
     private bool CanDelete(GifEntry entry) => Mode == GifLibraryMode.Server

@@ -1,0 +1,27 @@
+@* Shared "Show N more / Show less" footer for long lists (GIF library, admin tables).
+   Stateless: the parent owns the visible count via @bind-Visible — so it can reset the
+   view when its filter changes — and renders items.Take(Visible) itself. *@
+@if (Total > Initial)
+{
+    var remaining = Total - Visible;
+    <button class="show-more" @onclick="HandleClick">
+        @(remaining <= 0 ? "Show less"
+            : remaining > Batch ? $"Show {Batch} more ({remaining} left)"
+            : $"Show {remaining} more")
+    </button>
+}
+
+@code {
+    /// <summary>Default row count, both for the initial view and per "show more" tap.
+    /// Parents initialize their visible-count field with this.</summary>
+    public const int DefaultCount = 24;
+
+    [Parameter, EditorRequired] public int Total { get; set; }
+    [Parameter] public int Initial { get; set; } = DefaultCount;
+    [Parameter] public int Batch { get; set; } = DefaultCount;
+    [Parameter] public int Visible { get; set; }
+    [Parameter] public EventCallback<int> VisibleChanged { get; set; }
+
+    private Task HandleClick() =>
+        VisibleChanged.InvokeAsync(Visible < Total ? Visible + Batch : Initial);
+}

@@ -820,9 +820,10 @@
 
         @if (activeSection == "gifs")
         {
+            var gifRows = FilteredGifEntries.ToList();
             <div class="section-header">
                 <h3>GIFs</h3>
-                <span class="section-count">@FilteredGifEntries.Count() of @gifEntries.Count entries</span>
+                <span class="section-count">@gifRows.Count of @gifEntries.Count entries</span>
             </div>
 
             <div class="media-stats">
@@ -888,7 +889,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var g in FilteredGifEntries)
+                        @foreach (var g in gifRows.Take(gifTableVisible))
                         {
                             <tr>
                                 @* Thumb renders the derived preview when one exists; the link
@@ -961,8 +962,9 @@
                     </tbody>
                 </table>
             </div>
+            <ShowMoreButton Total="gifRows.Count" @bind-Visible="gifTableVisible" />
 
-            @if (!FilteredGifEntries.Any())
+            @if (gifRows.Count == 0)
             {
                 <div class="log-empty">@(gifEntries.Count == 0 ? "No GIFs in the library yet." : "No GIFs match this filter.")</div>
             }
@@ -1086,7 +1088,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var c in diagCircuits)
+                            @foreach (var c in diagCircuits.Take(diagCircuitsVisible))
                             {
                                 var laggy = c.IsWebSocket == false || c.AvgRttMs > 250;
                                 <tr style="@(laggy ? "color: var(--color-warning);" : "")">
@@ -1103,11 +1105,12 @@
                                     </td>
                                 </tr>
                             }
-                            @if (diagClosedCircuits.Count > 0)
+                            @* Closed circuits continue the same row budget, so one button governs both segments. *@
+                            @if (diagClosedCircuits.Count > 0 && diagCircuitsVisible > diagCircuits.Count)
                             {
                                 @* Bounded trail (last 50) — lets an admin inspect a user's numbers after they signed out *@
                                 <tr><td colspan="7" style="color: var(--text-secondary); padding-top: 10px;">Recently closed</td></tr>
-                                @foreach (var c in diagClosedCircuits)
+                                @foreach (var c in diagClosedCircuits.Take(diagCircuitsVisible - diagCircuits.Count))
                                 {
                                     var laggy = c.IsWebSocket == false || c.AvgRttMs > 250;
                                     <tr style="opacity: 0.55; @(laggy ? "color: var(--color-warning);" : "")">
@@ -1127,6 +1130,7 @@
                             }
                         </tbody>
                     </table>
+                    <ShowMoreButton Total="diagCircuits.Count + diagClosedCircuits.Count" @bind-Visible="diagCircuitsVisible" />
                 }
             </div>
 
@@ -1172,7 +1176,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var d in diagPushDecisions.Take(50))
+                                @foreach (var d in diagPushDecisions.Take(diagPushDecisionsVisible))
                                 {
                                     <tr style="@(d.Outcome.StartsWith("suppressed") ? "color: var(--color-warning);" : "")">
                                         <td>@FormatAgo(d.At)</td>
@@ -1185,6 +1189,7 @@
                                 }
                             </tbody>
                         </table>
+                        <ShowMoreButton Total="diagPushDecisions.Count" @bind-Visible="diagPushDecisionsVisible" />
                     </div>
                     <div class="table-wrapper">
                         <table class="users-table">
@@ -1198,7 +1203,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var r in diagPushResults.Take(50))
+                                @foreach (var r in diagPushResults.Take(diagPushResultsVisible))
                                 {
                                     <tr style="@(r.Failed > 0 || r.Total == 0 ? "color: var(--color-warning);" : "")">
                                         <td>@FormatAgo(r.At)</td>
@@ -1210,6 +1215,7 @@
                                 }
                             </tbody>
                         </table>
+                        <ShowMoreButton Total="diagPushResults.Count" @bind-Visible="diagPushResultsVisible" />
                     </div>
                 }
             </div>
@@ -1237,7 +1243,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var u in diagUnreadChanges.Take(50))
+                                @foreach (var u in diagUnreadChanges.Take(diagUnreadVisible))
                                 {
                                     <tr>
                                         <td>@FormatAgo(u.At)</td>
@@ -1250,6 +1256,7 @@
                                 }
                             </tbody>
                         </table>
+                        <ShowMoreButton Total="diagUnreadChanges.Count" @bind-Visible="diagUnreadVisible" />
                     </div>
                 }
             </div>
@@ -1877,7 +1884,15 @@
     // GifService (in-memory), so provider GIFs' tags are curatable too.
     private List<GifEntry> gifEntries = new();
     private Dictionary<Guid, int> gifFavCounts = new();
-    private string gifFilter = "all";
+    private int gifTableVisible = ShowMoreButton.DefaultCount;
+
+    // A new filter means a new result set, so the table collapses back to the first rows.
+    private string gifFilter
+    {
+        get => _gifFilter;
+        set { _gifFilter = value; gifTableVisible = ShowMoreButton.DefaultCount; }
+    }
+    private string _gifFilter = "all";
     private long gifTotalBytes;
     private int gifCustomCount;
     private int gifProviderCount;
@@ -1986,6 +2001,13 @@
     private IReadOnlyList<NotificationAudit.PushDecision> diagPushDecisions = Array.Empty<NotificationAudit.PushDecision>();
     private IReadOnlyList<NotificationAudit.PushResult> diagPushResults = Array.Empty<NotificationAudit.PushResult>();
     private IReadOnlyList<NotificationAudit.UnreadChange> diagUnreadChanges = Array.Empty<NotificationAudit.UnreadChange>();
+
+    // Deliberately untouched by LoadDiagnostics: the 30s auto-refresh must not collapse
+    // a table the admin just expanded.
+    private int diagCircuitsVisible = ShowMoreButton.DefaultCount;
+    private int diagPushDecisionsVisible = ShowMoreButton.DefaultCount;
+    private int diagPushResultsVisible = ShowMoreButton.DefaultCount;
+    private int diagUnreadVisible = ShowMoreButton.DefaultCount;
     private System.Threading.Timer? _diagTimer;
     private bool diagLoaded;
 
