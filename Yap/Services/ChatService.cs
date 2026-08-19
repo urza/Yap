@@ -474,13 +474,35 @@ public class ChatService
             .ToList();
 
     /// <summary>
-    /// Gets all users that have DM history with the specified user
+    /// Gets all users that have DM history with the specified user, with the timestamp
+    /// of the last message in each conversation. Channels without messages are skipped —
+    /// opening /dm/{user} creates the channel eagerly, so an empty channel means someone
+    /// merely peeked at a profile, not a conversation worth showing in the sidebar.
     /// </summary>
-    public List<string> GetDMConversations(string username) =>
-        GetDMChannels(username)
-            .Select(c => c.GetOtherParticipant(username)!)
-            .Where(u => !string.IsNullOrWhiteSpace(u))
-            .ToList();
+    public List<(string Username, DateTime LastMessageAt)> GetDMConversations(string username)
+    {
+        var conversations = new List<(string Username, DateTime LastMessageAt)>();
+
+        foreach (var channel in GetDMChannels(username))
+        {
+            var partner = channel.GetOtherParticipant(username);
+            if (string.IsNullOrWhiteSpace(partner))
+                continue;
+
+            DateTime? lastMessageAt;
+            lock (GetChannelLock(channel.Id))
+            {
+                lastMessageAt = _channelMessages.TryGetValue(channel.Id, out var messages)
+                    ? messages.LastOrDefault()?.Timestamp
+                    : null;
+            }
+
+            if (lastMessageAt is { } last)
+                conversations.Add((partner, last));
+        }
+
+        return conversations;
+    }
 
     #endregion
 

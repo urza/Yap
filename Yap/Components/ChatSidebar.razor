@@ -435,10 +435,20 @@
         // replace GetDMConversations() with UserService.GetAllUsernames()
         var dmPartners = ChatService.GetDMConversations(Username);
 
+        // Last-message time per partner, for recency sorting of the offline tier.
+        // Loop instead of ToDictionary: duplicate DM channels existed in prod once
+        // (display-name bug), so tolerate dupes and keep the most recent timestamp.
+        var lastDmByPartner = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (partner, lastAt) in dmPartners)
+        {
+            if (!lastDmByPartner.TryGetValue(partner, out var existing) || lastAt > existing)
+                lastDmByPartner[partner] = lastAt;
+        }
+
         var allUsers = new List<(string Username, UserStatus Status, bool? IsMobile)>(onlineUsers);
 
         // Add DM partners who are offline (shown as Invisible - same gray dot)
-        foreach (var partner in dmPartners)
+        foreach (var partner in lastDmByPartner.Keys)
         {
             if (!onlineUsersByName.ContainsKey(partner))
             {
@@ -461,10 +471,15 @@
             {
                 Entry = u,
                 HasUnread = GetUnreadDMCount(u.Username) > 0,
-                IsOnline = u.Status != UserStatus.Invisible
+                IsOnline = u.Status != UserStatus.Invisible,
+                LastDm = lastDmByPartner.GetValueOrDefault(u.Username) // MinValue when no DM history
             })
             .OrderByDescending(x => x.HasUnread)
             .ThenByDescending(x => x.IsOnline)
+            // Offline/invisible tier: most recent conversation first. The key is a constant
+            // for the online tier, so online users keep their alphabetical order; users
+            // without DM history sink to the end via MinValue and fall back to A→Z.
+            .ThenByDescending(x => x.IsOnline ? default : x.LastDm)
             .ThenBy(x => x.Entry.Username, StringComparer.OrdinalIgnoreCase)
             .Select(x => x.Entry);
 
