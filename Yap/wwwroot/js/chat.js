@@ -1433,6 +1433,12 @@ window.applyTheme = (themeId) => {
     document.documentElement.dataset.theme = themeId || 'discord-dark';
 };
 
+// Root font size: scales every rem-based size in the app. Clearing the inline
+// style (null/0) falls back to the browser default (16px).
+window.applyFontSize = (px) => {
+    document.documentElement.style.fontSize = px ? px + 'px' : '';
+};
+
 // ==========================================
 // GIF (MP4) message autoplay — canplay-based
 // ==========================================

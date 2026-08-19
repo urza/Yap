@@ -127,6 +127,21 @@
         </div>
 
         <div class="settings-section">
+            <h3>Text Size</h3>
+            <span class="form-hint" style="margin-bottom: 12px;">Scales all text in the app. Applies instantly and syncs across your devices.</span>
+            <div class="font-size-row">
+                @foreach (var size in FontSizePresets)
+                {
+                    <button type="button" class="font-size-option @(selectedFontSize == size ? "selected" : "")"
+                            @onclick="() => SelectFontSize(size)" title="@(size)px">
+                        <span class="font-size-sample" style="font-size: @(size)px;">Aa</span>
+                        <span class="font-size-value">@(size == DefaultFontSize ? "Default" : $"{size}px")</span>
+                    </button>
+                }
+            </div>
+        </div>
+
+        <div class="settings-section">
             <h3>Multi-Device Login</h3>
 
             <span class="form-hint" style="margin-bottom: 12px;">@MultiDeviceSummary</span>
@@ -549,6 +564,10 @@
     private string? cultureOverride;
     private string selectedTheme = ThemeRegistry.DefaultId;
 
+    private const int DefaultFontSize = 16; // browser default rem base
+    private static readonly int[] FontSizePresets = [14, 15, 16, 17, 18, 20];
+    private int selectedFontSize = DefaultFontSize;
+
     private bool isUploading = false;
     private string? saveStatus;
     private CancellationTokenSource? _debounceCts;
@@ -625,6 +644,7 @@
             }
             pushMuted = user.PushMuted;
             selectedTheme = ThemeRegistry.IsKnown(user.Theme) ? user.Theme! : ThemeRegistry.DefaultId;
+            selectedFontSize = user.FontSize ?? DefaultFontSize;
 
             // Load password state
             currentPassword = user.Password;
@@ -1345,6 +1365,18 @@
         // Flip the attribute immediately for instant preview, then persist.
         await JS.InvokeVoidAsync("applyTheme", themeId);
         await UserService.UpdateThemeAsync(UserState.UserId.Value, themeId);
+    }
+
+    private async Task SelectFontSize(int size)
+    {
+        if (selectedFontSize == size || !UserState.UserId.HasValue) return;
+
+        selectedFontSize = size;
+        UserState.FontSize = size;
+
+        // Flip the root style immediately for instant preview, then persist.
+        await JS.InvokeVoidAsync("applyFontSize", size);
+        await UserService.UpdateFontSizeAsync(UserState.UserId.Value, size);
     }
 
     private record ClientLocaleInfo(string? TimeZone, string? Locale);

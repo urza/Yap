@@ -493,6 +493,37 @@ public class UserService
     }
 
     /// <summary>
+    /// Updates the user's root font size (px). Null resets to the browser default.
+    /// </summary>
+    public async Task UpdateFontSizeAsync(Guid userId, int? fontSize)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        // Out-of-range values are stored as null — see User.MinFontSize for why.
+        if (fontSize is < User.MinFontSize or > User.MaxFontSize)
+            fontSize = null;
+
+        user.FontSize = fontSize;
+
+        if (_persistenceEnabled)
+        {
+            try
+            {
+                await using var db = await _dbFactory!.CreateDbContextAsync();
+                await db.Users
+                    .Where(u => u.Id == userId)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(u => u.FontSize, fontSize));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update FontSize for user {UserId}", userId);
+            }
+        }
+    }
+
+    /// <summary>
     /// Updates the user's timezone and locale (detected from browser).
     /// </summary>
     public async Task UpdateLocaleAsync(Guid userId, string? timeZone, string? locale, string? dateFormat = null)

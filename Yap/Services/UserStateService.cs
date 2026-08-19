@@ -98,6 +98,12 @@ public class UserStateService
     public string? Theme { get; set; }
 
     /// <summary>
+    /// Root font size in px. Null = browser default (16px).
+    /// </summary>
+    [PersistentState]
+    public int? FontSize { get; set; }
+
+    /// <summary>
     /// Resolves timezone string (IANA, abbreviation, or UTC offset) to TimeZoneInfo.
     /// Falls back to UTC if not set or unresolvable.
     /// </summary>

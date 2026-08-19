@@ -2,7 +2,7 @@
 
 ## Claude Instructions
 - **Project lives in a `Yap/` subfolder of the repo root.** The repo root is `/mnt/d/PROJECTS/Yap/` (has `.git`, `.sln`, this file); the .NET project is in `/mnt/d/PROJECTS/Yap/Yap/` (has `Yap.csproj`). All paths in the structure tree below are relative to that inner `Yap/`, so e.g. `Components/MessageInput.razor` → `/mnt/d/PROJECTS/Yap/Yap/Components/MessageInput.razor` (note the doubled `Yap/Yap/`).
-- **DB is deployed in production with real user data.** Any schema change needs an EF Core migration (the user runs the commands). Never suggest deleting `yap.db`.
+- **DB is deployed in production with real user data.** Any schema change needs an EF Core migration. Claude runs `dotnet ef migrations add <Name>` himself (from `Yap/`), then reviews the generated `Up`/`Down` and the snapshot diff before reporting done. Never run `dotnet ef database update` (startup `MigrateAsync()` applies migrations), never edit already-applied migrations, never suggest deleting `yap.db`.
 
 ## Coding Principles
 

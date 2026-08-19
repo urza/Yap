@@ -76,6 +76,19 @@ public class User
     public string? Theme { get; set; }
 
     /// <summary>
+    /// Root font size in px. Null = browser default (16px). Applied on the html element,
+    /// so it scales every rem-based size in the app (nearly all text; px layout stays put).
+    /// </summary>
+    public int? FontSize { get; set; }
+
+    /// <summary>
+    /// Sanity bounds for FontSize. Values outside this range are ignored at render time —
+    /// a rogue value like 3px would make the app (and the Settings page) unusable.
+    /// </summary>
+    public const int MinFontSize = 12;
+    public const int MaxFontSize = 24;
+
+    /// <summary>
     /// Optional passphrase for multi-device login.
     /// Stored as plaintext so the user can view/copy it in Settings.
     /// When set, the username can be claimed from any device by entering this passphrase.
