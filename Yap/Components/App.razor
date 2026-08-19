@@ -14,6 +14,9 @@
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["themes.css"]" />
     <link rel="stylesheet" href="@Assets["Yap.styles.css"]" />
+    @* crossorigin is required even same-origin: CSS font fetches use CORS mode, and a
+       mismatched preload is silently wasted (double download). Italic is not preloaded — rare. *@
+    <link rel="preload" href="/fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="icon" type="image/svg+xml" href="icon.svg" />
     <!-- use-credentials: the manifest fetch must send the auth cookie, or every install would get the anonymous (untokenized) start_url -->
     <link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials" />
