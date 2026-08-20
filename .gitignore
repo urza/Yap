@@ -3,6 +3,9 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
+#claude
+.claude-memory/*
+
 # User-specific files
 *.rsuser
 *.suo
