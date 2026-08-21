@@ -95,8 +95,16 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
         if (!string.IsNullOrEmpty(_userState.SessionId) && _statusBeforeDisconnect.HasValue)
         {
             var currentStatus = _chatService.GetUserStatus(_userState.Username!);
-            // Only restore if user status hasn't been changed by another session
-            if (currentStatus == null || currentStatus == UserStatus.Invisible || currentStatus == _statusBeforeDisconnect.Value)
+            if (currentStatus == _statusBeforeDisconnect.Value)
+            {
+                // Nothing drifted — do NOT re-assert. SetUserStatusAsync counts as a manual
+                // change and wipes the auto-away restore record, so a user who was auto-Away
+                // when the connection dropped came back permanently Away: activity could never
+                // restore them, open DMs stopped clearing unread, and push fired mid-chat.
+                _logger.LogDebug("Connection restored for {Username}, status {Status} unchanged",
+                    _userState.Username, currentStatus);
+            }
+            else if (currentStatus == null || currentStatus == UserStatus.Invisible)
             {
                 _logger.LogDebug("Connection restored for {Username}, restoring status to {Status}",
                     _userState.Username, _statusBeforeDisconnect.Value);
@@ -106,8 +114,12 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
             }
             else
             {
-                // Another session changed the status — sync local state
-                _userState.Status = currentStatus.Value;
+                // Another session changed the status — sync the local CHOSEN status, but never
+                // copy an auto-Away into UserState.Status: it's [PersistentState], and a resumed
+                // circuit would rejoin with Away as the chosen status, no restore record
+                // (see ChatHeader.HandleUserStatusChanged).
+                if (!_chatService.IsAutoAway(_userState.Username!))
+                    _userState.Status = currentStatus.Value;
                 _logger.LogDebug("Connection restored for {Username}, keeping current status {Status} (changed by another session)",
                     _userState.Username, currentStatus.Value);
             }
@@ -137,12 +149,15 @@ public sealed class ChatCircuitHandler : CircuitHandler, IDisposable
             // Otherwise PageVisible stays true for the whole disconnected-circuit retention window (~4h).
             _chatService.SetPageVisibility(_userState.SessionId, false);
 
+            // If the user is auto-Away right now, save the CHOSEN status underneath instead —
+            // restoring the auto-Away itself on reconnect would re-apply it as a manual status
+            // (no restore record) and strand the user Away.
             var currentStatus = _chatService.GetUserStatus(_userState.Username);
             if (currentStatus.HasValue && currentStatus != UserStatus.Invisible)
             {
-                _statusBeforeDisconnect = currentStatus;
+                _statusBeforeDisconnect = _chatService.GetStatusBeforeAutoAway(_userState.Username) ?? currentStatus;
                 _logger.LogDebug("Connection lost for {Username}, saving status {Status} for restore",
-                    _userState.Username, currentStatus);
+                    _userState.Username, _statusBeforeDisconnect);
             }
 
             if (_userState.UserId.HasValue)

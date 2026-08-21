@@ -581,6 +581,20 @@ public class ChatService
     }
 
     /// <summary>
+    /// The status the user held before auto-away kicked in, or null when their current status
+    /// wasn't applied automatically. The record's existence is what MAKES an Away automatic —
+    /// it's what activity restores via TryRestoreFromAutoAway. A chosen Away has no record and
+    /// never self-reverts, so any code that re-applies or copies a status must go through here
+    /// first: treating an auto-Away as chosen strands the user Away (mark-read-on-receive and
+    /// push suppression both gate on Away → unread piles up and push fires mid-conversation).
+    /// </summary>
+    public UserStatus? GetStatusBeforeAutoAway(string username) =>
+        _statusBeforeAutoAway.TryGetValue(username, out var status) ? status : null;
+
+    /// <summary>True when the user's current Away was applied automatically (restore record exists).</summary>
+    public bool IsAutoAway(string username) => _statusBeforeAutoAway.ContainsKey(username);
+
+    /// <summary>
     /// Attempts to restore a user from auto-away to their previous status.
     /// Returns the restored status if successful, null if user wasn't auto-away.
     /// Can be called from any circuit/session for the user.

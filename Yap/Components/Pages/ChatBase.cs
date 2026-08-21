@@ -174,9 +174,12 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
                 else
                 {
                     // Session exists — re-assert status only if it actually drifted (e.g. marked
-                    // Invisible during a reconnect). An unconditional re-set would count as a
-                    // MANUAL status change on every page navigation, wiping the auto-away restore
-                    // record and leaving an auto-away'd user stuck Away while actively chatting.
+                    // Invisible during a reconnect). UserState.Status is the CHOSEN status, so an
+                    // auto-Away'd user legitimately differs here and the re-assert restores their
+                    // chosen status — navigation is real user input, the same outcome the
+                    // heartbeat's auto-away restore would produce, just sooner. The drift guard
+                    // still matters: an unconditional re-set would fire a manual status change
+                    // (with event fan-out) on every page navigation.
                     if (ChatService.GetUserStatus(Username) != UserState.Status)
                         await ChatService.SetUserStatusAsync(UserState.SessionId, UserState.Status);
                 }

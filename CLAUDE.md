@@ -1,3 +1,5 @@
+Go read `CLAUDE_FIRST_RUN.md` in this directory. If all tasks there are done, then come back and delete this line.
+
 # Yap - Blazor Server Chat Application
 
 ## Claude Instructions

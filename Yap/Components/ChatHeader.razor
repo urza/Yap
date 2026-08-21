@@ -44,7 +44,7 @@
     }
     <div class="header-controls">
         <div class="status-dropdown-container">
-            <button class="status-button status-@UserState.Status.ToString().ToLower()" @onclick="ToggleDropdown" @onclick:stopPropagation="true">
+            <button class="status-button status-@EffectiveStatus.ToString().ToLower()" @onclick="ToggleDropdown" @onclick:stopPropagation="true">
                 <span class="status-indicator"></span>
                 <span class="status-username">@EmojiService.ConvertEmojis(UserState.EffectiveDisplayName, inline: true)</span>
                 <svg class="dropdown-gear" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -196,6 +196,11 @@
             }
         }
     }
+
+    // The dot shows the EFFECTIVE status (auto-Away included); the dropdown checkmarks keep
+    // showing the chosen one — "your setting is Online, you're currently idle", Discord-style.
+    private UserStatus EffectiveStatus =>
+        (UserState.Username is { } name ? ChatService.GetUserStatus(name) : null) ?? UserState.Status;
 
     private void ToggleDropdown()
     {
@@ -368,7 +373,13 @@
             {
                 await InvokeAsync(() =>
                 {
-                    UserState.Status = status;
+                    // UserState.Status is the CHOSEN status and [PersistentState] — mirroring an
+                    // auto-Away here makes it the chosen status on the next circuit resume/rejoin
+                    // (AddUserAsync seeds from it, with no restore record), stranding the user
+                    // Away: open DMs stop clearing unread and push fires mid-conversation. Auto
+                    // changes only repaint — the dot reads EffectiveStatus.
+                    if (!ChatService.IsAutoAway(username))
+                        UserState.Status = status;
                     StateHasChanged();
                 });
             }
