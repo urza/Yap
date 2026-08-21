@@ -1,6 +1,6 @@
 # First-Run Setup
 
-Status: NOT DONE
+Status: DONE (2026-08-21)
 
 Do the tasks below one time in each new sandbox. Do them in order. When all tasks are complete:
 
@@ -14,6 +14,8 @@ If a task fails, do not mark the file as done. Write the error in the task's **R
 ## Task 1 - Memories
 
 Check if ".claude-memory" folder exists in this project. If not, create it. Your memories will be stored there. We may or may not add that to .gitignore depending on public/private status of this repository on GitHub. Ask user about it if you just created.
+
+**Result:** Already existed with 30 memory files + MEMORY.md (carried over with the repo from the previous machine). Already gitignored (`.claude-memory/*`, .gitignore line 7). Nothing to create, no question needed.
 
 ## Task 2 — Prompt spellcheck
 
@@ -53,7 +55,7 @@ Check if ".claude-memory" folder exists in this project. If not, create it. Your
 
    The underline shows after the next session restart.
 
-**Result:**
+**Result:** Installed aspell + aspell-en via apt. Merged `"spellcheck": {"enabled": true}` into `~/.claude/settings.json` with jq (other keys preserved). Verified: `command -v aspell` → /usr/bin/aspell; `jq .spellcheck` → `{"enabled": true}`. Underline appears after next session restart.
 
 ---
 
