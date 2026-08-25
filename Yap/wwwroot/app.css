@@ -60,6 +60,32 @@
     /* Borders */
     --border-dark: #202225;
     --border-subtle: #040405;
+
+    /* Scene layers (Themes 2.0 canvas layer, see docs/themes-2.0.md).
+       A theme that sets these paints a tiled scene behind the whole chat shell;
+       every theme that leaves them `none` renders exactly as it did before, which
+       is the acceptance test for the layer. Names and stacking order mirror the
+       source theme's own five layers - do not reorder without reading Finding 3. */
+    --scene-canvastile: none;
+    --scene-headertile: none;
+    --scene-header: none;
+    --scene-footertile: none;
+    --scene-footer: none;
+
+    /* Per-layer background-size list, positionally matched to the images above.
+       A single `auto` applies to every slot, which is what non-scene themes want.
+       Scene themes emit a real list so the strips scale to fit the viewport. */
+    --scene-sizes: auto;
+
+    /* Surface behind the message list. Its own variable rather than --bg-primary
+       so a scene theme can make the reading area translucent (letting the artwork
+       show) while --bg-primary stays opaque as the load-time fallback and as the
+       fill for small elements like message hover states. */
+    --bg-canvas-panel: var(--bg-primary);
+
+    /* Wash painted over the whole composite. Per-layer tinting is impossible
+       (the layers are opaque JPEGs), so legibility tuning happens here. */
+    --canvas-scrim: none;
 }
 
 * {

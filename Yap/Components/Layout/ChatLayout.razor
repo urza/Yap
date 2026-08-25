@@ -10,6 +10,13 @@
 @implements IDisposable
 
 <div class="chat-container">
+    @* Themed background scene + legibility wash. Empty by design: both are painted
+       entirely from CSS variables the active theme sets, so they stay inert for
+       every theme that defines none. Order matters - the scrim must follow the
+       scene to paint over it. *@
+    <div class="theme-scene"></div>
+    <div class="theme-scrim"></div>
+
     <ChatHeader />
 
     <img src="images/@(NavState.CurrentDmUser != null ? "purpleline01_3px.png" : "turqline01_3px.png")"

@@ -5,6 +5,69 @@
     flex-direction: column;
     background: var(--bg-primary);
     overflow: hidden;
+    /* Establishes the stacking context the scene layers live in. Without it their
+       z-index: -1 escapes to an ancestor and the scene disappears behind the page.
+       overflow: hidden alone does NOT create one. */
+    isolation: isolate;
+}
+
+/* ==========================================================================
+   Themed background scene - see docs/themes-2.0.md
+
+   z-index: -1 inside .chat-container's stacking context paints these ABOVE the
+   container's own --bg-primary background (which stays as the fallback while
+   images load) but BELOW every in-flow child. That is why the header, sidebar
+   and message list need no z-index of their own and no component was touched.
+
+   position: fixed, not background-attachment: fixed - the latter repaints on
+   every scroll and misbehaves on iOS Safari. These composite once.
+
+   The five backgrounds are one element rather than five divs; the shorthand
+   lists below are positionally matched, so a layer a theme leaves as `none`
+   still holds its slot and the others stay aligned. Listed top-first, which is
+   the reverse of the source theme's paint order.
+   ========================================================================== */
+.theme-scene {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    /* Sits behind content but still spans gaps in the shell, where it would
+       otherwise swallow clicks meant for the container. */
+    pointer-events: none;
+
+    background-image:
+        var(--scene-footer),
+        var(--scene-footertile),
+        var(--scene-header),
+        var(--scene-headertile),
+        var(--scene-canvastile);
+    background-repeat:
+        no-repeat,
+        repeat-x,
+        no-repeat,
+        repeat-x,
+        repeat;
+    background-position:
+        right bottom,
+        right bottom,
+        left top,
+        left top,
+        left top;
+    /* The header and footer strips are taller than many viewports, so a scene theme
+       scales every layer by one shared factor here. Sharing the factor is what keeps
+       the teahouse standing on the garden's ground line. */
+    background-size: var(--scene-sizes);
+}
+
+/* Separate element rather than a ::after on .theme-scene: when scene crossfading
+   arrives there will be two .theme-scene elements at varying opacity, and a scrim
+   attached to them would fade along with the artwork. */
+.theme-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: -1; /* same layer as the scene; later in the DOM, so it paints over */
+    pointer-events: none;
+    background: var(--canvas-scrim);
 }
 
 .header-line {
@@ -27,7 +90,7 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    background: var(--bg-primary);
+    background: var(--bg-canvas-panel);
     position: relative;
     min-width: 0; /* Allow flex item to shrink below content size */
     overflow: hidden;
