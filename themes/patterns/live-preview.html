@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Yap patterns — live preview</title>
+<!-- The point of this page: it links the app's REAL stylesheets and renders tiles
+     through the same [data-theme]/[data-context] cascade the app uses, so it can
+     never drift from themes.css / teahouse.css. Open straight from disk (file://)
+     or via the running app; edit a theme, refresh, see it. -->
+<link rel="stylesheet" href="../../Yap/wwwroot/app.css">
+<link rel="stylesheet" href="../../Yap/wwwroot/themes.css">
+<link rel="stylesheet" href="../../Yap/wwwroot/themes/teahouse.css">
+<style>
+  body { margin:0; padding:20px 24px 40px; background:#1b1c1f; color:#d7d8db;
+         font-family: Inter, system-ui, sans-serif; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.08em;
+       opacity:.55; margin:26px 0 10px; }
+  p.hint { margin:0 0 10px; font-size:13px; opacity:.7; }
+  label.boost { font-size:13px; user-select:none; cursor:pointer; opacity:.85; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; }
+
+  /* The tile reproduces the app's layer contract: a surface painting
+     --bg-primary, with a pattern layer whose colour is --pattern-color and whose
+     shape is the --canvas-pattern mask. All values arrive via the cascade from
+     the wrapper's data-theme / data-scene / data-context attributes. */
+  .tile .chat-container { position:relative; height:160px; border-radius:8px;
+       overflow:hidden; background:var(--bg-primary); }
+  .pat { position:absolute; inset:0; background-color:var(--pattern-color);
+         -webkit-mask-image:var(--canvas-pattern); mask-image:var(--canvas-pattern); }
+  /* Boost = stack five more copies of the SAME layer (alpha compounds), so the
+     shapes become judgeable without lying about the colour. */
+  .pat.x { display:none; }
+  body.boost .pat.x { display:block; }
+  .tile figcaption { font-size:12px; opacity:.7; margin-top:5px; }
+  .tile figure { margin:0; }
+
+  /* Raw shapes reference row — fixed neutral tint, not theme-driven */
+  .shape { --canvas-pattern:none; --pattern-color:hsl(0 0% 100% / .5); }
+  .shape .chat-container { background:#26272b; }
+</style>
+</head>
+<body>
+<h1>Patterns on their real backgrounds</h1>
+<p class="hint">Rendered by the app's own stylesheets — tune <code>themes.css</code> and refresh.
+   Production alphas are deliberately faint;
+   <label class="boost"><input type="checkbox" id="boost"> boost ×6 to judge shapes</label></p>
+
+<h2>Signature — rooms</h2>
+<div class="grid" id="rooms"></div>
+
+<h2>DM marker — every theme</h2>
+<div class="grid" id="dms"></div>
+
+<h2>Raw shapes (neutral, ×6)</h2>
+<div class="grid" id="shapes"></div>
+
+<script>
+  const THEMES = ["discord-dark","midnight","nord","ocean","sunset","aurora",
+                  "cypherpunk","cyberpunk","light"];
+  const LAYERS = '<div class="pat"></div>' + '<div class="pat x"></div>'.repeat(5);
+
+  function tile(attrs, caption, ctx) {
+    return `<figure class="tile"><div ${attrs}>
+      <div class="chat-container" data-context="${ctx}">${LAYERS}</div>
+    </div><figcaption>${caption}</figcaption></figure>`;
+  }
+
+  rooms.innerHTML =
+    tile('data-theme="cypherpunk"', 'cypherpunk · specks', 'room') +
+    tile('data-theme="cyberpunk"',  'cyberpunk · drops (cyan)', 'room');
+
+  dms.innerHTML = THEMES.map(t =>
+      tile(`data-theme="${t}"`, `${t} · DM`, 'dm')).join('') +
+    tile('data-theme="teahouse" data-scene="noon"', 'teahouse noon · seigaiha', 'dm') +
+    tile('data-theme="teahouse" data-scene="10pm"', 'teahouse 10pm · seigaiha', 'dm');
+
+  shapes.innerHTML = ["waves","drops","specks","specks-dense","seigaiha"].map(n =>
+    `<figure class="tile shape"><div>
+       <div class="chat-container" style="--canvas-pattern:var(--pattern-${n})">
+         ${LAYERS.replaceAll('pat x','pat')}
+       </div></div><figcaption>${n}</figcaption></figure>`).join('');
+
+  boost.onchange = () => document.body.classList.toggle('boost', boost.checked);
+</script>
+</body>
+</html>
