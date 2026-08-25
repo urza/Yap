@@ -212,14 +212,14 @@
    Deliberately limited to pattern and tint - never a status colour.
    ========================================================================== */
 .chat-container[data-context="dm"] {
-    --canvas-pattern: var(--pattern-hairlines);
+    --canvas-pattern: var(--pattern-waves);
     --pattern-color: var(--pattern-tint);
 }
 
-/* Tea House: a kumiko lattice suits a tea house better than plain hairlines.
-   The scene itself belongs to the clock, so the context gets the pattern. */
+/* Tea House: seigaiha wave crests - the classic Japanese water motif. The scene
+   itself belongs to the clock, so the context gets the pattern. */
 [data-theme="teahouse"] .chat-container[data-context="dm"] {
-    --canvas-pattern: var(--pattern-kumiko);
+    --canvas-pattern: var(--pattern-seigaiha);
 }
 
 /* ==========================================================================
@@ -268,9 +268,9 @@
     --border-dark: #080c0b;
     --border-subtle: #030505;
 
-    /* A pattern that is the theme's signature earns more alpha than a DM marker:
-       at 0.045 the scanlines were invisible, which is not "subtle", just absent. */
-    --canvas-pattern: var(--pattern-scanlines);
+    /* Phosphor specks - stray glow on the terminal glass. A signature pattern
+       earns more alpha than a DM marker: at 0.045 it is not subtle, just absent. */
+    --canvas-pattern: var(--pattern-specks);
     --pattern-color: hsl(140 100% 60% / 0.075);
     --pattern-tint: hsl(140 100% 60% / 0.08);
 
@@ -282,9 +282,9 @@
     --status-chip-text: var(--bg-darkest);
 }
 
-/* DMs are the encrypted channel: swap the CRT scanlines for a denser lattice. */
+/* DMs are the encrypted channel: the specks thicken. */
 [data-theme="cypherpunk"] .chat-container[data-context="dm"] {
-    --canvas-pattern: var(--pattern-grid);
+    --canvas-pattern: var(--pattern-specks-dense);
 }
 
 /* ==========================================================================
@@ -330,9 +330,9 @@
     --border-dark: #110b28;
     --border-subtle: #08051a;
 
-    /* The grid IS the theme here, so it reads rather than hides. Cyan against the
-       magenta accent is the whole neon-noir pairing. */
-    --canvas-pattern: var(--pattern-grid);
+    /* Rain on the window - cyan droplets against the magenta accent is the whole
+       neon-noir pairing. Signature pattern, so it reads rather than hides. */
+    --canvas-pattern: var(--pattern-drops);
     --pattern-color: hsl(190 90% 55% / 0.11);
     --pattern-tint: hsl(330 100% 59% / 0.10);
 
@@ -341,4 +341,10 @@
 
     /* Same reason as cypherpunk: neon status greens need dark chip text. */
     --status-chip-text: var(--bg-darkest);
+}
+
+/* In DMs the rain stays but flips to the magenta tint (the generic DM rule would
+   otherwise swap the drops for the shared waves). */
+[data-theme="cyberpunk"] .chat-container[data-context="dm"] {
+    --canvas-pattern: var(--pattern-drops);
 }

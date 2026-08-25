@@ -737,6 +737,17 @@ wanted (hairlines, scanlines, grid, kumiko lattice). They tile seamlessly by con
 and need no data-URI debugging. SVG masks remain available for shapes gradients cannot
 draw; the kumiko lattice stands in for true asanoha, which would need one.
 
+**Superseded 2026-08-25, same day:** the user found the whole gradient set — hairlines,
+scanlines, grid, kumiko — **too rigid**, and asked for organic, soft, discrete motifs that
+don't touch ("seamless doesn't mean one long line or grid"). That is precisely the case
+gradients cannot draw, so the patterns are now **SVG data-URI masks** after all: `waves`
+(loose tildes), `drops` (raindrops — cyberpunk's rain-on-the-window), `specks` /
+`specks-dense` (phosphor dots for cypherpunk, dense = encrypted DMs), `seigaiha`
+(wave-crest arcs for Tea House DMs). Two things worth keeping from the exercise: a tile is
+seamless as long as no motif crosses its edge — sparse scatter at varied rotation/scale
+kills the visible periodicity; and the authoring/preview tool lives at
+`themes/patterns/build.py`, so motif edits are regenerated, not hand-tweaked in a URI.
+
 **The layers live BELOW in-flow children, so any opaque panel buries them.** `--bg-canvas-panel`
 and `--bg-input-band` defaulted to `--bg-primary`, and the pattern rendered nothing at all —
 a 60x40 patch of empty chat had exactly one distinct colour. Both now default to
