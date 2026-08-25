@@ -226,7 +226,7 @@
 [data-theme="midnight"] .chat-container[data-context="dm"],
 [data-theme="nord"] .chat-container[data-context="dm"] {
     --canvas-pattern: var(--pattern-pebbles);
-    --pattern-color: hsl(0 0% 100% / 0.028);
+    --pattern-color: hsl(0 0% 100% / 0.018);
 }
 
 [data-theme="light"] .chat-container[data-context="dm"] {
