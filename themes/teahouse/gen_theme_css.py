@@ -115,11 +115,12 @@ def panel(h, s, l, light):
     else:
         b = (h, s * 0.70, max(chrome_base(l, False) - 8, 5))
         stops = [(0.10, 0), (0.30, 45), (0.68, 100)]
+    # --bg-input-band is deliberately NOT emitted (it briefly mirrored this
+    # gradient's last stop). The composer lives inside .messages-container, so this
+    # gradient already washes the area behind it -- and the user wants only the
+    # input pill itself coloured, not a band around it (2026-08-25).
     parts = [f"{hsl(*b, f'{a:.2f}')} {pos}%" for a, pos in stops]
-    grad = "linear-gradient(to bottom, " + ", ".join(parts) + ")"
-    # The composer sits directly under the panel, so it takes the panel's LAST stop
-    # verbatim. Same colour, same alpha, same scene behind it => one surface, no seam.
-    return grad, hsl(*b, f"{stops[-1][0]:.2f}")
+    return "linear-gradient(to bottom, " + ", ".join(parts) + ")"
 
 
 def build_vars(h, s, l, light):
@@ -138,8 +139,7 @@ def build_vars(h, s, l, light):
     if light:
         return {
             "--bg-primary": hsl(h, s, l),                      # the canvas colour itself
-            "--bg-canvas-panel": panel(h, s, l, True)[0],
-            "--bg-input-band": panel(h, s, l, True)[1],
+            "--bg-canvas-panel": panel(h, s, l, True),
             "--bg-sidebar": hsl(h, s * 0.35, min(cb + 6, 92), "0.72"),
             "--bg-header": hsl(h, s * 0.30, min(cb + 10, 95), "0.85"),
             "--bg-darkest": hsl(h, s * 0.40, cb - 24),
@@ -162,8 +162,7 @@ def build_vars(h, s, l, light):
         }
     return {
         "--bg-primary": hsl(h, s, l),
-        "--bg-canvas-panel": panel(h, s, l, False)[0],
-        "--bg-input-band": panel(h, s, l, False)[1],
+        "--bg-canvas-panel": panel(h, s, l, False),
         "--bg-sidebar": hsl(h, s * 0.80, max(cb - 4, 6), "0.74"),
         "--bg-header": hsl(h, s * 0.80, max(cb - 7, 4), "0.88"),
         "--bg-darkest": hsl(h, s, max(cb - 12, 3)),

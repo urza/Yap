@@ -52,6 +52,11 @@
     --status-away-hover: #fcc24f;
     --status-invisible: #747f8d;
 
+    /* Text/icon colour on the header status chip, whose BACKGROUND is the status
+       colour itself. Themes with bright status colours (phosphor/neon greens) flip
+       this dark - white on bright green is unreadable. */
+    --status-chip-text: var(--text-white);
+
     /* Semantic colors */
     --color-success: #3ba55c;
     --color-warning: #faa61a;
@@ -77,12 +82,14 @@
        Scene themes emit a real list so the strips scale to fit the viewport. */
     --scene-sizes: auto;
 
-    /* Surface behind the composer band (input row + typing indicator). Transparent by
-       default, NOT --bg-primary: .chat-container already paints --bg-primary beneath
-       everything, so the rendered colour is identical either way -- but an opaque
-       value here would hide the scene and pattern layers, which sit above the
-       container's own background. A scene theme sets this to the same colour and
-       alpha its message panel ends on, so the two read as one continuous surface. */
+    /* Surface behind the composer band (input row + typing indicator). Transparent:
+       the composer sits inside .messages-container, so that panel's wash continues
+       behind it uninterrupted, and .chat-container already paints --bg-primary
+       beneath everything. An OPAQUE value here is the hazard that named this
+       variable - it buries the scene/pattern layers and cuts a hard line across
+       the wash. No shipped theme sets it (Tea House briefly did and was reverted:
+       the user wanted only the input pill itself coloured); a theme that wants a
+       distinct band must match its panel's terminal colour/alpha exactly. */
     --bg-input-band: transparent;
 
     /* Surface behind the message list. Transparent for the same reason as

@@ -276,6 +276,10 @@
 
     --glow-accent: 0 0 6px hsl(140 100% 60% / 0.35);  /* a CRT, not a nightclub */
     --glow-status: 0 0 6px currentColor;
+
+    /* The header chip's bg IS the status colour; white text vanishes on this pale
+       mint. The darkest bg doubles as ink. */
+    --status-chip-text: var(--bg-darkest);
 }
 
 /* DMs are the encrypted channel: swap the CRT scanlines for a denser lattice. */
@@ -334,4 +338,7 @@
 
     --glow-accent: 0 0 8px hsl(330 100% 59% / 0.55);
     --glow-status: 0 0 6px currentColor;
+
+    /* Same reason as cypherpunk: neon status greens need dark chip text. */
+    --status-chip-text: var(--bg-darkest);
 }

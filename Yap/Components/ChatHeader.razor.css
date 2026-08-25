@@ -156,7 +156,9 @@
     gap: 0.5rem;
     background: var(--status-online);
     border: none;
-    color: var(--text-white);
+    /* Not --text-white: the chip's bg is the status colour, and themes with bright
+       status greens need dark text here. Also colours the dot + gear (currentColor). */
+    color: var(--status-chip-text);
     font-size: 0.875rem;
     padding: 0.25rem 0.75rem;
     border-radius: 3px;

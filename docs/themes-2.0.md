@@ -441,6 +441,10 @@ Not enforced, just what a good theme does:
   saturation, luminance and glow freely — that's where the theme's personality goes.
 - **Presence must stay distinguishable from accent.** The failure mode isn't "wrong green", it's
   online-green and accent-green being the same colour, so the dot stops carrying information.
+- **Bright status colours must also flip `--status-chip-text`.** The header status chip paints its
+  *background* with the status colour and its text with `--status-chip-text` (default
+  `--text-white`) — so a phosphor or neon online-green leaves white text unreadable on the chip.
+  Cypherpunk and cyberpunk set it to their `--bg-darkest`, which doubles as ink.
 - **`--color-danger` is the one to leave alone-ish.** It guards destructive admin actions. A danger
   button that stops reading as dangerous is a different class of bug from an ugly dot.
 - **`ReconnectModal` uses `--status-online`.** Whatever a theme does, "connection restored" must
@@ -693,10 +697,13 @@ Two defects came back from real use, both now fixed:
 
 **The composer met the message list in a hard line.** Not a missing gradient — a surface
 mismatch. `.message-input-container` painted `--bg-primary`, fully opaque, while the panel
-directly above ends at 0.58 alpha with artwork showing through. Fixed by making them the *same*
-surface: the generator emits `--bg-input-band` as the panel gradient's own final stop, so colour,
-alpha and the scene behind all match and there is no seam left to fade. `--bg-input-band` defaults
-to `--bg-primary`, so no other theme moves.
+directly above ends at 0.58 alpha with artwork showing through. First fixed by making them the
+*same* surface — the generator emitted `--bg-input-band` as the panel gradient's own final stop.
+**Superseded the same day:** the user preferred the composer area fully transparent, with only the
+input pill itself coloured. Tea House no longer sets the band at all; the wash behind the composer
+comes from the panel gradient, which reaches the container bottom because the composer sits inside
+`.messages-container`. `--bg-input-band` remains (default `transparent`) as the documented guard —
+any future theme that sets it opaque re-creates the seam.
 
 **The mobile sidebar was too transparent.** Under 768px `ChatSidebar` stops being a column beside
 the chat and slides in *over* it, so the desktop alpha left usernames competing with the messages
