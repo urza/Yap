@@ -10,9 +10,41 @@
     <!-- interactive-widget=resizes-content: resize viewport when mobile keyboard opens (works on Chrome/Brave iOS, not Safari) -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
     <base href="/" />
+
+    @* Time-of-day scene for scene themes (Tea House). Inline and blocking, and placed
+       BEFORE the stylesheet links: data-theme is server-rendered to avoid a flash, but
+       the server cannot know the client's clock, so the attribute has to be set here to
+       be in place for the first paint. Ahead of the links so it does not wait on CSS.
+       Themes that define no [data-scene] block simply ignore the attribute. *@
+    <script>
+        (function () {
+            // Hour -> scene, taken verbatim from the source theme's own map. Hour 3 is
+            // the 3:14 am easter egg (a Taoist fox leading jiangshi past the house).
+            var SCENES = ["midnight", "midnight", "2am", "314am", "4am", "4am",
+                          "6am", "6am", "8am", "8am", "10am", "10am",
+                          "noon", "noon", "2pm", "2pm", "4pm", "4pm",
+                          "6pm", "6pm", "8pm", "8pm", "10pm", "10pm"];
+            function applyScene() {
+                var s = SCENES[new Date().getHours()];
+                if (document.documentElement.dataset.scene !== s) {
+                    document.documentElement.dataset.scene = s;
+                }
+            }
+            applyScene();
+            window.applyScene = applyScene;
+            setInterval(applyScene, 60000);
+            // A device asleep past a scene boundary wakes on the wrong scene otherwise.
+            document.addEventListener("visibilitychange", function () {
+                if (!document.hidden) applyScene();
+            });
+        })();
+    </script>
+
     <ResourcePreloader />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["themes.css"]" />
+    @* Generated per-scene blocks for the Tea House theme; inert for every other theme. *@
+    <link rel="stylesheet" href="@Assets["themes/teahouse.css"]" />
     <link rel="stylesheet" href="@Assets["Yap.styles.css"]" />
     @* crossorigin is required even same-origin: CSS font fetches use CORS mode, and a
        mismatched preload is silently wasted (double download). Italic is not preloaded — rare. *@

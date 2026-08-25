@@ -64,6 +64,12 @@ public static class ThemeRegistry
             HasGradient: true),
 
         new ThemeDefinition(
+            "teahouse", "Tea House",
+            PreviewBg: "url('/images/themes/teahouse/preview.webp') center/cover",
+            PreviewAccent: "#e0c060",
+            HasGradient: false),
+
+        new ThemeDefinition(
             "light", "Daylight",
             PreviewBg: "#f5f5f7",
             PreviewAccent: "#5865f2",
