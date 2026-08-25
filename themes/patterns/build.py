@@ -29,12 +29,23 @@ ARCS  = (f"<path d='M-14 0 a14 14 0 0 1 28 0' {S} stroke-width='1.5'/>"
          f"<path d='M-4.5 0 a4.5 4.5 0 0 1 9 0' {S} stroke-width='1.5'/>")
 
 PATTERNS = {
-  # little waves - four loose tildes, varied size/rotation, no two on one band
-  "waves": uri(96,96,
-    f"<g transform='translate(12 18)'><path d='{TILDE}' {S} stroke-width='1.6'/></g>"
-    f"<g transform='translate(56 36) rotate(-12) scale(0.85)'><path d='{TILDE}' {S} stroke-width='1.8'/></g>"
-    f"<g transform='translate(20 64) rotate(8) scale(1.1)'><path d='{TILDE}' {S} stroke-width='1.5'/></g>"
-    f"<g transform='translate(64 82) rotate(-5) scale(0.72)'><path d='{TILDE}' {S} stroke-width='2'/></g>"),
+  # little waves - five tildes rising bottom-left -> top-right (rotate(-45) in
+  # SVG's y-down coordinates), sizes spread 0.6..1.25, and each stroke painted
+  # with an end-fading gradient: stops go transparent -> opaque -> transparent,
+  # and a mask reads alpha, so the tips melt away instead of stopping.
+  "waves": uri(104,104,
+    "<defs><linearGradient id='f'>"
+    "<stop offset='0' stop-color='black' stop-opacity='0'/>"
+    "<stop offset='0.3' stop-color='black'/>"
+    "<stop offset='0.7' stop-color='black'/>"
+    "<stop offset='1' stop-color='black' stop-opacity='0'/>"
+    "</linearGradient></defs>"
+    + "".join(
+      f"<g transform='translate({x} {y}) rotate({r}) scale({sc})'>"
+      f"<path d='{TILDE}' stroke='url(#f)' fill='none' stroke-linecap='round' stroke-width='{w}'/></g>"
+      for x,y,r,sc,w in [
+        (10,34,-45,1.25,1.5), (48,26,-41,0.8,1.9), (76,58,-48,1.0,1.7),
+        (24,82,-44,0.6,2.2), (62,96,-46,0.9,1.8)])),
   # raindrops - four sizes, slight tilts
   "drops": uri(80,80,
     f"<g transform='translate(18 20)'><path d='{DROP}' fill='black'/></g>"
