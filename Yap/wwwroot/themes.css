@@ -225,7 +225,12 @@
 [data-theme="discord-dark"] .chat-container[data-context="dm"],
 [data-theme="midnight"] .chat-container[data-context="dm"],
 [data-theme="nord"] .chat-container[data-context="dm"] {
+    /* BOTH lines are required. `mask-image: none` means unmasked - fully
+       painted - so killing only the mask leaves the generic DM rule's tint
+       as a wash over the whole conversation (shipped briefly as exactly that
+       bug: nord DMs lightened to the sidebar's colour). */
     --canvas-pattern: none;
+    --pattern-color: transparent;
 }
 
 /* PARKED: pebbles for the three themes above, tuned and approved 2026-08-25
