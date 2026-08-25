@@ -145,16 +145,22 @@
 }
 
 /* ==========================================================================
-   Pattern-scroll experiment: set data-pattern-scroll on <html> and the DM/room
-   pattern moves from the fixed backdrop into the conversation itself, scrolling
-   with the text. Pure CSS - the layer is an ::before spanning .messages-flow's
-   full content height, so it travels natively with the scroller.
+   THE pattern layer. It lives inside the conversation and scrolls with the
+   text - chosen over a fixed backdrop after an A/B toggle (2026-08-25): the
+   pattern belongs to the conversation surface, not the room behind it. A side
+   effect the decision embraced: patterns show only in the message column, not
+   behind the sidebar or header.
 
-   z-index choreography: .messages-flow gets its own stacking context (z-index 0)
-   so the ::before at -1 paints above the ancestors' backgrounds (the canvas
-   panel wash) but below every message. Without the local context, -1 would sink
-   beneath the wash and vanish - the buried-layer bug from the pattern layer's
-   first landing.
+   Mechanics: masks have no attachment property, so scrolling is structural -
+   the ::before spans .messages-flow (the scroll CONTENT) at full height and
+   rides natively with it. background-color carries the colour, the mask
+   carries the shape, both set per theme/context in themes.css.
+
+   z-index choreography: .messages-flow gets its own stacking context (z-index
+   0) so the ::before at -1 paints above the ancestors' backgrounds (the canvas
+   panel wash) but below every message. Without the local context, -1 would
+   sink beneath the wash and vanish - the buried-layer bug from the pattern
+   layer's first landing.
    ========================================================================== */
 .messages-flow {
     position: relative;
@@ -170,17 +176,6 @@
     background-color: var(--pattern-color);
     -webkit-mask-image: var(--canvas-pattern);
     mask-image: var(--canvas-pattern);
-    display: none; /* experiment off by default */
-}
-
-html[data-pattern-scroll] .messages-flow::before {
-    display: block;
-}
-
-/* While the experiment is on, the fixed backdrop stops painting the pattern so
-   it is not shown twice at different scroll offsets. */
-html[data-pattern-scroll] .theme-pattern {
-    display: none;
 }
 
 html, body {

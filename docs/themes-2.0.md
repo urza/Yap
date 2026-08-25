@@ -398,8 +398,12 @@ get faint circuit traces; every other theme gets hairlines at 3%.
 
 - **Moiré / shimmer.** 1px hard lines at fractional devicePixelRatios vibrate while scrolling. Keep
   tiles ≥ 24px and alpha low; prefer soft-edged stops over hard ones.
-- **Scroll cost.** The pattern belongs on the *fixed* canvas layer, never on the scrolling
-  `.messages` element — otherwise every scroll frame repaints a tiled background.
+- **Scroll cost.** ~~The pattern belongs on the *fixed* canvas layer~~ — **reversed 2026-08-25
+  by an A/B toggle**: the pattern now lives *inside* the scroll content (`.messages-flow::before`)
+  and rides with the text, which the user preferred ("the pattern belongs to the conversation").
+  The original worry overstated the cost: as part of ordinary scroll content the layer is
+  rasterised into composited tiles like the text itself — scrolling does not repaint it per frame.
+  What was actually true: never *reposition* a fixed layer from a scroll listener in JS.
 - **Unobtrusive means unobtrusive.** If you can read the pattern, it's too strong. Target: you
   notice the room *changed*, not that there are lines on it.
 - Pattern and image can coexist (pattern over image, under scrim) but probably shouldn't — pick one

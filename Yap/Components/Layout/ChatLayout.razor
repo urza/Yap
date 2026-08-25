@@ -15,12 +15,12 @@
    never disagree. Deliberately narrower than data-theme: a context may move the
    pattern and tint only, never a status colour - it changes many times a minute. *@
 <div class="chat-container" data-context="@(NavState.CurrentDmUser != null ? "dm" : "room")">
-    @* Themed background scene, pattern and legibility wash. Empty by design: all three
-       are painted entirely from CSS variables the active theme sets, so they stay
-       inert for every theme that defines none. Order matters - each paints over the
-       one before it. *@
+    @* Themed background scene + legibility wash. Empty by design: both are painted
+       entirely from CSS variables the active theme sets, so they stay inert for
+       every theme that defines none. Order matters - the scrim paints over the
+       scene. (The pattern layer is NOT here: it lives inside .messages-flow and
+       scrolls with the conversation - see app.css.) *@
     <div class="theme-scene"></div>
-    <div class="theme-pattern"></div>
     <div class="theme-scrim"></div>
 
     <ChatHeader />
