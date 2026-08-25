@@ -5,6 +5,10 @@
 <PageTitle>@ChatConfig.ProjectName | @@@DmUser</PageTitle>
 
 <div class="messages">
+    @* messages-flow wraps the whole scrollable content so a pattern layer can span
+       its FULL height and scroll natively with the text (the pattern-scroll
+       experiment). .messages stays the scroller; this is the flex column now. *@
+    <div class="messages-flow">
     @if (isLoadingMore)
     {
         <div class="loading-more">
@@ -60,6 +64,7 @@
     @* JS-owned: optimistic pending-send ghosts render here (chat.js send pipeline).
        Blazor must always render it empty — its children belong to the client. *@
     <div class="pending-echoes"></div>
+    </div>
 </div>
 
 <MessageInput DmUser="@DmUser" RecentEmojis="@recentEmojis" OnEmojiUsed="HandleInputEmojiUsed"

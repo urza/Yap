@@ -115,9 +115,16 @@
     flex: 1;
     overflow-y: auto;
     padding: 1rem 0 0.25rem 0;
+    min-width: 0; /* Allow flex item to shrink below content size */
+}
+
+/* The scrollable content. Carries the flex column that used to live on .messages,
+   so the spacer still pushes a short conversation to the bottom (min-height 100%
+   gives the spacer room to stretch into). */
+::deep .messages-flow {
     display: flex;
     flex-direction: column;
-    min-width: 0; /* Allow flex item to shrink below content size */
+    min-height: 100%;
 }
 
 /* Hide message action popups on mobile scroll/idle dismiss.
