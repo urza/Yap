@@ -216,10 +216,20 @@
     --pattern-color: var(--pattern-tint);
 }
 
-/* Tea House: seigaiha wave crests - the classic Japanese water motif. The scene
-   itself belongs to the clock, so the context gets the pattern. */
+/* The DM marker splits by temperament: the gradient themes (ocean, sunset,
+   aurora) keep the flowing waves above; the flat, mineral ones get soft pebbles
+   instead. Neon themes and Tea House override further down with their own. */
+[data-theme="discord-dark"] .chat-container[data-context="dm"],
+[data-theme="midnight"] .chat-container[data-context="dm"],
+[data-theme="nord"] .chat-container[data-context="dm"],
+[data-theme="light"] .chat-container[data-context="dm"] {
+    --canvas-pattern: var(--pattern-pebbles);
+}
+
+/* Tea House: rain-on-a-pond ripples. The scene itself belongs to the clock, so
+   the context gets the pattern. */
 [data-theme="teahouse"] .chat-container[data-context="dm"] {
-    --canvas-pattern: var(--pattern-seigaiha);
+    --canvas-pattern: var(--pattern-ripples);
 }
 
 /* ==========================================================================

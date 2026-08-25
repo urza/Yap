@@ -76,10 +76,10 @@
 
   dms.innerHTML = THEMES.map(t =>
       tile(`data-theme="${t}"`, `${t} · DM`, 'dm')).join('') +
-    tile('data-theme="teahouse" data-scene="noon"', 'teahouse noon · seigaiha', 'dm') +
-    tile('data-theme="teahouse" data-scene="10pm"', 'teahouse 10pm · seigaiha', 'dm');
+    tile('data-theme="teahouse" data-scene="noon"', 'teahouse noon · ripples', 'dm') +
+    tile('data-theme="teahouse" data-scene="10pm"', 'teahouse 10pm · ripples', 'dm');
 
-  shapes.innerHTML = ["waves","drops","specks","specks-dense","seigaiha"].map(n =>
+  shapes.innerHTML = ["waves","pebbles","drops","specks","specks-dense","ripples"].map(n =>
     `<figure class="tile shape"><div>
        <div class="chat-container" style="--canvas-pattern:var(--pattern-${n})">
          ${LAYERS.replaceAll('pat x','pat')}

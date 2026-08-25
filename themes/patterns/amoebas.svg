@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
+  <defs>
+    <g id="amoeba">
+      <path d="M0,-24 C15,-26 28,-13 26,1 C24,15 12,27 -2,25 C-18,23 -30,11 -28,-5 C-26,-19 -13,-22 0,-24 Z" fill="none" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="5" cy="3" r="5" stroke="none"/>
+      <circle cx="-12" cy="-9" r="2.2" stroke="none"/>
+      <circle cx="11" cy="13" r="1.8" stroke="none"/>
+    </g>
+    <g id="rod">
+      <rect x="-16" y="-7" width="32" height="14" rx="7" fill="none" stroke-width="2.5"/>
+      <circle cx="-7" cy="0" r="2" stroke="none"/>
+      <circle cx="6" cy="0" r="2" stroke="none"/>
+    </g>
+    <g id="tadpole">
+      <circle cx="0" cy="0" r="7" fill="none" stroke-width="2.5"/>
+      <path d="M7,0 q6,-2 9,3 q3,5 9,3" fill="none" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="-2" cy="-1" r="2" stroke="none"/>
+    </g>
+    <g id="cell">
+      <circle r="12" fill="none" stroke-width="2.5"/>
+      <circle cx="3" cy="-2" r="3" stroke="none"/>
+    </g>
+    <path id="spiro" d="M0,0 q6,-10 12,0 t12,0 t12,0" fill="none" stroke-width="2.5" stroke-linecap="round"/>
+    <pattern id="micro" width="300" height="300" patternUnits="userSpaceOnUse">
+      <rect width="300" height="300" fill="#f4f0e6"/>
+      <g opacity="0.5">
+        <use href="#amoeba" transform="translate(75,80) rotate(12)" stroke="#86a389" fill="#86a389"/>
+        <use href="#amoeba" transform="translate(215,60) rotate(-25) scale(0.65)" stroke="#c98a5e" fill="#c98a5e"/>
+        <use href="#amoeba" transform="translate(235,215) rotate(40) scale(0.8)" stroke="#86a389" fill="#86a389"/>
+        <use href="#rod" transform="translate(160,150) rotate(35)" stroke="#c98a5e" fill="#c98a5e"/>
+        <use href="#rod" transform="translate(60,215) rotate(-15) scale(0.8)" stroke="#86a389" fill="#86a389"/>
+        <use href="#tadpole" transform="translate(140,100) rotate(-30)" stroke="#c98a5e" fill="#c98a5e"/>
+        <use href="#cell" transform="translate(265,140)" stroke="#86a389" fill="#86a389"/>
+        <use href="#spiro" transform="translate(105,255)" stroke="#c98a5e" fill="#c98a5e"/>
+        <g fill="#86a389">
+          <circle cx="30" cy="140" r="2"/><circle cx="140" cy="55" r="1.6"/>
+          <circle cx="200" cy="120" r="2.2"/><circle cx="90" cy="160" r="1.6"/>
+          <circle cx="180" cy="200" r="2"/><circle cx="250" cy="262" r="1.8"/>
+          <circle cx="30" cy="270" r="2.2"/><circle cx="150" cy="288" r="1.6"/>
+        </g>
+      </g>
+    </pattern>
+  </defs>
+  <rect width="600" height="600" fill="url(#micro)"/>
+</svg>

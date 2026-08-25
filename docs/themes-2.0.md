@@ -748,6 +748,16 @@ seamless as long as no motif crosses its edge — sparse scatter at varied rotat
 kills the visible periodicity; and the authoring/preview tool lives at
 `themes/patterns/build.py`, so motif edits are regenerated, not hand-tweaked in a URI.
 
+**Extended 2026-08-25 with user-brought motifs** (source SVGs parked in `themes/patterns/` under
+their content names): `pebbles` and `ripples` were adopted — ripples became Tea House's DM marker
+(retiring the seigaiha stand-in, still authored in build.py), pebbles became the DM marker for the
+flat/mineral themes (discord-dark, midnight, nord, light) while the gradient themes (ocean, sunset,
+aurora) keep the tapered waves — a split by temperament, not per-theme whim. The scattered-drops
+file's rotation jitter was merged into our drops motif. `sprouts` and `amoebas` are parked for
+future themes; `flowing-waves` was declined (full-width lines — the thing the organic pass
+replaced). Their big lesson was **tile period**: 260px tiles with large sparse motifs hide the
+repeat far better than tight 64–104px tiles.
+
 **The layers live BELOW in-flow children, so any opaque panel buries them.** `--bg-canvas-panel`
 and `--bg-input-band` defaulted to `--bg-primary`, and the pattern rendered nothing at all —
 a 60x40 patch of empty chat had exactly one distinct colour. Both now default to

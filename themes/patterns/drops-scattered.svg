@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="520" viewBox="0 0 520 520">
+  <defs>
+    <path id="drop" d="M0,-14 C7,-7 10,-1 10,4 A10,10 0 1 1 -10,4 C-10,-1 -7,-7 0,-14 Z"/>
+    <pattern id="drops" width="260" height="260" patternUnits="userSpaceOnUse">
+      <rect width="260" height="260" fill="#efeae2"/>
+      <g fill="#d8d1c4">
+        <use href="#drop" transform="translate(45,55) rotate(15)"/>
+        <use href="#drop" transform="translate(150,35) rotate(-20) scale(0.7)"/>
+        <use href="#drop" transform="translate(225,90) rotate(30) scale(1.2)"/>
+        <use href="#drop" transform="translate(90,140) rotate(-10) scale(0.85)"/>
+        <use href="#drop" transform="translate(190,165) rotate(45) scale(0.6)"/>
+        <use href="#drop" transform="translate(40,215) rotate(-35) scale(1.1)"/>
+        <use href="#drop" transform="translate(140,235) rotate(10) scale(0.75)"/>
+        <use href="#drop" transform="translate(235,215) rotate(-15) scale(0.9)"/>
+        <circle cx="115" cy="95" r="3"/>
+        <circle cx="205" cy="125" r="2.5"/>
+        <circle cx="70" cy="175" r="2"/>
+        <circle cx="165" cy="200" r="3"/>
+      </g>
+    </pattern>
+  </defs>
+  <rect width="520" height="520" fill="url(#drops)"/>
+</svg>

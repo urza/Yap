@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="480" viewBox="0 0 480 480">
+  <defs>
+    <pattern id="waves" width="240" height="240" patternUnits="userSpaceOnUse">
+      <rect width="240" height="240" fill="#0e1621"/>
+      <g fill="none" stroke="#9fb3c8" stroke-opacity="0.05" stroke-width="2" stroke-linecap="round">
+        <path d="M0,40 C60,10 180,70 240,40"/>
+        <path d="M0,100 C60,130 180,70 240,100"/>
+        <path d="M0,160 C60,130 180,190 240,160"/>
+        <path d="M0,220 C60,250 180,190 240,220"/>
+      </g>
+    </pattern>
+  </defs>
+  <rect width="480" height="480" fill="url(#waves)"/>
+</svg>

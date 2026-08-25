@@ -79,12 +79,43 @@ PATTERNS = {
         (10,34,-45,1.25), (48,26,-41,0.8), (76,58,-48,1.0),
         (24,82,-44,0.6), (62,96,-46,0.9)])),
 
-  # raindrops - four sizes, slight tilts
-  "drops": uri(80,80,
-    f"<g transform='translate(18 20)'><path d='{DROP}' fill='black'/></g>"
-    f"<g transform='translate(56 32) rotate(14) scale(0.72)'><path d='{DROP}' fill='black'/></g>"
-    f"<g transform='translate(32 60) rotate(-11) scale(0.85)'><path d='{DROP}' fill='black'/></g>"
-    f"<g transform='translate(66 66) scale(0.55)'><path d='{DROP}' fill='black'/></g>"),
+  # raindrops - eight per 140px tile with rotation jitter and a wide size
+  # spread, the scatter quality taken from drops-scattered.svg (user-brought).
+  "drops": uri(140,140,"".join(
+    f"<g transform='translate({x} {y}) rotate({r}) scale({sc})'><path d='{DROP}' fill='black'/></g>"
+    for x,y,r,sc in [
+      (24,30,15,1.0),(80,19,-20,0.7),(121,49,30,1.2),(48,76,-10,0.85),
+      (102,89,45,0.6),(22,116,-35,1.1),(75,127,10,0.75),(126,116,-15,0.9)])),
+
+  # soft pebbles - organic blobs, from pebbles.svg (user-brought), converted to
+  # a mask: background rect stripped, shapes opaque. Native 260px tile kept -
+  # the large period is what makes the repeat hard to spot.
+  "pebbles": uri(260,260,
+    "<defs><path id='b' d='M0,-18 C12,-18 22,-8 20,4 C18,16 6,22 -6,19 "
+    "C-18,16 -24,4 -20,-8 C-16,-18 -10,-18 0,-18 Z'/></defs>"
+    + "".join(
+      f"<use href='#b' fill='black' transform='translate({x} {y}) rotate({r}) scale({sc})'/>"
+      for x,y,r,sc in [
+        (55,60,10,1.0),(160,40,-25,0.7),(225,110,40,1.15),(100,150,-10,0.85),
+        (195,185,15,0.6),(50,220,-35,1.1),(145,235,5,0.8)])),
+
+  # pond ripples - concentric wobbly rings + stray dots, from ripples.svg
+  # (user-brought). Ring strokes thicken as they scale outward, which reads as
+  # the ripple spreading. Tea House's DM marker.
+  "ripples": uri(260,260,
+    "<defs><path id='r' d='M0,-15 C9,-16 16,-8 15,1 C14,10 6,16 -3,15 "
+    "C-12,14 -17,6 -16,-3 C-15,-11 -8,-14 0,-15 Z'/></defs>"
+    + "".join(
+      f"<use href='#r' fill='none' stroke='black' stroke-width='1.5' transform='translate({x} {y}){rot} scale({sc})'/>"
+      for x,y,rot,sc in [
+        (72,82,'',1.0),(72,82,'',1.75),(72,82,'',2.5),
+        (185,185,' rotate(25)',0.9),(185,185,' rotate(25)',1.5),(185,185,' rotate(25)',2.1),(185,185,' rotate(25)',2.7),
+        (228,55,' rotate(-15)',0.6),(228,55,' rotate(-15)',1.05),
+        (45,215,' rotate(10)',0.55),(45,215,' rotate(10)',0.95)])
+    + "<circle cx='150' cy='60' r='1.5' fill='black'/>"
+      "<circle cx='120' cy='200' r='1.5' fill='black'/>"
+      "<circle cx='240' cy='140' r='1.5' fill='black'/>"),
+
   # phosphor specks - scattered soft dots, varied radii
   "specks": uri(64,64, "".join(
     f"<circle cx='{x}' cy='{y}' r='{r}' fill='black'/>" for x,y,r in
@@ -94,7 +125,8 @@ PATTERNS = {
     f"<circle cx='{x}' cy='{y}' r='{r}' fill='black'/>" for x,y,r in
     [(8,10,1.4),(28,6,1.0),(50,14,1.8),(14,34,1.0),(40,38,1.5),(60,52,1.1),(22,56,1.6),
      (46,60,1.2),(58,28,1.0),(6,48,1.2),(34,22,1.1),(52,44,1.4)])),
-  # seigaiha fragments - nested wave-crest arcs, scattered
+  # seigaiha fragments - PARKED, no longer shipped (Tea House DMs use ripples
+  # now); kept for a future theme
   "seigaiha": uri(96,96,
     f"<g transform='translate(26 30) rotate(-6) scale(0.85)'>{ARCS}</g>"
     f"<g transform='translate(70 68) rotate(4) scale(0.85)'>{ARCS}</g>"
@@ -131,7 +163,10 @@ h2{{margin:6px 0}}
 print("preview.html written")
 # NOTE: tint alpha is exaggerated (0.5) so the shapes are judgeable; production stays ~0.05-0.11
 
+PARKED = {"seigaiha"}  # authored but not shipped; app.css carries only the rest
+
 print()
-print("/* --- paste-ready --- */")
+print("/* --- paste-ready (parked motifs excluded) --- */")
 for name, css in PATTERNS.items():
-    print(f"    --pattern-{name}: {css};")
+    if name not in PARKED:
+        print(f"    --pattern-{name}: {css};")

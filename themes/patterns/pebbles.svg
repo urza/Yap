@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="520" viewBox="0 0 520 520">
+  <defs>
+    <path id="blob" d="M0,-18 C12,-18 22,-8 20,4 C18,16 6,22 -6,19 C-18,16 -24,4 -20,-8 C-16,-18 -10,-18 0,-18 Z"/>
+    <pattern id="pebbles" width="260" height="260" patternUnits="userSpaceOnUse">
+      <rect width="260" height="260" fill="#111b21"/>
+      <g fill="#ffffff" fill-opacity="0.03">
+        <use href="#blob" transform="translate(55,60) rotate(10)"/>
+        <use href="#blob" transform="translate(160,40) rotate(-25) scale(0.7)"/>
+        <use href="#blob" transform="translate(225,110) rotate(40) scale(1.15)"/>
+        <use href="#blob" transform="translate(100,150) rotate(-10) scale(0.85)"/>
+        <use href="#blob" transform="translate(195,185) rotate(15) scale(0.6)"/>
+        <use href="#blob" transform="translate(50,220) rotate(-35) scale(1.1)"/>
+        <use href="#blob" transform="translate(145,235) rotate(5) scale(0.8)"/>
+      </g>
+    </pattern>
+  </defs>
+  <rect width="520" height="520" fill="url(#pebbles)"/>
+</svg>
