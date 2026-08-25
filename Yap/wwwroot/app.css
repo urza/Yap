@@ -77,17 +77,56 @@
        Scene themes emit a real list so the strips scale to fit the viewport. */
     --scene-sizes: auto;
 
-    /* Surface behind the composer band (input row + typing indicator). Defaults to
-       --bg-primary so nothing changes for existing themes; a scene theme sets it to
-       the SAME colour and alpha its message panel ends on, so the two read as one
-       continuous surface instead of meeting in a hard line. */
-    --bg-input-band: var(--bg-primary);
+    /* Surface behind the composer band (input row + typing indicator). Transparent by
+       default, NOT --bg-primary: .chat-container already paints --bg-primary beneath
+       everything, so the rendered colour is identical either way -- but an opaque
+       value here would hide the scene and pattern layers, which sit above the
+       container's own background. A scene theme sets this to the same colour and
+       alpha its message panel ends on, so the two read as one continuous surface. */
+    --bg-input-band: transparent;
 
-    /* Surface behind the message list. Its own variable rather than --bg-primary
-       so a scene theme can make the reading area translucent (letting the artwork
-       show) while --bg-primary stays opaque as the load-time fallback and as the
-       fill for small elements like message hover states. */
-    --bg-canvas-panel: var(--bg-primary);
+    /* Surface behind the message list. Transparent for the same reason as
+       --bg-input-band above: --bg-primary is already painted by .chat-container, so
+       this looks identical, but leaving it opaque would bury the scene and pattern
+       layers. A scene theme overrides it with a translucent wash for legibility. */
+    --bg-canvas-panel: transparent;
+
+    /* --- Pattern layer -------------------------------------------------------
+       A tint shown through a mask. The mask carries the SHAPE, the element's
+       background-color carries the COLOUR - which is the whole point: an SVG or
+       image tile bakes its colour in, so it would need one copy per theme, while a
+       mask lets every theme paint the same shape in its own colour.
+
+       Off by default twice over: no mask AND a transparent colour, because
+       `mask-image: none` means "no mask", i.e. fully opaque, not "invisible". */
+    --canvas-pattern: none;
+    --pattern-color: transparent;
+    /* Colour a theme wants its DM pattern drawn in. White works on every dark
+       theme; light themes override it below. */
+    --pattern-tint: hsl(0 0% 100% / 0.045);
+
+    /* Reusable pattern shapes. All are repeating gradients rather than SVG data
+       URIs: they tile seamlessly by construction, cost nothing, and read CSS
+       variables. Colour here is irrelevant - only alpha matters through a mask.
+       Keep periods >= ~12px and alpha low; 1px lines at fractional device pixel
+       ratios shimmer when scrolled. */
+    --pattern-hairlines: repeating-linear-gradient(45deg, #000 0 1px, transparent 1px 12px);
+    --pattern-scanlines: repeating-linear-gradient(0deg, #000 0 1px, transparent 1px 4px);
+    --pattern-grid:
+        repeating-linear-gradient(0deg, #000 0 1px, transparent 1px 28px),
+        repeating-linear-gradient(90deg, #000 0 1px, transparent 1px 28px);
+    /* Triangular lattice - the kumiko/asanoha family, from three line sets at 60 degrees. */
+    --pattern-kumiko:
+        repeating-linear-gradient(0deg, #000 0 1px, transparent 1px 26px),
+        repeating-linear-gradient(60deg, #000 0 1px, transparent 1px 26px),
+        repeating-linear-gradient(-60deg, #000 0 1px, transparent 1px 26px);
+
+    /* --- Glow ----------------------------------------------------------------
+       Theme opt-in, `none` by default. Applied to a SMALL fixed set of elements
+       (status dots, the send button). Never per-message: a box-shadow on every row
+       of a scrolling list repaints every frame for no information gain. */
+    --glow-accent: none;
+    --glow-status: none;
 
     /* Wash painted over the whole composite. Per-layer tinting is impossible
        (the layers are opaque JPEGs), so legibility tuning happens here. */

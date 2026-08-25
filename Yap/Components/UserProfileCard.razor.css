@@ -73,8 +73,8 @@
     flex-shrink: 0;
 }
 
-.profile-card-status-dot.online { background: var(--status-online); }
-.profile-card-status-dot.away { background: var(--status-away); }
+.profile-card-status-dot.online { background: var(--status-online); color: var(--status-online); box-shadow: var(--glow-status); }
+.profile-card-status-dot.away { background: var(--status-away); color: var(--status-away); box-shadow: var(--glow-status); }
 .profile-card-status-dot.offline { background: var(--status-invisible); }
 
 .profile-card-divider {

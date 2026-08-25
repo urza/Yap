@@ -185,6 +185,7 @@
     height: 8px;
     border-radius: 50%;
     background: currentColor;
+    box-shadow: var(--glow-status);
 }
 
 .status-username {
@@ -276,12 +277,17 @@
     flex-shrink: 0;
 }
 
+/* See the note on .user-status-dot in ChatSidebar.razor.css for why `color` is set. */
 .status-dot.online {
     background: var(--status-online);
+    color: var(--status-online);
+    box-shadow: var(--glow-status);
 }
 
 .status-dot.away {
     background: var(--status-away);
+    color: var(--status-away);
+    box-shadow: var(--glow-status);
 }
 
 .status-dot.invisible {

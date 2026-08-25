@@ -177,12 +177,19 @@
     flex-shrink: 0;
 }
 
+/* `color` is set alongside `background` purely so --glow-status can be written once
+   as `0 0 6px currentColor` and pick up whichever state colour the dot is showing.
+   The dots hold no text, so the colour has no other effect. */
 .user-status-dot.online {
     background: var(--status-online);
+    color: var(--status-online);
+    box-shadow: var(--glow-status);
 }
 
 .user-status-dot.away {
     background: var(--status-away);
+    color: var(--status-away);
+    box-shadow: var(--glow-status);
 }
 
 .user-status-dot.invisible {

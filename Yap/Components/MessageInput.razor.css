@@ -141,6 +141,12 @@
     background: var(--accent-hover);
 }
 
+/* The only accent glow in the chat loop. Deliberately not on message rows: a
+   box-shadow on every item in a scrolling list repaints each frame. */
+.send-button:not(:disabled):not(.disabled) {
+    box-shadow: var(--glow-accent);
+}
+
 .send-button:disabled,
 .send-button.disabled {
     background: var(--bg-muted);

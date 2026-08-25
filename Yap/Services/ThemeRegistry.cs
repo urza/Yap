@@ -64,6 +64,18 @@ public static class ThemeRegistry
             HasGradient: true),
 
         new ThemeDefinition(
+            "cypherpunk", "Cypherpunk",
+            PreviewBg: "#07090a",
+            PreviewAccent: "#33ff66",
+            HasGradient: false),
+
+        new ThemeDefinition(
+            "cyberpunk", "Cyberpunk",
+            PreviewBg: "linear-gradient(135deg, #0d0820 0%, #2a0f3d 55%, #4a1240 100%)",
+            PreviewAccent: "#ff2e88",
+            HasGradient: true),
+
+        new ThemeDefinition(
             "teahouse", "Tea House",
             PreviewBg: "url('/images/themes/teahouse/preview.webp') center/cover",
             PreviewAccent: "#e0c060",

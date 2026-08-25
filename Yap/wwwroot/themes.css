@@ -195,4 +195,143 @@
 
     --border-dark: #d0d0d5;
     --border-subtle: #c4c4ca;
+
+    /* Dark tint: the default white one is invisible on a light canvas. */
+    --pattern-tint: hsl(0 0% 0% / 0.05);
+}
+
+
+/* ==========================================================================
+   Room vs DM
+
+   Generalises what the 3px header line under the header has always done: tell
+   you at a glance whether you are in a room or a DM. Every theme gets a faint
+   diagonal hairline in DMs; a theme can swap the shape for something of its own.
+
+   Scoped to .chat-container (not <html>) because Blazor sets data-context there.
+   Deliberately limited to pattern and tint - never a status colour.
+   ========================================================================== */
+.chat-container[data-context="dm"] {
+    --canvas-pattern: var(--pattern-hairlines);
+    --pattern-color: var(--pattern-tint);
+}
+
+/* Tea House: a kumiko lattice suits a tea house better than plain hairlines.
+   The scene itself belongs to the clock, so the context gets the pattern. */
+[data-theme="teahouse"] .chat-container[data-context="dm"] {
+    --canvas-pattern: var(--pattern-kumiko);
+}
+
+/* ==========================================================================
+   Cypherpunk — the 90s mailing list, PGP, "cypherpunks write code"
+
+   A terminal, not a nightclub: phosphor on near-black, restraint, minimal glow.
+   Note the accent green and the online green are deliberately DIFFERENT greens.
+   Themes may now override status colours, but the failure mode is not a wrong
+   green - it is presence-green and accent-green being the SAME green, which
+   makes the online dot stop carrying information.
+   ========================================================================== */
+[data-theme="cypherpunk"] {
+    --bg-darkest: #030505;
+    --bg-header: #080c0b;
+    --bg-sidebar: #0d1211;
+    --bg-hover: #16201d;
+    --bg-primary: #07090a;
+    --bg-secondary: #0f1614;
+    --bg-input: #151d1a;
+    --bg-muted: #24322e;
+    --bg-tertiary: #0b100f;
+
+    /* Body text is deliberately NOT phosphor. Saturated green over a long
+       message is exhausting; the green lives in the accent. */
+    --text-white: #eafff0;
+    --text-primary: #c8d3cc;
+    --text-secondary: #9fb0a8;
+    --text-muted: #7d8f87;
+    --text-tertiary: #6a7a73;
+    --text-placeholder: #55635d;
+
+    --accent-primary: #33ff66;
+    --accent-hover: #22cc4f;
+    --accent-light: #ccffdb;
+    --accent-focus: #66ff8f;
+    --accent-tint: hsl(140 100% 60% / 0.14);
+
+    --status-online: #7dffb0;  /* pale mint, distinct from the vivid accent green */
+    --status-online-hover: #5ce094;
+    --status-away: #ffb000;
+    --status-away-hover: #ffc84d;
+    --color-success: #33ff66;
+    --color-warning: #ffb000;
+    --color-danger: #ff5f56;   /* stays unmistakably red - it guards destructive actions */
+
+    --border-dark: #080c0b;
+    --border-subtle: #030505;
+
+    /* A pattern that is the theme's signature earns more alpha than a DM marker:
+       at 0.045 the scanlines were invisible, which is not "subtle", just absent. */
+    --canvas-pattern: var(--pattern-scanlines);
+    --pattern-color: hsl(140 100% 60% / 0.075);
+    --pattern-tint: hsl(140 100% 60% / 0.08);
+
+    --glow-accent: 0 0 6px hsl(140 100% 60% / 0.35);  /* a CRT, not a nightclub */
+    --glow-status: 0 0 6px currentColor;
+}
+
+/* DMs are the encrypted channel: swap the CRT scanlines for a denser lattice. */
+[data-theme="cypherpunk"] .chat-container[data-context="dm"] {
+    --canvas-pattern: var(--pattern-grid);
+}
+
+/* ==========================================================================
+   Cyberpunk — neon noir
+
+   Where the glow axis earns its keep. No status collision at all here: the
+   accent is magenta, so every status colour can be neon-ified in place.
+   Kept deliberately unlike cypherpunk - quiet/green/minimal vs saturated/
+   magenta/glowing. If they read as siblings in the picker, one of them is wrong.
+   ========================================================================== */
+[data-theme="cyberpunk"] {
+    --bg-darkest: #08051a;
+    --bg-header: #110b28;
+    --bg-sidebar: #181036;
+    --bg-hover: #261a4d;
+    --bg-primary: #0d0820;
+    --bg-secondary: #1c1240;
+    --bg-input: #221647;
+    --bg-muted: #3d2a6b;
+    --bg-tertiary: #150e2e;
+
+    --text-white: #fdf7ff;
+    --text-primary: #e6dcf5;
+    --text-secondary: #bcaed4;
+    --text-muted: #9a8cb5;
+    --text-tertiary: #82749d;
+    --text-placeholder: #6a5c85;
+
+    --accent-primary: #ff2e88;
+    --accent-hover: #d81f6f;
+    --accent-light: #ffd0e5;
+    --accent-focus: #22d3ee;
+    --accent-tint: hsl(330 100% 59% / 0.16);
+
+    --status-online: #39ff8b;
+    --status-online-hover: #22d96f;
+    --status-away: #ffc93c;
+    --status-away-hover: #ffd970;
+    --color-success: #39ff8b;
+    --color-warning: #ffc93c;
+    --color-danger: #ff4d5e;
+
+    --border-dark: #110b28;
+    --border-subtle: #08051a;
+
+    /* The grid IS the theme here, so it reads rather than hides. Cyan against the
+       magenta accent is the whole neon-noir pairing. */
+    --canvas-pattern: var(--pattern-grid);
+    --pattern-color: hsl(190 90% 55% / 0.11);
+    --pattern-tint: hsl(330 100% 59% / 0.10);
+
+    --glow-accent: 0 0 8px hsl(330 100% 59% / 0.55);
+    --glow-status: 0 0 6px currentColor;
 }

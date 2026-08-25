@@ -59,6 +59,20 @@
     background-size: var(--scene-sizes);
 }
 
+/* The pattern tint, shown through a mask. background-color supplies the colour and
+   the mask supplies the shape, which is what lets one pattern definition serve every
+   theme in that theme's own colour. Inert twice over by default: no mask and a
+   transparent colour, since `mask-image: none` means unmasked, not hidden. */
+.theme-pattern {
+    position: fixed;
+    inset: 0;
+    z-index: -1; /* same layer as the scene; later in the DOM, so it paints over */
+    pointer-events: none;
+    background-color: var(--pattern-color);
+    -webkit-mask-image: var(--canvas-pattern);
+    mask-image: var(--canvas-pattern);
+}
+
 /* Separate element rather than a ::after on .theme-scene: when scene crossfading
    arrives there will be two .theme-scene elements at varying opacity, and a scrim
    attached to them would fade along with the artwork. */

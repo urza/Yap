@@ -267,7 +267,7 @@ it did better):
 - **The 3:14 am easter egg** (Taoist fox leading jiangshi) is mapped to the whole 3am hour by the
   theme's own hour map. Keep it. It is the kind of detail that makes people like software.
 
-## Piece 3 — Room vs DM
+## Piece 3 — Room vs DM — **DONE**
 
 Make this **orthogonal to the theme**, not a Teahouse feature. Every theme should be able to opt
 into a shift; Teahouse just opts in harder (a different image).
@@ -343,7 +343,7 @@ policy review, in exchange for "sometimes it rains in my chat" — filed under m
 
 ---
 
-## Piece 4.5 — Seamless patterns
+## Piece 4.5 — Seamless patterns — **DONE**
 
 Researched separately (see [Sources](#sources)). **Conclusion: don't use tiled image files.**
 
@@ -478,7 +478,7 @@ on a paragraph. Restrict to headings and short labels, never message body text.
 
 ---
 
-## Piece 5 — Cypherpunk
+## Piece 5 — Cypherpunk — **DONE**
 
 The 90s mailing list, PGP, remailers, *"cypherpunks write code."* Not neon — a terminal. Phosphor on
 black, restraint, everything monospace-adjacent. Now that status colours are relaxed, this palette
@@ -503,7 +503,7 @@ The one real risk: high-saturation green text over long messages is tiring, whic
 - **Rooms vs DMs:** rooms = public channel; DMs = encrypted. An extra-dark canvas plus a denser
   cipher-text pattern would say that without a word of UI.
 
-## Piece 6 — Cyberpunk
+## Piece 6 — Cyberpunk — **DONE**
 
 Blade Runner, wet streets, signage. Sits naturally beside the existing `sunset` / `aurora` gradient
 themes, and is where the glow axis earns its keep.
@@ -718,14 +718,34 @@ confirm the 6am flip reads right in daylight.
 
 ---
 
-### After Teahouse — independent, any order
+### After Teahouse — **all shipped 2026-08-25**
 
-These need only the canvas layer from step 2, no art:
+Pattern layer, room-vs-DM, cypherpunk, cyberpunk, the status relax and the glow axis all
+landed together. Three things worth carrying forward:
 
-- **Piece 4.5 patterns** — the `mask-image` mechanism; unlocks the rest.
-- **Piece 3 room vs DM** — one Blazor attribute plus pattern/tint rules.
-- **Pieces 5 & 6** — cypherpunk and cyberpunk, pattern + glow only, no images.
-- **Status-colour relax + glow axis** — needed by 5 & 6, trivial on its own.
+**Every shipped pattern is a repeating gradient, not an SVG data URI.** The mask mechanism
+is exactly as designed — shape from `mask-image`, colour from `background-color`, so one
+definition serves every theme — but gradients turned out to cover all four patterns we
+wanted (hairlines, scanlines, grid, kumiko lattice). They tile seamlessly by construction
+and need no data-URI debugging. SVG masks remain available for shapes gradients cannot
+draw; the kumiko lattice stands in for true asanoha, which would need one.
+
+**The layers live BELOW in-flow children, so any opaque panel buries them.** `--bg-canvas-panel`
+and `--bg-input-band` defaulted to `--bg-primary`, and the pattern rendered nothing at all —
+a 60x40 patch of empty chat had exactly one distinct colour. Both now default to
+`transparent`, which looks *identical* (`.chat-container` already paints `--bg-primary`
+beneath everything) but lets the scene and pattern layers show. Anything added below the
+content in future needs the same treatment; check by sampling pixels, not by eye.
+
+**Alpha depends on the pattern's job.** A DM marker wants ~0.045 — noticeable only as "this
+room feels different". A theme's *signature* pattern needs 0.075–0.11 or it is not subtle,
+it is absent: cypherpunk's scanlines at 0.045 and cyberpunk's grid at 0.05 both measured as
+zero painted pixels' worth of visible difference.
+
+And the warning in Piece 6 was justified: on first render the two new themes **did** read as
+siblings — both near-black, both showing a green status chip, with cyberpunk's magenta never
+appearing at rest because the send button collapses while the input is empty. Fixed by
+pushing cyberpunk's palette properly indigo (`#0d0820`) and making its cyan grid legible.
 
 ## Sources
 
