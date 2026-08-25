@@ -217,17 +217,30 @@
 }
 
 /* The DM marker splits by temperament: the gradient themes (ocean, sunset,
-   aurora) keep the flowing waves above; the flat, mineral ones get soft pebbles
-   instead. Neon themes and Tea House override further down with their own.
-   Pebbles set --pattern-color directly instead of riding the shared tint: a
-   40px filled blob carries far more ink than a thin wave stroke, so at the
-   shared alpha they shouted - these run at roughly half. */
+   aurora) keep the flowing waves; the neon themes and Tea House override
+   further down with their own; and the three plainest themes (discord-dark,
+   midnight, nord) deliberately have NO pattern - part of the lineup's choice:
+   users who want plain DMs pick these. The explicit `none` below is required,
+   not redundant: without it they would fall back to the generic waves rule. */
 [data-theme="discord-dark"] .chat-container[data-context="dm"],
 [data-theme="midnight"] .chat-container[data-context="dm"],
 [data-theme="nord"] .chat-container[data-context="dm"] {
-    --canvas-pattern: var(--pattern-pebbles);
-    --pattern-color: hsl(0 0% 100% / 0.018);
+    --canvas-pattern: none;
 }
+
+/* PARKED: pebbles for the three themes above, tuned and approved 2026-08-25
+   ("if we use them it will be like this") but deactivated in favour of plain
+   DMs. To bring them back, replace the `none` rule above with:
+
+   [data-theme="discord-dark"] .chat-container[data-context="dm"],
+   [data-theme="midnight"] .chat-container[data-context="dm"],
+   [data-theme="nord"] .chat-container[data-context="dm"] {
+       --canvas-pattern: var(--pattern-pebbles);
+       --pattern-color: hsl(0 0% 100% / 0.018);
+   }
+
+   The alpha is the settled value: filled 40px blobs carry far more ink than
+   stroke motifs, so pebbles run well below the shared DM tint. */
 
 [data-theme="light"] .chat-container[data-context="dm"] {
     --canvas-pattern: var(--pattern-pebbles);
