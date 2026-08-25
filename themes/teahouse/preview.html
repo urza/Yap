@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tea House - Gmail theme preview</title>
+<style>
+  :root {
+    --ink: #ece7d6;
+    --ink-dim: #b8b29c;
+    --gold: #e0c060;
+    --panel: rgba(16, 20, 13, 0.8);
+    --panel-edge: rgba(224, 192, 96, 0.28);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    overflow: hidden;
+    font: 14px/1.5 Georgia, "Times New Roman", serif;
+    background: #334029;
+    color: var(--ink);
+  }
+
+  /* ---- theme layers (same 5-layer layout Gmail uses) ---- */
+  .version {
+    position: fixed;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 1s ease;
+    pointer-events: none;
+  }
+  .version.on { opacity: 1; }
+  .layer {
+    position: absolute;
+    inset: 0;
+    background-position: left top;
+  }
+  .canvastile_bg    { background: #334029 repeat; overflow: hidden; }
+  .headertile_bg    { background: transparent repeat-x; }
+  .header_bg        { background: transparent no-repeat left top; }
+  .footertile_bg_rside { background: transparent repeat-x right bottom; }
+  .footer_bg_rside  { background: transparent no-repeat right bottom; }
+
+  /* ---- control panel ---- */
+  #panel {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    width: min(360px, calc(100vw - 32px));
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    padding: 18px 20px 14px;
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    border-radius: 12px;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 10;
+  }
+  #panel h1 {
+    margin: 0 0 2px;
+    font-size: 22px;
+    font-weight: normal;
+    letter-spacing: 0.04em;
+    color: var(--gold);
+  }
+  #panel .sub {
+    margin: 0 0 14px;
+    font-size: 12px;
+    color: var(--ink-dim);
+  }
+  .time-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .time-row button {
+    width: 46px;
+    height: 46px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    border: 1px solid var(--panel-edge);
+    background: rgba(224, 192, 96, 0.12);
+    color: var(--ink);
+    font: 24px/1 Georgia, serif;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .time-row button:hover  { background: rgba(224, 192, 96, 0.3); }
+  .time-row button:active { background: rgba(224, 192, 96, 0.45); }
+  .time-row button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  #clock {
+    flex: 1;
+    text-align: center;
+    min-width: 0;
+  }
+  #clock .hours {
+    display: block;
+    font-size: 26px;
+    color: var(--gold);
+  }
+  #clock .label {
+    display: block;
+    font-size: 12px;
+    color: var(--ink-dim);
+  }
+  #now {
+    margin-top: 8px;
+    padding: 2px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--panel-edge);
+    background: none;
+    color: var(--ink-dim);
+    font: 12px Georgia, serif;
+    cursor: pointer;
+  }
+  #now:hover { color: var(--ink); background: rgba(224, 192, 96, 0.12); }
+  #scene {
+    margin: 0 0 14px;
+    font-size: 13px;
+    font-style: italic;
+    color: var(--ink);
+    min-height: 2.6em;
+  }
+  #palette h2 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: normal;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-dim);
+  }
+  .pal-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 7px;
+  }
+  .pal-row .name {
+    flex: 0 0 92px;
+    font-size: 11px;
+    color: var(--ink-dim);
+    text-align: right;
+  }
+  .swatch {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 auto;
+    border-radius: 4px;
+    border: 1px solid rgba(236, 231, 214, 0.35);
+    cursor: default;
+  }
+  #panel footer {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(236, 231, 214, 0.15);
+    font-size: 11px;
+    color: var(--ink-dim);
+  }
+  @media (max-width: 640px) {
+    #panel { left: 8px; bottom: 8px; width: calc(100vw - 16px); }
+  }
+</style>
+</head>
+<body>
+<div id="stage" aria-hidden="true"></div>
+
+<section id="panel" aria-label="Tea House theme preview controls">
+  <h1>Tea House</h1>
+  <p class="sub">Gmail built-in theme, artwork by Meomi. Use the arrows (or +/&#8722; buttons) to step through the day.</p>
+
+  <div class="time-row">
+    <button id="prev" aria-label="Previous time">&#8722;</button>
+    <div id="clock">
+      <span class="hours"></span>
+      <span class="label"></span>
+    </div>
+    <button id="next" aria-label="Next time">+</button>
+  </div>
+  <div style="text-align:center"><button id="now">&#8986; now</button></div>
+
+  <p id="scene"></p>
+
+  <section id="palette">
+    <h2>Theme colors <span style="text-transform:none;letter-spacing:0">(dominant, per layer)</span></h2>
+    <div id="palrows"></div>
+  </section>
+
+  <footer>
+    55 layer images from the live Gmail CDN (ssl.gstatic.com), unchanged since 2022.
+    Scene notes from a 2011 description; the current art may differ slightly.
+  </footer>
+</section>
+
+<script>
+const VERSIONS = ["midnight", "2am", "314am", "4am", "6am", "8am", "10am",
+                  "noon", "2pm", "4pm", "6pm", "8pm", "10pm"];
+// 10am/2pm reuse 8am/noon environment layers (Gmail's own rule)
+const ENV_OF = { "10am": "8am", "2pm": "noon" };
+const LAYERS = [
+  ["canvastile_bg",     "Canvas"],
+  ["headertile_bg",     "Header strip"],
+  ["header_bg",         "Top-left prop"],
+  ["footertile_bg_rside","Footer strip"],
+  ["footer_bg_rside",   "Teahouse"]
+];
+const BASE = "./images";
+
+const HOURS = {
+  midnight: "12:00 - 1:59 am", "2am": "2:00 - 2:59 am", "314am": "3:14 am",
+  "4am": "4:00 - 5:59 am", "6am": "6:00 - 7:59 am", "8am": "8:00 - 9:59 am",
+  "10am": "10:00 - 11:59 am", noon: "12:00 - 1:59 pm", "2pm": "2:00 - 3:59 pm",
+  "4pm": "4:00 - 5:59 pm", "6pm": "6:00 - 7:59 pm", "8pm": "8:00 - 9:59 pm",
+  "10pm": "10:00 - 11:59 pm"
+};
+const LABEL = {
+  midnight: "Midnight", "2am": "2 am", "314am": "3:14 am (pi)",
+  "4am": "4 am", "6am": "6 am", "8am": "8 am", "10am": "10 am",
+  noon: "Noon", "2pm": "2 pm", "4pm": "4 pm", "6pm": "6 pm",
+  "8pm": "8 pm", "10pm": "10 pm"
+};
+const SCENE = {
+  midnight: "Fox sleeps in the teahouse. Ghost foxes play Chinese checkers at the stone table.",
+  "2am":    "The quiet night scene.",
+  "314am":  "Pi easter egg: a Taoist priest fox rings a bell while jiangshi hop past the house.",
+  "4am":    "Fox walks out of the teahouse with two rabbits, doing tai chi.",
+  "6am":    "Fox cuts flowers in the garden and sets them on the stone table.",
+  "8am":    "Fox fills the birdbath from a hose.",
+  "10am":   "Fox sweeps inside the teahouse; lunch is set on the stone table.",
+  noon:     "The bright midday scene.",
+  "2pm":    "Fox trims the bonsai tree on the stone table.",
+  "4pm":    "Fox has tea with a monkey in the upper teahouse.",
+  "6pm":    "Fox plays flute music for the ducks.",
+  "8pm":    "Fox grills dinner on a hibachi; lanterns light up; fireflies hover over the birdbath.",
+  "10pm":   "Fox works on his calligraphy."
+};
+const PALETTE = {
+  "midnight": {"canvastile_bg":["#404040"],"headertile_bg":["#204040","#404040","#202040","#606060"],"header_bg":["#202040","#204040","#404040","#606040"],"footertile_bg_rside":["#404040","#202020","#406040","#204020"],"footer_bg_rside":["#404040","#202020","#406040","#606040"]},
+  "2am": {"canvastile_bg":["#202020"],"headertile_bg":["#202020","#404020","#404040","#402020"],"header_bg":["#202020","#404020","#606040","#604020"],"footertile_bg_rside":["#202020","#406040","#204020","#404020"],"footer_bg_rside":["#202020","#404020","#406040","#404040"]},
+  "314am": {"canvastile_bg":["#202020"],"headertile_bg":["#202020","#404020","#404040","#402020"],"header_bg":["#202020","#404020","#806040","#808040"],"footertile_bg_rside":["#202020","#406040","#204020","#404020"],"footer_bg_rside":["#202020","#404020","#606040","#606040"]},
+  "4am": {"canvastile_bg":["#202020","#202040"],"headertile_bg":["#202040","#202020","#402040","#404040"],"header_bg":["#202040","#402040","#404040","#604040"],"footertile_bg_rside":["#202020","#404040","#606040","#606060"],"footer_bg_rside":["#202020","#404040","#606040","#604040"]},
+  "6am": {"canvastile_bg":["#c0a080"],"headertile_bg":["#808080","#406060","#606060","#a0a080"],"footertile_bg_rside":["#608040","#c0c080","#c0a080","#60a040"],"footer_bg_rside":["#c0c080","#c0a080","#608040","#404020"]},
+  "8am": {"canvastile_bg":["#c0c080","#c0e080"],"headertile_bg":["#e0e080","#c0c080","#e0e060","#a0a0a0"],"header_bg":["#a0c0a0","#c0c080","#e0c060","#a0a0a0"],"footertile_bg_rside":["#c0c0a0","#608040","#60a040","#406040"],"footer_bg_rside":["#c0c0a0","#608040","#404020","#606040"]},
+  "10am": {"footertile_bg_rside":["#c0c0a0","#608040","#60a040","#406040"],"footer_bg_rside":["#c0c0a0","#608040","#606040","#c0c080"]},
+  "noon": {"canvastile_bg":["#e0e0a0"],"headertile_bg":["#e0e0a0","#c0c0a0","#a0c0a0","#a0a0a0"],"header_bg":["#a0c0a0","#e0c060","#c0c0a0","#c0c080"],"footertile_bg_rside":["#a0c0c0","#608040","#e0e0a0","#c0c0c0"],"footer_bg_rside":["#a0c0c0","#608040","#606040","#404020"]},
+  "2pm": {"footer_bg_rside":["#a0c0c0","#608040","#606040","#404020"]},
+  "4pm": {"canvastile_bg":["#a0c0c0"],"headertile_bg":["#a0c0c0","#80a0a0","#a0a0c0","#80a0c0"],"header_bg":["#80a0a0","#a0c0a0","#c0c080","#e0c060"],"footertile_bg_rside":["#a0c0c0","#608040","#60a040","#408040"],"footer_bg_rside":["#a0c0c0","#608040","#606040","#404020"]},
+  "6pm": {"canvastile_bg":["#e0c060","#e0a060"],"headertile_bg":["#e0a060","#a08060","#806060","#606060"],"footertile_bg_rside":["#e0c060","#608040","#60a040","#e0a060"],"footer_bg_rside":["#e0c060","#608040","#e0a060","#404020"]},
+  "8pm": {"canvastile_bg":["#606080","#806080"],"headertile_bg":["#606060","#404040","#606080","#604040"],"footertile_bg_rside":["#608040","#808080","#a08080","#806080"],"footer_bg_rside":["#808080","#a08060","#a08080","#806080"]},
+  "10pm": {"canvastile_bg":["#202020"],"headertile_bg":["#202020","#404040","#402020","#402040"],"header_bg":["#202020","#404040","#402020","#604040"],"footertile_bg_rside":["#404020","#202020","#406040","#204020"],"footer_bg_rside":["#404020","#404040","#202020","#406040"]}
+};
+
+const stage = document.getElementById("stage");
+const palrows = document.getElementById("palrows");
+const hoursEl = document.querySelector("#clock .hours");
+const labelEl = document.querySelector("#clock .label");
+const sceneEl = document.getElementById("scene");
+
+// Build one fixed layer set per version (Gmail tiling rules).
+VERSIONS.forEach((v, i) => {
+  const box = document.createElement("div");
+  box.className = "version";
+  box.id = "v" + i;
+  box.style.display = "none";
+  LAYERS.forEach(([name]) => {
+    // Gmail skips header_bg at 6am/6pm/8pm
+    if ((v.startsWith("6") || v === "8pm") && name === "header_bg") return;
+    const env = name === "footer_bg_rside" ? v : (ENV_OF[v] || v);
+    const el = document.createElement("div");
+    el.className = "layer " + name;
+    el.style.backgroundImage = `url(${BASE}/${env}/${name}.jpg)`;
+    box.appendChild(el);
+  });
+  stage.appendChild(box);
+});
+
+let cur = null;
+let busy = false;
+
+function render(v) {
+  hoursEl.textContent = HOURS[v];
+  labelEl.textContent = LABEL[v];
+  sceneEl.textContent = SCENE[v];
+  const pal = PALETTE[v] || {};
+  palrows.innerHTML = "";
+  LAYERS.forEach(([name, label]) => {
+    if ((v.startsWith("6") || v === "8pm") && name === "header_bg") return;
+    const colors = pal[name] || (PALETTE[ENV_OF[v]] || {})[name];
+    if (!colors) return;
+    const row = document.createElement("div");
+    row.className = "pal-row";
+    const nm = document.createElement("span");
+    nm.className = "name";
+    nm.textContent = label;
+    row.appendChild(nm);
+    colors.forEach(hex => {
+      const s = document.createElement("span");
+      s.className = "swatch";
+      s.style.background = hex;
+      s.title = hex;
+      row.appendChild(s);
+    });
+    palrows.appendChild(row);
+  });
+}
+
+function show(i) {
+  const el = document.getElementById("v" + i);
+  if (el === cur || busy) return;
+  busy = true;
+  const old = cur;
+  cur = el;
+  el.style.display = "block";
+  el.style.zIndex = "2";
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    el.classList.add("on");
+  }));
+  if (old) {
+    old.style.zIndex = "1";
+    old.classList.remove("on");
+    setTimeout(() => {
+      old.style.display = "none";
+      old.style.zIndex = "0";
+      busy = false;
+    }, 1050);
+  } else {
+    busy = false;
+  }
+  render(VERSIONS[i]);
+}
+
+function step(delta) {
+  const i = cur ? [...stage.children].indexOf(cur) : 0;
+  show((i + delta + VERSIONS.length) % VERSIONS.length);
+}
+
+function toNow() {
+  const h = new Date().getHours();
+  const map = ["midnight","midnight","2am","314am","4am","4am","6am","6am",
+               "8am","8am","10am","10am","noon","noon","2pm","2pm",
+               "4pm","4pm","6pm","6pm","8pm","8pm","10pm","10pm"];
+  const i = VERSIONS.indexOf(map[h]);
+  show(i);
+}
+
+document.getElementById("next").addEventListener("click", () => step(1));
+document.getElementById("prev").addEventListener("click", () => step(-1));
+document.getElementById("now").addEventListener("click", toNow);
+window.addEventListener("keydown", e => {
+  if (e.key === "ArrowRight" || e.key === "+") step(1);
+  if (e.key === "ArrowLeft"  || e.key === "-") step(-1);
+});
+
+// Start at the current local time.
+toNow();
+</script>
+</body>
+</html>
