@@ -38,7 +38,7 @@
     gap: 0;
     width: 100%;
     padding: 4px 8px 16px;
-    background: var(--bg-primary);
+    background: var(--bg-input-band);
     transition: background-color 0.2s, box-shadow 0.2s;
     position: relative;
 }
@@ -349,7 +349,7 @@
 /* Typing indicator styles */
 .typing-indicator-container {
     height: 18px;
-    background: var(--bg-primary);
+    background: var(--bg-input-band);
     overflow: hidden;
 }
 

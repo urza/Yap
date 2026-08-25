@@ -116,7 +116,10 @@ def panel(h, s, l, light):
         b = (h, s * 0.70, max(chrome_base(l, False) - 8, 5))
         stops = [(0.10, 0), (0.30, 45), (0.68, 100)]
     parts = [f"{hsl(*b, f'{a:.2f}')} {pos}%" for a, pos in stops]
-    return "linear-gradient(to bottom, " + ", ".join(parts) + ")"
+    grad = "linear-gradient(to bottom, " + ", ".join(parts) + ")"
+    # The composer sits directly under the panel, so it takes the panel's LAST stop
+    # verbatim. Same colour, same alpha, same scene behind it => one surface, no seam.
+    return grad, hsl(*b, f"{stops[-1][0]:.2f}")
 
 
 def build_vars(h, s, l, light):
@@ -135,7 +138,8 @@ def build_vars(h, s, l, light):
     if light:
         return {
             "--bg-primary": hsl(h, s, l),                      # the canvas colour itself
-            "--bg-canvas-panel": panel(h, s, l, True),
+            "--bg-canvas-panel": panel(h, s, l, True)[0],
+            "--bg-input-band": panel(h, s, l, True)[1],
             "--bg-sidebar": hsl(h, s * 0.35, min(cb + 6, 92), "0.72"),
             "--bg-header": hsl(h, s * 0.30, min(cb + 10, 95), "0.85"),
             "--bg-darkest": hsl(h, s * 0.40, cb - 24),
@@ -155,7 +159,8 @@ def build_vars(h, s, l, light):
         }
     return {
         "--bg-primary": hsl(h, s, l),
-        "--bg-canvas-panel": panel(h, s, l, False),
+        "--bg-canvas-panel": panel(h, s, l, False)[0],
+        "--bg-input-band": panel(h, s, l, False)[1],
         "--bg-sidebar": hsl(h, s * 0.80, max(cb - 4, 6), "0.74"),
         "--bg-header": hsl(h, s * 0.80, max(cb - 7, 4), "0.88"),
         "--bg-darkest": hsl(h, s, max(cb - 12, 3)),
@@ -240,6 +245,25 @@ def main():
         lines.append("}")
         lines.append("")
         summary.append((scene, canvas, "LIGHT" if light else "dark", denom))
+
+    # Mobile sidebar. Under 768px ChatSidebar stops being a column beside the chat and
+    # slides in as an overlay ON TOP of it, so the same alpha that looks right on
+    # desktop leaves usernames competing with the messages showing through. Lift it.
+    lines.append("/* Mobile: the sidebar overlays the chat rather than sitting beside it,")
+    lines.append("   so it needs more body behind the names. Breakpoint matches")
+    lines.append("   ChatSidebar.razor.css's own slide-in media query. */")
+    lines.append("@media (max-width: 768px) {")
+    for scene, canvas, mode, _ in summary:
+        h2, s2, l2 = hex_to_hsl(canvas)
+        light2 = mode == "LIGHT"
+        cb2 = chrome_base(l2, light2)
+        if light2:
+            v = hsl(h2, s2 * 0.35, min(cb2 + 6, 92), "0.92")
+        else:
+            v = hsl(h2, s2 * 0.80, max(cb2 - 4, 6), "0.93")
+        lines.append(f'    [data-theme="teahouse"][data-scene="{scene}"] {{ --bg-sidebar: {v}; }}')
+    lines.append("}")
+    lines.append("")
 
     # Scene-independent rules. data-scene is absent until the clock script runs, so
     # these also give the theme a sane look during that first frame.

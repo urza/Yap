@@ -77,6 +77,12 @@
        Scene themes emit a real list so the strips scale to fit the viewport. */
     --scene-sizes: auto;
 
+    /* Surface behind the composer band (input row + typing indicator). Defaults to
+       --bg-primary so nothing changes for existing themes; a scene theme sets it to
+       the SAME colour and alpha its message panel ends on, so the two read as one
+       continuous surface instead of meeting in a hard line. */
+    --bg-input-band: var(--bg-primary);
+
     /* Surface behind the message list. Its own variable rather than --bg-primary
        so a scene theme can make the reading area translucent (letting the artwork
        show) while --bg-primary stays opaque as the load-time fallback and as the
