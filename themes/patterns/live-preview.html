@@ -11,6 +11,10 @@
 <link rel="stylesheet" href="../../Yap/wwwroot/themes.css">
 <link rel="stylesheet" href="../../Yap/wwwroot/themes/teahouse.css">
 <style>
+  /* app.css pins the app shell to the viewport (html,body { height:100%;
+     overflow:hidden } - the chat scrolls in .messages, never the document).
+     This page IS a normal scrolling document, so undo that first. */
+  html, body { height:auto; overflow:auto; }
   body { margin:0; padding:20px 24px 40px; background:#1b1c1f; color:#d7d8db;
          font-family: Inter, system-ui, sans-serif; }
   h1 { font-size:18px; margin:0 0 4px; }
