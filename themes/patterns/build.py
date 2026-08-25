@@ -120,7 +120,7 @@ PATTERNS = {
   "specks": uri(64,64, "".join(
     f"<circle cx='{x}' cy='{y}' r='{r}' fill='black'/>" for x,y,r in
     [(8,10,1.4),(28,6,1.0),(50,14,1.8),(14,34,1.0),(40,38,1.5),(60,52,1.1),(22,56,1.6)])),
-  # denser variant for cypherpunk DMs ("encrypted = denser")
+  # denser variant for Terminal DMs ("encrypted = denser")
   "specks-dense": uri(64,64, "".join(
     f"<circle cx='{x}' cy='{y}' r='{r}' fill='black'/>" for x,y,r in
     [(8,10,1.4),(28,6,1.0),(50,14,1.8),(14,34,1.0),(40,38,1.5),(60,52,1.1),(22,56,1.6),
@@ -135,8 +135,8 @@ PATTERNS = {
 }
 
 BGS = [("discord-dark","#36393f","hsl(0 0% 100% / 0.5)"),
-       ("cypherpunk","#07090a","hsl(140 100% 60% / 0.5)"),
-       ("cyberpunk","#0d0820","hsl(190 90% 55% / 0.5)"),
+       ("terminal","#07090a","hsl(140 100% 60% / 0.5)"),
+       ("neon-glow","#0d0820","hsl(190 90% 55% / 0.5)"),
        ("teahouse-noon","#e0e0a0","hsl(60 20% 20% / 0.5)")]
 
 css_rules = "".join(

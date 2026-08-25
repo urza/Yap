@@ -64,13 +64,13 @@ public static class ThemeRegistry
             HasGradient: true),
 
         new ThemeDefinition(
-            "cypherpunk", "Cypherpunk",
+            "terminal", "Terminal",
             PreviewBg: "#07090a",
             PreviewAccent: "#33ff66",
             HasGradient: false),
 
         new ThemeDefinition(
-            "cyberpunk", "Cyberpunk",
+            "neon-glow", "Neon Glow",
             PreviewBg: "linear-gradient(135deg, #0d0820 0%, #2a0f3d 55%, #4a1240 100%)",
             PreviewAccent: "#ff2e88",
             HasGradient: true),

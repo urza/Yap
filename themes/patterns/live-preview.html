@@ -61,7 +61,7 @@
 
 <script>
   const THEMES = ["discord-dark","midnight","nord","ocean","sunset","aurora",
-                  "cypherpunk","cyberpunk","light"];
+                  "terminal","neon-glow","light"];
   const LAYERS = '<div class="pat"></div>' + '<div class="pat x"></div>'.repeat(5);
 
   function tile(attrs, caption, ctx) {
@@ -71,8 +71,8 @@
   }
 
   rooms.innerHTML =
-    tile('data-theme="cypherpunk"', 'cypherpunk · specks', 'room') +
-    tile('data-theme="cyberpunk"',  'cyberpunk · drops (cyan)', 'room');
+    tile('data-theme="terminal"', 'terminal · specks', 'room') +
+    tile('data-theme="neon-glow"',  'neon-glow · drops (cyan)', 'room');
 
   dms.innerHTML = THEMES.map(t =>
       tile(`data-theme="${t}"`, `${t} · DM`, 'dm')).join('') +

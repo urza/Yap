@@ -216,15 +216,17 @@
     --pattern-color: var(--pattern-tint);
 }
 
-/* The DM marker splits by temperament: the gradient themes (ocean, sunset,
-   aurora) keep the flowing waves; the neon themes and Tea House override
-   further down with their own; and the three plainest themes (discord-dark,
-   midnight, nord) deliberately have NO pattern - part of the lineup's choice:
-   users who want plain DMs pick these. The explicit `none` below is required,
-   not redundant: without it they would fall back to the generic waves rule. */
+/* The DM marker splits by temperament: ocean and sunset keep the flowing
+   waves; the neon themes and Tea House override further down with their own;
+   and the plain club (discord-dark, midnight, nord, aurora) deliberately has
+   NO pattern - part of the lineup's choice: users who want plain DMs pick
+   these. The explicit `none` below is required, not redundant: without it
+   they would fall back to the generic waves rule - and BOTH lines are needed
+   (see the comment inside the rule). */
 [data-theme="discord-dark"] .chat-container[data-context="dm"],
 [data-theme="midnight"] .chat-container[data-context="dm"],
-[data-theme="nord"] .chat-container[data-context="dm"] {
+[data-theme="nord"] .chat-container[data-context="dm"],
+[data-theme="aurora"] .chat-container[data-context="dm"] {
     /* BOTH lines are required. `mask-image: none` means unmasked - fully
        painted - so killing only the mask leaves the generic DM rule's tint
        as a wash over the whole conversation (shipped briefly as exactly that
@@ -259,7 +261,7 @@
 }
 
 /* ==========================================================================
-   Cypherpunk — the 90s mailing list, PGP, "cypherpunks write code"
+   Terminal — the 90s cypherpunk mailing list, PGP, "cypherpunks write code"
 
    A terminal, not a nightclub: phosphor on near-black, restraint, minimal glow.
    Note the accent green and the online green are deliberately DIFFERENT greens.
@@ -267,7 +269,7 @@
    green - it is presence-green and accent-green being the SAME green, which
    makes the online dot stop carrying information.
    ========================================================================== */
-[data-theme="cypherpunk"] {
+[data-theme="terminal"] {
     --bg-darkest: #030505;
     --bg-header: #080c0b;
     --bg-sidebar: #0d1211;
@@ -319,19 +321,19 @@
 }
 
 /* DMs are the encrypted channel: the specks thicken. */
-[data-theme="cypherpunk"] .chat-container[data-context="dm"] {
+[data-theme="terminal"] .chat-container[data-context="dm"] {
     --canvas-pattern: var(--pattern-specks-dense);
 }
 
 /* ==========================================================================
-   Cyberpunk — neon noir
+   Neon Glow — cyberpunk neon noir
 
    Where the glow axis earns its keep. No status collision at all here: the
    accent is magenta, so every status colour can be neon-ified in place.
-   Kept deliberately unlike cypherpunk - quiet/green/minimal vs saturated/
+   Kept deliberately unlike Terminal - quiet/green/minimal vs saturated/
    magenta/glowing. If they read as siblings in the picker, one of them is wrong.
    ========================================================================== */
-[data-theme="cyberpunk"] {
+[data-theme="neon-glow"] {
     --bg-darkest: #08051a;
     --bg-header: #110b28;
     --bg-sidebar: #181036;
@@ -375,12 +377,12 @@
     --glow-accent: 0 0 8px hsl(330 100% 59% / 0.55);
     --glow-status: 0 0 6px currentColor;
 
-    /* Same reason as cypherpunk: neon status greens need dark chip text. */
+    /* Same reason as Terminal: neon status greens need dark chip text. */
     --status-chip-text: var(--bg-darkest);
 }
 
 /* In DMs the rain stays but flips to the magenta tint (the generic DM rule would
    otherwise swap the drops for the shared waves). */
-[data-theme="cyberpunk"] .chat-container[data-context="dm"] {
+[data-theme="neon-glow"] .chat-container[data-context="dm"] {
     --canvas-pattern: var(--pattern-drops);
 }

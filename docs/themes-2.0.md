@@ -553,6 +553,10 @@ them is wrong.
 - **Glow is a theme-level opt-in** via `--glow-*`, defaulting to `none`, and never applied
   per-message.
 - **Cypherpunk and cyberpunk are two separate themes**, not one compromise.
+- **Renamed 2026-08-25 after shipping: cypherpunk → `terminal` ("Terminal"), cyberpunk →
+  `neon-glow` ("Neon Glow").** The doc keeps the original names in its history. Theme ids live in
+  `User.Theme`, so anyone who picked the old ids falls back to the default look and re-picks —
+  graceful, no migration.
 - **Teahouse art licensing is cleared** (freely available, author unconcerned) — but **credit
   Meomi** in Settings, as the source README asks.
 - **Cypherpunk and cyberpunk ship without background images**, on pattern + glow alone. Images
