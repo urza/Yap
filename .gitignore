@@ -378,3 +378,6 @@ uploads/
 /Yap/Data/appsettings.json
 /Yap/Data/media-cache/*
 /Yap/Data/gif-cache/*
+
+# Local Claude instructions (machine-specific, not shared)
+CLAUDE.local.md
