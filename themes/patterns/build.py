@@ -28,24 +28,57 @@ ARCS  = (f"<path d='M-14 0 a14 14 0 0 1 28 0' {S} stroke-width='1.5'/>"
          f"<path d='M-9 0 a9 9 0 0 1 18 0' {S} stroke-width='1.5'/>"
          f"<path d='M-4.5 0 a4.5 4.5 0 0 1 9 0' {S} stroke-width='1.5'/>")
 
+def tapered_tilde(maxw=2.8, n=16):
+    """Outline of the tilde with width maxw mid-stroke, ~0 at the tips.
+
+    Samples the two quadratic Beziers of TILDE, offsets each point along the
+    curve normal by half the local width, and closes top edge + reversed
+    bottom edge into one fillable path. Width profile sin(pi*t)^0.8: full in
+    the middle, pinched at both ends without a long skinny run-out.
+    """
+    import math
+    segs = [((0, 0), (6, -6), (12, 0)), ((12, 0), (18, 6), (24, 0))]
+    pts = []
+    for si, (p0, c, p1) in enumerate(segs):
+        for i in range(n + 1):
+            if si == 1 and i == 0:
+                continue  # joint point already sampled by the first segment
+            t = i / n
+            x = (1-t)**2*p0[0] + 2*(1-t)*t*c[0] + t*t*p1[0]
+            y = (1-t)**2*p0[1] + 2*(1-t)*t*c[1] + t*t*p1[1]
+            dx = 2*(1-t)*(c[0]-p0[0]) + 2*t*(p1[0]-c[0])
+            dy = 2*(1-t)*(c[1]-p0[1]) + 2*t*(p1[1]-c[1])
+            L = math.hypot(dx, dy) or 1.0
+            pts.append(((x, y), (-dy/L, dx/L)))
+    m = len(pts) - 1
+    top, bot = [], []
+    for i, ((x, y), (nx, ny)) in enumerate(pts):
+        w = maxw * math.sin(math.pi * i / m) ** 0.8 / 2
+        top.append((x + nx*w, y + ny*w))
+        bot.append((x - nx*w, y - ny*w))
+    return "M" + " L".join(f"{x:.1f} {y:.1f}" for x, y in top + bot[::-1]) + " Z"
+
 PATTERNS = {
-  # little waves - five tildes rising bottom-left -> top-right (rotate(-45) in
-  # SVG's y-down coordinates), sizes spread 0.6..1.25, and each stroke painted
-  # with an end-fading gradient: stops go transparent -> opaque -> transparent,
-  # and a mask reads alpha, so the tips melt away instead of stopping.
+  # little waves - five tapered swooshes rising bottom-left -> top-right.
+  # A stroke cannot vary its width along a path, so the tilde is a FILLED
+  # OUTLINE computed by tapered_tilde(): the centreline offset by a width
+  # profile that swells mid-stroke and pinches to nothing at the tips.
+  # The gradient fill adds a gentle opacity fade on top (masks read alpha),
+  # so the tips both narrow and melt. Shape defined once, <use>d five times.
   "waves": uri(104,104,
     "<defs><linearGradient id='f'>"
-    "<stop offset='0' stop-color='black' stop-opacity='0'/>"
-    "<stop offset='0.3' stop-color='black'/>"
-    "<stop offset='0.7' stop-color='black'/>"
-    "<stop offset='1' stop-color='black' stop-opacity='0'/>"
-    "</linearGradient></defs>"
+    "<stop offset='0' stop-color='black' stop-opacity='0.25'/>"
+    "<stop offset='0.35' stop-color='black'/>"
+    "<stop offset='0.65' stop-color='black'/>"
+    "<stop offset='1' stop-color='black' stop-opacity='0.25'/>"
+    "</linearGradient>"
+    + f"<path id='w' d='{tapered_tilde()}' fill='url(#f)'/></defs>"
     + "".join(
-      f"<g transform='translate({x} {y}) rotate({r}) scale({sc})'>"
-      f"<path d='{TILDE}' stroke='url(#f)' fill='none' stroke-linecap='round' stroke-width='{w}'/></g>"
-      for x,y,r,sc,w in [
-        (10,34,-45,1.25,1.5), (48,26,-41,0.8,1.9), (76,58,-48,1.0,1.7),
-        (24,82,-44,0.6,2.2), (62,96,-46,0.9,1.8)])),
+      f"<use href='#w' transform='translate({x} {y}) rotate({r}) scale({sc})'/>"
+      for x,y,r,sc in [
+        (10,34,-45,1.25), (48,26,-41,0.8), (76,58,-48,1.0),
+        (24,82,-44,0.6), (62,96,-46,0.9)])),
+
   # raindrops - four sizes, slight tilts
   "drops": uri(80,80,
     f"<g transform='translate(18 20)'><path d='{DROP}' fill='black'/></g>"
