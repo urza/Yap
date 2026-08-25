@@ -218,12 +218,20 @@
 
 /* The DM marker splits by temperament: the gradient themes (ocean, sunset,
    aurora) keep the flowing waves above; the flat, mineral ones get soft pebbles
-   instead. Neon themes and Tea House override further down with their own. */
+   instead. Neon themes and Tea House override further down with their own.
+   Pebbles set --pattern-color directly instead of riding the shared tint: a
+   40px filled blob carries far more ink than a thin wave stroke, so at the
+   shared alpha they shouted - these run at roughly half. */
 [data-theme="discord-dark"] .chat-container[data-context="dm"],
 [data-theme="midnight"] .chat-container[data-context="dm"],
-[data-theme="nord"] .chat-container[data-context="dm"],
+[data-theme="nord"] .chat-container[data-context="dm"] {
+    --canvas-pattern: var(--pattern-pebbles);
+    --pattern-color: hsl(0 0% 100% / 0.028);
+}
+
 [data-theme="light"] .chat-container[data-context="dm"] {
     --canvas-pattern: var(--pattern-pebbles);
+    --pattern-color: hsl(0 0% 0% / 0.032);
 }
 
 /* Tea House: rain-on-a-pond ripples. The scene itself belongs to the clock, so
