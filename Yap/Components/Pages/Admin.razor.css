@@ -422,6 +422,84 @@
     color: var(--text-muted);
 }
 
+/* Theme swatch inside the detail-panel theme tag */
+.theme-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    margin-right: 0.375rem;
+    flex-shrink: 0;
+}
+
+/* Theme usage stats (Users tab) */
+.theme-stats-header {
+    margin-top: 2rem;
+}
+
+.theme-stats {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.theme-stat-card {
+    background: var(--bg-sidebar);
+    border-radius: 8px;
+    padding: 0.625rem 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    min-width: 130px;
+}
+
+.theme-stat-card.unused {
+    opacity: 0.45;
+}
+
+.theme-stat-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    position: relative;
+    flex-shrink: 0;
+}
+
+.theme-stat-accent {
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    /* ring matches the card background so the dot reads as sitting on the swatch */
+    border: 2px solid var(--bg-sidebar);
+}
+
+.theme-stat-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.theme-stat-pct {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 400;
+}
+
+@media (max-width: 600px) {
+    .theme-stats {
+        gap: 0.5rem;
+    }
+
+    .theme-stat-card {
+        flex: 1 1 calc(50% - 0.5rem);
+        min-width: 0;
+    }
+}
+
 .detail-tables {
     display: flex;
     flex-direction: column;

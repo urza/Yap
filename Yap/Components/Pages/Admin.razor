@@ -304,6 +304,21 @@
                                     <span>No PWA</span>
                                 }
                             </span>
+                            @{
+                                var detailTheme = EffectiveTheme(selectedUser!);
+                            }
+                            <span class="detail-tag tag-muted"
+                                  title="@(selectedUser!.Theme ?? "never picked a theme")">
+                                <span class="theme-swatch" style="background: @detailTheme.PreviewBg"></span>
+                                @if (selectedUser!.Theme != null && !ThemeRegistry.IsKnown(selectedUser!.Theme))
+                                {
+                                    <span>@selectedUser!.Theme &rarr; @detailTheme.Name</span>
+                                }
+                                else
+                                {
+                                    <span>@detailTheme.Name@(selectedUser!.Theme == null ? " (default)" : "")</span>
+                                }
+                            </span>
                         </div>
 
                         <div class="detail-tables">
@@ -380,6 +395,31 @@
                         }
                     </tbody>
                 </table>
+            </div>
+
+            <div class="section-header theme-stats-header">
+                <h3>Themes</h3>
+                <span class="section-count">effective theme per user (unset counts as default)</span>
+            </div>
+            <div class="theme-stats">
+                @foreach (var (theme, count) in themeStats)
+                {
+                    <div class="theme-stat-card @(count == 0 ? "unused" : "")">
+                        <span class="theme-stat-swatch" style="background: @theme.PreviewBg">
+                            <span class="theme-stat-accent" style="background: @theme.PreviewAccent"></span>
+                        </span>
+                        <div class="theme-stat-info">
+                            <span class="media-stat-label">@theme.Name</span>
+                            <span class="media-stat-value">
+                                @count
+                                @if (count > 0 && users.Count > 0)
+                                {
+                                    <span class="theme-stat-pct">@((100.0 * count / users.Count).ToString("0"))%</span>
+                                }
+                            </span>
+                        </div>
+                    </div>
+                }
             </div>
         }
 
@@ -1430,6 +1470,16 @@
         ? users.FirstOrDefault(u => u.Id == selectedUserId.Value)
         : null;
 
+    private List<(ThemeDefinition Theme, int Count)> themeStats = new();
+
+    // Stats/detail count the *effective* theme: an unset or stale id (theme renamed/removed,
+    // no data migration) has no CSS block, so those users render the :root default look.
+    private static ThemeDefinition EffectiveTheme(User user)
+    {
+        var id = ThemeRegistry.IsKnown(user.Theme) ? user.Theme! : ThemeRegistry.DefaultId;
+        return ThemeRegistry.All.First(t => t.Id == id);
+    }
+
     protected override void OnInitialized()
     {
         // Auth + admin guard
@@ -1447,6 +1497,11 @@
 
         // Load users from UserService
         users = UserService.GetAllUsers().OrderByDescending(u => u.LastSeenAt ?? u.CreatedAt).ToList();
+
+        themeStats = ThemeRegistry.All
+            .Select(t => (Theme: t, Count: users.Count(u => EffectiveTheme(u).Id == t.Id)))
+            .OrderByDescending(t => t.Count)
+            .ToList();
 
         // Build online status map from ChatService
         var onlineUsers = ChatService.GetAllUsersWithStatus();
