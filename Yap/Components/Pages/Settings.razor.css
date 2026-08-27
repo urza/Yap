@@ -959,12 +959,23 @@
         width: 100%;
     }
 
+    /* 44px is the thumb-target floor; the desktop 36px is a mouse size. */
     .seg-btn {
         flex: 1 1 0;
+        min-height: 44px;
         padding: 0.4rem 0.5rem;
     }
 
     .segmented-wrap .seg-btn {
         flex: 1 1 auto;
+    }
+
+    .notif-item-toggle {
+        width: 44px;
+        height: 40px;
+    }
+
+    .notif-item {
+        padding: 0.625rem 0.75rem;
     }
 }

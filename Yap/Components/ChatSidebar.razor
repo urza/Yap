@@ -64,8 +64,7 @@
             {
                 var isCurrentUser = user.Equals(Username, StringComparison.OrdinalIgnoreCase);
                 var isUserAdmin = ChatService.IsAdmin(user);
-                var userUnreadCount = isCurrentUser ? 0 : GetUnreadDMCount(user);
-                var dmMuted = !isCurrentUser && IsDmMuted(user);
+                var dm = isCurrentUser ? (Count: 0, Muted: false) : GetDmUnread(user);
                 var isActiveDM = NavState.CurrentDmUser != null && NavState.CurrentDmUser.Equals(user, StringComparison.OrdinalIgnoreCase);
                 var statusClass = status.ToString().ToLower();
                 var displayName = GetDisplayName(user);
@@ -98,15 +97,15 @@
                     {
                         <span class="bot-badge" title="Bot">@EmojiService.ConvertEmojis("🤖", inline: true)</span>
                     }
-                    @if (userUnreadCount > 0)
+                    @if (dm.Count > 0)
                     {
-                        @if (dmMuted)
+                        @if (dm.Muted)
                         {
                             <span class="unread-dot"></span>
                         }
                         else
                         {
-                            <span class="unread-badge">@userUnreadCount</span>
+                            <span class="unread-badge">@dm.Count</span>
                         }
                     }
                 </div>
@@ -255,48 +254,35 @@
         return ChatService.GetUnreadCount(UserId, channelId);
     }
 
-    /// <summary>Whether the DM with this user is muted. False when there is no DM channel yet.</summary>
-    private bool IsDmMuted(string otherUsername)
+    /// <summary>
+    /// A DM's unread count and whether it still notifies, resolved together.
+    /// </summary>
+    /// <remarks>
+    /// One method for both facts because finding the channel means scanning every DM channel on
+    /// the server, and the row and the sort each need the count AND the mute state. Asking
+    /// separately meant four of those scans per user per render.
+    /// </remarks>
+    private (int Count, bool Muted) GetDmUnread(string otherUsername)
     {
-        if (UserId == Guid.Empty || string.IsNullOrEmpty(Username)) return false;
+        if (UserId == Guid.Empty || string.IsNullOrEmpty(Username))
+            return (0, false);
+
+        // Currently viewing this DM: nothing is unread by definition.
+        if (NavState.CurrentDmUser?.Equals(otherUsername, StringComparison.OrdinalIgnoreCase) == true)
+            return (0, false);
 
         try
         {
             var dmChannel = ChatService.GetDMChannels(Username)
                 .FirstOrDefault(c => c.IsDMBetween(Username, otherUsername));
-            return dmChannel != null && ChatService.IsChannelMuted(UserId, dmChannel.Id);
+            if (dmChannel == null) return (0, false);
+
+            return (ChatService.GetUnreadCount(UserId, dmChannel.Id),
+                    ChatService.IsChannelMuted(UserId, dmChannel.Id));
         }
         catch (Exception)
         {
-            return false;
-        }
-    }
-
-    private int GetUnreadDMCountForUser(string otherUsername)
-    {
-        // Safety check - user must be logged in
-        if (UserId == Guid.Empty || string.IsNullOrEmpty(Username))
-            return 0;
-
-        // If we're currently viewing this DM, don't show unread
-        if (NavState.CurrentDmUser?.Equals(otherUsername, StringComparison.OrdinalIgnoreCase) == true)
-            return 0;
-
-        try
-        {
-            var otherUser = UserService.GetByUsername(otherUsername);
-            if (otherUser == null) return 0;
-
-            // Find the DM channel between current user and other user
-            var channels = ChatService.GetDMChannels(Username);
-            var dmChannel = channels.FirstOrDefault(c => c.IsDMBetween(Username, otherUsername));
-            if (dmChannel == null) return 0;
-
-            return ChatService.GetUnreadCount(UserId, dmChannel.Id);
-        }
-        catch (Exception)
-        {
-            return 0;
+            return (0, false);
         }
     }
 
@@ -456,11 +442,6 @@
         Navigation.NavigateTo($"/dm/{Uri.EscapeDataString(targetUser)}");
     }
 
-    private int GetUnreadDMCount(string fromUser)
-    {
-        return GetUnreadDMCountForUser(fromUser);
-    }
-
     private IEnumerable<(string Username, UserStatus Status, bool? IsMobile)> GetSortedUsersWithStatus()
     {
         // Merge online users with offline DM partners
@@ -507,7 +488,7 @@
                 Entry = u,
                 // Muted DMs stay in place. Sorting them to the top is exactly the attention
                 // grab the user turned off.
-                HasUnread = GetUnreadDMCount(u.Username) > 0 && !IsDmMuted(u.Username),
+                HasUnread = GetDmUnread(u.Username) is { Count: > 0, Muted: false },
                 IsOnline = u.Status != UserStatus.Invisible,
                 LastDm = lastDmByPartner.GetValueOrDefault(u.Username) // MinValue when no DM history
             })
