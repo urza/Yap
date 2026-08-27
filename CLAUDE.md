@@ -47,7 +47,7 @@ The chat.js send pipeline and the picker/typing/emoji-search work are the refere
 - Test on actual devices - mobile browser behavior varies
 
 ## Overview
-A real-time chat application built with Blazor Server (.NET 10): rooms + DMs, image/video/GIF sharing, link previews, Apple-style emoji, reactions, push notifications, curated themes, an admin panel, and resilient reconnection with persistent circuit state.
+A real-time chat application built with Blazor Server (.NET 10): rooms + DMs, image/video/GIF sharing, link previews, Tweemoji or Apple-style emoji, reactions, push notifications, curated themes, an admin panel, and resilient reconnection with persistent circuit state.
 
 ## Architecture
 
