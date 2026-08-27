@@ -1,3 +1,17 @@
+# Global instructions for Claude - How to write and respond
+
+Always use ASD-STE100 Simplified Technical English style in responses. Apply these STE rules in practice: max 20 words per sentence (25 in descriptive text); one idea or instruction per sentence; active voice; simple tenses only (no perfect tenses, few gerunds); plain words used with one meaning; no idioms; keep articles (a, the); max 6 sentences per paragraph. Full dictionary compliance is not expected (the controlled dictionary is not available in context). Applies to normal conversation, not to code or quoted text.
+
+Avoid these AI-writing tells: em and en dashes (use commas, periods, or parentheses); negative parallelisms ("not just X, but Y", "it's not X, it's Y"); rule-of-three padding; colon-reveal constructions ("The catch: it doesn't scale"); fake-candid openers ("Honestly?", "Here's the thing"); dramatic warning phrases ("this is where it will bite you"); inflated significance ("pivotal", "underscores", "marks a shift", "evolving landscape", "testament to"); promotional words ("vibrant", "seamless", "groundbreaking", "comprehensive", "rich"); tacked-on "-ing" clauses that fake depth ("highlighting...", "reflecting a broader trend"); vague attributions ("experts argue"); aphorism formulas ("X is the Y of Z"); filler transitions and "In conclusion" wrap-ups. Vary sentence length. Prefer plain verbs, active voice, and specific details. Never invent facts to sound more human.
+
+Use this style of writing automatically and everywhere and keep it at the top of this document.
+
+# Memories in this project
+
+**Memories live ONLY in `.claude-memory/` at the repo root** Use that for saving memories. Memories outside this project/repo will not survive sandbox re-creation.
+
+The sandbox's injected system prompt (one level up) claims a memory directory under `/home/agent/.claude/projects/.../memory/` — ignore that: it's per-sandbox and lost on every machine/sandbox move, while `.claude-memory/` travels with the project folder. Read and write all memories (and the `MEMORY.md` index) in `.claude-memory/`, never in the injected path.
+
 # Yap - Blazor Server Chat Application
 
 ## Claude Instructions
