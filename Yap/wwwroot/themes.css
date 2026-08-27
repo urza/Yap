@@ -202,6 +202,74 @@
 
 
 /* ==========================================================================
+   Solarized Light — Ethan Schoonover's palette, transcribed not redesigned
+
+   The palette is fixed and public (base03..base3 plus eight accents), so most of
+   this block is copying. Three things needed a decision:
+
+   1. Solarized light ships exactly TWO backgrounds: base3 #fdf6e3 (canvas) and
+      base2 #eee8d5, whose job in the spec is "background highlights". A chat
+      shell needs nine rungs. The deep end is not invented - #ddd6c1, #d9d2c2 and
+      #d3cbb7 are the tones Microsoft's own Solarized Light port for VS Code
+      added for exactly this reason (activity bar, tab strip, borders); the two
+      between them are straight interpolations from base2 down to #ddd6c1.
+   2. Surfaces stand out by going DEEPER, never lighter. Nothing in the palette
+      is lighter than base3, and base2 is the spec's own highlight tone - so the
+      composer, the chrome and row hover all step DOWN from the canvas. That is
+      the opposite of Daylight, where the header and input are white, and it is
+      the one structural thing to preserve if these values are ever retuned.
+   3. No patterns (see the plain-club rule below) - this is paper.
+   ========================================================================== */
+[data-theme="solarized-light"] {
+    --bg-primary: #fdf6e3;    /* base3 - the canvas; the colour people mean by "Solarized Light" */
+    --bg-header: #eee8d5;     /* base2 */
+    --bg-sidebar: #eee8d5;    /* base2 */
+    --bg-input: #eee8d5;      /* base2 - a field reads by stepping down from the canvas, not up */
+    --bg-hover: #e8e2ce;      /* base2 -> #ddd6c1, 1/3 */
+    --bg-secondary: #e3dcc8;  /* base2 -> #ddd6c1, 2/3 */
+    --bg-darkest: #ddd6c1;
+    --bg-tertiary: #d9d2c2;
+    --bg-muted: #d3cbb7;
+
+    /* The spec's light ramp, shifted one rung darker at the top. Solarized calls
+       base00 "body text", but that is 4.1:1 on base3 - under AA, and here the
+       body text is conversation people read for hours, not code they skim. So
+       base01 (5.0:1) takes the message body and base00 slides down to secondary.
+       Below that the rungs are verbatim; --text-muted is the one interpolation,
+       because base00 and base0 alone leave a gap this shell has a slot for. */
+    --text-white: #073642;       /* base02 - the spec's "most emphasized"; headings, usernames */
+    --text-primary: #586e75;     /* base01 */
+    --text-secondary: #657b83;   /* base00 */
+    --text-muted: #74888d;       /* base00 -> base0, midpoint */
+    --text-tertiary: #839496;    /* base0 */
+    --text-placeholder: #93a1a1; /* base1 - the spec's "comments"; faint on purpose */
+
+    /* Blue is Solarized's accent wherever the scheme has a UI. Being blue is also
+       what lets the status colours stay untouched - see the note at the bottom. */
+    --accent-primary: #268bd2;   /* blue */
+    --accent-hover: #1c6397;
+    --accent-focus: #2072ac;     /* Message links land here and are NOT underlined, so
+                                    this is blue darkened until it clears 4.5:1 on base3.
+                                    The palette blue itself is only 3.4:1 there. */
+    --accent-light: #0f5578;     /* Inverts on a light theme for the same reason --text-white
+                                    does: its only job is ink on the pale reacted-reaction
+                                    pill, which is a light tint on every theme. */
+    --accent-tint: hsl(205 69% 49% / 0.12);
+
+    --border-dark: #ddd6c1;
+    --border-subtle: #d3cbb7;
+
+    /* Status colours are deliberately NOT solarized, tempting as the palette is.
+       Its green (#859900) sits at hue 68 and its yellow (#b58900) at hue 45 - 23
+       degrees apart, which at dot size stops telling online from away. That is
+       precisely the failure the Themes 2.0 convention warns about, and this theme
+       has no collision forcing the trade: the accent is blue, so presence can
+       keep the app's own greens. Solarized's identity here is the paper and the
+       blue, not the dots. */
+}
+
+
+/* ==========================================================================
    Room vs DM
 
    Generalises what the 3px header line under the header has always done: tell
@@ -218,7 +286,7 @@
 
 /* The DM marker splits by temperament: ocean and sunset keep the flowing
    waves; the neon themes and Tea House override further down with their own;
-   and the plain club (discord-dark, midnight, nord, aurora) deliberately has
+   and the plain club (discord-dark, midnight, nord, aurora, solarized-light) deliberately has
    NO pattern - part of the lineup's choice: users who want plain DMs pick
    these. The explicit `none` below is required, not redundant: without it
    they would fall back to the generic waves rule - and BOTH lines are needed
@@ -226,7 +294,8 @@
 [data-theme="discord-dark"] .chat-container[data-context="dm"],
 [data-theme="midnight"] .chat-container[data-context="dm"],
 [data-theme="nord"] .chat-container[data-context="dm"],
-[data-theme="aurora"] .chat-container[data-context="dm"] {
+[data-theme="aurora"] .chat-container[data-context="dm"],
+[data-theme="solarized-light"] .chat-container[data-context="dm"] {
     /* BOTH lines are required. `mask-image: none` means unmasked - fully
        painted - so killing only the mask leaves the generic DM rule's tint
        as a wash over the whole conversation (shipped briefly as exactly that

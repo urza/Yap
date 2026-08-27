@@ -86,6 +86,13 @@ public static class ThemeRegistry
             PreviewBg: "#f5f5f7",
             PreviewAccent: "#5865f2",
             HasGradient: false),
+
+        // Preview is base3 on blue — the two colours the palette is recognised by.
+        new ThemeDefinition(
+            "solarized-light", "Solarized Light",
+            PreviewBg: "#fdf6e3",
+            PreviewAccent: "#268bd2",
+            HasGradient: false),
     };
 
     public static bool IsKnown(string? id) =>
