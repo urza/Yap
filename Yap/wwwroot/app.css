@@ -109,8 +109,16 @@
     --canvas-pattern: none;
     --pattern-color: transparent;
     /* Colour a theme wants its DM pattern drawn in. White works on every dark
-       theme; light themes override it below. */
-    --pattern-tint: hsl(0 0% 100% / 0.045);
+       theme; light themes override it below.
+
+       HALVED 2026-08-27, and so was every other pattern alpha in the app
+       (themes.css and the Tea House generator): the motifs read as decoration
+       competing with the text rather than as a whisper that the room is
+       different. The ratios between them were right, only the overall level was
+       hot - so the whole set was scaled by 0.5 rather than retuned one by one.
+       Keep that discipline: change this default and the signature patterns move
+       with it, or the DM marker starts out-shouting a theme's own motif. */
+    --pattern-tint: hsl(0 0% 100% / 0.0225);
 
     /* Reusable pattern shapes: discrete organic motifs (waves, raindrops, specks,
        wave-crest arcs), scattered so nothing touches. They are SVG data-URI MASKS,

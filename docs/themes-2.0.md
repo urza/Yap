@@ -778,6 +778,18 @@ room feels different". A theme's *signature* pattern needs 0.075–0.11 or it is
 it is absent: cypherpunk's scanlines at 0.045 and cyberpunk's grid at 0.05 both measured as
 zero painted pixels' worth of visible difference.
 
+**Halved across the board, 2026-08-27.** In multi-day use the whole set read as decoration
+competing with the text instead of a whisper that the room is different. The *ratios* were
+right — DM marker below signature pattern, pebbles below stroke motifs — so every pattern
+alpha in the app was scaled by 0.5 rather than retuned individually: the shared
+`--pattern-tint` default in `app.css` (0.045 → 0.0225), light's pebbles (0.032 → 0.016),
+Terminal (0.075/0.08 → 0.0375/0.04), Neon Glow (0.11/0.10 → 0.055/0.05), the parked
+discord-dark/midnight/nord pebbles (0.018 → 0.009), and both Tea House templates in
+`gen_theme_css.py` (0.07/0.05 → 0.035/0.025, regenerated). The themes with no pattern at all
+(discord-dark, midnight, nord, aurora) stay plain — that is a lineup choice, not a level.
+Scale the whole set together if this is ever revisited; moving one value alone breaks the
+ordering the numbers encode.
+
 And the warning in Piece 6 was justified: on first render the two new themes **did** read as
 siblings — both near-black, both showing a green status chip, with cyberpunk's magenta never
 appearing at rest because the send button collapses while the input is empty. Fixed by

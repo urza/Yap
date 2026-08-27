@@ -157,8 +157,10 @@ def build_vars(h, s, l, light):
             "--border-dark": hsl(h, s * 0.35, l - 22),
             "--border-subtle": hsl(h, s * 0.30, l - 14),
             # DM pattern tint: dark ink on a daylight canvas. The app-wide default is
-            # white, which is invisible here.
-            "--pattern-tint": hsl(h, s * 0.40, 20, "0.07"),
+            # white, which is invisible here. Alpha is half its original value -
+            # halved 2026-08-27 along with every other pattern alpha, see the
+            # --pattern-tint comment in app.css.
+            "--pattern-tint": hsl(h, s * 0.40, 20, "0.035"),
         }
     return {
         "--bg-primary": hsl(h, s, l),
@@ -179,7 +181,7 @@ def build_vars(h, s, l, light):
         "--text-placeholder": hsl(h, s * 0.10, 52),
         "--border-dark": hsl(h, s, max(l - 18, 2)),
         "--border-subtle": hsl(h, s, max(l - 22, 1)),
-        "--pattern-tint": hsl(h, s * 0.30, 95, "0.05"),
+        "--pattern-tint": hsl(h, s * 0.30, 95, "0.025"),  # half, as above
     }
 
 

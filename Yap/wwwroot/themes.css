@@ -197,7 +197,7 @@
     --border-subtle: #c4c4ca;
 
     /* Dark tint: the default white one is invisible on a light canvas. */
-    --pattern-tint: hsl(0 0% 0% / 0.05);
+    --pattern-tint: hsl(0 0% 0% / 0.025);
 }
 
 
@@ -243,15 +243,18 @@
    [data-theme="midnight"] .chat-container[data-context="dm"],
    [data-theme="nord"] .chat-container[data-context="dm"] {
        --canvas-pattern: var(--pattern-pebbles);
-       --pattern-color: hsl(0 0% 100% / 0.018);
+       --pattern-color: hsl(0 0% 100% / 0.009);
    }
 
-   The alpha is the settled value: filled 40px blobs carry far more ink than
-   stroke motifs, so pebbles run well below the shared DM tint. */
+   The alpha keeps the settled relationship: filled 40px blobs carry far more
+   ink than stroke motifs, so pebbles run well below the shared DM tint. (The
+   number itself is half of what was approved that day - it rode along with the
+   2026-08-27 halving of every pattern alpha, so it stays comparable to the tints
+   around it.) */
 
 [data-theme="light"] .chat-container[data-context="dm"] {
     --canvas-pattern: var(--pattern-pebbles);
-    --pattern-color: hsl(0 0% 0% / 0.032);
+    --pattern-color: hsl(0 0% 0% / 0.016);
 }
 
 /* Tea House: rain-on-a-pond ripples. The scene itself belongs to the clock, so
@@ -307,10 +310,11 @@
     --border-subtle: #030505;
 
     /* Phosphor specks - stray glow on the terminal glass. A signature pattern
-       earns more alpha than a DM marker: at 0.045 it is not subtle, just absent. */
+       earns more alpha than a DM marker; below roughly half the DM tint the
+       specks stop being subtle and are simply absent. */
     --canvas-pattern: var(--pattern-specks);
-    --pattern-color: hsl(140 100% 60% / 0.075);
-    --pattern-tint: hsl(140 100% 60% / 0.08);
+    --pattern-color: hsl(140 100% 60% / 0.0375);
+    --pattern-tint: hsl(140 100% 60% / 0.04);
 
     --glow-accent: 0 0 6px hsl(140 100% 60% / 0.35);  /* a CRT, not a nightclub */
     --glow-status: 0 0 6px currentColor;
@@ -371,8 +375,8 @@
     /* Rain on the window - cyan droplets against the magenta accent is the whole
        neon-noir pairing. Signature pattern, so it reads rather than hides. */
     --canvas-pattern: var(--pattern-drops);
-    --pattern-color: hsl(190 90% 55% / 0.11);
-    --pattern-tint: hsl(330 100% 59% / 0.10);
+    --pattern-color: hsl(190 90% 55% / 0.055);
+    --pattern-tint: hsl(330 100% 59% / 0.05);
 
     --glow-accent: 0 0 8px hsl(330 100% 59% / 0.55);
     --glow-status: 0 0 6px currentColor;

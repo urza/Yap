@@ -34,7 +34,7 @@
     --text-placeholder: hsl(0 0% 52%);
     --border-dark: hsl(0 0% 7%);
     --border-subtle: hsl(0 0% 3%);
-    --pattern-tint: hsl(0 0% 95% / 0.05);
+    --pattern-tint: hsl(0 0% 95% / 0.025);
     --accent-primary: hsl(36 70% 58%);
     --accent-hover: hsl(36 70% 50%);
     --accent-light: hsl(36 63% 88%);
@@ -69,7 +69,7 @@
     --text-placeholder: hsl(0 0% 52%);
     --border-dark: hsl(0 0% 2%);
     --border-subtle: hsl(0 0% 1%);
-    --pattern-tint: hsl(0 0% 95% / 0.05);
+    --pattern-tint: hsl(0 0% 95% / 0.025);
     --accent-primary: hsl(36 70% 58%);
     --accent-hover: hsl(36 70% 50%);
     --accent-light: hsl(36 63% 88%);
@@ -104,7 +104,7 @@
     --text-placeholder: hsl(0 0% 52%);
     --border-dark: hsl(0 0% 2%);
     --border-subtle: hsl(0 0% 1%);
-    --pattern-tint: hsl(0 0% 95% / 0.05);
+    --pattern-tint: hsl(0 0% 95% / 0.025);
     --accent-primary: hsl(36 70% 58%);
     --accent-hover: hsl(36 70% 50%);
     --accent-light: hsl(36 63% 88%);
@@ -139,7 +139,7 @@
     --text-placeholder: hsl(0 0% 52%);
     --border-dark: hsl(0 0% 2%);
     --border-subtle: hsl(0 0% 1%);
-    --pattern-tint: hsl(0 0% 95% / 0.05);
+    --pattern-tint: hsl(0 0% 95% / 0.025);
     --accent-primary: hsl(36 70% 58%);
     --accent-hover: hsl(36 70% 50%);
     --accent-light: hsl(36 63% 88%);
@@ -174,7 +174,7 @@
     --text-placeholder: hsl(30 7% 52%);
     --border-dark: hsl(30 12% 41%);
     --border-subtle: hsl(30 10% 49%);
-    --pattern-tint: hsl(30 13% 20% / 0.07);
+    --pattern-tint: hsl(30 13% 20% / 0.035);
     --accent-primary: hsl(32 62% 38%);
     --accent-hover: hsl(32 62% 30%);
     --accent-light: hsl(32 56% 88%);
@@ -209,7 +209,7 @@
     --text-placeholder: hsl(60 7% 52%);
     --border-dark: hsl(60 12% 41%);
     --border-subtle: hsl(60 10% 49%);
-    --pattern-tint: hsl(60 13% 20% / 0.07);
+    --pattern-tint: hsl(60 13% 20% / 0.035);
     --accent-primary: hsl(32 62% 38%);
     --accent-hover: hsl(32 62% 30%);
     --accent-light: hsl(32 56% 88%);
@@ -244,7 +244,7 @@
     --text-placeholder: hsl(60 7% 52%);
     --border-dark: hsl(60 12% 41%);
     --border-subtle: hsl(60 10% 49%);
-    --pattern-tint: hsl(60 13% 20% / 0.07);
+    --pattern-tint: hsl(60 13% 20% / 0.035);
     --accent-primary: hsl(32 62% 38%);
     --accent-hover: hsl(32 62% 30%);
     --accent-light: hsl(32 56% 88%);
@@ -279,7 +279,7 @@
     --text-placeholder: hsl(60 10% 52%);
     --border-dark: hsl(60 18% 53%);
     --border-subtle: hsl(60 15% 61%);
-    --pattern-tint: hsl(60 20% 20% / 0.07);
+    --pattern-tint: hsl(60 20% 20% / 0.035);
     --accent-primary: hsl(32 62% 38%);
     --accent-hover: hsl(32 62% 30%);
     --accent-light: hsl(32 56% 88%);
@@ -314,7 +314,7 @@
     --text-placeholder: hsl(60 10% 52%);
     --border-dark: hsl(60 18% 53%);
     --border-subtle: hsl(60 15% 61%);
-    --pattern-tint: hsl(60 20% 20% / 0.07);
+    --pattern-tint: hsl(60 20% 20% / 0.035);
     --accent-primary: hsl(32 62% 38%);
     --accent-hover: hsl(32 62% 30%);
     --accent-light: hsl(32 56% 88%);
@@ -349,7 +349,7 @@
     --text-placeholder: hsl(180 4% 52%);
     --border-dark: hsl(180 7% 47%);
     --border-subtle: hsl(180 6% 55%);
-    --pattern-tint: hsl(180 8% 20% / 0.07);
+    --pattern-tint: hsl(180 8% 20% / 0.035);
     --accent-primary: hsl(32 62% 38%);
     --accent-hover: hsl(32 62% 30%);
     --accent-light: hsl(32 56% 88%);
@@ -384,7 +384,7 @@
     --text-placeholder: hsl(45 13% 52%);
     --border-dark: hsl(45 24% 41%);
     --border-subtle: hsl(45 20% 49%);
-    --pattern-tint: hsl(45 27% 20% / 0.07);
+    --pattern-tint: hsl(45 27% 20% / 0.035);
     --accent-primary: hsl(32 62% 38%);
     --accent-hover: hsl(32 62% 30%);
     --accent-light: hsl(32 56% 88%);
@@ -419,7 +419,7 @@
     --text-placeholder: hsl(240 1% 52%);
     --border-dark: hsl(240 14% 26%);
     --border-subtle: hsl(240 14% 22%);
-    --pattern-tint: hsl(240 4% 95% / 0.05);
+    --pattern-tint: hsl(240 4% 95% / 0.025);
     --accent-primary: hsl(36 70% 58%);
     --accent-hover: hsl(36 70% 50%);
     --accent-light: hsl(36 63% 88%);
@@ -454,7 +454,7 @@
     --text-placeholder: hsl(0 0% 52%);
     --border-dark: hsl(0 0% 2%);
     --border-subtle: hsl(0 0% 1%);
-    --pattern-tint: hsl(0 0% 95% / 0.05);
+    --pattern-tint: hsl(0 0% 95% / 0.025);
     --accent-primary: hsl(36 70% 58%);
     --accent-hover: hsl(36 70% 50%);
     --accent-light: hsl(36 63% 88%);
