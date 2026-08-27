@@ -176,6 +176,17 @@
     margin-top: 0.25rem;
 }
 
+/* Same idiom as a.message-link: --accent-focus is the one link color every
+   theme contrast-tunes, so a bare <a> never falls back to browser defaults. */
+.form-hint a {
+    color: var(--accent-focus);
+    text-decoration: none;
+}
+
+.form-hint a:hover {
+    text-decoration: underline;
+}
+
 .form-counter {
     display: block;
     color: var(--text-muted);
