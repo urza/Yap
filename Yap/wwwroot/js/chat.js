@@ -1762,7 +1762,7 @@ document.addEventListener('click', (e) => {
 // parsed as HTML. The ghost class must never be 'message-group': both the telemetry
 // observer and the reconciler below match on that.
 let echoObserver = null;
-let echoTarget = null;     // the .messages element the reconciler is bound to
+let echoTarget = null;     // the .messages-flow element the reconciler is bound to
 
 // Shared tail of every optimistic echo (text and GIF): mount in the JS-owned
 // container, arm the 15s "never sent" self-remove, ensure the reconciler is watching.
@@ -1783,10 +1783,14 @@ const showPendingEcho = (text) => {
 
 // Persistent reconciler, separate from the one-shot telemetry observer: each of the
 // sender's own messages that renders removes the oldest ghost (FIFO), so rapid sends
-// inside one round trip all drain correctly. Re-binds if the .messages element was
-// replaced by navigation. MutationObserver runs pre-paint, so the swap is flicker-free.
+// inside one round trip all drain correctly. Re-binds if the .messages-flow element
+// was replaced by navigation. MutationObserver runs pre-paint, so the swap is
+// flicker-free. Both observers here watch DIRECT children only (no subtree), so they
+// must bind to the element that directly contains the .message-group nodes — that is
+// .messages-flow since the pattern-scroll wrapper landed. Binding to .messages made
+// them blind: ghosts lingered to the 15s timeout next to the real message.
 const watchForEchoConfirm = () => {
-    const messages = document.querySelector('.messages');
+    const messages = document.querySelector('.messages-flow');
     if (!messages) return;
     if (echoObserver && echoTarget === messages) return;
     echoObserver?.disconnect();
@@ -1859,7 +1863,8 @@ document.addEventListener('click', (e) => {
 }, true);
 
 const watchForOwnMessage = (myMark) => {
-    const container = document.querySelector('.messages');
+    // .messages-flow, not .messages: direct-children watch (see watchForEchoConfirm).
+    const container = document.querySelector('.messages-flow');
     if (!container) { sendMark = null; return; }
 
     sendObserver?.disconnect();

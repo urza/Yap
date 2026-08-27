@@ -9,7 +9,10 @@
 <div class="messages">
     @* messages-flow wraps the whole scrollable content so a pattern layer can span
        its FULL height and scroll natively with the text (the pattern-scroll
-       experiment). .messages stays the scroller; this is the flex column now. *@
+       experiment). .messages stays the scroller; this is the flex column now.
+       chat.js binds its MutationObservers (ghost reconciler + send telemetry) to
+       THIS element's direct children — .message-group items must stay direct
+       children of .messages-flow, or ghosts linger and duplicate the sent message. *@
     <div class="messages-flow">
     @if (isLoadingMore)
     {
