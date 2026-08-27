@@ -653,6 +653,7 @@ window.subscribeToPush = async (vapidPublicKey) => {
         }
 
         // Return subscription as JSON string
+        window.__lastPushError = null;
         const subJson = subscription.toJSON();
         return JSON.stringify({
             endpoint: subJson.endpoint,
@@ -661,9 +662,14 @@ window.subscribeToPush = async (vapidPublicKey) => {
         });
     } catch (e) {
         console.error('[Push] Subscription failed:', e);
+        window.__lastPushError = e ? `${e.name || 'Error'}: ${e.message || e}` : 'unknown error';
         return null;
     }
 };
+
+// Blazor reads this after a null subscribeToPush result. The DOMException text is the only
+// clue that separates "this browser cannot reach its push service" from a bug of ours.
+window.getLastPushError = () => window.__lastPushError || null;
 
 // Unsubscribe from push notifications
 window.unsubscribeFromPush = async () => {

@@ -372,7 +372,7 @@
                 }
                 @if (pushActionStatus != null)
                 {
-                    <span class="save-status saved" style="margin-top: 4px;">@pushActionStatus</span>
+                    <span class="save-status @(pushActionIsError ? "error" : "saved")" style="margin-top: 4px;">@pushActionStatus</span>
                 }
 
                 <span class="form-hint">
@@ -708,6 +708,7 @@
     private string? currentEndpoint;       // this browser's push endpoint (for the "This device" badge)
     private bool sendingTest = false;
     private string? pushActionStatus;
+    private bool pushActionIsError = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -1439,11 +1440,21 @@
 
         try
         {
+            pushActionIsError = false;
+            pushActionStatus = null;
+
             var permission = await JS.InvokeAsync<string>("requestNotificationPermission");
             pushPermission = permission;
 
             if (permission != "granted")
             {
+                if (permission == "default")
+                {
+                    // "denied" flips the UI to its own explanatory branch; a dismissed
+                    // prompt would leave the button looking dead, so say something.
+                    pushActionIsError = true;
+                    pushActionStatus = "The browser closed the permission prompt without granting.";
+                }
                 Logger.LogDebug("Push enable: permission {Permission} for {Username}", permission, UserState.Username);
                 return;
             }
@@ -1454,7 +1465,14 @@
             var subscriptionJson = await JS.InvokeAsync<string?>("subscribeToPush", publicKey);
             if (subscriptionJson == null)
             {
-                Logger.LogDebug("Push enable: browser subscription failed for {Username}", UserState.Username);
+                var jsError = await JS.InvokeAsync<string?>("getLastPushError");
+                pushActionIsError = true;
+                // "push service error" is the browser failing to register with ITS push backend
+                // (FCM for the Chrome family) — a network/browser-config problem, not ours.
+                pushActionStatus = jsError != null && jsError.Contains("push service error")
+                    ? $"This browser could not reach its push service ({jsError}). A firewall or ad-block can cause this; in Brave, enable \"Use Google services for push messaging\"."
+                    : $"Subscription failed in the browser: {jsError ?? "unknown error"}.";
+                Logger.LogWarning("Push enable: browser subscription failed for {Username}: {Error}", UserState.Username, jsError);
                 return;
             }
 
@@ -1492,6 +1510,9 @@
 
         try
         {
+            pushActionIsError = false;
+            pushActionStatus = null;
+
             // Deliberately this-device-only: the button promises exactly that. An older
             // RemoveUserSubscriptionsAsync call here wiped every device; it predated the
             // per-device list, whose Remove buttons now cover the other devices.
@@ -1536,6 +1557,7 @@
         if (sendingTest || UserState.Username == null) return;
         sendingTest = true;
         pushActionStatus = null;
+        pushActionIsError = false;
         StateHasChanged();
 
         try
@@ -1551,6 +1573,7 @@
         }
         catch (Exception ex)
         {
+            pushActionIsError = true;
             pushActionStatus = "Failed to send test notification.";
             Logger.LogError(ex, "Failed to send test push for {Username}", UserState.Username);
         }

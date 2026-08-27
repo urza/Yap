@@ -211,6 +211,16 @@
     color: var(--color-success);
 }
 
+.save-status.error {
+    color: var(--color-danger);
+}
+
+/* In the push column the status is a full sentence, not a row-end chip;
+   the base margin-left:auto would right-align its wrapped lines. */
+.notification-actions .save-status {
+    margin-left: 0;
+}
+
 /* Notification settings */
 .notification-status {
     display: flex;
