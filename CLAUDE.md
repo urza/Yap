@@ -160,7 +160,7 @@ Events: `OnMessageReceived`, `OnMessageUpdated`, `OnMessageDeleted`, `OnReaction
 **Supporting singletons:**
 - `ChatConfigService` (scoped) — UI text from appsettings; `ChatCircuitHandler` + `CircuitTracker` — circuit lifecycle & auto-away; `SystemBotService` — bot DMs (welcome, admin alerts); `RegistrationGateService` — close/approval gating.
 - Media/emoji: `ImageService` (WebP thumbs), `VideoService`, `EmojiService` (+`.Rendering`) / `EmojiData` / `CustomEmojiService`, `Gifs/` (`GifService`, `KlipyGifProvider`, `GifAdminSettingsService`, `GifFfmpegHelper`), `LinkPreviewService` (+settings), `MediaCacheService` (yt-dlp), `NetworkSecurityHelper` (SSRF).
-- Notifications: `PushNotificationService`, `PushSubscriptionStore`, `IPushSubscriptionPersistence` (`Db`/`Json` impls).
+- Notifications: `PushNotificationService`, `PushSubscriptionStore`, `IPushSubscriptionPersistence` (`Db`/`Json` impls), `NotificationSettingsService` — per-channel mute (server / DM / room levels). Mute filters at **read** time, so unread counts keep accruing for muted channels: that is what leaves the small dot and makes unmuting show a true count. See `docs/notification-settings-reference.md`.
 - Infra: `GeoLocationService` (IP→country), `LocaleResolver`, `ThemeRegistry`, and hosted services `UserActionLogService` / `MediaUploadLogService` / `DiagnosticsCollectorService` (periodic flush).
 
 ## .NET 10 Circuit & Reconnection Features
@@ -196,7 +196,7 @@ Also uses: `CreateInboundActivityHandler` (auto-away), `MapStaticAssets()` (fing
 
 ## Features
 
-Real-time messaging · rooms (admin-managed) · DMs (persist permanently) · per-channel permissions · first-user admin (👑) with `/admin` panel · registration gating (close / require-approval) · multi-device sessions with per-device sign-out & passphrase login · user profiles (picture, display name, bio, country) · Online/Away/Invisible status + auto-away · unread DM badges (cross-device sync) · message reactions, edit/delete · image/video uploads (drag & drop, WebP thumbnails) · GIF picker (Klipy) · link previews (OpenGraph) · remote-media caching (yt-dlp) · Apple-style emoji + custom `:shortcode:` emoji · curated themes · infinite scroll · typing indicators · tab title/sound notifications · web push + PWA (installable, badge API) · mobile-responsive sidebar · resilient reconnection.
+Real-time messaging · rooms (admin-managed) · DMs (persist permanently) · per-channel permissions · first-user admin (👑) with `/admin` panel · registration gating (close / require-approval) · multi-device sessions with per-device sign-out & passphrase login · user profiles (picture, display name, bio, country) · Online/Away/Invisible status + auto-away · unread DM badges (cross-device sync) · per-channel notification mute (DMs + rooms, timed server mute) · message reactions, edit/delete · image/video uploads (drag & drop, WebP thumbnails) · GIF picker (Klipy) · link previews (OpenGraph) · remote-media caching (yt-dlp) · Apple-style emoji + custom `:shortcode:` emoji · curated themes · infinite scroll · typing indicators · tab title/sound notifications · web push + PWA (installable, badge API) · mobile-responsive sidebar · resilient reconnection.
 
 ## Database Persistence
 
