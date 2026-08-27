@@ -1131,6 +1131,12 @@ document.addEventListener('click', (e) => {
 // Scroll to Message (Reply click)
 // ==========================================
 
+// Jump to a settings anchor. Blazor does not act on a URL fragment for content that renders
+// after navigation, so the page asks for the scroll once it has drawn the target.
+window.scrollToElementId = (id) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
 window.scrollToMessage = (messageId) => {
     const el = document.getElementById('msg-' + messageId);
     if (!el) return;

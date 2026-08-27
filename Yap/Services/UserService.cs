@@ -415,14 +415,17 @@ public class UserService
     }
 
     /// <summary>
-    /// Sets the push notification muted state for a user.
+    /// Mutes or unmutes every notification for a user. <paramref name="until"/> is null for
+    /// "until I turn it back on"; unmuting clears it.
     /// </summary>
-    public async Task SetPushMutedAsync(Guid userId, bool muted)
+    public async Task SetServerMuteAsync(Guid userId, bool muted, DateTime? until)
     {
         if (!_users.TryGetValue(userId, out var user))
             return;
 
-        user.PushMuted = muted;
+        var expiry = muted ? until : null;
+        user.NotifServerMuted = muted;
+        user.NotifServerMuteUntil = expiry;
 
         if (_persistenceEnabled)
         {
@@ -432,11 +435,90 @@ public class UserService
                 await db.Users
                     .Where(u => u.Id == userId)
                     .ExecuteUpdateAsync(setters => setters
-                        .SetProperty(u => u.PushMuted, muted));
+                        .SetProperty(u => u.NotifServerMuted, muted)
+                        .SetProperty(u => u.NotifServerMuteUntil, expiry));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to update PushMuted for user {UserId}", userId);
+                _logger.LogError(ex, "Failed to update server mute for user {UserId}", userId);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Sets how DMs notify (allow all, mute all, or per-channel).
+    /// </summary>
+    public async Task SetDmNotificationModeAsync(Guid userId, NotificationMode mode)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        user.NotifDmMode = mode;
+
+        if (_persistenceEnabled)
+        {
+            try
+            {
+                await using var db = await _dbFactory!.CreateDbContextAsync();
+                await db.Users
+                    .Where(u => u.Id == userId)
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(u => u.NotifDmMode, mode));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update DM notification mode for user {UserId}", userId);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Sets how rooms notify (allow all, mute all, or per-channel).
+    /// </summary>
+    public async Task SetRoomNotificationModeAsync(Guid userId, NotificationMode mode)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        user.NotifRoomMode = mode;
+
+        if (_persistenceEnabled)
+        {
+            try
+            {
+                await using var db = await _dbFactory!.CreateDbContextAsync();
+                await db.Users
+                    .Where(u => u.Id == userId)
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(u => u.NotifRoomMode, mode));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update room notification mode for user {UserId}", userId);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Sets whether a DM partner with no override row notifies (Individual DM mode only).
+    /// </summary>
+    public async Task SetNewDmsMutedAsync(Guid userId, bool muted)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        user.NotifNewDmsMuted = muted;
+
+        if (_persistenceEnabled)
+        {
+            try
+            {
+                await using var db = await _dbFactory!.CreateDbContextAsync();
+                await db.Users
+                    .Where(u => u.Id == userId)
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(u => u.NotifNewDmsMuted, muted));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update new-DM mute default for user {UserId}", userId);
             }
         }
     }

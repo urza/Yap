@@ -75,6 +75,9 @@ public class ChatPersistenceService
         try
         {
             await using var db = await _dbFactory!.CreateDbContextAsync();
+            // Notification overrides have no FK to Channel (see ChatDbContext), so nothing
+            // cascades them away — delete them here or a recycled id inherits stale mutes.
+            await db.ChannelNotificationSettings.Where(s => s.ChannelId == channelId).ExecuteDeleteAsync();
             await db.Channels.Where(c => c.Id == channelId).ExecuteDeleteAsync();
         }
         catch (Exception ex)
@@ -325,6 +328,64 @@ public class ChatPersistenceService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to batch increment unread for channel {ChannelId}", channelId);
+        }
+    }
+
+    #endregion
+
+    #region Notification Settings Operations
+
+    /// <summary>
+    /// Writes one user's mute override for one channel.
+    /// </summary>
+    public async Task PersistChannelNotificationSettingAsync(ChannelNotificationSetting setting)
+    {
+        if (!IsEnabled) return;
+
+        try
+        {
+            await using var db = await _dbFactory!.CreateDbContextAsync();
+
+            var existing = await db.ChannelNotificationSettings.FindAsync(setting.UserId, setting.ChannelId);
+            if (existing != null)
+            {
+                existing.Muted = setting.Muted;
+            }
+            else
+            {
+                db.ChannelNotificationSettings.Add(new ChannelNotificationSetting
+                {
+                    UserId = setting.UserId,
+                    ChannelId = setting.ChannelId,
+                    Muted = setting.Muted
+                });
+            }
+
+            await db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to persist notification setting for user {UserId} channel {ChannelId}",
+                setting.UserId, setting.ChannelId);
+        }
+    }
+
+    /// <summary>
+    /// Loads every per-channel mute override. Called once at startup.
+    /// </summary>
+    public async Task<List<ChannelNotificationSetting>> LoadChannelNotificationSettingsAsync()
+    {
+        if (!IsEnabled) return new();
+
+        try
+        {
+            await using var db = await _dbFactory!.CreateDbContextAsync();
+            return await db.ChannelNotificationSettings.AsNoTracking().ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load channel notification settings");
+            return new();
         }
     }
 

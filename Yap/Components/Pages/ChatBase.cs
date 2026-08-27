@@ -606,6 +606,11 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
 
     protected async Task HandleNewMessageNotificationAsync(string messageUser, bool isDM)
     {
+        // A muted channel makes no sound and adds nothing to the tab title, same as it adds
+        // nothing to the sidebar badge or the app badge. The unread dot is its only trace.
+        if (UserId != Guid.Empty && channelId != Guid.Empty && ChatService.IsChannelMuted(UserId, channelId))
+            return;
+
         try
         {
             var isVisible = await JS.InvokeAsync<bool>("isPageVisible");

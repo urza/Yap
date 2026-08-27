@@ -154,6 +154,7 @@ builder.Services.AddSingleton<CircuitTracker>();  // Circuit diagnostics
 builder.Services.AddSingleton<NotificationAudit>();  // Push + unread audit trails (admin diagnostics)
 builder.Services.AddSingleton<UserService>();     // User management with token auth
 builder.Services.AddSingleton<LinkTokenService>(); // PWA start_url login link tokens
+builder.Services.AddSingleton<NotificationSettingsService>();  // per-channel mute rules (read by ChatService)
 builder.Services.AddSingleton<ChatService>();
 builder.Services.AddSingleton<SystemBotService>();
 builder.Services.AddSingleton<RegistrationGateService>();

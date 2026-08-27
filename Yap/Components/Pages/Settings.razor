@@ -11,6 +11,8 @@
 @inject GeoLocationService GeoLocation
 @inject IHttpContextAccessor HttpContextAccessor
 @inject ChatService ChatService
+@inject NotificationSettingsService NotificationSettings
+@inject EmojiService EmojiService
 @inject RegistrationGateService RegistrationGate
 @inject ILogger<Settings> Logger
 @implements IAsyncDisposable
@@ -344,19 +346,9 @@
                 else if (pushSubscribed)
                 {
                     <span class="form-hint">
-                        @if (pushMuted)
-                        {
-                            <text>Notifications are muted — you'll still see the unread badge on the app icon, but no banners or sounds.</text>
-                        }
-                        else
-                        {
-                            <text>You'll receive banner alerts with message previews and the unread badge on the app icon.</text>
-                        }
+                        This device can receive notifications. What actually notifies you is set below.
                     </span>
                     <div class="notification-buttons">
-                        <button class="@(pushMuted ? "upload-button" : "remove-button")" @onclick="ToggleMute" disabled="@pushToggling">
-                            @(pushMuted ? "Unmute Notifications" : "Mute Notifications")
-                        </button>
                         <button class="remove-button" @onclick="DisablePush" disabled="@pushToggling">
                             @(pushToggling ? "Disabling..." : "Unsubscribe")
                         </button>
@@ -383,6 +375,102 @@
                     <span class="save-status saved" style="margin-top: 4px;">@pushActionStatus</span>
                 }
             </div>
+        </div>
+
+        @* Per-channel mute rules. Deliberately below the push section: that one answers "can this
+           device be notified at all", this one answers "what is worth notifying me about". *@
+        <div class="settings-section" id="notification-settings">
+            <h3>Notification Settings</h3>
+
+            <div class="notif-row">
+                <span class="notif-row-label">Everything on this server</span>
+                <div class="segmented" role="radiogroup" aria-label="Server notifications">
+                    <button type="button" role="radio" aria-checked="@(!serverMuted)"
+                            class="seg-btn @(serverMuted ? "" : "seg-selected")"
+                            @onclick="() => SetServerMutedAsync(false)">
+                        @IconBell<span>Allow</span>
+                    </button>
+                    <button type="button" role="radio" aria-checked="@serverMuted"
+                            class="seg-btn @(serverMuted ? "seg-selected" : "")"
+                            @onclick="() => SetServerMutedAsync(true)">
+                        @IconBellOff<span>Mute</span>
+                    </button>
+                </div>
+            </div>
+
+            @if (serverMuted)
+            {
+                <div class="notif-row">
+                    <span class="notif-row-label">Mute for</span>
+                    <div class="segmented segmented-wrap" role="radiogroup" aria-label="Mute duration">
+                        @for (var i = 0; i < MuteDurations.Length; i++)
+                        {
+                            var index = i;
+                            <button type="button" role="radio" aria-checked="@(mutePreset == index)"
+                                    class="seg-btn @(mutePreset == index ? "seg-selected" : "")"
+                                    @onclick="() => SetMuteDurationAsync(index)">
+                                <span>@MuteDurations[index].Label</span>
+                            </button>
+                        }
+                    </div>
+                </div>
+                <span class="form-hint">@ServerMuteHint</span>
+            }
+            else
+            {
+                <div class="notif-divider"></div>
+
+                <div class="notif-row">
+                    <span class="notif-row-label">Direct messages</span>
+                    @ModePicker("Direct messages", dmMode, SetDmModeAsync)
+                </div>
+
+                @if (dmMode == NotificationMode.Individual)
+                {
+                    <div class="notif-list">
+                        @foreach (var dm in dmChannels)
+                        {
+                            var muted = IsIndividuallyMuted(dm.ChannelId, isDm: true);
+                            <div class="notif-item">
+                                <span class="notif-item-name">@EmojiService.ConvertEmojis(dm.DisplayName, inline: true)</span>
+                                @ItemToggle(muted, () => ToggleChannelAsync(dm.ChannelId, muted))
+                            </div>
+                        }
+                        @* Not a channel, so it can't be a row above: this is the fallback for every DM
+                           partner with no override row yet, including people who write for the first time. *@
+                        <div class="notif-item notif-item-default">
+                            <span class="notif-item-name">New DMs</span>
+                            @ItemToggle(newDmsMuted, ToggleNewDmsAsync)
+                        </div>
+                    </div>
+                }
+
+                <div class="notif-divider"></div>
+
+                <div class="notif-row">
+                    <span class="notif-row-label">Rooms</span>
+                    @ModePicker("Rooms", roomMode, SetRoomModeAsync)
+                </div>
+
+                @if (roomMode == NotificationMode.Individual)
+                {
+                    <div class="notif-list">
+                        @foreach (var room in rooms)
+                        {
+                            var muted = IsIndividuallyMuted(room.Id, isDm: false);
+                            <div class="notif-item">
+                                <span class="notif-item-name">#@EmojiService.ConvertEmojis(room.Name, inline: true)</span>
+                                @ItemToggle(muted, () => ToggleChannelAsync(room.Id, muted))
+                            </div>
+                        }
+                    </div>
+                }
+
+                <span class="form-hint">
+                    A muted room or DM still shows a small dot in the sidebar when something arrives.
+                    It sends no notification, plays no sound, and adds nothing to the unread count.
+                </span>
+            }
         </div>
 
         <div class="settings-section">
@@ -604,7 +692,6 @@
     // Push notification state
     private bool pushSupported = false;
     private bool pushSubscribed = false;
-    private bool pushMuted = false;
     private string? pushPermission;
     private int serverSubscriptionCount = 0;
     private bool isPwa = false;
@@ -616,7 +703,7 @@
     private bool sendingTest = false;
     private string? pushActionStatus;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         if (!UserState.IsLoggedIn || !UserState.UserId.HasValue)
         {
@@ -642,7 +729,6 @@
                 dateOrder = LocaleResolver.GuessDateOrderFromLocale(user.Locale);
                 clockStyle = LocaleResolver.GuessClockFromLocale(user.Locale);
             }
-            pushMuted = user.PushMuted;
             selectedTheme = ThemeRegistry.IsKnown(user.Theme) ? user.Theme! : ThemeRegistry.DefaultId;
             selectedFontSize = user.FontSize ?? DefaultFontSize;
 
@@ -664,6 +750,8 @@
 
         // Server-side subscription list (doesn't need JS)
         RefreshPushDevices();
+
+        await LoadNotificationSettingsAsync();
 
         // Load active sessions
         if (UserState.Username != null)
@@ -692,6 +780,10 @@
             await LoadPushStatusAsync();
             await LoadCacheReportAsync();
             StateHasChanged();
+
+            // The header dropdown links straight to the notification block; honour the fragment.
+            if (new Uri(Navigation.Uri).Fragment == "#notification-settings")
+                await JS.InvokeVoidAsync("scrollToElementId", "notification-settings");
         }
     }
 
@@ -1110,6 +1202,199 @@
         return $"{(int)elapsed.TotalDays}d ago";
     }
 
+    // --- Notification settings (per-channel mute) ---
+
+    private bool serverMuted;
+    private int mutePreset = DefaultMutePreset;
+    private NotificationMode dmMode = NotificationMode.AllowAll;
+    private NotificationMode roomMode = NotificationMode.MuteAll;
+    private bool newDmsMuted;
+    private List<(Guid ChannelId, string DisplayName)> dmChannels = new();
+    private List<Yap.Models.Channel> rooms = new();
+
+    /// <summary>"Until I turn it back on" — index into MuteDurations, and the default choice.</summary>
+    private const int DefaultMutePreset = 3;
+
+    private static readonly (string Label, TimeSpan? Duration)[] MuteDurations =
+    {
+        ("1 hour", TimeSpan.FromHours(1)),
+        ("1 day", TimeSpan.FromDays(1)),
+        ("1 week", TimeSpan.FromDays(7)),
+        ("Until I turn it back on", null)
+    };
+
+    private static readonly RenderFragment IconBell =
+        @<svg class="seg-icon" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>;
+
+    private static readonly RenderFragment IconBellOff =
+        @<svg class="seg-icon" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm0-15.5c2.49 0 4 2.02 4 4.5v5h2v1H6v-1h2v-5c0-3.07 1.63-5.64 4.5-6.32V4c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5v.68c-.17.04-.33.09-.5.14zM5.41 3.35L4 4.76l2.81 2.81C6.29 8.57 6 9.74 6 11v5l-2 2v1h14.24l1.35 1.35 1.41-1.41L5.41 3.35z"/></svg>;
+
+    private static readonly RenderFragment IconIndividual =
+        @<svg class="seg-icon" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>;
+
+    /// <summary>
+    /// The three-way Allow / Individual / Mute picker, shared by the DM and room rows.
+    /// Individual sits in the middle so the row reads as a spectrum from loudest to quietest.
+    /// </summary>
+    private RenderFragment ModePicker(string label, NotificationMode current, Func<NotificationMode, Task> onPick) =>
+        @<div class="segmented" role="radiogroup" aria-label="@label">
+            <button type="button" role="radio" aria-checked="@(current == NotificationMode.AllowAll)"
+                    class="seg-btn @(current == NotificationMode.AllowAll ? "seg-selected" : "")"
+                    @onclick="() => onPick(NotificationMode.AllowAll)">
+                @IconBell<span>Allow all</span>
+            </button>
+            <button type="button" role="radio" aria-checked="@(current == NotificationMode.Individual)"
+                    class="seg-btn @(current == NotificationMode.Individual ? "seg-selected" : "")"
+                    @onclick="() => onPick(NotificationMode.Individual)">
+                @IconIndividual<span>Individual</span>
+            </button>
+            <button type="button" role="radio" aria-checked="@(current == NotificationMode.MuteAll)"
+                    class="seg-btn @(current == NotificationMode.MuteAll ? "seg-selected" : "")"
+                    @onclick="() => onPick(NotificationMode.MuteAll)">
+                @IconBellOff<span>Mute all</span>
+            </button>
+        </div>;
+
+    /// <summary>Per-row bell toggle used by the DM and room lists.</summary>
+    private RenderFragment ItemToggle(bool muted, Func<Task> onToggle) =>
+        @<button type="button" class="notif-item-toggle @(muted ? "muted" : "")" @onclick="onToggle"
+                 title="@(muted ? "Muted — click to allow" : "Allowed — click to mute")"
+                 aria-label="@(muted ? "Unmute" : "Mute")" aria-pressed="@muted">
+            @(muted ? IconBellOff : IconBell)
+        </button>;
+
+    // Remaining time rather than a wall-clock instant: no timezone or culture plumbing, and
+    // "another 6 days" is what the user actually wants to know.
+    private string ServerMuteHint => MuteExpiry is { } until
+        ? $"Muted for another {FormatRemaining(until - DateTime.UtcNow)}."
+        : "Muted until you turn notifications back on.";
+
+    private DateTime? MuteExpiry =>
+        UserState.UserId.HasValue ? UserService.GetById(UserState.UserId.Value)?.NotifServerMuteUntil : null;
+
+    private static string FormatRemaining(TimeSpan left)
+    {
+        if (left <= TimeSpan.Zero) return "a moment";
+        if (left.TotalMinutes < 60) return $"{Math.Max(1, (int)left.TotalMinutes)} minutes";
+        if (left.TotalHours < 24) return Plural((int)left.TotalHours, "hour");
+        return Plural((int)left.TotalDays, "day");
+    }
+
+    private static string Plural(int count, string unit) =>
+        count == 1 ? $"1 {unit}" : $"{count} {unit}s";
+
+    /// <summary>
+    /// Reads the stored notification state into the component fields, and tidies a server mute
+    /// whose timer has run out (the evaluation treats it as expired already; this makes the row agree).
+    /// </summary>
+    private async Task LoadNotificationSettingsAsync()
+    {
+        if (!UserState.UserId.HasValue || UserState.Username == null) return;
+
+        var user = UserService.GetById(UserState.UserId.Value);
+        if (user == null) return;
+
+        await NotificationSettings.ClearExpiredServerMuteAsync(user);
+
+        serverMuted = NotificationSettings.IsServerMuted(user);
+        mutePreset = PresetForExpiry(user.NotifServerMuteUntil);
+        dmMode = user.NotifDmMode;
+        roomMode = user.NotifRoomMode;
+        newDmsMuted = user.NotifNewDmsMuted;
+
+        rooms = ChatService.GetRooms();
+
+        // Only conversations with real history, newest first. An empty DM channel means someone
+        // opened a profile once, which is not something to offer a mute switch for.
+        var channelsByPartner = ChatService.GetDMChannels(UserState.Username)
+            .Select(c => (Channel: c, Partner: c.GetOtherParticipant(UserState.Username)))
+            .Where(x => !string.IsNullOrWhiteSpace(x.Partner))
+            .ToDictionary(x => x.Partner!, x => x.Channel, StringComparer.OrdinalIgnoreCase);
+
+        dmChannels = ChatService.GetDMConversations(UserState.Username)
+            .OrderByDescending(c => c.LastMessageAt)
+            .Where(c => channelsByPartner.ContainsKey(c.Username))
+            .Select(c => (
+                channelsByPartner[c.Username].Id,
+                UserService.GetByUsername(c.Username)?.EffectiveDisplayName ?? c.Username))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Which duration button to light up for a stored expiry: the shortest preset that still
+    /// covers the time left. Exact until the remaining time drops below the next preset down,
+    /// and the hint line carries the real expiry either way.
+    /// </summary>
+    private static int PresetForExpiry(DateTime? until)
+    {
+        if (until is not { } expiry) return DefaultMutePreset;
+
+        var remaining = expiry - DateTime.UtcNow;
+        for (var i = 0; i < MuteDurations.Length; i++)
+        {
+            if (MuteDurations[i].Duration is { } d && d >= remaining)
+                return i;
+        }
+        return DefaultMutePreset;
+    }
+
+    private async Task SetServerMutedAsync(bool muted)
+    {
+        if (!UserState.UserId.HasValue) return;
+
+        serverMuted = muted;
+        if (muted) mutePreset = DefaultMutePreset;
+
+        await UserService.SetServerMuteAsync(UserState.UserId.Value, muted, Expiry(mutePreset));
+        if (!muted) await LoadNotificationSettingsAsync();  // refresh the lists we're about to show
+        Logger.LogDebug("Server notifications {State} for {Username}", muted ? "muted" : "allowed", UserState.Username);
+    }
+
+    private async Task SetMuteDurationAsync(int index)
+    {
+        if (!UserState.UserId.HasValue) return;
+
+        mutePreset = index;
+        await UserService.SetServerMuteAsync(UserState.UserId.Value, muted: true, Expiry(index));
+    }
+
+    private static DateTime? Expiry(int presetIndex) =>
+        MuteDurations[presetIndex].Duration is { } d ? DateTime.UtcNow + d : null;
+
+    private async Task SetDmModeAsync(NotificationMode mode)
+    {
+        if (!UserState.UserId.HasValue) return;
+        dmMode = mode;
+        await UserService.SetDmNotificationModeAsync(UserState.UserId.Value, mode);
+    }
+
+    private async Task SetRoomModeAsync(NotificationMode mode)
+    {
+        if (!UserState.UserId.HasValue) return;
+        roomMode = mode;
+        await UserService.SetRoomNotificationModeAsync(UserState.UserId.Value, mode);
+    }
+
+    private async Task ToggleNewDmsAsync()
+    {
+        if (!UserState.UserId.HasValue) return;
+        newDmsMuted = !newDmsMuted;
+        await UserService.SetNewDmsMutedAsync(UserState.UserId.Value, newDmsMuted);
+    }
+
+    private async Task ToggleChannelAsync(Guid channelId, bool currentlyMuted)
+    {
+        if (!UserState.UserId.HasValue) return;
+        await NotificationSettings.SetChannelMutedAsync(UserState.UserId.Value, channelId, !currentlyMuted);
+    }
+
+    private bool IsIndividuallyMuted(Guid channelId, bool isDm)
+    {
+        if (!UserState.UserId.HasValue) return false;
+        var user = UserService.GetById(UserState.UserId.Value);
+        return user != null && NotificationSettings.IsChannelMutedIndividually(user, channelId, isDm);
+    }
+
     // Push notification methods
 
     private async Task LoadPushStatusAsync()
@@ -1190,23 +1475,6 @@
         {
             pushToggling = false;
             StateHasChanged();
-        }
-    }
-
-    private async Task ToggleMute()
-    {
-        if (!UserState.UserId.HasValue) return;
-
-        try
-        {
-            pushMuted = !pushMuted;
-            await UserService.SetPushMutedAsync(UserState.UserId.Value, pushMuted);
-            Logger.LogDebug("Notifications {State} for {Username} from settings", pushMuted ? "muted" : "unmuted", UserState.Username);
-        }
-        catch (Exception ex)
-        {
-            pushMuted = !pushMuted; // revert
-            Logger.LogError(ex, "Failed to toggle mute for {Username}", UserState.Username);
         }
     }
 

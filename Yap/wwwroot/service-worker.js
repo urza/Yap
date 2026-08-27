@@ -112,7 +112,7 @@ self.addEventListener('push', (event) => {
 
     const promises = [];
 
-    // Update badge count (always, even when muted)
+    // Update badge count. The server already excluded muted channels from this number.
     if ('setAppBadge' in self.navigator && data.unreadCount > 0) {
         promises.push(
             self.navigator.setAppBadge(data.unreadCount)
@@ -120,22 +120,19 @@ self.addEventListener('push', (event) => {
         );
     }
 
-    // Show notification banner (skip if muted)
-    if (data.muted) {
-        console.log('[SW] Muted — badge only, no banner');
-    } else {
-        promises.push(
-            self.registration.showNotification(data.title, {
-                body: data.body,
-                icon: data.icon,
-                badge: data.badge,
-                tag: data.tag,
-                renotify: true,
-                requireInteraction: false,
-                data: { url: data.url }
-            })
-        );
-    }
+    // Show the banner. There is no badge-only mode any more: muting is decided on the server,
+    // and a muted channel sends no push at all (it only keeps its unread dot in the app).
+    promises.push(
+        self.registration.showNotification(data.title, {
+            body: data.body,
+            icon: data.icon,
+            badge: data.badge,
+            tag: data.tag,
+            renotify: true,
+            requireInteraction: false,
+            data: { url: data.url }
+        })
+    );
 
     // Delivery receipt (best-effort): closes the gap between "push service accepted the send" and
     // "this device actually received it" — Settings shows the last confirmed delivery per device.
@@ -144,7 +141,7 @@ self.addEventListener('push', (event) => {
             .then((sub) => sub && fetch('/api/push/delivered', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ endpoint: sub.endpoint, tag: data.tag, shown: !data.muted })
+                body: JSON.stringify({ endpoint: sub.endpoint, tag: data.tag, shown: true })
             }))
             .catch(() => { }) // a failed receipt must never affect the notification itself
     );

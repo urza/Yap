@@ -208,8 +208,9 @@
     opacity: 0.8;
 }
 
-/* Room unread dot */
-.room-unread-dot {
+/* Unread dot: the quiet marker a MUTED room or DM gets instead of a count.
+   Muting hides the number and the notification, never the fact that something arrived. */
+.unread-dot {
     width: 8px;
     height: 8px;
     background: var(--text-primary);
@@ -222,8 +223,8 @@
     color: var(--text-primary);
 }
 
-/* DM unread badge */
-.dm-unread-badge {
+/* Unread badge: the count an unmuted room or DM gets */
+.unread-badge {
     background: var(--color-danger);
     color: white;
     font-size: 0.6875rem;

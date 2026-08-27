@@ -1,76 +1,91 @@
 # Reference: notification settings, what a user can set up
 
-> Current-state map of the notification subsystem, written 2026-08-27. This is a feature
-> reference, not a bug report. For the 2026-05-29 investigation into missing badges and
-> unreliable push, see `unread-and-push-notifications-analysis.md`.
+> Current-state map of the notification subsystem. Written 2026-08-27, rewritten the same day when
+> per-channel mute landed. This is a feature reference, not a bug report. For the 2026-05-29
+> investigation into missing badges and unreliable push, see `unread-and-push-notifications-analysis.md`.
 
 ## What a user can set up
 
-There are only **two real switches**, plus per-device cleanup. Everything else is derived from
-browser permission and presence.
+Two separate questions, answered in two Settings sections.
 
-**1. Enable / Unsubscribe push** (`/settings` → Notifications, `Components/Pages/Settings.razor:331`)
+### 1. Can this device be notified at all? (`/settings` → Notifications)
 
-- "Enable Notifications" asks for browser permission, subscribes with the server VAPID key, then
-  saves the endpoint per username (`EnablePush`, `Settings.razor:1143`).
-- "Unsubscribe" unsubscribes this browser and deletes **all** of the user's server subscriptions
-  (`DisablePush`, `Settings.razor:1213`).
-- The section shows push status, browser permission, and the device count.
-
-**2. Mute / Unmute** (two places, one flag)
-
-- In Settings (`ToggleMute`, `Settings.razor:1195`) and in the header dropdown, but the header item
-  only renders inside an installed PWA (`ChatHeader.razor:77`).
-- Both write `User.PushMuted` (`Services/UserService.cs:420`), a persisted per-user flag, not
-  per-device.
-- Mute keeps the subscription alive. The server still sends the push with `Muted = true`
-  (`PushNotificationService.cs:210`), and the service worker updates the app badge but skips the
-  banner (`service-worker.js:113`).
-
-**3. Per-device subscription list**
-
+- **Enable Notifications** asks for browser permission, subscribes with the server VAPID key, then
+  saves the endpoint per username (`EnablePush`, `Settings.razor`).
+- **Unsubscribe** unsubscribes this browser and deletes all of the user's server subscriptions.
 - Each subscribed device is listed with its push host, when it was added, and the last confirmed
-  delivery. "Remove" deletes that one endpoint (`RemovePushDevice`, `Settings.razor:1295`).
-- "Send test notification" pushes to every device and reports sent/failed. It bypasses mute on
-  purpose (`SendTestAsync`, `PushNotificationService.cs:314`).
+  delivery. **Remove** deletes that one endpoint.
+- **Send test notification** pushes to every device and reports sent/failed. It ignores every mute
+  setting on purpose (`SendTestAsync`, `PushNotificationService.cs`): a delivery test a mute could
+  silence would prove nothing.
+- `PushPermissionPrompt.razor` shows a first-run card, but only inside an installed PWA, only while
+  permission is still `default`, and it stops after 3 dismissals (counter in `localStorage`).
+  If permission is already granted it silently re-registers the subscription to repair rotated endpoints.
 
-**4. First-run prompt**
+### 2. What is worth notifying about? (`/settings` → Notification Settings)
 
-- `PushPermissionPrompt.razor` shows a full-page card, but only inside an installed PWA, only while
-  permission is still `default`, and it stops after 3 dismissals (counter in `localStorage`,
-  `chat.js:58`).
-- If permission is already granted, it silently re-registers the subscription on every load to
-  repair rotated endpoints.
+Three levels, evaluated top down by `NotificationSettingsService.IsMuted`. The first level that
+decides wins.
+
+**Server level.** Allow or Mute everything. Muting picks a duration: 1 hour, 1 day, 1 week, or
+until the user turns it back on (the default). A timed mute reads as expired on its own; the stored
+flag is cleared lazily the next time the settings page loads. While the server is muted the DM and
+room sections are hidden, because nothing below them can matter.
+
+**DM level.** Allow all, Individual, or Mute all. Default is Allow all. Individual lists every DM
+partner with at least one message, newest conversation first, each with a bell toggle, plus a
+**New DMs** row that decides the default for a partner with no override row yet.
+
+**Room level.** The same three states, but the default is Mute all, which reproduces exactly what
+rooms did before this feature existed. Individual lists the rooms. A room the user never touched
+stays muted, and there is no "New rooms" row.
+
+Per-channel overrides survive a switch to Allow all or Mute all and are ignored while that lasts, so
+returning to Individual restores the user's earlier picks.
+
+## What muting does
+
+A muted channel keeps counting unread messages. The count is hidden, not lost. The channel:
+
+- shows no numeric unread badge in the sidebar,
+- adds nothing to the app-wide unread total (mailbox count and PWA app icon badge),
+- sends no push notification,
+- plays no sound and adds nothing to the browser tab title,
+- does not sort its DM to the top of the user list,
+- still shows the small unread dot.
+
+Unmuting reveals the true accumulated count, because the filter runs at read time and not at
+increment time (`GetTotalUnreadCount` in `ChatService.cs`).
 
 ## What is NOT configurable
 
-- **Scope.** Push fires for direct messages only (`ChatService.cs:1008`). Room messages never push.
-  The prompt text mentions "mentions", but no mention feature exists in the code.
-- **In-app sound and tab title.** The `notif.mp3` sound plays for a DM when the tab is hidden, and
-  the title gets an unread count (`ChatBase.cs:607`). This has no user setting and `PushMuted` does
-  not affect it, because it is client-side and never passes through the push path.
-- **Quiet hours, per-channel mute, per-device mute, sound choice or volume.** None exist. Volume is
-  hardcoded at 0.5.
-- **Badge.** Always updated when an unread count arrives, even while muted.
+Quiet hours, per-device mute, sound choice, and volume. Volume is hardcoded at 0.5 in `chat.js`.
 
 ## The suppression rule
 
-A push is skipped only when the recipient is `Online` **and** at least one session has a visible
-page (`ChatService.cs:1027`). `Away` and `Invisible` still get pushed, which is deliberate: Away is
-exactly when the phone should buzz. Every decision and result goes into a 200-entry ring buffer
+Independent of mute, and unchanged by this feature: a push is skipped only when the recipient is
+`Online` **and** at least one session has a visible page (`DispatchPush` in `ChatService.cs`).
+`Away` and `Invisible` still get pushed, which is deliberate, since Away is exactly when the phone
+should buzz. Every decision and result goes into a 200-entry ring buffer
 (`Services/NotificationAudit.cs`) that feeds the admin Diagnostics tab.
+
+## Room unread fan-out
+
+Room unread counts increment for two sets of users, unioned: everyone with a live session (which is
+what puts the dot on a room for people who are here), plus everyone who unmuted that room, online or
+not. The second set exists so a badge and the push that announced it agree. Offline users who have a
+room muted are still skipped, so nobody returns to a sidebar full of dots for rooms they never opened.
 
 ## Server-side prerequisites
 
 Push is off unless `Vapid:Subject/PublicKey/PrivateKey` are set in `appsettings.json`. Startup
-verifies the public key is the true pair of the private key and disables push loudly if not
-(`PushNotificationService.cs:118`). Subscriptions are stored as JSON or in the DB per
-`ChatSettings:PushSubscriptionStorage`. Admins see each user's subscription count, a "Muted" tag,
-and PWA install state in `/admin`, but they cannot change another user's settings.
+verifies the public key is the true pair of the private key and disables push loudly if not.
+Subscriptions are stored as JSON or in the DB per `ChatSettings:PushSubscriptionStorage`.
 
-## The unread dot next to rooms, in one sentence
+## Removed: the old PushMuted flag
 
-A room shows an 8px themed dot when its persisted per-user unread counter is above zero and you are
-not currently in that room; the counter goes up for every live session except the sender's and
-resets when you open, resume, or leave the room, with the sidebar re-rendering on the
-`OnUnreadChanged` event.
+`User.PushMuted` used to mean "send the badge, suppress the banner". It is gone from the UI, from
+`PushNotificationService`, and from the service worker, replaced by the settings above, which
+suppress the notification outright. The column remains in the database because the DB is live and
+dropping it buys nothing. Nothing reads it. Values were not migrated: the old flag was weaker than a
+server mute, so carrying it over would have silenced badges the user never asked to silence.

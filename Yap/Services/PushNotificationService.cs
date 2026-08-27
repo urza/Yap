@@ -52,7 +52,6 @@ public class PushNotificationService
     private readonly VapidDetails? _vapidDetails;
     private readonly WebPushClient _webPushClient;
     private readonly PushSubscriptionStore _subscriptionStore;
-    private readonly UserService _userService;
     private readonly NotificationAudit _audit;
     private readonly ILogger<PushNotificationService> _logger;
     private readonly bool _isConfigured;
@@ -62,12 +61,10 @@ public class PushNotificationService
     public PushNotificationService(
         IConfiguration configuration,
         PushSubscriptionStore subscriptionStore,
-        UserService userService,
         NotificationAudit audit,
         ILogger<PushNotificationService> logger)
     {
         _subscriptionStore = subscriptionStore;
-        _userService = userService;
         _audit = audit;
         _logger = logger;
 
@@ -194,7 +191,13 @@ public class PushNotificationService
     /// <summary>
     /// Send a push notification to a specific user.
     /// </summary>
-    public async Task<PushSendResult> SendToUserAsync(string username, PushPayload payload, bool bypassMute = false)
+    /// <remarks>
+    /// Mute is NOT evaluated here. Whether a channel notifies at all is decided upstream by
+    /// NotificationSettingsService, which suppresses the badge and the unread count along with the
+    /// banner. That leaves this method free to deliver the Settings test push unconditionally,
+    /// which is what makes it a usable "is this device alive?" check.
+    /// </remarks>
+    public async Task<PushSendResult> SendToUserAsync(string username, PushPayload payload)
     {
         if (!_isConfigured || _vapidDetails == null)
         {
@@ -203,20 +206,10 @@ public class PushNotificationService
             return new PushSendResult(0, 0, 0);
         }
 
-        // Check if user has muted banner notifications (badge still sent).
-        // bypassMute is used for the explicit "Send test notification" action so the user
-        // can verify delivery even while muted.
-        var user = _userService.GetByUsername(username);
-        if (!bypassMute && user?.PushMuted == true)
-        {
-            payload = payload with { Muted = true };
-            _logger.LogDebug("Push muted for {Username}, sending badge-only", username);
-        }
-
         var subscriptions = _subscriptionStore.GetSubscriptions(username).ToList();
         if (subscriptions.Count == 0)
         {
-            _audit.RecordPushResult(username, 0, 0, 0, payload.Muted, "no subscriptions");
+            _audit.RecordPushResult(username, 0, 0, 0, muted: false, note: "no subscriptions");
             _logger.LogDebug("No push subscriptions for user {Username}", username);
             return new PushSendResult(0, 0, 0);
         }
@@ -254,7 +247,7 @@ public class PushNotificationService
             }
         }
 
-        _audit.RecordPushResult(username, sent, failed, subscriptions.Count, payload.Muted,
+        _audit.RecordPushResult(username, sent, failed, subscriptions.Count, muted: false,
             notes.Count > 0 ? string.Join("; ", notes) : null);
         _logger.LogDebug("Push to {Username}: sent={Sent} failed={Failed} total={Total}", username, sent, failed, subscriptions.Count);
         return new PushSendResult(sent, failed, subscriptions.Count);
@@ -283,9 +276,36 @@ public class PushNotificationService
     }
 
     /// <summary>
+    /// Send a room notification to a user who has that room unmuted.
+    /// </summary>
+    public Task<PushSendResult> SendRoomNotificationAsync(string toUsername, string roomName, Guid roomId,
+        string fromUsername, string messagePreview, int unreadCount)
+    {
+        _logger.LogDebug("SendRoomNotification: to={To} room={Room} from={From} unreadCount={UnreadCount}",
+            toUsername, roomName, fromUsername, unreadCount);
+
+        // The sender goes in the body, not the title: the title has to say which room this is, or a
+        // phone showing three stacked banners tells you nothing about where to look.
+        var body = $"{fromUsername}: {messagePreview}";
+
+        var payload = new PushPayload
+        {
+            Title = $"#{roomName}",
+            Body = body.Length > 100 ? body[..97] + "..." : body,
+            Icon = "/icon-192.png",
+            Badge = "/icon-192.png",
+            Tag = $"room-{roomId}",
+            Url = $"/room/{roomId}",
+            UnreadCount = unreadCount
+        };
+
+        return SendToUserAsync(toUsername, payload);
+    }
+
+    /// <summary>
     /// Sends a test notification to all of a user's devices. Used from Settings as an
-    /// "is this subscription alive?" check — the device that buzzes is alive. Bypasses mute
-    /// so the user sees the banner even while notifications are muted.
+    /// "is this subscription alive?" check — the device that buzzes is alive. Ignores every mute
+    /// setting on purpose: a delivery test that a mute could silence would prove nothing.
     /// </summary>
     public Task<PushSendResult> SendTestAsync(string username)
     {
@@ -300,7 +320,7 @@ public class PushNotificationService
             UnreadCount = 0
         };
 
-        return SendToUserAsync(username, payload, bypassMute: true);
+        return SendToUserAsync(username, payload);
     }
 }
 
@@ -334,5 +354,4 @@ public record PushPayload
     public string Tag { get; init; } = "chat";
     public string Url { get; init; } = "/";
     public int UnreadCount { get; init; }
-    public bool Muted { get; init; }
 }

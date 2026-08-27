@@ -290,10 +290,6 @@
                                     <span>No push</span>
                                 }
                             </span>
-                            @if (selectedUser!.PushMuted)
-                            {
-                                <span class="detail-tag tag-orange">Muted</span>
-                            }
                             <span class="detail-tag @(selectedUser!.PwaInstalledAt.HasValue ? "tag-green" : "tag-muted")">
                                 @if (selectedUser!.PwaInstalledAt.HasValue)
                                 {

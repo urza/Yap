@@ -11,6 +11,7 @@ public class ChatDbContext : DbContext
     public DbSet<ChatMessage> Messages { get; set; } = null!;
     public DbSet<Reaction> Reactions { get; set; } = null!;
     public DbSet<ChannelReadState> ChannelReadStates { get; set; } = null!;
+    public DbSet<ChannelNotificationSetting> ChannelNotificationSettings { get; set; } = null!;
     public DbSet<PushSubscription> PushSubscriptions { get; set; } = null!;
     public DbSet<UserActionLog> UserActionLogs { get; set; } = null!;
     public DbSet<UserNote> UserNotes { get; set; } = null!;
@@ -40,6 +41,19 @@ public class ChatDbContext : DbContext
             entity.Property(u => u.EmojiCounts).HasMaxLength(2048);
             entity.Property(u => u.RecentGifs).HasMaxLength(2048);
             entity.Property(u => u.Theme).HasMaxLength(32);
+
+            entity.Property(u => u.NotifDmMode).HasConversion<int>();
+            // Rooms are muted by default, so existing rows must land on MuteAll rather than the
+            // enum's 0 (AllowAll) — otherwise the migration would start pushing every room message
+            // to every user who has ever installed the PWA.
+            //
+            // The sentinel is load-bearing next to HasDefaultValue: without it EF treats the CLR
+            // default (0 = AllowAll) as "not set" and omits the column on INSERT, so a user
+            // deliberately created with rooms allowed would silently land on MuteAll. -1 is not a
+            // valid NotificationMode, so every insert now writes the real value.
+            entity.Property(u => u.NotifRoomMode).HasConversion<int>()
+                  .HasDefaultValue(NotificationMode.MuteAll)
+                  .HasSentinel((NotificationMode)(-1));
 
             // Ignore computed property
             entity.Ignore(u => u.EffectiveDisplayName);
@@ -204,6 +218,21 @@ public class ChatDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(rs => rs.UserId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ChannelNotificationSetting configuration (composite primary key, like ChannelReadState)
+        modelBuilder.Entity<ChannelNotificationSetting>(entity =>
+        {
+            entity.HasKey(s => new { s.UserId, s.ChannelId });
+
+            entity.HasOne(s => s.User)
+                  .WithMany()
+                  .HasForeignKey(s => s.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            // No FK to Channel: a deleted room should not silently drop the override, and the
+            // in-memory evaluation ignores rows whose channel is gone anyway.
+            entity.HasIndex(s => s.ChannelId);
         });
 
         // PushSubscription configuration

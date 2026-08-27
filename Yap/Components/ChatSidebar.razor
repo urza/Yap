@@ -18,13 +18,22 @@
             @foreach (var room in rooms)
             {
                 var isActive = NavState.CurrentDmUser == null && NavState.CurrentRoomId == room.Id;
-                var hasUnread = !isActive && HasUnreadInRoom(room.Id);
-                <div class="room-item @(isActive ? "active" : "") @(hasUnread ? "has-unread" : "")" @onclick="() => SwitchToRoom(room.Id)">
+                var roomUnread = isActive ? 0 : GetUnreadCount(room.Id);
+                var roomMuted = ChatService.IsChannelMuted(UserId, room.Id);
+                <div class="room-item @(isActive ? "active" : "") @(roomUnread > 0 ? "has-unread" : "")" @onclick="() => SwitchToRoom(room.Id)">
                     <span class="room-icon">#</span>
                     <span class="room-name">@EmojiService.ConvertEmojis(room.Name, inline: true)</span>
-                    @if (hasUnread)
+                    @* Muted rooms get the quiet dot; unmuted ones get the count, like DMs. *@
+                    @if (roomUnread > 0)
                     {
-                        <span class="room-unread-dot"></span>
+                        @if (roomMuted)
+                        {
+                            <span class="unread-dot"></span>
+                        }
+                        else
+                        {
+                            <span class="unread-badge">@roomUnread</span>
+                        }
                     }
                     @if (isAdmin)
                     {
@@ -56,6 +65,7 @@
                 var isCurrentUser = user.Equals(Username, StringComparison.OrdinalIgnoreCase);
                 var isUserAdmin = ChatService.IsAdmin(user);
                 var userUnreadCount = isCurrentUser ? 0 : GetUnreadDMCount(user);
+                var dmMuted = !isCurrentUser && IsDmMuted(user);
                 var isActiveDM = NavState.CurrentDmUser != null && NavState.CurrentDmUser.Equals(user, StringComparison.OrdinalIgnoreCase);
                 var statusClass = status.ToString().ToLower();
                 var displayName = GetDisplayName(user);
@@ -90,7 +100,14 @@
                     }
                     @if (userUnreadCount > 0)
                     {
-                        <span class="dm-unread-badge">@userUnreadCount</span>
+                        @if (dmMuted)
+                        {
+                            <span class="unread-dot"></span>
+                        }
+                        else
+                        {
+                            <span class="unread-badge">@userUnreadCount</span>
+                        }
                     }
                 </div>
             }
@@ -231,10 +248,28 @@
         onlineUsers = ChatService.GetAllUsersWithStatus();
     }
 
-    private bool HasUnreadInRoom(Guid roomId)
+    /// <summary>Unread count for a room, muted or not — the dot and the badge both need it.</summary>
+    private int GetUnreadCount(Guid channelId)
     {
-        if (UserId == Guid.Empty) return false;
-        return ChatService.HasUnreadInRoom(UserId, roomId);
+        if (UserId == Guid.Empty) return 0;
+        return ChatService.GetUnreadCount(UserId, channelId);
+    }
+
+    /// <summary>Whether the DM with this user is muted. False when there is no DM channel yet.</summary>
+    private bool IsDmMuted(string otherUsername)
+    {
+        if (UserId == Guid.Empty || string.IsNullOrEmpty(Username)) return false;
+
+        try
+        {
+            var dmChannel = ChatService.GetDMChannels(Username)
+                .FirstOrDefault(c => c.IsDMBetween(Username, otherUsername));
+            return dmChannel != null && ChatService.IsChannelMuted(UserId, dmChannel.Id);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     private int GetUnreadDMCountForUser(string otherUsername)
@@ -470,7 +505,9 @@
             .Select(u => new
             {
                 Entry = u,
-                HasUnread = GetUnreadDMCount(u.Username) > 0,
+                // Muted DMs stay in place. Sorting them to the top is exactly the attention
+                // grab the user turned off.
+                HasUnread = GetUnreadDMCount(u.Username) > 0 && !IsDmMuted(u.Username),
                 IsOnline = u.Status != UserStatus.Invisible,
                 LastDm = lastDmByPartner.GetValueOrDefault(u.Username) // MinValue when no DM history
             })

@@ -88,6 +88,10 @@ public static class PersistenceServiceExtensions
 
         await db.Database.MigrateAsync();
 
+        // Mute rules first: ChatService reads them while fanning out unread counts, so they must
+        // be in memory before the first message lands.
+        await services.GetRequiredService<NotificationSettingsService>().InitializeAsync();
+
         // Initialize ChatService with data from DB
         var chatService = services.GetRequiredService<ChatService>();
         await chatService.InitializeAsync();

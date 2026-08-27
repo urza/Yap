@@ -805,3 +805,166 @@
 .debug-info[open] > summary::before {
     transform: rotate(90deg);
 }
+
+/* ============================================================
+   Notification settings: segmented mode pickers + per-channel list
+   ============================================================ */
+
+.notif-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.notif-row-label {
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+/* Segmented control: one row of buttons, exactly one selected. The container carries the
+   border so the buttons can sit flush against each other without doubling it. */
+.segmented {
+    display: inline-flex;
+    align-items: stretch;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--bg-input);
+}
+
+.segmented-wrap {
+    flex-wrap: wrap;
+}
+
+.seg-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.4rem 0.75rem;
+    min-height: 36px;   /* comfortable tap target on mobile */
+    background: transparent;
+    border: none;
+    border-right: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.seg-btn:last-child {
+    border-right: none;
+}
+
+.seg-btn:hover:not(.seg-selected) {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.seg-btn.seg-selected {
+    background: var(--accent-primary);
+    color: var(--text-white);
+}
+
+.seg-icon {
+    flex-shrink: 0;
+}
+
+.notif-divider {
+    height: 1px;
+    background: var(--border-subtle);
+    margin: 1.25rem 0;
+}
+
+.notif-list {
+    display: flex;
+    flex-direction: column;
+    margin: 0 0 1rem 0;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.notif-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.notif-item:last-child {
+    border-bottom: none;
+}
+
+/* "New DMs" is a rule, not a conversation — set it apart from the names above it. */
+.notif-item-default {
+    background: var(--bg-hover);
+}
+
+.notif-item-default .notif-item-name {
+    font-style: italic;
+    color: var(--text-secondary);
+}
+
+.notif-item-name {
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.notif-item-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 32px;
+    flex-shrink: 0;
+    background: transparent;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.notif-item-toggle:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.notif-item-toggle.muted {
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+}
+
+@media (max-width: 600px) {
+    /* Stack label above the picker; a three-button control does not fit beside a label
+       on a phone, and shrinking the buttons would cost the tap target. */
+    .notif-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .segmented {
+        width: 100%;
+    }
+
+    .seg-btn {
+        flex: 1 1 0;
+        padding: 0.4rem 0.5rem;
+    }
+
+    .segmented-wrap .seg-btn {
+        flex: 1 1 auto;
+    }
+}

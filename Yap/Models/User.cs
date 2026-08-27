@@ -96,10 +96,40 @@ public class User
     public string? Password { get; set; }
 
     /// <summary>
-    /// Whether push notifications are muted for this user.
-    /// When true, PushNotificationService skips sending (subscription stays intact).
+    /// DEPRECATED — no longer read or written anywhere. Was "send the badge but suppress the
+    /// banner", replaced by the per-channel mute settings below (which suppress the notification
+    /// outright). The column stays because the DB is live and dropping it buys nothing.
     /// </summary>
     public bool PushMuted { get; set; }
+
+    /// <summary>
+    /// Whether the user muted every notification on this server. Overrides both mode fields below.
+    /// </summary>
+    public bool NotifServerMuted { get; set; }
+
+    /// <summary>
+    /// When a timed server mute runs out (UTC). Null while <see cref="NotifServerMuted"/> is set
+    /// means "until I turn it back on". An elapsed value reads as unmuted; the flag itself is
+    /// cleared lazily, the next time the user opens the notification settings.
+    /// </summary>
+    public DateTime? NotifServerMuteUntil { get; set; }
+
+    /// <summary>
+    /// How DMs notify. Defaults to <see cref="NotificationMode.AllowAll"/>.
+    /// </summary>
+    public NotificationMode NotifDmMode { get; set; } = NotificationMode.AllowAll;
+
+    /// <summary>
+    /// How rooms notify. Defaults to <see cref="NotificationMode.MuteAll"/>, which reproduces the
+    /// behaviour rooms had before per-channel mute existed: an unread dot and nothing louder.
+    /// </summary>
+    public NotificationMode NotifRoomMode { get; set; } = NotificationMode.MuteAll;
+
+    /// <summary>
+    /// In <see cref="NotificationMode.Individual"/> DM mode, the default for a DM partner the user
+    /// has no override row for. Rooms have no equivalent: an unlisted room is always muted.
+    /// </summary>
+    public bool NotifNewDmsMuted { get; set; }
 
     /// <summary>
     /// Last time the user was seen running Yap as an installed PWA (display-mode: standalone).

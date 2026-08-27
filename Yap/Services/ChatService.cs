@@ -22,6 +22,7 @@ public class ChatService
     private readonly MediaCacheService _mediaCacheService;
     private readonly GifService _gifService;
     private readonly NotificationAudit _audit;
+    private readonly NotificationSettingsService _notifications;
     private readonly ILogger<ChatService> _logger;
 
     // Channels (rooms and DMs)
@@ -87,10 +88,12 @@ public class ChatService
 
     public ChatService(PushNotificationService pushService, ChatPersistenceService persistence, UserService userService,
         LinkPreviewService linkPreviewService, LinkPreviewSettingsService linkPreviewSettings,
-        MediaCacheService mediaCacheService, GifService gifService, NotificationAudit audit, ILogger<ChatService> logger)
+        MediaCacheService mediaCacheService, GifService gifService, NotificationAudit audit,
+        NotificationSettingsService notifications, ILogger<ChatService> logger)
     {
         _pushService = pushService;
         _audit = audit;
+        _notifications = notifications;
         _persistence = persistence;
         _userService = userService;
         _linkPreviewService = linkPreviewService;
@@ -331,6 +334,7 @@ public class ChatService
         _channelMessages.TryRemove(channelId, out _);
         _channelTypingUsers.TryRemove(channelId, out _);
         _channelLocks.TryRemove(channelId, out _);
+        _notifications.ClearOverridesForChannel(channelId);
 
         // Delete from database
         var sw = Stopwatch.StartNew();
@@ -1002,48 +1006,76 @@ public class ChatService
             }
         }
 
-        // Send push notification for DMs (fire-and-forget, doesn't block)
-        // Skip only if the recipient is actively looking: Online AND some session foreground.
-        // Away deliberately does NOT suppress — Away is exactly when the phone push is wanted,
-        // and an idle-but-visible desktop must not eat it.
+        // Push (fire-and-forget, doesn't block the send).
+        DispatchPush(channel, username, message, content);
+    }
+
+    /// <summary>
+    /// Decides who gets a web push for a new message and sends it.
+    /// </summary>
+    /// <remarks>
+    /// One suppression rule for both channel kinds: skip only a recipient who is actively looking,
+    /// meaning Online AND holding some foreground session. Away deliberately does NOT suppress —
+    /// Away is exactly when the phone push is wanted, and an idle-but-visible desktop must not eat it.
+    /// Muted channels never reach here.
+    /// </remarks>
+    private void DispatchPush(Channel channel, string senderUsername, ChatMessage message, string content)
+    {
+        var preview = message.HasGifs ? "[GIF]"
+                    : message.HasMedia ? "[Attachment]"
+                    : content;
+
+        foreach (var recipient in ResolvePushRecipients(channel, senderUsername))
+        {
+            var status = GetUserStatus(recipient.Username);
+            var pageVisible = IsPageVisible(recipient.Username);
+            var sessionsSnapshot = DescribeRecipientSessions(recipient.Username);
+            var subCount = _pushService.GetSubscriptionCount(recipient.Username);
+            var totalUnread = GetTotalUnreadCount(recipient.Id);
+
+            // Diagnostic: show which session (device) makes the recipient "visible" and how many
+            // push subscriptions they have — explains skipped pushes / silent phone.
+            _logger.LogDebug("Push decision: to={Recipient} channel={Channel} status={Status} anyPageVisible={PageVisible} subscriptions={SubCount} sessions=[{Sessions}]",
+                recipient.Username, DescribeChannel(channel), status, pageVisible, subCount, sessionsSnapshot);
+
+            if (status == UserStatus.Online && pageVisible)
+            {
+                _audit.RecordPushDecision(senderUsername, recipient.Username, "suppressed: Online + visible", sessionsSnapshot, subCount, totalUnread);
+                _logger.LogDebug("Push skipped: {Recipient} is Online and has a visible page", recipient.Username);
+                continue;
+            }
+
+            _audit.RecordPushDecision(senderUsername, recipient.Username, "push", sessionsSnapshot, subCount, totalUnread);
+            _logger.LogDebug("Push: from={From} to={To} channel={Channel} totalUnread={UnreadCount} status={Status}",
+                senderUsername, recipient.Username, DescribeChannel(channel), totalUnread, status);
+
+            _ = channel.IsDirectMessage
+                ? _pushService.SendDmNotificationAsync(recipient.Username, senderUsername, preview, totalUnread)
+                : _pushService.SendRoomNotificationAsync(recipient.Username, channel.Name, channel.Id, senderUsername, preview, totalUnread);
+        }
+    }
+
+    /// <summary>
+    /// The users a message could push to, before the presence check: the other DM participant, or
+    /// every user who has this room unmuted. Rooms are muted by default, so the room branch
+    /// normally yields nobody, and the scan over all users stays cheap.
+    /// </summary>
+    private IEnumerable<User> ResolvePushRecipients(Channel channel, string senderUsername)
+    {
         if (channel.IsDirectMessage)
         {
-            var recipient = channel.GetOtherParticipant(username);
-            if (recipient != null)
-            {
-                var recipientStatus = GetUserStatus(recipient);
-                var pageVisible = IsPageVisible(recipient);
-                var sessionsSnapshot = DescribeRecipientSessions(recipient);
-                var subCount = _pushService.GetSubscriptionCount(recipient);
-                var recipientUser = _userService.GetByUsername(recipient);
-                var totalUnread = recipientUser != null
-                    ? GetTotalUnreadDMCount(recipientUser.Id)
-                    : 1;
+            var other = channel.GetOtherParticipant(senderUsername);
+            var user = other != null ? _userService.GetByUsername(other) : null;
+            if (user != null && !_notifications.IsMuted(user, channel.Id, isDirectMessage: true))
+                yield return user;
+            yield break;
+        }
 
-                // Diagnostic: show which session (device) makes the recipient "visible" and how many
-                // push subscriptions they have — explains skipped pushes / silent phone.
-                _logger.LogDebug("Push DM decision: to={Recipient} status={Status} anyPageVisible={PageVisible} subscriptions={SubCount} sessions=[{Sessions}]",
-                    recipient, recipientStatus, pageVisible, subCount, sessionsSnapshot);
-
-                if (recipientStatus == UserStatus.Online && pageVisible)
-                {
-                    _audit.RecordPushDecision(username, recipient, "suppressed: Online + visible", sessionsSnapshot, subCount, totalUnread);
-                    _logger.LogDebug("Push DM skipped: {Recipient} is Online and has a visible page",
-                        recipient);
-                }
-                else
-                {
-                    var preview = message.HasGifs ? "[GIF]"
-                                : message.HasMedia ? "[Attachment]"
-                                : content;
-
-                    _audit.RecordPushDecision(username, recipient, "push", sessionsSnapshot, subCount, totalUnread);
-                    _logger.LogDebug("Push DM: from={From} to={To} totalUnread={UnreadCount} status={Status}",
-                        username, recipient, totalUnread, recipientStatus);
-
-                    _ = _pushService.SendDmNotificationAsync(recipient, username, preview, totalUnread);
-                }
-            }
+        foreach (var user in _userService.GetAllUsers())
+        {
+            if (user.Username.Equals(senderUsername, StringComparison.OrdinalIgnoreCase)) continue;
+            if (_notifications.IsMuted(user, channel.Id, isDirectMessage: false)) continue;
+            yield return user;
         }
     }
 
@@ -1479,11 +1511,21 @@ public class ChatService
         }
         else
         {
-            userIdsToIncrement = _users.Values
+            // Connected sessions, as before: that is what puts the unread dot on a room for people
+            // who are actually here. Offline users are deliberately left out, so nobody comes back
+            // to a sidebar full of dots for rooms they never opened.
+            var live = _users.Values
                 .Where(s => s.UserId != senderUserId)
-                .Select(s => s.UserId)
-                .Distinct()
-                .ToList();
+                .Select(s => s.UserId);
+
+            // Plus everyone who unmuted this room, connected or not. Their badge has to agree with
+            // the push they are about to receive, and a push with no matching count is a lie.
+            var subscribed = _userService.GetAllUsers()
+                .Where(u => u.Id != senderUserId)
+                .Where(u => !_notifications.IsMuted(u, channelId, isDirectMessage: false))
+                .Select(u => u.Id);
+
+            userIdsToIncrement = live.Concat(subscribed).Distinct().ToList();
         }
 
         if (userIdsToIncrement.Count == 0) return userIdsToIncrement;
@@ -1544,25 +1586,36 @@ public class ChatService
     }
 
     /// <summary>
-    /// Gets total unread DM count for a user across all DM channels.
+    /// Gets the user's app-wide unread count: every channel that still notifies them, DM or room.
+    /// This is the number on the mailbox icon, the PWA app badge, and every push payload.
     /// </summary>
+    /// <remarks>
+    /// Muted channels are excluded here, not at increment time. They keep counting internally so
+    /// the sidebar can still show a dot, and so unmuting reveals a true count.
+    /// </remarks>
     /// <param name="userId">The user ID</param>
     /// <param name="excludeChannelId">Optional channel ID to exclude (e.g., currently viewed channel)</param>
-    public int GetTotalUnreadDMCount(Guid userId, Guid? excludeChannelId = null)
+    public int GetTotalUnreadCount(Guid userId, Guid? excludeChannelId = null)
     {
+        var user = _userService.GetById(userId);
+        if (user == null) return 0;
+
         return _readStates
             .Where(kvp => kvp.Key.UserId == userId && kvp.Value.UnreadCount > 0)
             .Where(kvp => excludeChannelId == null || kvp.Key.ChannelId != excludeChannelId)
-            .Where(kvp => _channels.TryGetValue(kvp.Key.ChannelId, out var ch) && ch.IsDirectMessage)
+            .Where(kvp => _channels.TryGetValue(kvp.Key.ChannelId, out var ch)
+                          && !_notifications.IsMuted(user, ch.Id, ch.IsDirectMessage))
             .Sum(kvp => kvp.Value.UnreadCount);
     }
 
     /// <summary>
-    /// Checks if a room has unread messages for a user.
+    /// Whether a channel is muted for a user. Convenience for components, which hold a channel id
+    /// but not always the channel: resolves the DM-versus-room question here.
     /// </summary>
-    public bool HasUnreadInRoom(Guid userId, Guid channelId)
+    public bool IsChannelMuted(Guid userId, Guid channelId)
     {
-        return GetUnreadCount(userId, channelId) > 0;
+        if (!_channels.TryGetValue(channelId, out var channel)) return false;
+        return _notifications.IsMuted(userId, channelId, channel.IsDirectMessage);
     }
 
     /// <summary>

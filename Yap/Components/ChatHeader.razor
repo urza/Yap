@@ -7,7 +7,6 @@
 @inject IJSRuntime JS
 @inject EmojiService EmojiService
 @inject PushSubscriptionStore PushStore
-@inject PushNotificationService PushService
 @inject ILogger<ChatHeader> Logger
 @implements IDisposable
 
@@ -74,25 +73,12 @@
                         </svg>
                         <span>Settings</span>
                     </button>
-                    @if (_isPwa)
-                    {
-                        <button class="dropdown-item" @onclick="ToggleNotifications" disabled="@_togglingNotifs">
-                            @if (_pushMuted)
-                            {
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm0-15.5c2.49 0 4 2.02 4 4.5v5h2v1H6v-1h2v-5c0-3.07 1.63-5.64 4.5-6.32V4c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5v.68c-.17.04-.33.09-.5.14zM5.41 3.35L4 4.76l2.81 2.81C6.29 8.57 6 9.74 6 11v5l-2 2v1h14.24l1.35 1.35 1.41-1.41L5.41 3.35z"/>
-                                </svg>
-                                <span>Unmute Notifications</span>
-                            }
-                            else
-                            {
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/>
-                                </svg>
-                                <span>Mute Notifications</span>
-                            }
-                        </button>
-                    }
+                    <button class="dropdown-item" @onclick="OpenNotificationSettings">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/>
+                        </svg>
+                        <span>Notification settings</span>
+                    </button>
                     @if (UserState.UserId.HasValue && UserService.IsAdmin(UserState.UserId.Value))
                     {
                         <button class="dropdown-item" @onclick="OpenAdmin">
@@ -146,9 +132,6 @@
     private int unreadCount = 0;
     private int onlineCount = 0;
     private bool showDropdown = false;
-    private bool _isPwa;
-    private bool _pushMuted;
-    private bool _togglingNotifs;
 
     protected override async Task OnInitializedAsync()
     {
@@ -174,25 +157,6 @@
             {
                 onlineCount = currentCount;
                 StateHasChanged();
-            }
-
-            // Detect PWA for notifications toggle, read mute state from user model
-            if (PushService.IsConfigured)
-            {
-                try
-                {
-                    _isPwa = await JS.InvokeAsync<bool>("isPwaInstalled");
-                    if (_isPwa && UserState.UserId.HasValue)
-                    {
-                        var user = UserService.GetById(UserState.UserId.Value);
-                        _pushMuted = user?.PushMuted ?? false;
-                        StateHasChanged();
-                    }
-                }
-                catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException)
-                {
-                    // Circuit dead
-                }
             }
         }
     }
@@ -290,7 +254,7 @@
                 }
             }
 
-            unreadCount = ChatService.GetTotalUnreadDMCount(UserState.UserId.Value, excludeChannelId);
+            unreadCount = ChatService.GetTotalUnreadCount(UserState.UserId.Value, excludeChannelId);
             await UpdateBadgeAsync();
         }
         catch (Exception)
@@ -409,27 +373,10 @@
         Navigation.NavigateTo("/settings");
     }
 
-    private async Task ToggleNotifications()
+    private void OpenNotificationSettings()
     {
-        if (!UserState.UserId.HasValue) return;
-
-        _togglingNotifs = true;
-        StateHasChanged();
-
-        try
-        {
-            _pushMuted = !_pushMuted;
-            await UserService.SetPushMutedAsync(UserState.UserId.Value, _pushMuted);
-            Logger.LogDebug("Notifications {State} for {Username}", _pushMuted ? "muted" : "unmuted", UserState.Username);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Toggle notifications failed for {Username}", UserState.Username);
-        }
-
-        _togglingNotifs = false;
         showDropdown = false;
-        StateHasChanged();
+        Navigation.NavigateTo("/settings#notification-settings");
     }
 
     private record PushSubData(
