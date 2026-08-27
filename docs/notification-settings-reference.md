@@ -8,21 +8,23 @@
 
 Two separate questions, answered in two Settings sections.
 
-### 1. Can this device be notified at all? (`/settings` → Notifications)
+### 1. Can this device be notified at all? (`/settings` → Device Push Notifications)
 
-- **Enable Notifications** asks for browser permission, subscribes with the server VAPID key, then
+- **Enable push on this device** asks for browser permission, subscribes with the server VAPID key, then
   saves the endpoint per username (`EnablePush`, `Settings.razor`).
-- **Unsubscribe** unsubscribes this browser and deletes all of the user's server subscriptions.
+- **Turn off push on this device** unsubscribes this browser and deletes only its endpoint. (Until
+  2026-08 the button also wiped every other device's subscription; that wipe predated the per-device
+  list and is removed.)
 - Each subscribed device is listed with its push host, when it was added, and the last confirmed
   delivery. **Remove** deletes that one endpoint.
-- **Send test notification** pushes to every device and reports sent/failed. It ignores every mute
+- **Send a test to all devices** pushes to every subscribed device and reports sent/failed. It ignores every mute
   setting on purpose (`SendTestAsync`, `PushNotificationService.cs`): a delivery test a mute could
   silence would prove nothing.
 - `PushPermissionPrompt.razor` shows a first-run card, but only inside an installed PWA, only while
   permission is still `default`, and it stops after 3 dismissals (counter in `localStorage`).
   If permission is already granted it silently re-registers the subscription to repair rotated endpoints.
 
-### 2. What is worth notifying about? (`/settings` → Notification Settings)
+### 2. What is worth notifying about? (`/settings` → Allow / Mute Notifications)
 
 Three levels, evaluated top down by `NotificationSettingsService.IsMuted`. The first level that
 decides wins.

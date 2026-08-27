@@ -276,11 +276,12 @@
         </div>
 
         <div class="settings-section">
-            <h3>Notifications</h3>
+            <h3>Device Push Notifications</h3>
+            <p class="section-intro">Push lets Yap notify a device even when the tab is closed. Each device subscribes separately.</p>
 
             <div class="notification-status">
                 <div class="notification-row">
-                    <span class="notification-label">Push Notifications</span>
+                    <span class="notification-label">This device</span>
                     <span class="notification-value @GetPushStatusClass()">@GetPushStatusText()</span>
                 </div>
 
@@ -345,27 +346,26 @@
                 }
                 else if (pushSubscribed)
                 {
-                    <span class="form-hint">
-                        This device can receive notifications. What actually notifies you is set below.
-                    </span>
                     <div class="notification-buttons">
                         <button class="remove-button" @onclick="DisablePush" disabled="@pushToggling">
-                            @(pushToggling ? "Disabling..." : "Unsubscribe")
+                            @(pushToggling ? "Turning off..." : "Turn off push on this device")
                         </button>
                     </div>
+                    <span class="form-hint">Stops push for this device only. Other devices stay subscribed; remove them in the list above.</span>
                 }
                 else
                 {
                     <button class="upload-button" @onclick="EnablePush" disabled="@pushToggling">
-                        @(pushToggling ? "Enabling..." : "Enable Notifications")
+                        @(pushToggling ? "Enabling..." : "Enable push on this device")
                     </button>
+                    <span class="form-hint">Your browser will ask for permission. Yap can then notify this device even when the tab is closed.</span>
                 }
 
                 @if (PushService.IsConfigured && serverSubscriptionCount > 0)
                 {
                     <div class="notification-buttons" style="margin-top: 8px;">
                         <button class="upload-button" @onclick="SendTestNotification" disabled="@sendingTest">
-                            @(sendingTest ? "Sending..." : "Send test notification")
+                            @(sendingTest ? "Sending..." : "Send a test to all devices")
                         </button>
                     </div>
                     <span class="form-hint">Sends a notification to every subscribed device — the ones that buzz are alive.</span>
@@ -374,13 +374,19 @@
                 {
                     <span class="save-status saved" style="margin-top: 4px;">@pushActionStatus</span>
                 }
+
+                <span class="form-hint">
+                    Push only makes delivery possible. What actually notifies you is set in
+                    <a href="#notification-settings" @onclick="ScrollToNotificationRules" @onclick:preventDefault>Allow / Mute Notifications</a> below.
+                </span>
             </div>
         </div>
 
         @* Per-channel mute rules. Deliberately below the push section: that one answers "can this
            device be notified at all", this one answers "what is worth notifying me about". *@
         <div class="settings-section" id="notification-settings">
-            <h3>Notification Settings</h3>
+            <h3>Allow / Mute Notifications</h3>
+            <p class="section-intro">Choose what actually notifies you. These rules follow your account on every device.</p>
 
             <div class="notif-row">
                 <span class="notif-row-label">Everything on this server</span>
@@ -1486,6 +1492,9 @@
 
         try
         {
+            // Deliberately this-device-only: the button promises exactly that. An older
+            // RemoveUserSubscriptionsAsync call here wiped every device; it predated the
+            // per-device list, whose Remove buttons now cover the other devices.
             var existingSub = await JS.InvokeAsync<string?>("getPushSubscription");
             if (existingSub != null)
             {
@@ -1497,15 +1506,10 @@
                 }
             }
 
-            if (UserState.Username != null)
-            {
-                await PushStore.RemoveUserSubscriptionsAsync(UserState.Username);
-            }
-
             pushSubscribed = false;
             currentEndpoint = null;
             RefreshPushDevices();
-            Logger.LogDebug("Push disabled for {Username} from settings", UserState.Username);
+            Logger.LogDebug("Push disabled on this device for {Username}", UserState.Username);
         }
         catch (Exception ex)
         {
@@ -1584,6 +1588,12 @@
         StateHasChanged();
     }
 
+    private async Task ScrollToNotificationRules()
+    {
+        try { await JS.InvokeVoidAsync("scrollToElementId", "notification-settings"); }
+        catch { /* scroll is a nicety */ }
+    }
+
     private void ClearPushActionStatusAfterDelay()
     {
         _ = Task.Run(async () =>
@@ -1658,8 +1668,8 @@
     {
         if (!pushSupported) return "Not Supported";
         if (!PushService.IsConfigured) return "Not Configured";
-        if (pushSubscribed) return "Enabled";
-        return "Disabled";
+        if (pushSubscribed) return "Subscribed";
+        return "Not subscribed";
     }
 
     private string GetPushStatusClass()
