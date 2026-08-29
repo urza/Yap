@@ -80,6 +80,7 @@
     --bg-sidebar: #0f2538;
     --bg-hover: #14334a;
     --bg-primary: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+    --bg-canvas: #0f2027;  /* solid for the root canvas (iOS status bar, overscroll) - a gradient cannot color it */
     --bg-secondary: #1c3a52;
     --bg-input: #14334a;
     --bg-muted: #2a4d68;
@@ -111,6 +112,7 @@
     --bg-sidebar: #321c43;
     --bg-hover: #422450;
     --bg-primary: linear-gradient(135deg, #2d1b3d 0%, #6b2d5c 50%, #c44569 100%);
+    --bg-canvas: #2d1b3d;  /* solid for the root canvas (iOS status bar, overscroll) - a gradient cannot color it */
     --bg-secondary: #432555;
     --bg-input: #4d2d63;
     --bg-muted: #6b4282;
@@ -142,6 +144,7 @@
     --bg-sidebar: #1a1240;
     --bg-hover: #251950;
     --bg-primary: linear-gradient(135deg, #1a0a2e 0%, #16213e 50%, #0f3460 100%);
+    --bg-canvas: #1a0a2e;  /* solid for the root canvas (iOS status bar, overscroll) - a gradient cannot color it */
     --bg-secondary: #1f1850;
     --bg-input: #261c60;
     --bg-muted: #382a78;

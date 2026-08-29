@@ -191,6 +191,14 @@ html, body {
     padding: 0;
     font-family: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
     background: var(--bg-primary);
+    /* Gradient themes make --bg-primary an image, and the shorthand above then
+       resets background-color to transparent. iOS paints the PWA status-bar
+       strip, overscroll, and Safari's chrome tint from the root COLOR, not the
+       image - without a real one those surfaces fall back to white. Solid
+       themes fall through to --bg-primary; gradient themes must define
+       --bg-canvas (their top gradient stop) in themes.css. syncThemeColorMeta()
+       in App.razor reads this computed color into <meta name="theme-color">. */
+    background-color: var(--bg-canvas, var(--bg-primary));
     color: var(--text-primary);
     height: 100%;
     overflow: hidden;

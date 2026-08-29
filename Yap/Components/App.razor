@@ -28,8 +28,23 @@
                 var s = SCENES[new Date().getHours()];
                 if (document.documentElement.dataset.scene !== s) {
                     document.documentElement.dataset.scene = s;
+                    syncThemeColorMeta();
                 }
             }
+            // The iOS status bar and browser chrome take their tint from the
+            // theme-color meta (and the root background-color, which app.css
+            // guarantees is a real color). Re-read the computed color after
+            // every theme or scene change so the phone chrome follows the app.
+            // Before the stylesheets load the computed color is transparent -
+            // keep the server-rendered default then.
+            function syncThemeColorMeta() {
+                var bg = getComputedStyle(document.documentElement).backgroundColor;
+                if (!bg || bg === "transparent" || bg === "rgba(0, 0, 0, 0)") { return; }
+                var meta = document.querySelector('meta[name="theme-color"]');
+                if (meta && meta.content !== bg) { meta.content = bg; }
+            }
+            window.syncThemeColorMeta = syncThemeColorMeta;
+            document.addEventListener("DOMContentLoaded", syncThemeColorMeta);
             applyScene();
             window.applyScene = applyScene;
             setInterval(applyScene, 60000);
@@ -53,6 +68,7 @@
     <!-- use-credentials: the manifest fetch must send the auth cookie, or every install would get the anonymous (untokenized) start_url -->
     <link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials" />
     <link rel="apple-touch-icon" href="icon-192.png" />
+    <!-- Pre-CSS default; syncThemeColorMeta (inline script above) retints it to the active theme's canvas color -->
     <meta name="theme-color" content="#1a1a2e" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

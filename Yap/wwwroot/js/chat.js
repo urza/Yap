@@ -1443,6 +1443,8 @@ window.cleanupInfiniteScroll = () => {
 
 window.applyTheme = (themeId) => {
     document.documentElement.dataset.theme = themeId || 'discord-dark';
+    // Retint the phone's status bar / browser chrome (defined in App.razor).
+    window.syncThemeColorMeta?.();
 };
 
 // Root font size: scales every rem-based size in the app. Clearing the inline
