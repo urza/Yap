@@ -452,17 +452,20 @@
     private void SwitchToRoom(Guid roomId)
     {
         _popupUser = null; // dismiss any open profile card
+        NavState.CloseSidebar();
         var url = roomId == ChatService.GetLobbyId() ? "/lobby" : $"/room/{roomId}";
         Navigation.NavigateTo(url);
     }
 
     private void NavigateToCreateRoom()
     {
+        NavState.CloseSidebar();
         Navigation.NavigateTo("/channel/new");
     }
 
     private void OpenChannelSettings(Guid roomId)
     {
+        NavState.CloseSidebar();
         Navigation.NavigateTo($"/channel/{roomId}/settings");
     }
 
@@ -475,6 +478,8 @@
         _popupUser = null; // dismiss any open profile card
         if (targetUser.Equals(Username, StringComparison.OrdinalIgnoreCase)) return;
 
+        // After the self-tap guard: tapping yourself navigates nowhere, so the panel stays put.
+        NavState.CloseSidebar();
         Navigation.NavigateTo($"/dm/{Uri.EscapeDataString(targetUser)}");
     }
 

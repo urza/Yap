@@ -90,6 +90,18 @@ public class ChatNavigationState
     }
 
     /// <summary>
+    /// Closes the mobile slide-in sidebar. Safe to call unconditionally: the
+    /// sidebar-open class only has effect under the max-width:768px media query,
+    /// so on desktop (where the sidebar is always visible) this changes nothing.
+    /// </summary>
+    public void CloseSidebar()
+    {
+        if (!SidebarOpen) return;
+        SidebarOpen = false;
+        NotifyStateChanged();
+    }
+
+    /// <summary>
     /// Whether the header should show a back arrow (e.g. Settings, Admin pages).
     /// Not persisted — transient UI state.
     /// </summary>
