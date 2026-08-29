@@ -1,6 +1,7 @@
 @inject ChatService ChatService
 @inject UserStateService UserState
 @inject UserService UserService
+@inject NotificationSettingsService NotificationSettings
 @inject UserActionLogService ActionLog
 @inject ChatNavigationState NavState
 @inject NavigationManager Navigation
@@ -74,9 +75,21 @@
                         <span>Settings</span>
                     </button>
                     <button class="dropdown-item" @onclick="OpenNotificationSettings">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/>
-                        </svg>
+                        @* Crossed bell while the account-wide mute is on — the reminder lives here,
+                           not on the closed header button (phone real estate). Server-level only:
+                           DM/room modes have their own bells in the sidebar. *@
+                        @if (IsServerMutedNow)
+                        {
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm0-15.5c2.49 0 4 2.02 4 4.5v5h2v1H6v-1h2v-5c0-3.07 1.63-5.64 4.5-6.32V4c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5v.68c-.17.04-.33.09-.5.14zM5.41 3.35L4 4.76l2.81 2.81C6.29 8.57 6 9.74 6 11v5l-2 2v1h14.24l1.35 1.35 1.41-1.41L5.41 3.35z"/>
+                            </svg>
+                        }
+                        else
+                        {
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/>
+                            </svg>
+                        }
                         <span>Notification settings</span>
                     </button>
                     @if (UserState.UserId.HasValue && UserService.IsAdmin(UserState.UserId.Value))
@@ -165,6 +178,13 @@
     // showing the chosen one — "your setting is Online, you're currently idle", Discord-style.
     private UserStatus EffectiveStatus =>
         (UserState.Username is { } name ? ChatService.GetUserStatus(name) : null) ?? UserState.Status;
+
+    // Evaluated on render; opening the dropdown re-renders, so the icon is fresh whenever
+    // the row becomes visible. No event subscription needed for a menu-only indicator.
+    private bool IsServerMutedNow =>
+        UserState.UserId.HasValue
+        && UserService.GetById(UserState.UserId.Value) is { } u
+        && NotificationSettings.IsServerMuted(u);
 
     private void ToggleDropdown()
     {

@@ -1,6 +1,7 @@
 @inject ChatService ChatService
 @inject UserStateService UserState
 @inject UserService UserService
+@inject NotificationSettingsService NotificationSettings
 @inject ChatConfigService ChatConfig
 @inject ChatNavigationState NavState
 @inject NavigationManager Navigation
@@ -23,6 +24,13 @@
                 <div class="room-item @(isActive ? "active" : "") @(roomUnread > 0 ? "has-unread" : "")" @onclick="() => SwitchToRoom(room.Id)">
                     <span class="room-icon">#</span>
                     <span class="room-name">@EmojiService.ConvertEmojis(room.Name, inline: true)</span>
+                    @* Room bell: per-room Individual choice only (ShowsRoomMuteBell), NOT the
+                       effective roomMuted below — rooms are muted by default, and flagging the
+                       default would put a bell on every row. Don't unify the two. *@
+                    @if (ShowsRoomMuteBell(room.Id))
+                    {
+                        <span class="mute-bell" title="Notifications muted">@MuteBellIcon</span>
+                    }
                     @* Muted rooms get the quiet dot; unmuted ones get the count, like DMs. *@
                     @if (roomUnread > 0)
                     {
@@ -96,6 +104,13 @@
                     @if (BotService.IsBotUser(user))
                     {
                         <span class="bot-badge" title="Bot">@EmojiService.ConvertEmojis("🤖", inline: true)</span>
+                    }
+                    @* DM bell: EFFECTIVE mute, any cause (server mute, Mute-all DMs, individual).
+                       "Show muted when it's muted" — unlike the room bell above, which flags
+                       only a deliberate per-room choice. *@
+                    @if (dm.Muted)
+                    {
+                        <span class="mute-bell" title="Notifications muted">@MuteBellIcon</span>
                     }
                     @if (dm.Count > 0)
                     {
@@ -267,24 +282,45 @@
         if (UserId == Guid.Empty || string.IsNullOrEmpty(Username))
             return (0, false);
 
-        // Currently viewing this DM: nothing is unread by definition.
-        if (NavState.CurrentDmUser?.Equals(otherUsername, StringComparison.OrdinalIgnoreCase) == true)
-            return (0, false);
-
         try
         {
             var dmChannel = ChatService.GetDMChannels(Username)
                 .FirstOrDefault(c => c.IsDMBetween(Username, otherUsername));
             if (dmChannel == null) return (0, false);
 
-            return (ChatService.GetUnreadCount(UserId, dmChannel.Id),
-                    ChatService.IsChannelMuted(UserId, dmChannel.Id));
+            var muted = ChatService.IsChannelMuted(UserId, dmChannel.Id);
+
+            // Currently viewing this DM: nothing is unread by definition. Mute still resolves —
+            // the row's bell must not vanish just because the DM is the open one.
+            if (NavState.CurrentDmUser?.Equals(otherUsername, StringComparison.OrdinalIgnoreCase) == true)
+                return (0, muted);
+
+            return (ChatService.GetUnreadCount(UserId, dmChannel.Id), muted);
         }
         catch (Exception)
         {
             return (0, false);
         }
     }
+
+    /// <summary>
+    /// Whether a room row shows the crossed bell. Deliberately NOT the effective mute state:
+    /// rooms default to muted, so flagging every effectively-muted room would mark the whole
+    /// list. The bell mirrors the per-room toggles in Settings — visible only in Individual
+    /// room mode, and not under a server mute (the status dropdown carries that state).
+    /// </summary>
+    private bool ShowsRoomMuteBell(Guid roomId)
+    {
+        var user = UserService.GetById(UserId);
+        if (user == null) return false;
+        return !NotificationSettings.IsServerMuted(user)
+            && user.NotifRoomMode == NotificationMode.Individual
+            && NotificationSettings.IsChannelMutedIndividually(user, roomId, isDirectMessage: false);
+    }
+
+    // Same crossed-bell glyph as the Settings mute controls, sized for the sidebar rows.
+    private static readonly RenderFragment MuteBellIcon =
+        @<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm0-15.5c2.49 0 4 2.02 4 4.5v5h2v1H6v-1h2v-5c0-3.07 1.63-5.64 4.5-6.32V4c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5v.68c-.17.04-.33.09-.5.14zM5.41 3.35L4 4.76l2.81 2.81C6.29 8.57 6 9.74 6 11v5l-2 2v1h14.24l1.35 1.35 1.41-1.41L5.41 3.35z"/></svg>;
 
     #region Event Handlers
 

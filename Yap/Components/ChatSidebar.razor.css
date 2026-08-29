@@ -235,6 +235,17 @@
     text-align: center;
 }
 
+/* Crossed bell on muted channels. Sits before the unread dot/badge; the two coexist by
+   design (bell = you muted it, dot = something still arrived). DM rows show it for any
+   effective mute; room rows only for a per-room Individual choice — see ShowsRoomMuteBell. */
+.mute-bell {
+    display: flex;
+    align-items: center;
+    margin-left: 0.25rem;
+    color: var(--text-placeholder);
+    flex-shrink: 0;
+}
+
 /* Mobile-only "view profile" info button */
 .profile-info-btn {
     background: transparent;
