@@ -428,13 +428,22 @@ public class MediaCacheService
         // Print duration, title and thumbnail (one per line, in this order). The title/thumbnail
         // let us populate the preview card from yt-dlp's own metadata when the OG scrape comes back
         // empty (e.g. YouTube serves a bot/consent page with no og: tags).
-        var (exitCode, stdout) = await RunYtDlpAsync(
+        var (exitCode, output) = await RunYtDlpAsync(
             $"--print duration --print title --print thumbnail --no-playlist -- \"{url}\"", MetadataTimeoutMs);
 
-        if (exitCode != 0 || string.IsNullOrWhiteSpace(stdout))
+        if (exitCode != 0 || string.IsNullOrWhiteSpace(output))
+        {
+            // "Unsupported URL" is the normal quiet outcome for ordinary links, so it stays
+            // at Debug. Any other error means a supported site failed to extract (e.g. TikTok
+            // serving a challenge page to a server IP) — without a Warning here that breakage
+            // is invisible in production logs.
+            if (exitCode != 0 && !output.Contains("Unsupported URL", StringComparison.OrdinalIgnoreCase))
+                _logger.LogWarning("yt-dlp metadata query failed for {Url} (exit {Code}): {Err}",
+                    url, exitCode, TruncateLog(output));
             return null;
+        }
 
-        var lines = stdout.Trim().Split('\n');
+        var lines = output.Trim().Split('\n');
         if (!double.TryParse(lines[0].Trim(), System.Globalization.NumberStyles.Float,
                 System.Globalization.CultureInfo.InvariantCulture, out var duration))
             return null;
