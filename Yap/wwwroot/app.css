@@ -164,15 +164,25 @@
    rides natively with it. background-color carries the colour, the mask
    carries the shape, both set per theme/context in themes.css.
 
-   z-index choreography: .messages-flow gets its own stacking context (z-index
-   0) so the ::before at -1 paints above the ancestors' backgrounds (the canvas
-   panel wash) but below every message. Without the local context, -1 would
-   sink beneath the wash and vanish - the buried-layer bug from the pattern
-   layer's first landing.
+   z-index choreography: .messages-flow gets its own stacking context so the
+   ::before at -1 paints above the ancestors' backgrounds (the canvas panel
+   wash) but below every message. Without the local context, -1 would sink
+   beneath the wash and vanish - the buried-layer bug from the pattern layer's
+   first landing.
+
+   The context also TRAPS every position:fixed popup a message renders (the
+   more-menu and its backdrop, the reaction picker, the delete confirm): their
+   own z-indexes only rank inside the flow, and the flow as a whole ranks
+   against its siblings. z-index 1, not 0, so the flow beats the later
+   .message-input-container (z auto) - at 0 the input row painted over the
+   bottom of those popups (the "Delete" item, the mobile bottom sheets). Keep
+   it below 98 (mobile sidebar backdrop) so drawers, header dropdowns and the
+   image lightbox still cover the list. The always-on send button (z 1000) can
+   still poke through a mobile sheet while text is typed; accepted.
    ========================================================================== */
 .messages-flow {
     position: relative;
-    z-index: 0;
+    z-index: 1;
 }
 
 .messages-flow::before {

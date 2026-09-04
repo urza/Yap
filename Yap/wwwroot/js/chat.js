@@ -758,6 +758,23 @@ if ('serviceWorker' in navigator) {
 // Emoji Picker Positioning
 // ==========================================
 
+// Bottom edge a message popup may reach: the nearest scrolling ancestor's bottom
+// (the message list), not the viewport. The input box sits directly under that
+// list and its send button shares the popup's z-index while coming later in the
+// DOM, so a popup that spills below the list has its last item (Delete) painted
+// over. Keeping popups inside the list means they flip above the anchor instead.
+function popupBottomLimit(anchor) {
+    let el = anchor.parentElement;
+    while (el && el !== document.body) {
+        const overflowY = getComputedStyle(el).overflowY;
+        if (overflowY === 'auto' || overflowY === 'scroll') {
+            return Math.min(el.getBoundingClientRect().bottom, window.innerHeight);
+        }
+        el = el.parentElement;
+    }
+    return window.innerHeight;
+}
+
 // Position emoji picker as a fixed overlay near the anchor button, clamped to viewport.
 // On mobile (<=600px), CSS handles bottom-sheet positioning so we skip JS.
 window.positionEmojiPickerFixed = (wrapper, anchor) => {
@@ -768,15 +785,18 @@ window.positionEmojiPickerFixed = (wrapper, anchor) => {
 
     const anchorRect = anchor.getBoundingClientRect();
     const pickerWidth = 340;
-    const pickerHeight = 384;
+    // Measured, not assumed: the wrapper is already laid out when Blazor calls this,
+    // and a stale constant (384 vs a real 450) put the flipped picker 66px too low.
+    const pickerHeight = wrapper.offsetHeight || 384;
     const margin = 4;
 
     // Default: below anchor, right-aligned with anchor's right edge
     let top = anchorRect.bottom + margin;
     let left = anchorRect.right - pickerWidth;
 
-    // If not enough space below, position above the anchor
-    if (top + pickerHeight > window.innerHeight - margin) {
+    // If not enough space below (within the message list), position above the anchor
+    const bottomLimit = popupBottomLimit(anchor);
+    if (top + pickerHeight > bottomLimit - margin) {
         top = anchorRect.top - pickerHeight - margin;
     }
 
@@ -813,8 +833,8 @@ window.positionDropdownFixed = (wrapper, anchor) => {
     let top = anchorRect.bottom + margin;
     let left = anchorRect.right - width;
 
-    // If not enough space below, position above the anchor
-    if (top + height > window.innerHeight - margin) {
+    // If not enough space below (within the message list), position above the anchor
+    if (top + height > popupBottomLimit(anchor) - margin) {
         top = anchorRect.top - height - margin;
     }
 
