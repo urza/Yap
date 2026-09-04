@@ -159,7 +159,7 @@ Events: `OnMessageReceived`, `OnMessageUpdated`, `OnMessageDeleted`, `OnReaction
 
 **Supporting singletons:**
 - `ChatConfigService` (scoped) — UI text from appsettings; `ChatCircuitHandler` + `CircuitTracker` — circuit lifecycle & auto-away; `SystemBotService` — bot DMs (welcome, admin alerts); `RegistrationGateService` — close/approval gating.
-- Media/emoji: `ImageService` (WebP thumbs), `VideoService`, `EmojiService` (+`.Rendering`) / `EmojiData` / `CustomEmojiService`, `Gifs/` (`GifService`, `KlipyGifProvider`, `GifAdminSettingsService`, `GifFfmpegHelper`), `LinkPreviewService` (+settings), `MediaCacheService` (yt-dlp), `NetworkSecurityHelper` (SSRF).
+- Media/emoji: `ImageService` (WebP thumbs), `VideoService`, `EmojiService` (+`.Rendering`) / `EmojiData` / `CustomEmojiService`, `Gifs/` (`GifService`, `KlipyGifProvider`, `GifAdminSettingsService`, `GifFfmpegHelper`), `LinkPreviewService` (+settings), `MediaCacheService` (yt-dlp; `.TikTok.cs` renders photo posts into slideshow mp4s), `NetworkSecurityHelper` (SSRF).
 - Notifications: `PushNotificationService`, `PushSubscriptionStore`, `IPushSubscriptionPersistence` (`Db`/`Json` impls), `NotificationSettingsService` — per-channel mute (server / DM / room levels). Mute filters at **read** time, so unread counts keep accruing for muted channels: that is what leaves the small dot and makes unmuting show a true count. See `docs/notification-settings-reference.md`.
 - Infra: `GeoLocationService` (IP→country), `LocaleResolver`, `ThemeRegistry`, and hosted services `UserActionLogService` / `MediaUploadLogService` / `DiagnosticsCollectorService` (periodic flush).
 

@@ -128,6 +128,15 @@ builder.Services.AddHttpClient("LinkPreview", client =>
     client.MaxResponseContentBufferSize = 256 * 1024; // 256KB
 });
 
+// Named HttpClient for pulling media files (TikTok slideshow images) straight from a CDN.
+// The browser UA matters: TikTok's CDN rejects bare clients, and the caller adds the Referer.
+builder.Services.AddHttpClient("MediaFetch", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+});
+
 // Named HttpClient for the GIF provider (Klipy today). Shared for API requests + CDN downloads.
 builder.Services.AddHttpClient("Klipy", client =>
 {

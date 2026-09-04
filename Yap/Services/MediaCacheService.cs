@@ -6,12 +6,13 @@ using Yap.Models;
 
 namespace Yap.Services;
 
-public class MediaCacheService
+public partial class MediaCacheService
 {
     private readonly ILogger<MediaCacheService> _logger;
     private readonly IWebHostEnvironment _env;
     private readonly LinkPreviewSettingsService _settings;
     private readonly LinkPreviewService? _linkPreviewService;
+    private readonly IHttpClientFactory _httpClientFactory;
 
     // Cache: normalized URL -> MediaCacheEntry
     private readonly ConcurrentDictionary<string, MediaCacheEntry> _cache = new();
@@ -40,12 +41,14 @@ public class MediaCacheService
     /// </summary>
     public Action<Guid, string, MediaCacheEntry>? OnMediaCached { get; set; }
 
-    public MediaCacheService(ILogger<MediaCacheService> logger, IWebHostEnvironment env, LinkPreviewSettingsService settings, LinkPreviewService linkPreviewService)
+    public MediaCacheService(ILogger<MediaCacheService> logger, IWebHostEnvironment env, LinkPreviewSettingsService settings,
+        LinkPreviewService linkPreviewService, IHttpClientFactory httpClientFactory)
     {
         _logger = logger;
         _env = env;
         _settings = settings;
         _linkPreviewService = linkPreviewService;
+        _httpClientFactory = httpClientFactory;
         DetectYtDlp();
         EnsureCacheDirectory();
     }
@@ -246,6 +249,11 @@ public class MediaCacheService
             return null;
         }
 
+        // TikTok photo posts have no video stream at all; yt-dlp only offers their soundtrack.
+        // We render the slides into a real video so the post plays inline like any other.
+        if (metadata.TikTokPhotoVideoUrl is { } photoVideoUrl)
+            return await DownloadTikTokSlideshowAsync(url, photoVideoUrl, hash, metadata, sw);
+
         // Step 2: Download — try video first, fall back to audio-only
         var outputPathMp4 = Path.Combine(CacheDirectory, $"{hash}.mp4");
         var outputPathAudio = Path.Combine(CacheDirectory, $"{hash}.mp3");
@@ -428,11 +436,22 @@ public class MediaCacheService
         // Print duration, title and thumbnail (one per line, in this order). The title/thumbnail
         // let us populate the preview card from yt-dlp's own metadata when the OG scrape comes back
         // empty (e.g. YouTube serves a bot/consent page with no og: tags).
+        // vcodec is the slideshow tell: a TikTok photo post reached through a /video/ link probes
+        // fine but carries no video stream at all (vcodec "none", only the soundtrack).
         var (exitCode, output) = await RunYtDlpAsync(
-            $"--print duration --print title --print thumbnail --no-playlist -- \"{url}\"", MetadataTimeoutMs);
+            $"--print duration --print title --print thumbnail --print vcodec --no-playlist -- \"{url}\"", MetadataTimeoutMs);
 
         if (exitCode != 0 || string.IsNullOrWhiteSpace(output))
         {
+            // TikTok photo posts (slideshows) live under /photo/<id>, which yt-dlp's TikTok extractor
+            // does not match, so a short link that redirects there dies here as "Unsupported URL".
+            // The very same id extracts fine through /video/<id> (soundtrack + cover + title).
+            if (TryGetTikTokPhotoVideoUrl(output, out var videoUrl))
+            {
+                var viaVideo = await GetMetadataAsync(videoUrl);
+                return viaVideo is null ? null : viaVideo with { TikTokPhotoVideoUrl = videoUrl };
+            }
+
             // "Unsupported URL" is the normal quiet outcome for ordinary links, so it stays
             // at Debug. Any other error means a supported site failed to extract (e.g. TikTok
             // serving a challenge page to a server IP) — without a Warning here that breakage
@@ -450,9 +469,16 @@ public class MediaCacheService
 
         var title = lines.Length > 1 ? CleanField(lines[1]) : null;
         var thumbnail = lines.Length > 2 ? CleanField(lines[2]) : null;
+        var vcodec = lines.Length > 3 ? CleanField(lines[3]) : null;
 
-        return new MediaMetadata(duration, title, thumbnail);
+        var isTikTokSlideshow = vcodec is "none" && IsTikTokUrl(url);
+        return new MediaMetadata(duration, title, thumbnail, isTikTokSlideshow ? url : null);
     }
+
+    private static bool IsTikTokUrl(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri)
+        && (uri.Host.Equals("tiktok.com", StringComparison.OrdinalIgnoreCase)
+            || uri.Host.EndsWith(".tiktok.com", StringComparison.OrdinalIgnoreCase));
 
     // yt-dlp prints "NA" for fields it couldn't resolve; treat that (and blanks) as null.
     private static string? CleanField(string raw)
@@ -590,7 +616,7 @@ public class MediaCacheService
         return Convert.ToHexString(bytes)[..16].ToLowerInvariant();
     }
 
-    private async Task<(int ExitCode, string Output)> RunYtDlpAsync(string args, int timeoutMs)
+    private async Task<(int ExitCode, string Output)> RunYtDlpAsync(string args, int timeoutMs, string? workingDirectory = null)
     {
         var psi = new ProcessStartInfo("yt-dlp", args)
         {
@@ -599,6 +625,8 @@ public class MediaCacheService
             UseShellExecute = false,
             CreateNoWindow = true
         };
+        if (workingDirectory != null)
+            psi.WorkingDirectory = workingDirectory;
 
         using var process = Process.Start(psi);
         if (process == null)
@@ -664,10 +692,19 @@ public class MediaCacheService
         using var process = Process.Start(psi);
         if (process == null) return -1;
 
+        // Drain both pipes: ffmpeg writes progress to stderr, and an undrained redirected pipe
+        // blocks the child once the OS buffer fills, which looks like a hang until the timeout.
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
+
         using var cts = new CancellationTokenSource(timeoutMs);
         try
         {
             await process.WaitForExitAsync(cts.Token);
+            await stdoutTask;
+            var stderr = await stderrTask;
+            if (process.ExitCode != 0)
+                _logger.LogDebug("{Tool} exited {Code}: {Stderr}", fileName, process.ExitCode, TruncateLog(stderr));
             return process.ExitCode;
         }
         catch (OperationCanceledException)
@@ -687,7 +724,9 @@ public class MediaCacheService
         return text.Length <= maxLength ? text : text[..maxLength] + "...";
     }
 
-    private record MediaMetadata(double Duration, string? Title = null, string? Thumbnail = null);
+    /// <param name="TikTokPhotoVideoUrl">Set when the link is a TikTok photo post (slideshow): the
+    /// /video/ form of its id, the only form yt-dlp extracts (see <see cref="GetMetadataAsync"/>).</param>
+    private record MediaMetadata(double Duration, string? Title = null, string? Thumbnail = null, string? TikTokPhotoVideoUrl = null);
 }
 
 public record MediaCacheEntry(string LocalUrl, CachedMediaType MediaType, int DurationSeconds, int Width = 0, int Height = 0, string? Title = null, string? Thumbnail = null);

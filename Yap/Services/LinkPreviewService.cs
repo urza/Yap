@@ -204,7 +204,13 @@ public partial class LinkPreviewService
         {
             var titleMatch = TitleTagRegex().Match(html);
             if (titleMatch.Success)
-                preview.Title = WebUtility.HtmlDecode(titleMatch.Groups[1].Value.Trim());
+            {
+                var title = WebUtility.HtmlDecode(titleMatch.Groups[1].Value.Trim());
+                // TikTok photo posts ship no og: tags and a site-wide placeholder <title>. Taking
+                // it would block the real post text that yt-dlp's metadata backfills later.
+                if (!string.Equals(title, "TikTok - Make Your Day", StringComparison.OrdinalIgnoreCase))
+                    preview.Title = title;
+            }
         }
 
         // Fallback: meta description if no og:description
