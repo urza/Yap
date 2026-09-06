@@ -12,6 +12,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux -o /usr/local/bin/yt-dlp \
     && chmod a+rx /usr/local/bin/yt-dlp \
     && rm -rf /var/lib/apt/lists/*
+# Deno is yt-dlp's JavaScript runtime for YouTube. Recent yt-dlp releases have the YouTube extractor
+# solve the player challenge in JS, which needs a runtime on PATH; without one the metadata probe
+# exits 1 with "No supported JavaScript runtime could be found" and every YouTube link silently
+# gets no embed (seen on live 2026-09-06). Deno is the only runtime yt-dlp enables by default.
+# Pinned bare binary from the official image, same pattern as ffmpeg above.
+COPY --from=denoland/deno:bin-2.9.6 /deno /usr/local/bin/deno
 WORKDIR /app
 EXPOSE 8080
 
