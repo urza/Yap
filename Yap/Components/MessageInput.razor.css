@@ -464,8 +464,15 @@
         padding: 0 0.5rem;
     }
 
+    /* Pinned font-size prevents iOS zoom. The padding is pinned too: with a root
+       font-size other than 16px the rem padding goes fractional (0.6875rem @ 18px =
+       12.375px) while the 16px line stays 22px, so the text line sits on a half-pixel
+       and iOS WebKit paints a 1px "strike-through" row across it (dark under glyphs,
+       stale pixels after a delete). 11px + 22px + 11px also matches the 44px reset
+       height chat.js applies after a send. */
     .message-input {
-        font-size: 16px; /* Prevents zoom on iOS */
+        font-size: 16px;
+        padding: 11px 4px;
     }
 
     /* 40px buttons in the 44px-min box: 2px bottom margin keeps them optically centered
