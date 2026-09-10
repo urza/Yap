@@ -1,0 +1,85 @@
+// WeChat's built-in sticker set, renamed from the original Chinese filenames.
+// The comment on each line is what the sticker actually means in Chinese chat, which is often
+// not what the picture shows: several of these are read as sarcasm or a brush-off by younger
+// users while older users still send them sincerely. Keywords carry the original Chinese name
+// and its pinyin too, so people who know the set can search for it by name.
+{
+  // Faces — the classic set
+  "smile": "微笑 weixiao polite passive aggressive sarcasm cold hehe dismissive whatever", // The infamous one: older users mean a warm hello, younger users read it as an icy "呵呵" brush-off, so it is the single riskiest sticker to send to a stranger.
+  "happy": "笑脸 xiaolian friendly polite grin pleasant", // A plain open smile with no baggage, used for ordinary friendliness where 微笑 would read as passive-aggressive.
+  "grin": "呲牙 ciya haha laugh teeth happy modest", // The workhorse laugh of the set and China's most-sent sticker for years, also used to accept a compliment modestly or to end a chat on a warm note.
+  "goofy": "憨笑 hanxiao silly innocent sincere dopey", // A dopey, sincere grin, though about a fifth of users flip it into sarcasm when annoyed.
+  "cheerful": "愉快 yukuai pleasant content good mood", // Simple good mood, lighter than a laugh.
+  "snicker": "偷笑 touxiao hehe hide giggle smug gloat", // Covering the mouth to giggle, usually quiet gloating or private delight at someone else's trouble.
+  "smirk": "坏笑 huaixiao naughty mischief evil up to something", // A naughty grin that says the sender is up to something.
+  "cheeky": "调皮 tiaopi playful tongue wink teasing kidding", // Tongue out and winking: "I'm just messing with you."
+  "scheming": "奸笑 jianxiao evil grin knowing you know what i mean", // A sly "heh heh, you know what I mean" grin, often paired with an idea the sender knows is bad.
+  "sinister": "阴险 yinxian evil villain plotting doomed threat", // The villain smile that means "you're finished", genuinely hostile and best not sent to people you barely know.
+  "smug": "得意 deyi proud pleased flex bragging", // Self-satisfied bragging: "I am so good at this."
+  "arrogant": "傲慢 aoman haughty disdain looking down snob", // Chin up, eyes half shut: "hmph, garbage."
+  "contempt": "鄙视 bishi despise look down scorn judge", // A sideways look that says "I think less of you now."
+  "sideeye": "白眼 baiyan disdain speechless done ultimate", // Eyes rolled fully white, the strongest form of "I have nothing to say to that".
+  "eyeroll": "翻白眼 fanbaiyan roll eyes annoyed impatient tired", // Added in 2020 and read as pure impatience, the everyday version of 白眼.
+  "pout": "撇嘴 piezui grimace unhappy sulk grievance", // A curled lip that reads as sulking or mild disgust depending on who sends it.
+  "hmph": "右哼哼 youhengheng harrumph sulk tsundere pout annoyed", // A theatrical harrumph, sulky in a way that invites you to come and coax the sender.
+  "nosepick": "抠鼻 koubi picking nose whatever doubt unimpressed", // Picking the nose while you talk: about a third mean flat contempt, and more mean "yeah, I doubt that."
+  "vomit": "吐 tu puke disgust gross sick nauseous", // Physical disgust, used for both bad food and bad opinions.
+  "cursing": "咒骂 zhouma swear rage angry fight furious", // Mouth full of symbols: the nuclear option of the set, and a reliable way to start an actual argument.
+  "angry": "发怒 fanu mad furious rage upset", // Straightforwardly angry, no irony attached.
+  "freakout": "抓狂 zhuakuang crazy losing it stressed breakdown scream", // Tearing at one's own hair: "I am about to lose my mind."
+  "bonk": "敲打 qiaoda hammer knock sense wake up scold", // A little hammer to the head, sent to someone being dense, in the exasperated way you would scold a friend.
+  "shush": "嘘 xu quiet shh secret hush keep it down", // Finger to the lips: keep this between us.
+  "shutup": "闭嘴 bizui silence stop talking speechless zip it", // Literally a hand over the mouth, used both for "be quiet" and for being struck dumb.
+  "speechless": "无语 wuyu blank no words nothing to say dead inside", // A completely blank face, the visual of having no reply left.
+  "awkward": "尴尬 ganga embarrassed cringe social death sweat", // The face of 社死, "social death", when you want the floor to swallow you.
+  "jiong": "囧 jiong embarrassed awkward dumbfounded meme", // The classic 囧 character as a face, an internet relic that means dumbfounded and slightly pathetic.
+  "shy": "害羞 haixiu bashful flattered blush compliment", // Sent after a compliment, and about a quarter of the time to fish for one.
+  "blush": "脸红 lianhong flushed shy tipsy warm", // Flushed cheeks: shy, flustered, or a little drunk.
+  "drool": "色 se lecherous horny love hearts want gorgeous", // Heart eyes and a dropped jaw, now used far more for food and merch than for people.
+  "kiss": "亲亲 qinqin muah mwah love smooch affection", // A puckered kiss, the standard "么么哒" for close friends and partners.
+  "pleading": "可怜 kelian puppy eyes pity comfort hug beg", // Watery eyes and a pacifier, the beg for sympathy or a hug.
+  "wronged": "委屈 weiqu unfair aggrieved hurt sulking", // "I have been wronged and I want you to notice."
+  "teary": "快哭了 kuaikule about to cry welling up sad", // On the verge of tears, a level up from 委屈.
+  "crying": "流泪 liulei tears sad moved touched", // One stream of tears, for real sadness and for being moved.
+  "bawling": "大哭 daku sobbing wailing devastated", // Full open-mouthed sobbing, usually played for comedy.
+  "laughcry": "破涕为笑 potiweixiao laughing tears lol hilarious bittersweet", // Crying and laughing at once, the all-purpose reaction sticker before 捂脸 took its place.
+  "facepalm": "捂脸 wulian cringe embarrassed cant look lol dying", // The most-sent sticker in the whole set and the signature of Gen Z users, covering "I can't look", "my bad", and "that's so funny it hurts".
+  "sad": "难过 nanguo unhappy down blue upset", // Quietly unhappy.
+  "disappointed": "失望 shiwang letdown resigned oh well give up", // "Ah well, forget it."
+  "sigh": "叹气 tanqi resigned tired exhausted meh", // A visible sigh of resignation, often paired with 裂开 by people complaining about work.
+  "bitter": "苦涩 kuse hurt suffering struggling bittersweet broke", // Officially translated "hurt": the taste of a problem you cannot say out loud.
+  "cracked": "裂开 liekai broken breaking down mental collapse overwhelmed", // A face splitting in two, the modern favourite for "my whole mental state just collapsed", usually over something small like a Monday.
+  "scared": "恐惧 kongju fear frightened afraid terrified", // Shrunken pupils: "that scared the life out of me."
+  "scream": "惊恐 jingkong panic horror shock terrified", // Mouth wide open in panic, one notch above 恐惧.
+  "surprised": "惊讶 jingya shocked whoa really astonished", // "Wait, seriously?"
+  "wow": "哇 wa amazed impressed envy awesome", // Wide-eyed amazement, and just as often envy.
+  "omg": "天啊 tiana oh my god shocked unbelievable", // The words "天啊" spelled out for shock too big for a face.
+  "huh": "疑问 yiwen question confused what puzzled", // A giant question mark: "…what?"
+  "frown": "皱眉 zhoumei confused unhappy worried displeased", // A knitted brow, somewhere between confused and unimpressed.
+  "daze": "发呆 fadai spaced out blank bored zoned", // Soul left the body, used for boredom and for "where am I, what is happening".
+  "dizzy": "晕 yun spiral confused stunned overwhelmed", // Spiral eyes, usually from someone else's stupidity rather than actual vertigo.
+  "sleepy": "困 kun tired drowsy exhausted", // Eyelids fighting each other.
+  "sleeping": "睡 shui asleep zzz goodnight bed", // Actually asleep, or announcing that you are going to be.
+  "sick": "生病 shengbing ill unwell mask fever", // A mask and a weak expression: "I'm not feeling well."
+  "sweat": "汗 han awkward nervous cold sweat oh no", // One bead of cold sweat, the small, self-deprecating flavour of embarrassment.
+  "phew": "擦汗 cahan wiping sweat relief close call tired", // Wiping the sweat away: a near miss survived, or plain exhaustion.
+  "unlucky": "衰 shuai bad luck cursed doomed misfortune", // A greenish, sweating face reserved for the person having the worst day.
+  "skull": "骷髅 kulou dead died laughing rip", // A skull that carries both "I'm dead" from laughing and a real threat of doom, exactly like 💀 in English chat.
+  "chill": "悠闲 youxian relaxed carefree smoking not my problem", // Leaning back with a cigarette: relaxed, and also "none of my business, I'm just watching."
+  "clever": "机智 jizhi smart genius bright idea glasses", // Glasses on: "I am quite the clever one, aren't I."
+  "heyha": "嘿哈 heiha kungfu cocky laugh gotcha", // A cocky kung-fu shout, the sound of dodging your punch and enjoying it.
+  "yeah": "耶 ye victory peace sign v happy win", // The V sign: happy, and slightly triumphant.
+  "clap": "鼓掌 guzhang applause well done bravo praise", // Applause, sincere or slow depending on the company.
+  "bye": "再见 zaijian goodbye wave done leaving blocked", // A wave that older users mean as goodbye and younger users use to end a conversation for good, closer to "we're done here" than "see you".
+
+  // Word and meme stickers added from 2020 on, most of them lifted straight from internet slang
+  "doge": "旺柴 wangchai dog shiba sarcasm joking irony just kidding", // WeChat's Shiba, the "life insurance" sticker: attach it and everything before it is a joke or the exact opposite of what you said.
+  "melon": "吃瓜 chigua onlooker gossip drama spectator popcorn tea", // The melon-eating crowd: "I'm just here for the drama, and I'm not picking a side."
+  "respect": "社会社会 shehui shehui gangster impressive legend savage", // Hip-hop slang for someone too formidable to mess with, sent as half-admiring, half-joking respect.
+  "666": "厉害 liuliuliu awesome skilled nice pro gg well played", // Gamer slang from LoL and Dota where 六 sounds like 溜, "slick": pure "damn, you're good".
+  "mybad": "打脸 dalian slap face wrong proven wrong oops eat words", // A hand slapping a face, sent when reality contradicts what you confidently said a minute ago.
+  "letmesee": "让我看看 rangwokankan peek curious show me nosy panda", // A panda peeking through its fingers, the sticker of a curiosity that cannot be contained.
+  "okay": "好的 haode ok sure got it no problem fine", // "Got it" — efficient from a friend, and a conversation-ender from a boss.
+  "letsgo": "加油 jiayou add oil go for it cheer up you can do it fighting", // A raised fist and the words 加油, the sincere "you've got this" of Chinese chat with no hidden edge.
+  "emm": "呃 uhh hmm no comment hesitation awkward speechless", // Spelled-out hesitation: the sender saw your message and has nothing polite to say about it.
+}
