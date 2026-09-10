@@ -18,7 +18,10 @@
                     }
                 </div>
             }
-            <video controls preload="auto" class="cached-video-player" style="@VideoAspectStyle">
+            @* poster is required for iOS: Safari never preloads video data (ignores preload="auto"),
+               so without it the player is a black box until the user taps play. Desktop browsers
+               paint the first frame anyway and just show the thumbnail a little earlier. *@
+            <video controls preload="auto" poster="@Preview.ImageUrl" class="cached-video-player" style="@VideoAspectStyle">
                 <source src="@Preview.CachedMediaUrl" type="video/mp4" />
             </video>
         }
