@@ -28,6 +28,33 @@ wwwroot/emoji-packs/
 - Order within a pack is alphabetical by shortcode; packs themselves sort A–Z after "Custom".
 - The folder is scanned **once at startup** — restart the app after adding files.
 
+## Search keywords (`keywords.json`)
+
+The picker searches each emoji by its shortcode, so `:blobwave:` is found by "blob" or "wave" and
+by nothing else. To add search terms, drop a `keywords.json` next to the images:
+
+```
+wwwroot/emoji-packs/blobs/
+├── keywords.json
+├── blobwave.png
+└── blobthink.png
+```
+
+```json
+{
+  "blobwave": "hello hi greeting bye",
+  "blobthink": ["hmm", "ponder", "suspicious"]
+}
+```
+
+- Keys are shortcodes (the filename without extension), case-insensitive. A key with no image file
+  is logged as a warning at startup — that is how you catch a typo.
+- Values are a string or an array of strings. Both end up as one space-separated, lowercased blob.
+- Matching stays plain substring, so "greet" finds `blobwave` but "olleh" does not.
+- The file is optional, per folder (`Data/custom-emojis/` may have its own), and never fatal: bad
+  JSON is logged and those emoji stay searchable by shortcode alone.
+- Comments and trailing commas are allowed, so the file can carry notes.
+
 ## One flat namespace
 
 All shortcodes — built-in packs and server customs alike — share a single namespace, so `:party:`

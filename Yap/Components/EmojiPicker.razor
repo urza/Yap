@@ -225,14 +225,20 @@
     /// <summary>
     /// The client-side search corpus for one cell, rendered as its data-kw attribute
     /// (~40KB across the grid, riding the background mount). Custom emojis match on
-    /// their shortcode; standard emojis on their curated keyword string — the same
-    /// substring semantics the old server-side search had. Lowercased here so chat.js
-    /// compares with a plain includes().
+    /// their shortcode plus whatever their pack's keywords.json adds; standard emojis on
+    /// their curated keyword string — the same substring semantics the old server-side
+    /// search had. Lowercased here so chat.js compares with a plain includes().
     /// </summary>
-    private static string GetKeywords(string e) =>
-        IsCustomEmojiString(e)
-            ? e[1..^1].ToLowerInvariant()
-            : EmojiData.EmojiKeywords.GetValueOrDefault(e)?.ToLowerInvariant() ?? "";
+    private string GetKeywords(string e)
+    {
+        if (!IsCustomEmojiString(e))
+            return EmojiData.EmojiKeywords.GetValueOrDefault(e)?.ToLowerInvariant() ?? "";
+
+        // The shortcode always matches, even for a recent whose image is gone from the folder.
+        var shortcode = e[1..^1].ToLowerInvariant();
+        var extra = CustomEmojiService.GetByShortcode(shortcode)?.Keywords ?? "";
+        return extra.Length > 0 ? $"{shortcode} {extra}" : shortcode;
+    }
 
     private static string CapitalizeFirst(string s) =>
         string.IsNullOrEmpty(s) ? s : char.ToUpper(s[0]) + s[1..];
