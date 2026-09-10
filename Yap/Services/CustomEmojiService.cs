@@ -87,9 +87,6 @@ public partial class CustomEmojiService
     {
         var claimed = new List<CustomEmoji>();
         var keywords = LoadKeywords(folder);
-        // Every shortcode this folder *contains*, claimed or shadowed — so an unused keywords.json
-        // key means a typo, not merely an emoji some higher-priority pack took over.
-        var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // Explicit sort: Directory.GetFiles order is filesystem-dependent (ext4 returns hash order),
         // and the picker's layout shouldn't differ between a dev box and the server.
@@ -107,7 +104,10 @@ public partial class CustomEmojiService
             }
 
             var shortcode = name.ToLowerInvariant();
-            present.Add(shortcode);
+            // Consume the keywords entry *before* the shadow check: the key is valid whenever this
+            // folder holds the image, even if a higher-priority pack owns the shortcode. Whatever
+            // is left in the map after the loop names an emoji with no file, i.e. a typo.
+            keywords.Remove(shortcode, out var kw);
             if (_emojis.TryGetValue(shortcode, out var owner))
             {
                 if (owner.Pack == pack)
@@ -126,81 +126,59 @@ public partial class CustomEmojiService
                 Url = $"{urlBase}/{filename}",
                 Pack = pack,
                 IsBuiltIn = isBuiltIn,
-                Keywords = keywords.GetValueOrDefault(shortcode) ?? ""
+                Keywords = string.IsNullOrEmpty(kw) ? shortcode : $"{shortcode} {kw}"
             };
 
             _emojis[shortcode] = emoji;
             claimed.Add(emoji);
         }
 
-        foreach (var key in keywords.Keys.Where(k => !present.Contains(k)))
+        foreach (var key in keywords.Keys)
             _logger.LogWarning("keywords.json in '{Pack}' names ':{Shortcode}:', which has no image file",
                 pack, key);
 
         return claimed;
     }
 
+    private static readonly JsonSerializerOptions KeywordJsonOptions = new()
+    {
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true
+    };
+
     /// <summary>
-    /// Reads the optional <c>keywords.json</c> of one emoji folder: a flat map of shortcode to
-    /// search terms, where the value is either a string or an array of strings.
+    /// Reads the optional <c>keywords.json</c> of one emoji folder: a flat map of shortcode to one
+    /// string of search terms.
     /// <code>
-    /// { "blobwave": "hello hi greeting", "blobthink": ["hmm", "ponder"] }
+    /// { "blobwave": "hello hi greeting", "blobthink": "hmm ponder" }
     /// </code>
-    /// Returned values are lowercased and space-joined, ready to append to the picker's
-    /// <c>data-kw</c> corpus. A missing file is the normal case; a broken one is logged and
-    /// ignored, because losing search terms must never stop the app from starting.
+    /// Values come back lowercased with normalized whitespace, ready to append to the picker's
+    /// <c>data-kw</c> corpus. A missing file is the normal case. A broken one (bad JSON, a value
+    /// that is not a string) is logged and the whole file is ignored, because losing search terms
+    /// must never stop the app from starting.
     /// </summary>
     private Dictionary<string, string> LoadKeywords(string folder)
     {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var path = Path.Combine(folder, "keywords.json");
         if (!File.Exists(path))
-            return result;
+            return new(StringComparer.OrdinalIgnoreCase);
 
         try
         {
-            using var doc = JsonDocument.Parse(File.ReadAllText(path),
-                new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
-
-            if (doc.RootElement.ValueKind != JsonValueKind.Object)
-            {
-                _logger.LogWarning("Ignoring {Path}: the root must be an object of shortcode -> keywords", path);
-                return result;
-            }
-
-            foreach (var entry in doc.RootElement.EnumerateObject())
-            {
-                var terms = entry.Value.ValueKind switch
-                {
-                    JsonValueKind.String => new[] { entry.Value.GetString() ?? "" },
-                    JsonValueKind.Array => entry.Value.EnumerateArray()
-                        .Where(v => v.ValueKind == JsonValueKind.String)
-                        .Select(v => v.GetString() ?? "").ToArray(),
-                    _ => null
-                };
-
-                if (terms is null)
-                {
-                    _logger.LogWarning("Ignoring keywords for ':{Shortcode}:' in {Path}: expected a string or an array of strings",
-                        entry.Name, path);
-                    continue;
-                }
-
-                // Re-split on whitespace before joining: hand-written entries carry stray double
-                // spaces, and the search compares a raw substring, so "hi greeting" must not miss.
-                var joined = string.Join(' ', terms
-                    .SelectMany(t => t.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)))
-                    .ToLowerInvariant();
-                if (joined.Length > 0)
-                    result[entry.Name] = joined;
-            }
+            var raw = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path), KeywordJsonOptions)
+                      ?? new();
+            // Re-split on whitespace: hand-written values carry stray double spaces, and the search
+            // compares a raw substring, so "hi greeting" must not miss "hi  greeting".
+            return raw.ToDictionary(
+                kv => kv.Key,
+                kv => string.Join(' ', kv.Value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant(),
+                StringComparer.OrdinalIgnoreCase);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to read {Path} — those emoji stay searchable by shortcode only", path);
+            return new(StringComparer.OrdinalIgnoreCase);
         }
-
-        return result;
     }
 
     // An empty pack has no tab icon and nothing to scroll to, so it never reaches the picker.
@@ -238,6 +216,10 @@ public class CustomEmoji
     /// <summary>Owning pack's <see cref="EmojiPack.Key"/>.</summary>
     public required string Pack { get; init; }
     public required bool IsBuiltIn { get; init; }
-    /// <summary>Extra picker-search terms from the folder's keywords.json; lowercase, space-separated, may be empty.</summary>
-    public string Keywords { get; init; } = "";
+    /// <summary>
+    /// The picker's full search corpus for this emoji: the shortcode, followed by any terms the
+    /// folder's keywords.json adds. Lowercase, space-separated, built once at scan time so the
+    /// picker renders it straight into <c>data-kw</c>.
+    /// </summary>
+    public required string Keywords { get; init; }
 }

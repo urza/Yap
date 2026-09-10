@@ -43,16 +43,17 @@ wwwroot/emoji-packs/blobs/
 ```json
 {
   "blobwave": "hello hi greeting bye",
-  "blobthink": ["hmm", "ponder", "suspicious"]
+  "blobthink": "hmm ponder suspicious"
 }
 ```
 
 - Keys are shortcodes (the filename without extension), case-insensitive. A key with no image file
   is logged as a warning at startup — that is how you catch a typo.
-- Values are a string or an array of strings. Both end up as one space-separated, lowercased blob.
+- Values are one string of space-separated terms. They are lowercased before matching.
 - Matching stays plain substring, so "greet" finds `blobwave` but "olleh" does not.
 - The file is optional, per folder (`Data/custom-emojis/` may have its own), and never fatal: bad
-  JSON is logged and those emoji stay searchable by shortcode alone.
+  JSON or a value that is not a string is logged, the whole file is skipped, and those emoji stay
+  searchable by shortcode alone.
 - Comments and trailing commas are allowed, so the file can carry notes.
 
 ## One flat namespace

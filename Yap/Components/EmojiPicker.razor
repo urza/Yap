@@ -83,7 +83,7 @@
                     @foreach (var emoji in pack.Emojis)
                     {
                         var shortcode = $":{emoji.Shortcode}:";
-                        <button class="emoji-btn" data-emoji="@shortcode" data-kw="@GetKeywords(shortcode)" @attributes="GetClickAttributes(shortcode)" title="@shortcode">
+                        <button class="emoji-btn" data-emoji="@shortcode" data-kw="@emoji.Keywords" @attributes="GetClickAttributes(shortcode)" title="@shortcode">
                             @EmojiService.RenderCustomEmoji(emoji, "22px")
                         </button>
                     }
@@ -224,20 +224,21 @@
 
     /// <summary>
     /// The client-side search corpus for one cell, rendered as its data-kw attribute
-    /// (~40KB across the grid, riding the background mount). Custom emojis match on
-    /// their shortcode plus whatever their pack's keywords.json adds; standard emojis on
+    /// (~40KB across the grid, riding the background mount). Standard emojis match on
     /// their curated keyword string — the same substring semantics the old server-side
     /// search had. Lowercased here so chat.js compares with a plain includes().
+    /// Custom emojis carry their corpus on <see cref="CustomEmoji.Keywords"/>; the pack
+    /// loop reads it directly, and only the recents list (which holds bare strings) comes
+    /// through here.
     /// </summary>
     private string GetKeywords(string e)
     {
         if (!IsCustomEmojiString(e))
             return EmojiData.EmojiKeywords.GetValueOrDefault(e)?.ToLowerInvariant() ?? "";
 
-        // The shortcode always matches, even for a recent whose image is gone from the folder.
+        // A recent may name an emoji whose image is gone from the folder; the shortcode still matches.
         var shortcode = e[1..^1].ToLowerInvariant();
-        var extra = CustomEmojiService.GetByShortcode(shortcode)?.Keywords ?? "";
-        return extra.Length > 0 ? $"{shortcode} {extra}" : shortcode;
+        return CustomEmojiService.GetByShortcode(shortcode)?.Keywords ?? shortcode;
     }
 
     private static string CapitalizeFirst(string s) =>
