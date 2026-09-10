@@ -13,6 +13,8 @@ public class LinkPreview
 
     // Media cache fields (populated by MediaCacheService)
     public string? CachedMediaUrl { get; set; }
+    /// <summary>Self-hosted poster frame of the cached video (see MediaCacheService.EnsurePosterAsync).</summary>
+    public string? CachedPosterUrl { get; set; }
     public CachedMediaType? MediaType { get; set; }
     public int? MediaDurationSeconds { get; set; }
     public int? MediaWidth { get; set; }

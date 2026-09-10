@@ -110,6 +110,7 @@ public class ChatService
         {
             var preview = _linkPreviewService.GetOrCreatePreview(url);
             preview.CachedMediaUrl = entry.LocalUrl;
+            preview.CachedPosterUrl = entry.PosterUrl;
             preview.MediaType = entry.MediaType;
             preview.MediaDurationSeconds = entry.DurationSeconds;
             if (entry.Width > 0 && entry.Height > 0)

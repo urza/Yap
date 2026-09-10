@@ -782,6 +782,7 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
             {
                 preview ??= LinkPreviewService.GetOrCreatePreview(url);
                 preview.CachedMediaUrl = media.LocalUrl;
+                preview.CachedPosterUrl = media.PosterUrl;
                 preview.MediaType = media.MediaType;
                 preview.MediaDurationSeconds = media.DurationSeconds;
                 if (media.Width > 0 && media.Height > 0)

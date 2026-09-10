@@ -76,19 +76,13 @@ public partial class MediaCacheService
             }
 
             var fileSize = new FileInfo(outputPath).Length;
-            var (w, h) = (0, 0);
-            var dims = await ProbeVideoDimensionsAsync(outputPath);
-            if (dims != null)
-            {
-                (w, h) = dims.Value;
-                WriteDimensionsSidecar(hash, w, h);
-            }
+            var (w, h, poster) = await DescribeVideoAsync(hash, outputPath);
 
             _logger.LogInformation("Cached TikTok slideshow: {Url} -> {File} ({Slides} slides, {SizeKB}KB, {Duration}s, {Audio}, {Dims}, {ElapsedMs}ms)",
                 url, Path.GetFileName(outputPath), slides.Count, fileSize / 1024, (int)totalSeconds.Value,
                 audioPath != null ? "with sound" : "silent", w > 0 ? $"{w}x{h}" : "-", sw.ElapsedMilliseconds);
 
-            return new MediaCacheEntry($"/media-cache/{hash}.mp4", CachedMediaType.Video, (int)totalSeconds.Value, w, h, metadata.Title, metadata.Thumbnail);
+            return new MediaCacheEntry($"/media-cache/{hash}.mp4", CachedMediaType.Video, (int)totalSeconds.Value, w, h, metadata.Title, metadata.Thumbnail, poster);
         }
         finally
         {

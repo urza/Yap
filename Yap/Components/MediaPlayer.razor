@@ -19,9 +19,11 @@
                 </div>
             }
             @* poster is required for iOS: Safari never preloads video data (ignores preload="auto"),
-               so without it the player is a black box until the user taps play. Desktop browsers
-               paint the first frame anyway and just show the thumbnail a little earlier. *@
-            <video controls preload="auto" poster="@Preview.ImageUrl" class="cached-video-player" style="@VideoAspectStyle">
+               so without it the player is a black box until the user taps play. The self-hosted
+               frame wins over the scraped image: it always exists, never expires, and matches
+               the video's aspect ratio. The scraped image only covers the moment before the
+               frame has been extracted. *@
+            <video controls preload="auto" poster="@(Preview.CachedPosterUrl ?? Preview.ImageUrl)" class="cached-video-player" style="@VideoAspectStyle">
                 <source src="@Preview.CachedMediaUrl" type="video/mp4" />
             </video>
         }

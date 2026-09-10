@@ -13,6 +13,7 @@ public partial class MediaCacheService
     private readonly LinkPreviewSettingsService _settings;
     private readonly LinkPreviewService? _linkPreviewService;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly VideoService _videoService;
 
     // Cache: normalized URL -> MediaCacheEntry
     private readonly ConcurrentDictionary<string, MediaCacheEntry> _cache = new();
@@ -25,6 +26,12 @@ public partial class MediaCacheService
 
     // Limit concurrent downloads to avoid rate limiting
     private readonly SemaphoreSlim _downloadSemaphore = new(2);
+
+    // Disk-cached videos from before a deploy get their poster/dimensions filled in lazily on
+    // first render. A chat page can surface dozens at once, so cap the ffmpeg fan-out and
+    // dedup per hash (several circuits render the same message).
+    private readonly SemaphoreSlim _describeSemaphore = new(2);
+    private readonly ConcurrentDictionary<string, byte> _describing = new();
 
     /// <summary>Whether yt-dlp is available on this system.</summary>
     public static bool IsAvailable { get; private set; }
@@ -42,13 +49,14 @@ public partial class MediaCacheService
     public Action<Guid, string, MediaCacheEntry>? OnMediaCached { get; set; }
 
     public MediaCacheService(ILogger<MediaCacheService> logger, IWebHostEnvironment env, LinkPreviewSettingsService settings,
-        LinkPreviewService linkPreviewService, IHttpClientFactory httpClientFactory)
+        LinkPreviewService linkPreviewService, IHttpClientFactory httpClientFactory, VideoService videoService)
     {
         _logger = logger;
         _env = env;
         _settings = settings;
         _linkPreviewService = linkPreviewService;
         _httpClientFactory = httpClientFactory;
+        _videoService = videoService;
         DetectYtDlp();
         EnsureCacheDirectory();
     }
@@ -129,17 +137,19 @@ public partial class MediaCacheService
             var ext = Path.GetExtension(diskFile);
             var type = IsVideoExtension(ext) ? CachedMediaType.Video : CachedMediaType.Audio;
 
-            // Pick up dimensions from sidecar if present (videos only); otherwise
-            // kick off a background probe so the next render gets them.
+            // Pick up dimensions/poster from disk if present (videos only); otherwise
+            // kick off a background describe so the next render gets them.
             var (w, h) = (0, 0);
+            string? poster = null;
             if (type == CachedMediaType.Video)
             {
                 var dims = ReadDimensionsSidecar(hash);
                 if (dims != null) (w, h) = dims.Value;
-                else QueueLazyDimensionsProbe(url, hash, diskFile);
+                if (File.Exists(PosterPath(hash))) poster = PosterUrl(hash);
+                if (dims == null || poster == null) QueueLazyVideoDescribe(url, hash, diskFile);
             }
 
-            var entry = new MediaCacheEntry($"/media-cache/{hash}{ext}", type, 0, w, h);
+            var entry = new MediaCacheEntry($"/media-cache/{hash}{ext}", type, 0, w, h, PosterUrl: poster);
             _cache[url] = entry;
             return entry;
         }
@@ -217,17 +227,10 @@ public partial class MediaCacheService
             var type = IsVideoExtension(ext) ? CachedMediaType.Video : CachedMediaType.Audio;
             _logger.LogDebug("Media cache hit (file exists): {Url}", url);
 
-            var (w, h) = (0, 0);
-            if (type == CachedMediaType.Video)
-            {
-                var dims = ReadDimensionsSidecar(hash) ?? await ProbeVideoDimensionsAsync(existingFile);
-                if (dims != null)
-                {
-                    (w, h) = dims.Value;
-                    WriteDimensionsSidecar(hash, w, h);
-                }
-            }
-            return new MediaCacheEntry($"/media-cache/{hash}{ext}", type, 0, w, h);
+            var (w, h, existingPoster) = type == CachedMediaType.Video
+                ? await DescribeVideoAsync(hash, existingFile)
+                : (0, 0, null);
+            return new MediaCacheEntry($"/media-cache/{hash}{ext}", type, 0, w, h, PosterUrl: existingPoster);
         }
 
         // Route Spotify URLs to spotdl
@@ -331,22 +334,15 @@ public partial class MediaCacheService
         // Capture pixel dimensions so the <video> element can reserve the right
         // box before metadata loads — prevents layout-shift scroll-stranding,
         // especially for portrait videos (TikTok / YouTube Shorts).
-        var (vw, vh) = (0, 0);
-        if (mediaType == CachedMediaType.Video)
-        {
-            var dims = await ProbeVideoDimensionsAsync(actualPath);
-            if (dims != null)
-            {
-                (vw, vh) = dims.Value;
-                WriteDimensionsSidecar(hash, vw, vh);
-            }
-        }
+        var (vw, vh, poster) = mediaType == CachedMediaType.Video
+            ? await DescribeVideoAsync(hash, actualPath)
+            : (0, 0, null);
 
         _logger.LogInformation("Cached media: {Url} -> {File} ({SizeKB}KB, {Duration}s, {Type}, {Dims}, {ElapsedMs}ms)",
             url, Path.GetFileName(actualPath), fileSize / 1024,
             (int)metadata.Duration, mediaType, vw > 0 ? $"{vw}x{vh}" : "-", sw.ElapsedMilliseconds);
 
-        return new MediaCacheEntry(localUrl, mediaType, (int)metadata.Duration, vw, vh, metadata.Title, metadata.Thumbnail);
+        return new MediaCacheEntry(localUrl, mediaType, (int)metadata.Duration, vw, vh, metadata.Title, metadata.Thumbnail, poster);
     }
 
     /// <summary>
@@ -490,7 +486,8 @@ public partial class MediaCacheService
     /// <summary>
     /// Finds an output file by hash prefix. Uses glob to catch any extension
     /// yt-dlp may have chosen. Video extensions preferred over audio. Sidecar
-    /// files like {hash}.dims are excluded.
+    /// files like {hash}.dims are excluded, and {hash}_poster.webp never matches
+    /// the "{hash}." glob.
     /// </summary>
     private string? FindOutputFile(string hash)
     {
@@ -595,18 +592,63 @@ public partial class MediaCacheService
     }
 
     /// <summary>
-    /// Fire-and-forget background probe for a disk-cached video without a sidecar.
-    /// Mutates the in-memory cache entry on success so subsequent renders see dimensions.
+    /// Dimensions + poster frame for a cached video. Reads what is already on disk and
+    /// probes/extracts (and writes) whatever is missing, so the next restart is a pure read.
     /// </summary>
-    private void QueueLazyDimensionsProbe(string url, string hash, string filePath)
+    private async Task<(int Width, int Height, string? PosterUrl)> DescribeVideoAsync(string hash, string filePath)
     {
+        var dims = ReadDimensionsSidecar(hash);
+        if (dims == null)
+        {
+            dims = await ProbeVideoDimensionsAsync(filePath);
+            if (dims != null) WriteDimensionsSidecar(hash, dims.Value.Width, dims.Value.Height);
+        }
+        var (w, h) = dims ?? (0, 0);
+        return (w, h, await EnsurePosterAsync(hash, filePath));
+    }
+
+    // The poster is a self-hosted frame of the cached file rather than the site's thumbnail:
+    // the OG scrape only reads the first 256KB and YouTube's og:image sits far past that, the
+    // yt-dlp thumbnail is only known at download time (lost after restart), and TikTok CDN
+    // image URLs expire. iOS Safari never preloads video, so without a poster the player is
+    // a black box there. VideoService writes "{stem}_poster.webp" next to the video, which is
+    // exactly PosterPath(hash).
+    private string PosterPath(string hash) => Path.Combine(CacheDirectory, $"{hash}_poster.webp");
+    private static string PosterUrl(string hash) => $"/media-cache/{hash}_poster.webp";
+
+    private async Task<string?> EnsurePosterAsync(string hash, string videoPath)
+    {
+        if (File.Exists(PosterPath(hash))) return PosterUrl(hash);
+        if (!VideoService.IsAvailable) return null;
+        var written = await _videoService.GeneratePosterAsync(videoPath);
+        return written != null ? PosterUrl(hash) : null;
+    }
+
+    /// <summary>
+    /// Fire-and-forget describe for a disk-cached video missing its sidecar or poster.
+    /// Mutates the in-memory cache entry on success so subsequent renders see them.
+    /// </summary>
+    private void QueueLazyVideoDescribe(string url, string hash, string filePath)
+    {
+        if (!_describing.TryAdd(hash, 0)) return;
         _ = Task.Run(async () =>
         {
-            var dims = await ProbeVideoDimensionsAsync(filePath);
-            if (dims == null) return;
-            WriteDimensionsSidecar(hash, dims.Value.Width, dims.Value.Height);
-            if (_cache.TryGetValue(url, out var existing))
-                _cache[url] = existing with { Width = dims.Value.Width, Height = dims.Value.Height };
+            await _describeSemaphore.WaitAsync();
+            try
+            {
+                var (w, h, poster) = await DescribeVideoAsync(hash, filePath);
+                if (_cache.TryGetValue(url, out var existing))
+                    _cache[url] = existing with { Width = w, Height = h, PosterUrl = poster };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Lazy describe failed for cached media {Url}", url);
+            }
+            finally
+            {
+                _describeSemaphore.Release();
+                _describing.TryRemove(hash, out _);
+            }
         });
     }
 
@@ -729,4 +771,4 @@ public partial class MediaCacheService
     private record MediaMetadata(double Duration, string? Title = null, string? Thumbnail = null, string? TikTokPhotoVideoUrl = null);
 }
 
-public record MediaCacheEntry(string LocalUrl, CachedMediaType MediaType, int DurationSeconds, int Width = 0, int Height = 0, string? Title = null, string? Thumbnail = null);
+public record MediaCacheEntry(string LocalUrl, CachedMediaType MediaType, int DurationSeconds, int Width = 0, int Height = 0, string? Title = null, string? Thumbnail = null, string? PosterUrl = null);
