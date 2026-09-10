@@ -137,19 +137,22 @@ public partial class MediaCacheService
             var ext = Path.GetExtension(diskFile);
             var type = IsVideoExtension(ext) ? CachedMediaType.Video : CachedMediaType.Audio;
 
-            // Pick up dimensions/poster from disk if present (videos only); otherwise
-            // kick off a background describe so the next render gets them.
+            // Pick up title/dimensions/poster from disk if present; otherwise kick off a
+            // background describe so the next render gets them.
+            var title = ReadTitleSidecar(hash);
             var (w, h) = (0, 0);
             string? poster = null;
+            var incomplete = title == null && !IsSpotifyUrl(url); // Spotify never has a yt-dlp title
             if (type == CachedMediaType.Video)
             {
                 var dims = ReadDimensionsSidecar(hash);
                 if (dims != null) (w, h) = dims.Value;
                 if (File.Exists(PosterPath(hash))) poster = PosterUrl(hash);
-                if (dims == null || poster == null) QueueLazyVideoDescribe(url, hash, diskFile);
+                incomplete |= dims == null || poster == null;
             }
+            if (incomplete) QueueLazyDescribe(url, hash, diskFile, type);
 
-            var entry = new MediaCacheEntry($"/media-cache/{hash}{ext}", type, 0, w, h, PosterUrl: poster);
+            var entry = new MediaCacheEntry($"/media-cache/{hash}{ext}", type, 0, w, h, title, PosterUrl: poster);
             _cache[url] = entry;
             return entry;
         }
@@ -251,6 +254,10 @@ public partial class MediaCacheService
                 url, metadata.Duration, MaxDurationSeconds);
             return null;
         }
+
+        // The title only exists in yt-dlp's output. Without the sidecar a restart would drop
+        // it, and for TikTok the OG scrape (a bot page with no tags) cannot fill it back in.
+        WriteTitleSidecar(hash, metadata.Title);
 
         // TikTok photo posts have no video stream at all; yt-dlp only offers their soundtrack.
         // We render the slides into a real video so the post plays inline like any other.
@@ -625,10 +632,38 @@ public partial class MediaCacheService
     }
 
     /// <summary>
-    /// Fire-and-forget describe for a disk-cached video missing its sidecar or poster.
-    /// Mutates the in-memory cache entry on success so subsequent renders see them.
+    /// Sidecar holding the yt-dlp title (single line). Written even when empty so a video
+    /// that genuinely has no title is not re-queried on every restart.
     /// </summary>
-    private void QueueLazyVideoDescribe(string url, string hash, string filePath)
+    private string TitleSidecarPath(string hash) => Path.Combine(CacheDirectory, $"{hash}.title");
+
+    private void WriteTitleSidecar(string hash, string? title)
+    {
+        try { File.WriteAllText(TitleSidecarPath(hash), title ?? ""); }
+        catch { }
+    }
+
+    /// <summary>Null when the sidecar is missing; empty string when it exists but the video has no title.</summary>
+    private string? ReadTitleSidecar(string hash)
+    {
+        try
+        {
+            var path = TitleSidecarPath(hash);
+            return File.Exists(path) ? File.ReadAllText(path).Trim() : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Fire-and-forget describe for a disk-cached file missing its title sidecar, dimensions
+    /// or poster. Mutates the in-memory cache entry on success so subsequent renders see them.
+    /// The title needs a yt-dlp metadata query (network), so it runs only for files cached
+    /// before the sidecar existed, and only once per process even if it fails.
+    /// </summary>
+    private void QueueLazyDescribe(string url, string hash, string filePath, CachedMediaType type)
     {
         if (!_describing.TryAdd(hash, 0)) return;
         _ = Task.Run(async () =>
@@ -636,9 +671,19 @@ public partial class MediaCacheService
             await _describeSemaphore.WaitAsync();
             try
             {
-                var (w, h, poster) = await DescribeVideoAsync(hash, filePath);
+                var title = ReadTitleSidecar(hash);
+                if (title == null && !IsSpotifyUrl(url))
+                {
+                    title = (await GetMetadataAsync(url))?.Title;
+                    if (title != null) WriteTitleSidecar(hash, title);
+                }
+
+                var (w, h, poster) = type == CachedMediaType.Video
+                    ? await DescribeVideoAsync(hash, filePath)
+                    : (0, 0, null);
+
                 if (_cache.TryGetValue(url, out var existing))
-                    _cache[url] = existing with { Width = w, Height = h, PosterUrl = poster };
+                    _cache[url] = existing with { Width = w, Height = h, PosterUrl = poster, Title = title ?? existing.Title };
             }
             catch (Exception ex)
             {

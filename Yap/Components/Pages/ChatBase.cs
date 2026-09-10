@@ -785,6 +785,9 @@ public abstract class ChatBase : ComponentBase, IAsyncDisposable
                 preview.CachedPosterUrl = media.PosterUrl;
                 preview.MediaType = media.MediaType;
                 preview.MediaDurationSeconds = media.DurationSeconds;
+                // Same fallback as the OnMediaCached wiring in ChatService: after a restart the
+                // scrape may be empty (TikTok serves a bot page) while the sidecar has the title.
+                if (string.IsNullOrEmpty(preview.Title)) preview.Title = media.Title;
                 if (media.Width > 0 && media.Height > 0)
                 {
                     preview.MediaWidth = media.Width;
