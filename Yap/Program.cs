@@ -125,8 +125,12 @@ builder.Services.AddHttpClient("LinkPreview", client =>
     client.DefaultRequestHeaders.UserAgent.ParseAdd(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
     client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-US,en;q=0.9");
-    client.MaxResponseContentBufferSize = 256 * 1024; // 256KB
-});
+    // No size cap here: the service streams the response and stops at </head> itself.
+})
+// A scraper must not keep cookies. YouTube sets a pending-consent cookie (SOCS) on the redirect
+// hop of /shorts and youtu.be links; seeing it on the final request, it serves the "Before you
+// continue" interstitial (no og: tags, wrong title) instead of the video page.
+.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { UseCookies = false });
 
 // Named HttpClient for pulling media files (TikTok slideshow images) straight from a CDN.
 // The browser UA matters: TikTok's CDN rejects bare clients, and the caller adds the Referer.

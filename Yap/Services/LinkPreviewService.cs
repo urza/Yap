@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
@@ -18,7 +19,11 @@ public partial class LinkPreviewService
     private readonly ConcurrentDictionary<string, byte> _inFlight = new();
 
     private static readonly TimeSpan CacheTtl = TimeSpan.FromHours(1);
-    private const int MaxResponseBytes = 256 * 1024; // 256KB
+    // Hard cap on how much of a page we read while looking for the end of <head>. YouTube's
+    // head alone is ~715KB (a 256KB cap silently dropped its og:title/og:image), so the cap
+    // must sit well above that; 2MB still bounds a hostile endless stream.
+    private const int MaxResponseBytes = 2 * 1024 * 1024;
+    private const string HeadEndTag = "</head>";
 
     /// <summary>
     /// Callback invoked when a preview fetch completes. Parameters: (messageId, url, preview).
@@ -158,25 +163,45 @@ public partial class LinkPreviewService
         if (contentType != null && !contentType.Contains("html", StringComparison.OrdinalIgnoreCase))
             return new LinkPreview { Url = url, Failed = true, FetchedAt = DateTime.UtcNow };
 
-        // Read limited bytes
         var stream = await response.Content.ReadAsStreamAsync();
-        var buffer = new byte[MaxResponseBytes];
-        var bytesRead = await ReadUpToAsync(stream, buffer);
-        var html = System.Text.Encoding.UTF8.GetString(buffer, 0, bytesRead);
+        var html = await ReadHeadAsync(stream);
 
         return ParseOpenGraph(url, html);
     }
 
-    private static async Task<int> ReadUpToAsync(Stream stream, byte[] buffer)
+    /// <summary>
+    /// Reads the response until the closing head tag (OpenGraph tags live in the head),
+    /// end of stream, or the hard cap. Stopping at the head keeps ordinary pages cheap
+    /// while still reaching the tags on pages with a very large head.
+    /// </summary>
+    private static async Task<string> ReadHeadAsync(Stream stream)
     {
-        int totalRead = 0;
-        while (totalRead < buffer.Length)
+        using var collected = new MemoryStream();
+        var chunk = ArrayPool<byte>.Shared.Rent(64 * 1024);
+        try
         {
-            var read = await stream.ReadAsync(buffer.AsMemory(totalRead, buffer.Length - totalRead));
-            if (read == 0) break;
-            totalRead += read;
+            while (collected.Length < MaxResponseBytes)
+            {
+                var want = (int)Math.Min(chunk.Length, MaxResponseBytes - collected.Length);
+                var read = await stream.ReadAsync(chunk.AsMemory(0, want));
+                if (read == 0) break;
+                collected.Write(chunk, 0, read);
+
+                // Look for the tag in the new bytes plus a small overlap, so a tag split
+                // across two reads is still found. Latin1 maps bytes 1:1, so the ASCII tag
+                // is found regardless of surrounding UTF-8 sequences.
+                var tailStart = (int)Math.Max(0, collected.Length - read - HeadEndTag.Length);
+                var tail = System.Text.Encoding.Latin1.GetString(collected.GetBuffer(), tailStart, (int)collected.Length - tailStart);
+                if (tail.Contains(HeadEndTag, StringComparison.OrdinalIgnoreCase))
+                    break;
+            }
         }
-        return totalRead;
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(chunk);
+        }
+
+        return System.Text.Encoding.UTF8.GetString(collected.GetBuffer(), 0, (int)collected.Length);
     }
 
     private static LinkPreview ParseOpenGraph(string url, string html)
