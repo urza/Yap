@@ -390,12 +390,16 @@
     private void OpenSettings()
     {
         showDropdown = false;
+        // On phone the slide-in sidebar can be open under the header dropdown;
+        // leaving it open would cover the page we navigate to. No-op on desktop.
+        NavState.CloseSidebar();
         Navigation.NavigateTo("/settings");
     }
 
     private void OpenNotificationSettings()
     {
         showDropdown = false;
+        NavState.CloseSidebar();
         Navigation.NavigateTo("/settings#notification-settings");
     }
 
@@ -407,6 +411,7 @@
     private void OpenAdmin()
     {
         showDropdown = false;
+        NavState.CloseSidebar();
         Navigation.NavigateTo("/admin");
     }
 
