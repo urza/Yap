@@ -161,34 +161,156 @@ window.isNearBottom = (threshold = 100) => {
     return distanceFromBottom <= threshold;
 };
 
-// Image modal keyboard navigation
+// ==========================================
+// Image gallery viewer (ImageGalleryModal)
+// Everything the finger does is client-owned, so no gesture waits for the circuit: swipe is
+// native scroll-snap on .gallery-strip, fit/fill is a "fill" class per .modal-stage, drag-down
+// sets "dragging" + a --drag variable, and every close path adds "closing" (hide now, tell the
+// circuit after). Those class attributes are static in the markup, so Blazor's diff never
+// clobbers what we add. The circuit is only ever told to close.
+// ==========================================
+
+const DOUBLE_TAP_MS = 300;
+const DOUBLE_TAP_PX = 25;
+const DRAG_CLOSE_PX = 120;      // release below this and the picture springs back
+const DRAG_FADE_PX = 300;       // backdrop fully faded at this drag distance
+
+let modalRef = null;
 let modalKeyHandler = null;
 
-window.setupModalKeyboard = (dotNetRef) => {
-    // Remove any existing handler
-    if (modalKeyHandler) {
-        document.removeEventListener('keydown', modalKeyHandler);
-    }
-
+window.attachGalleryModal = (dotNetRef) => {
+    modalRef = dotNetRef;
+    document.removeEventListener('keydown', modalKeyHandler);
     modalKeyHandler = (e) => {
-        if (e.key === 'Escape') {
-            dotNetRef.invokeMethodAsync('CloseModalFromJs');
-        } else if (e.key === 'ArrowRight') {
-            dotNetRef.invokeMethodAsync('NextImageFromJs');
-        } else if (e.key === 'ArrowLeft') {
-            dotNetRef.invokeMethodAsync('PrevImageFromJs');
-        }
+        if (e.key === 'Escape') closeGallery();
+        else if (e.key === 'ArrowRight') stepGallery(1);
+        else if (e.key === 'ArrowLeft') stepGallery(-1);
     };
-
     document.addEventListener('keydown', modalKeyHandler);
 };
 
-window.removeModalKeyboard = () => {
-    if (modalKeyHandler) {
-        document.removeEventListener('keydown', modalKeyHandler);
-        modalKeyHandler = null;
-    }
+window.detachGalleryModal = () => {
+    document.removeEventListener('keydown', modalKeyHandler);
+    modalKeyHandler = null;
+    modalRef = null;
 };
+
+const galleryStrip = () => document.querySelector('.image-modal .gallery-strip');
+
+const stepGallery = (dir) => {
+    const strip = galleryStrip();
+    strip?.scrollBy({ left: dir * strip.clientWidth, behavior: 'smooth' });
+};
+
+// The stage currently snapped into view.
+const visibleStage = (strip) => strip.children[Math.round(strip.scrollLeft / strip.clientWidth)];
+
+const closeGallery = () => {
+    document.querySelector('.image-modal')?.classList.add('closing');
+    modalRef?.invokeMethodAsync('CloseModalFromJs').catch(() => {});
+};
+
+// Blazor inserts the strip scrolled to item 0. A JS-interop call after render would move it a
+// round-trip later, with item 0 visible until then, so we catch the insertion here and scroll in
+// the same task, before the first paint.
+new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) {
+            if (node.nodeType !== 1) continue;
+            const strip = node.matches('.image-modal') ? node.querySelector('.gallery-strip') : null;
+            if (strip) initGalleryStrip(strip);
+        }
+    }
+}).observe(document.body, { childList: true, subtree: true });
+
+const initGalleryStrip = (strip) => {
+    strip.scrollLeft = Number(strip.dataset.start) * strip.clientWidth;
+
+    const stages = [...strip.children];
+    const counter = strip.parentElement.querySelector('.modal-counter-index');
+    const watcher = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+            const video = entry.target.querySelector('video');
+            if (entry.isIntersecting) {
+                video?.play().catch(() => {});   // iOS may refuse sound without a tap; controls are there
+                if (counter) counter.textContent = stages.indexOf(entry.target) + 1;
+            } else {
+                video?.pause();
+                entry.target.classList.remove('fill', 'fill-w');   // like every native viewer: a swipe lands on fit
+            }
+        }
+    }, { root: strip, threshold: 0.6 });
+    stages.forEach((stage) => watcher.observe(stage));
+};
+
+// Fit <-> fill. CSS scales the picture along one axis; we pick the axis (fill-w for a picture
+// narrower than the stage) and centre the scroll on the tapped point instead of landing top-left.
+const toggleFill = (stage, rx = 0.5, ry = 0.5) => {
+    const img = stage?.querySelector('img');
+    if (!img?.naturalWidth) return;       // videos have no fill mode; an unloaded picture has no ratio yet
+    if (stage.classList.contains('fill')) { stage.classList.remove('fill', 'fill-w'); return; }
+    const narrower = img.naturalWidth / img.naturalHeight < stage.clientWidth / stage.clientHeight;
+    stage.classList.toggle('fill-w', narrower);
+    stage.classList.add('fill');
+    stage.scrollLeft = rx * img.clientWidth - stage.clientWidth / 2;
+    stage.scrollTop = ry * img.clientHeight - stage.clientHeight / 2;
+};
+
+// Capture phase: runs before Blazor's delegated click handling and can't be affected by it.
+document.addEventListener('click', (e) => {
+    const modal = e.target.closest('.image-modal');
+    if (!modal) return;
+    if (e.target.closest('.modal-nav.prev')) stepGallery(-1);
+    else if (e.target.closest('.modal-nav.next')) stepGallery(1);
+    else if (e.target.closest('.modal-fill')) toggleFill(visibleStage(galleryStrip()));
+    else if (!e.target.closest('img, video')) modal.classList.add('closing');   // backdrop or ×: Blazor's @onclick closes, this hides now
+}, true);
+
+// Own double-tap detection instead of dblclick: iOS support for dblclick on touch is patchy,
+// and this gives mouse double-click the same behaviour for free.
+let lastTap = null;
+document.addEventListener('pointerup', (e) => {
+    const img = e.target.closest('.modal-stage > img');
+    if (!img) { lastTap = null; return; }
+    const r = img.getBoundingClientRect();
+    const tap = {
+        t: e.timeStamp, x: e.clientX, y: e.clientY,
+        rx: (e.clientX - r.left) / r.width, ry: (e.clientY - r.top) / r.height,
+    };
+    const isDouble = lastTap && tap.t - lastTap.t < DOUBLE_TAP_MS
+        && Math.hypot(tap.x - lastTap.x, tap.y - lastTap.y) < DOUBLE_TAP_PX;
+    lastTap = isDouble ? null : tap;
+    if (isDouble) toggleFill(img.parentElement, tap.rx, tap.ry);
+});
+
+// Drag down to close: touch only, fit mode only (in fill mode a vertical drag pans the picture).
+// The stage's touch-action hands horizontal pans to the strip; those arrive as pointercancel.
+let drag = null;
+document.addEventListener('pointerdown', (e) => {
+    const stage = e.target.closest('.modal-stage:not(.fill)');
+    if (!stage || e.pointerType !== 'touch' || !e.isPrimary) return;
+    drag = { y: e.clientY, stage, modal: stage.closest('.image-modal') };
+    stage.classList.add('dragging');
+});
+
+document.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const dy = Math.max(0, e.clientY - drag.y);
+    drag.stage.style.transform = `translateY(${dy}px)`;
+    drag.modal.style.setProperty('--drag', Math.min(1, dy / DRAG_FADE_PX));
+});
+
+const endDrag = (e) => {
+    if (!drag) return;
+    const { y, stage, modal } = drag;
+    drag = null;
+    stage.classList.remove('dragging');
+    if (e.type === 'pointerup' && e.clientY - y > DRAG_CLOSE_PX) { closeGallery(); return; }
+    stage.style.transform = '';
+    modal.style.removeProperty('--drag');
+};
+document.addEventListener('pointerup', endDrag);
+document.addEventListener('pointercancel', endDrag);
 
 // Drag-drop file handling + drag-over visuals, fully client-side. Blazor never sees drag
 // events — dragover fires continuously during a drag and used to round-trip per event just
