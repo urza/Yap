@@ -1,6 +1,6 @@
 # First-Run Setup
 
-Status: DONE (2026-08-21)
+Status: DONE (2026-09-20)
 
 Do the tasks below one time in each new sandbox. Do them in order. When all tasks are complete:
 
@@ -15,7 +15,9 @@ If a task fails, do not mark the file as done. Write the error in the task's **R
 
 Check if ".claude-memory" folder exists in this project. If not, create it. Your memories will be stored there. We may or may not add that to .gitignore depending on public/private status of this repository on GitHub. Ask user about it if you just created.
 
-**Result:** Already existed with 30 memory files + MEMORY.md (carried over with the repo from the previous machine). Already gitignored (`.claude-memory/*`, .gitignore line 7). Nothing to create, no question needed.
+**Result:** `.claude-memory/` already existed with the MEMORY.md index and the
+memory files. `.gitignore` already excludes it (`.claude-memory/*`), so no
+question for the user was needed.
 
 ## Task 2 — Prompt spellcheck
 
@@ -45,17 +47,46 @@ Check if ".claude-memory" folder exists in this project. If not, create it. Your
    jq '.spellcheck = {"enabled": true}' ~/.claude/settings.json > ~/.claude/settings.json.tmp \
      && mv ~/.claude/settings.json.tmp ~/.claude/settings.json
    ```
+3. Set Case-insensitive checking
 
-3. Verify:
+Without this, lowercase `english` is flagged because the dictionary only
+has `English`. The fix is one line in `~/.aspell.conf`:
+
+```
+ignore-case true
+```
+
+This personal config applies to every aspell run by this user, including
+the Claude Code spellcheck process. With it, one lowercase entry in the
+personal dictionary also covers all case forms.
+
+
+4. Verify:
 
    ```bash
    command -v aspell            # must show a path
    jq .spellcheck ~/.claude/settings.json   # must show {"enabled": true}
-   ```
+   Note: aspell can do only one language. The guide to merge dictionaries manually is in `aspell-spellcheck.md`.
 
    The underline shows after the next session restart.
 
-**Result:** Installed aspell + aspell-en via apt. Merged `"spellcheck": {"enabled": true}` into `~/.claude/settings.json` with jq (other keys preserved). Verified: `command -v aspell` → /usr/bin/aspell; `jq .spellcheck` → `{"enabled": true}`. Underline appears after next session restart.
+   Note: aspell can do only one laguage, guide how to manually merge dictionaries is in 
+
+**Result:** Installed aspell, aspell-en and aspell-cs. Added
+`"spellcheck": {"enabled": true, "language": "cs"}` to `~/.claude/settings.json`.
+Wrote `ignore-case true` to `~/.aspell.conf`. Also re-applied the Czech+English
+dictionary merge from `aspell-spellcheck.md`, because one aspell run reads one
+language only. Test `printf 'ahoj česky hello english qqqzz' | aspell list --lang=cs`
+prints only `qqqzz`. The underline appears after a session restart.
+
+## Task 3 - Status line
+
+Install Calude code cli status line customization from statusline.sh - read that file, there are instructions inside.
+   
+**Result:** Added `"statusLine": {"type": "command", "command": "bash
+/d/PROJECTS/Yap/statusline.sh"}` to `~/.claude/settings.json`. jq is present.
+A test with a sample stdin snapshot renders `Yap > main > Opus 5 (max) > 72% cntx`
+with the context part in yellow.
 
 ---
 
