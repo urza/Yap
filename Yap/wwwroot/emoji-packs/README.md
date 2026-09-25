@@ -25,6 +25,10 @@ wwwroot/emoji-packs/
 - **Formats**: `.png` `.svg` `.gif` `.webp` `.jpg` `.jpeg`. Animated GIF/WebP animate inline.
 - **Sizing**: rendered into a square box with `object-fit: contain`, so square art (128×128 is a
   good default) looks best; anything else letterboxes rather than distorts.
+- **Trim transparent padding.** Twemoji draws edge to edge, and every image emoji shares the same
+  box, so a margin baked into the file just makes that emoji smaller than its Unicode neighbours.
+  The WeChat set shipped with a 6px border on a 100px canvas (88% art) and read as visibly small
+  and too widely spaced in the picker until it was cropped to its alpha bounding box.
 - Order within a pack is alphabetical by shortcode; packs themselves sort A–Z after "Custom".
 - The folder is scanned **once at startup** — restart the app after adding files.
 
