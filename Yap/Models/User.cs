@@ -55,12 +55,12 @@ public class User
     public string? Country { get; set; }
 
     /// <summary>
-    /// Client's IANA timezone (e.g. "Europe/Prague"). Updated on each connect.
+    /// Account timezone (e.g. "Europe/Prague"). Detected when missing; changed through Settings.
     /// </summary>
     public string? TimeZone { get; set; }
 
     /// <summary>
-    /// Client's browser locale (e.g. "cs-CZ"). Updated on each connect.
+    /// Account formatting locale (e.g. "cs-CZ"). Detected when missing, retained across devices.
     /// </summary>
     public string? Locale { get; set; }
 
@@ -151,6 +151,13 @@ public class User
     /// closed browsers instead of depending on a live circuit.
     /// </summary>
     public string? KnownIps { get; set; }
+
+    /// <summary>
+    /// Scheme and host from this user's most recent authenticated session, without a path.
+    /// Bot login links use the recipient's address, never a process-wide last visitor's address.
+    /// Null for older accounts until their next session; persisted with known IPs.
+    /// </summary>
+    public string? LoginOrigin { get; set; }
 
     /// <summary>
     /// JSON-serialized List&lt;string&gt; of recently used emojis (most recent first, max 20).

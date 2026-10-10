@@ -10,10 +10,13 @@ public class LinkPreviewSettingsService
     private bool _enabled;
     private bool _mediaCachingEnabled;
 
-    public LinkPreviewSettingsService(IWebHostEnvironment env, ILogger<LinkPreviewSettingsService> logger)
+    private readonly OfflineChangeSignal _changes;
+
+    public LinkPreviewSettingsService(IWebHostEnvironment env, ILogger<LinkPreviewSettingsService> logger, OfflineChangeSignal changes)
     {
         _env = env;
         _logger = logger;
+        _changes = changes;
         LoadSettings();
     }
 
@@ -26,6 +29,7 @@ public class LinkPreviewSettingsService
     {
         _enabled = enabled;
         await SaveSettingsAsync();
+        _changes.Touch(OfflineChangeKind.Settings);
         _logger.LogInformation("Link previews enabled set to {Enabled}", enabled);
     }
 
@@ -33,6 +37,7 @@ public class LinkPreviewSettingsService
     {
         _mediaCachingEnabled = enabled;
         await SaveSettingsAsync();
+        _changes.Touch(OfflineChangeKind.Settings);
         _logger.LogInformation("Media caching enabled set to {Enabled}", enabled);
     }
 

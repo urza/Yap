@@ -317,7 +317,7 @@ public class SystemBotService
 
         if (_chatService.IsUserMobile(user.Username))
         {
-            message += "\n\n📱 I noticed you're on a phone. It's a much better experience if you [pwa-install] to your homescreen — it will look and feel like a normal app. Please also allow notifications when prompted so you don't miss messages. You can change this anytime in Settings.";
+            message += "\n\n📱 I noticed you're on a phone. If you do not already have a home-screen icon, [pwa-install] for an app-like experience. If you already installed Yap, keep using that icon; you do not need a second copy. Please also allow notifications when prompted so you don't miss messages. You can change this anytime in Settings.";
         }
 
         // Their way back in, born with the account. This DM is the one place they can always
@@ -327,7 +327,7 @@ public class SystemBotService
         // links existed still carry a passphrase.
         if (_accessLinks.GetActiveForUser(user.Id) is { } link)
         {
-            message += $"\n\n🔗 One more thing — this is your personal login link: {_accessLinks.BuildUrl(link.Code)}\n" +
+            message += $"\n\n🔗 One more thing — this is your personal login link: {_accessLinks.BuildUrl(link.Code, user.LoginOrigin)}\n" +
                        "Open it on any device or browser and you're straight back in this account (new phone, reinstalled app, second browser). " +
                        "Save it somewhere safe, like your notes. Don't share it — anyone who has it can sign in as you. " +
                        $"On the login page you can also type its code, {link.Code}, as your secret code. " +
@@ -407,7 +407,7 @@ public class SystemBotService
         {
             var channel = _chatService.GetOrCreateDMChannel(_botUserId, _botUsername, user.Id, user.Username);
             await _chatService.SendMessageAsync(channel.Id, _botUserId, _botUsername,
-                $"🔗 An admin created a new login link for you: {_accessLinks.BuildUrl(link.Code)}\n" +
+                $"🔗 An admin created a new login link for you: {_accessLinks.BuildUrl(link.Code, user.LoginOrigin, _userService.GetById(link.CreatedById)?.LoginOrigin)}\n" +
                 "Your previous link no longer works. Save this one somewhere safe.");
         }
         catch (Exception ex)

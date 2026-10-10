@@ -164,7 +164,7 @@
     {
         if (firstRender)
         {
-            // Small delay to catch users added during initialization (ChatBase adds user in OnAfterRenderAsync)
+            // Small delay to catch users added during layout initialization
             await Task.Delay(100);
             var currentCount = ChatService.GetOnlineUsers().Count;
             if (currentCount != onlineCount)
@@ -221,6 +221,8 @@
                 "You have no login link and no secret code. Without one, you won't be able to get back into this account. Continue signing out?");
             if (!confirmed) return;
         }
+
+        if (!await JS.InvokeAsync<bool>("confirmChatDiscard")) return;
 
         ActionLog.Log(UserState.UserId?.ToString(), UserActionLog.KnownActions.LOGOUT, info: UserState.Username);
 
@@ -388,7 +390,8 @@
 
     private void NavigateBack()
     {
-        Navigation.NavigateTo("/lobby");
+        // Chat routes are document endpoints outside the retained Blazor router.
+        Navigation.NavigateTo("/lobby", forceLoad: true);
     }
 
     private void OpenSettings()

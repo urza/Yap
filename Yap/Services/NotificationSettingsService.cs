@@ -18,6 +18,7 @@ namespace Yap.Services;
 /// </remarks>
 public class NotificationSettingsService
 {
+    public event Action<Guid, Guid>? OnChanged;
     private readonly UserService _userService;
     private readonly ChatPersistenceService _persistence;
     private readonly ILogger<NotificationSettingsService> _logger;
@@ -25,14 +26,17 @@ public class NotificationSettingsService
     // (userId, channelId) -> muted. Only channels the user explicitly flipped appear here.
     private readonly ConcurrentDictionary<(Guid UserId, Guid ChannelId), bool> _overrides = new();
 
+    private readonly OfflineChangeSignal _changes;
+
     public NotificationSettingsService(
         UserService userService,
         ChatPersistenceService persistence,
-        ILogger<NotificationSettingsService> logger)
+        ILogger<NotificationSettingsService> logger, OfflineChangeSignal changes)
     {
         _userService = userService;
         _persistence = persistence;
         _logger = logger;
+        _changes = changes;
     }
 
     /// <summary>
@@ -121,6 +125,8 @@ public class NotificationSettingsService
             ChannelId = channelId,
             Muted = muted
         });
+        _changes.Touch(OfflineChangeKind.Unread, userId, channelId);
+        OnChanged?.Invoke(userId, channelId);
     }
 
     /// <summary>
