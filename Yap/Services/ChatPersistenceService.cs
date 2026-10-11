@@ -7,7 +7,8 @@ using Yap.Models;
 namespace Yap.Services;
 
 /// <summary>
-/// Handles write-through persistence for chat data.
+/// Handles optional persistence for channel configuration, preferences and startup snapshots.
+/// Message, mutation and checkpoint acceptance belongs to IChatStore.
 /// When disabled, all methods are no-ops.
 /// </summary>
 public class ChatPersistenceService
@@ -42,7 +43,7 @@ public class ChatPersistenceService
 
     #region Channel Operations
 
-    public async Task PersistChannelAsync(Channel channel)
+    public async Task PersistChannelAsync(Channel channel, bool throwOnFailure = false)
     {
         if (!IsEnabled) return;
 
@@ -65,6 +66,7 @@ public class ChatPersistenceService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to persist channel {ChannelId}", channel.Id);
+            if (throwOnFailure) throw;
         }
     }
 
@@ -88,154 +90,7 @@ public class ChatPersistenceService
 
     #endregion
 
-    #region Message Operations
-
-    public async Task PersistNewMessageAsync(ChatMessage message)
-    {
-        if (!IsEnabled) return;
-
-        try
-        {
-            await using var db = await _dbFactory!.CreateDbContextAsync();
-
-            // Create a detached copy to avoid navigation property issues
-            var newMessage = new ChatMessage(
-                message.ChannelId,
-                message.UserId,
-                message.Username,
-                message.Content,
-                message.Timestamp,
-                message.ImageUrls.ToList(),
-                message.ReplyToMessageId,
-                message.VideoUrls.ToList(),
-                message.GifAttachments.ToList()
-            )
-            {
-                Id = message.Id,
-                IsEdited = message.IsEdited
-            };
-
-            db.Messages.Add(newMessage);
-            await db.SaveChangesAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to persist new message {MessageId}", message.Id);
-        }
-    }
-
-    public async Task PersistMessagesInBulkAsync(IReadOnlyList<ChatMessage> messages)
-    {
-        if (!IsEnabled || messages.Count == 0) return;
-
-        try
-        {
-            await using var db = await _dbFactory!.CreateDbContextAsync();
-
-            var detached = messages.Select(m => new ChatMessage(
-                m.ChannelId, m.UserId, m.Username, m.Content, m.Timestamp, m.ImageUrls.ToList(),
-                m.ReplyToMessageId, m.VideoUrls.ToList(), m.GifAttachments.ToList())
-            {
-                Id = m.Id,
-                IsEdited = m.IsEdited
-            });
-
-            db.Messages.AddRange(detached);
-            await db.SaveChangesAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to bulk persist {Count} messages", messages.Count);
-        }
-    }
-
-    public async Task PersistMessageEditAsync(Guid messageId, string newContent)
-    {
-        if (!IsEnabled) return;
-
-        try
-        {
-            await using var db = await _dbFactory!.CreateDbContextAsync();
-
-            await db.Messages
-                .Where(m => m.Id == messageId)
-                .ExecuteUpdateAsync(m => m
-                    .SetProperty(x => x.Content, newContent)
-                    .SetProperty(x => x.IsEdited, true));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to persist message edit {MessageId}", messageId);
-        }
-    }
-
-    public async Task DeleteMessageAsync(Guid messageId)
-    {
-        if (!IsEnabled) return;
-
-        try
-        {
-            await using var db = await _dbFactory!.CreateDbContextAsync();
-            await db.Messages.Where(m => m.Id == messageId).ExecuteDeleteAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to delete message {MessageId}", messageId);
-        }
-    }
-
-    #endregion
-
     #region Reaction Operations
-
-    public async Task AddReactionAsync(Guid messageId, Guid userId, string username, string emoji)
-    {
-        if (!IsEnabled) return;
-
-        try
-        {
-            await using var db = await _dbFactory!.CreateDbContextAsync();
-
-            // Check if reaction already exists
-            var exists = await db.Reactions.AnyAsync(r =>
-                r.MessageId == messageId &&
-                r.Emoji == emoji &&
-                r.UserId == userId);
-
-            if (!exists)
-            {
-                db.Reactions.Add(new Reaction
-                {
-                    MessageId = messageId,
-                    UserId = userId,
-                    Username = username,
-                    Emoji = emoji
-                });
-                await db.SaveChangesAsync();
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to add reaction to message {MessageId}", messageId);
-        }
-    }
-
-    public async Task RemoveReactionAsync(Guid messageId, Guid userId, string emoji)
-    {
-        if (!IsEnabled) return;
-
-        try
-        {
-            await using var db = await _dbFactory!.CreateDbContextAsync();
-            await db.Reactions
-                .Where(r => r.MessageId == messageId && r.Emoji == emoji && r.UserId == userId)
-                .ExecuteDeleteAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to remove reaction from message {MessageId}", messageId);
-        }
-    }
 
     /// <summary>
     /// The emojis this user reacts with most, straight from reaction history.
@@ -263,71 +118,6 @@ public class ChatPersistenceService
         {
             _logger.LogError(ex, "Failed to load top reaction emojis for user {UserId}", userId);
             return new();
-        }
-    }
-
-    #endregion
-
-    #region Read State Operations
-
-    public async Task PersistReadStateAsync(ChannelReadState readState)
-    {
-        if (!IsEnabled) return;
-
-        try
-        {
-            await using var db = await _dbFactory!.CreateDbContextAsync();
-
-            var existing = await db.ChannelReadStates.FindAsync(readState.UserId, readState.ChannelId);
-            if (existing != null)
-            {
-                existing.LastReadAt = readState.LastReadAt;
-                existing.UnreadCount = readState.UnreadCount;
-            }
-            else
-            {
-                db.ChannelReadStates.Add(new ChannelReadState
-                {
-                    UserId = readState.UserId,
-                    ChannelId = readState.ChannelId,
-                    LastReadAt = readState.LastReadAt,
-                    UnreadCount = readState.UnreadCount
-                });
-            }
-
-            await db.SaveChangesAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to persist read state for user {UserId} channel {ChannelId}",
-                readState.UserId, readState.ChannelId);
-        }
-    }
-
-    /// <summary>
-    /// Batch increment unread count for multiple users in a single query.
-    /// </summary>
-    public async Task IncrementUnreadForUsersAsync(Guid channelId, IEnumerable<Guid> userIds)
-    {
-        if (!IsEnabled) return;
-
-        try
-        {
-            var userIdList = userIds.ToList();
-            if (userIdList.Count == 0) return;
-
-            await using var db = await _dbFactory!.CreateDbContextAsync();
-
-            // Single query to increment all existing read states
-            var updated = await db.ChannelReadStates
-                .Where(r => r.ChannelId == channelId && userIdList.Contains(r.UserId))
-                .ExecuteUpdateAsync(r => r.SetProperty(x => x.UnreadCount, x => x.UnreadCount + 1));
-
-            _logger.LogDebug("Batch incremented unread for {Count} users in channel {ChannelId}", updated, channelId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to batch increment unread for channel {ChannelId}", channelId);
         }
     }
 

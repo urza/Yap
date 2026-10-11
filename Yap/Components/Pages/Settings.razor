@@ -295,7 +295,9 @@
                     }
                 </div>
 
-                @if (sessions.Count > 1)
+                @* Revocation also covers disconnected sessions retained outside the active list. *@
+                @if (UserState.Username is { } sessionUsername && ChatService.GetSessionsForUser(sessionUsername)
+                    .Any(session => session.SessionId != UserState.SessionId))
                 {
                     <div style="margin-top: 12px;">
                         <button class="remove-button" @onclick="SignOutOtherDevices" disabled="@isSigningOutOthers">
@@ -619,7 +621,7 @@
             }
         </div>
 
-        <div class="settings-section">
+        <div class="settings-section" id="gif-library">
             <h3>My GIFs</h3>
             <p class="form-hint" style="margin-bottom: 1rem;">
                 Your GIF pool — everything you've starred plus your own uploads. Organize with
@@ -640,7 +642,7 @@
                 <p class="form-hint" style="margin-bottom: 12px;">
                     Read live from this device via the browser's Cache Storage API — the same store the
                     service worker writes to, so this is genuine proof that PWA caching works locally.
-                    Profile pictures are absent by design (stable URL, excluded from the service-worker cache).
+                    Clearing a cache keeps your locally saved drafts and outgoing messages.
                 </p>
 
                 @if (cacheReport is null)
@@ -671,7 +673,7 @@
                     {
                         <div class="cache-group">
                             <div class="cache-group-header">
-                                <span class="cache-group-name">@FriendlyCacheName(group.Name)</span>
+                                <span class="cache-group-name">@group.Label</span>
                                 <span class="cache-group-meta">@group.Count · @FormatBytes(group.TotalBytes)</span>
                             </div>
                             @if (group.Entries.Count == 0)
@@ -690,7 +692,8 @@
                                     }
                                 </div>
                             }
-                            @if (group.Name == "yap-media-v1" && group.Count > 0)
+                            @* Browser cache prefixes are owned by wwwroot/chat-client/constants.js. *@
+                            @if (group.Clearable && group.Count > 0)
                             {
                                 <button class="remove-button" style="margin-top: 8px; padding: 0.25rem 0.625rem; font-size: 0.75rem;"
                                         @onclick="() => ClearCache(group.Name)" title="Delete this cache to watch it re-populate">
@@ -841,7 +844,7 @@
         // Load active sessions
         if (UserState.Username != null)
         {
-            sessions = ChatService.GetSessionsForUser(UserState.Username);
+            sessions = ChatService.GetActiveSessionsForUser(UserState.Username);
             ChatService.OnUsersListChanged += HandleUsersListChanged;
         }
 
@@ -1097,31 +1100,6 @@
         await SaveProfileAsync();
     }
 
-    private void GoBack()
-    {
-        // Flush any pending debounced save immediately
-        _debounceCts?.Cancel();
-        if (UserState.UserId.HasValue)
-        {
-            var normalizedDisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim();
-            var normalizedBio = string.IsNullOrWhiteSpace(bio) ? null : bio.Trim();
-            var normalizedCountry = string.IsNullOrWhiteSpace(country) ? null : country.Trim();
-            var cleanProfileUrl = profilePictureUrl?.Split('?')[0];
-
-            _ = UserService.UpdateProfileAsync(
-                UserState.UserId.Value,
-                normalizedDisplayName,
-                cleanProfileUrl,
-                normalizedBio,
-                normalizedCountry);
-
-            UserState.DisplayName = normalizedDisplayName;
-            UserState.ProfilePictureUrl = cleanProfileUrl;
-        }
-
-        Navigation.NavigateTo("/lobby");
-    }
-
     // Account security methods
 
     private async Task EnablePassphrase()
@@ -1176,7 +1154,7 @@
     private void LoadLoginLink()
     {
         loginLink = UserState.UserId.HasValue ? AccessLinks.GetActiveForUser(UserState.UserId.Value) : null;
-        loginLinkUrl = loginLink == null ? "" : AccessLinks.BuildUrl(loginLink.Code);
+        loginLinkUrl = loginLink == null ? "" : AccessLinks.BuildUrl(loginLink.Code, Navigation.BaseUri);
         linkExpiryChoice = loginLink?.ExpiresAt == null ? "never" : "current";
     }
 
@@ -1288,7 +1266,7 @@
             await InvokeAsync(() =>
             {
                 if (UserState.Username != null)
-                    sessions = ChatService.GetSessionsForUser(UserState.Username);
+                    sessions = ChatService.GetActiveSessionsForUser(UserState.Username);
                 StateHasChanged();
             });
         }
@@ -1331,7 +1309,7 @@
             }
 
             // Token rotation failed but sessions were still removed
-            sessions = ChatService.GetSessionsForUser(UserState.Username!);
+            sessions = ChatService.GetActiveSessionsForUser(UserState.Username!);
             signOutStatus = "Other devices signed out";
         }
         catch (Exception ex)
@@ -1902,20 +1880,13 @@
         await RefreshCacheReport();
     }
 
-    private static string FriendlyCacheName(string name) => name switch
-    {
-        "yap-media-v1" => "Media — uploads, GIFs, cached video",
-        "yap-v2" => "App shell — icons, sound",
-        _ => name
-    };
-
     private static string FormatBytes(long bytes) => bytes < 1024 ? $"{bytes} B"
         : bytes < 1024 * 1024 ? $"{bytes / 1024.0:0.#} KB"
         : bytes < 1024L * 1024 * 1024 ? $"{bytes / (1024.0 * 1024):0.#} MB"
         : $"{bytes / (1024.0 * 1024 * 1024):0.##} GB";
 
     public record CacheReport(bool Supported, long? Usage, long? Quota, long TotalBytes, int TotalCount, List<CacheGroup> Caches);
-    public record CacheGroup(string Name, int Count, long TotalBytes, List<CacheEntry> Entries);
+    public record CacheGroup(string Name, string Label, bool Clearable, int Count, long TotalBytes, List<CacheEntry> Entries);
     public record CacheEntry(string Url, string Name, long Bytes, string Type);
 
     public async ValueTask DisposeAsync()

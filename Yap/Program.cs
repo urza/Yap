@@ -1,3 +1,6 @@
+using Yap.Offline;
+using System.Net;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.Components.Web;
@@ -10,6 +13,27 @@ using Yap.Services;
 using Yap.Services.Gifs;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Deployments use different proxies and dynamic container addresses. Accept forwarded
+// scheme/client IP by default; an explicit address/network list opts into restricted trust.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    // Keep dynamic proxy chains working, but never let X-Forwarded-Host choose a login-link host.
+    // Only the nearest hop supplies scheme/IP; PublicOrigin handles proxies that hide the public Host.
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1;
+    var proxies = builder.Configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? [];
+    var networks = builder.Configuration.GetSection("ReverseProxy:KnownNetworks").Get<string[]>() ?? [];
+    if (proxies.Length == 0 && networks.Length == 0)
+    {
+        options.KnownProxies.Clear();
+        options.KnownIPNetworks.Clear();
+    }
+    foreach (var address in proxies)
+        options.KnownProxies.Add(IPAddress.Parse(address));
+    foreach (var network in networks)
+        options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(network));
+});
 
 // No framework-level size limits — actual limit enforced in upload endpoint via ChatSettings:MaxUploadSizeMB
 builder.WebHost.ConfigureKestrel(options =>
@@ -58,16 +82,18 @@ if (File.Exists(dataConfigPath))
 //    via Blazor.resumeCircuit() (default: 2 hours)
 // =============================================================================
 
+var presenceOptions = builder.Configuration.GetSection("Presence").Get<PresenceOptions>() ?? new();
+presenceOptions.Validate();
+builder.Services.AddSingleton(presenceOptions);
+builder.Services.AddSingleton(TimeProvider.System);
+
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents(options =>
     {
-        // Keep disconnected circuits alive for 4 hours instead of 3 minutes.
-        // This allows seamless reconnection if user returns within 4 hours
-        // (e.g., laptop sleep, switching apps on phone).
-        // Tradeoff: Each retained circuit uses server memory.
-        options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromHours(4);
-        //for debugging evictions, set a short time:
-        //options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromSeconds(10);
+        // Keep component state warm for reconnects (e.g. laptop sleep/app switching).
+        // Presence uses the same configured circuit retention; hub sessions have no state
+        // to resume and use their own, shorter retention.
+        options.DisconnectedCircuitRetentionPeriod = presenceOptions.CircuitRetention;
 
         // Maximum number of disconnected circuits to retain (default: 100).
         // Increase this if you expect many concurrent users going idle.
@@ -170,9 +196,18 @@ builder.Services.AddSingleton<LinkTokenService>(); // PWA start_url login link t
 builder.Services.AddSingleton<AccessLinkService>(); // invite / login links (/invite/{code})
 builder.Services.AddSingleton<NotificationSettingsService>();  // per-channel mute rules (read by ChatService)
 builder.Services.AddSingleton<ChatService>();
+builder.Services.AddSignalR();
+builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-TOKEN");
+builder.Services.AddSingleton<OfflineSnapshotService>();
+builder.Services.AddSingleton<OfflineSync>();
+builder.Services.AddSingleton<ChatLimits>();
+builder.Services.AddSingleton<OfflineChangeSignal>();
+builder.Services.AddSingleton<OfflineFanout>();
+builder.Services.AddSingleton<OfflineLiveService>();
+builder.Services.AddHostedService<OfflinePresenceTicker>();
 builder.Services.AddSingleton<SystemBotService>();
 builder.Services.AddSingleton<RegistrationGateService>();
-builder.Services.AddScoped<ChatConfigService>();
+builder.Services.AddSingleton<ChatConfigService>();
 builder.Services.AddScoped<EmojiService>();
 builder.Services.AddScoped<UserStateService>();
 builder.Services.AddScoped<ChatNavigationState>();
@@ -211,6 +246,8 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.AddSingleton<Microsoft.AspNetCore.Routing.MatcherPolicy, ChatRootPolicy>();
+builder.Services.AddSingleton<AuthCookieRenewal>();
 var app = builder.Build();
 
 // Initialize persistence (migrations + load data) if enabled
@@ -231,6 +268,9 @@ await app.Services.GetRequiredService<PushSubscriptionStore>().InitializeAsync()
 // Initialize system bot (must be after UserService + ChatService)
 await app.Services.GetRequiredService<SystemBotService>().InitializeAsync();
 
+// Start shared revision/profile subscriptions before the first bootstrap or hub connection.
+_ = app.Services.GetRequiredService<OfflineFanout>();
+
 // Clean up old action logs (keep last 100 per user, delete older than 6 months)
 await app.Services.GetRequiredService<UserActionLogService>().CleanupAsync();
 
@@ -248,6 +288,7 @@ if (builder.Configuration.GetValue<bool>("ChatSettings:ClearUploadsOnStart", tru
 }
 
 // Configure the HTTP request pipeline.
+app.UseForwardedHeaders();
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
@@ -258,6 +299,15 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 app.UseCors();
 app.UseHttpsRedirection();
 app.UseAntiforgery();
+
+app.Use(async (context, next) =>
+{
+    // These stable URLs change between releases. The worker owns offline caching; browser
+    // and CDN caches must revalidate so an upgrade/rollback can replace that worker promptly.
+    if (context.Request.Path is var assetPath && (assetPath == "/service-worker.js" || assetPath == "/service-worker-module.js" || assetPath.StartsWithSegments("/chat-client")))
+        context.Response.OnStarting(() => { context.Response.Headers.CacheControl = context.Request.Path == "/chat-client/manifest.json" ? "no-store" : "no-cache"; return Task.CompletedTask; });
+    await next(context);
+});
 
 // Serve custom branding overrides from Data/branding/ (favicon, PWA icons, etc.)
 // Files here override same-named files from wwwroot — no rebuild needed.
@@ -375,6 +425,34 @@ app.UseStaticFiles(new StaticFileOptions
 });
 
 // Custom middlewares - positioned after UseStaticFiles() to skip static file requests
+// Reuse the legacy cookie, validating both handshake and long-lived stream.
+app.Use(async (context, next) =>
+{
+    if (ChatRoutes.IsApi(context.Request.Path) || ChatRoutes.IsHub(context.Request.Path))
+    {
+        var statusPages = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IStatusCodePagesFeature>();
+        if (statusPages != null) statusPages.Enabled = false;
+        if (ChatRoutes.IsApi(context.Request.Path) && HttpMethods.IsPost(context.Request.Method))
+        {
+            var sizeLimit = context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();
+            if (sizeLimit is { IsReadOnly: false }) sizeLimit.MaxRequestBodySize = context.RequestServices.GetRequiredService<ChatLimits>().MaxPostBytes;
+        }
+    }
+    if (ChatRoutes.IsHub(context.Request.Path))
+    {
+        context.Response.Headers.CacheControl = "no-store";
+        if (!ChatProtocol.Accepts(context.Request, hub: true))
+        { context.Response.StatusCode = 426; await context.Response.WriteAsJsonAsync(new { code = "update_required" }); return; }
+        // Browser metadata survives proxy URL rewriting. Missing metadata is accepted
+        // for older clients; every hub request still requires a valid account cookie.
+        if (context.Request.Headers["Sec-Fetch-Site"] == "cross-site")
+        { context.Response.StatusCode = 403; return; }
+        var token = context.Request.Cookies[AuthMiddleware.CookieName] ?? "";
+        if (context.RequestServices.GetRequiredService<UserService>().AuthenticateByToken(token) == null)
+        { context.Response.StatusCode = 401; return; }
+    }
+    await next(context);
+});
 app.UseMiddleware<AuthMiddleware>();
 app.UseMiddleware<DeviceDetectionMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();
@@ -393,6 +471,6 @@ app.MapPwaEndpoints();
 app.MapAdminEndpoints();
 app.MapDiagnosticsEndpoints();
 app.MapGifLibraryEndpoints();
-app.MapBeaconEndpoints();
+app.MapOfflineChat();
 
 app.Run();

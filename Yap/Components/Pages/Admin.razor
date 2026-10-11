@@ -28,7 +28,7 @@
 <div class="admin-page">
     <nav class="admin-sidebar">
         <div class="admin-sidebar-header">
-            <button class="back-button" @onclick="GoBack" title="Go back">
+            <button class="admin-back-button" @onclick="GoBack" title="Go back">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
                 </svg>
@@ -190,11 +190,11 @@
                                             ProfilePictureUrl="@user.ProfilePictureUrl"
                                             Size="AvatarSize.Small" />
                                     <div class="user-info">
-                                        <span class="user-name">
+                                        <span class="admin-user-name">
                                             @user.EffectiveDisplayName
                                             @if (user.IsAdmin)
                                             {
-                                                <span class="admin-badge" title="Admin">&#x1F451;</span>
+                                                <span class="admin-admin-badge" title="Admin">&#x1F451;</span>
                                             }
                                         </span>
                                         @if (user.DisplayName != null)
@@ -205,7 +205,7 @@
                                 </td>
                                 <td>
                                     <span class="status-pill @statusClass">
-                                        <span class="status-dot"></span>
+                                        <span class="admin-status-dot"></span>
                                         @statusLabel
                                     </span>
                                 </td>
@@ -597,7 +597,7 @@
                                 var l = link;
                                 <tr>
                                     <td class="link-cell">
-                                        <span class="link-code">@AccessLinks.BuildUrl(l.Code)</span>
+                                        <span class="link-code">@AccessLinks.BuildUrl(l.Code, Navigation.BaseUri)</span>
                                         @CopyButton(l)
                                     </td>
                                     <td>@(l.Note ?? "—")</td>
@@ -648,14 +648,14 @@
                                     <td>@(owner?.Username ?? "(deleted)")</td>
                                     <td>
                                         <span class="status-pill @(l.IsActive ? "online" : "offline")">
-                                            <span class="status-dot"></span>
+                                            <span class="admin-status-dot"></span>
                                             @LinkStatus(l)
                                         </span>
                                     </td>
                                     <td class="link-cell">
                                         @if (l.AdminCanSeeCode)
                                         {
-                                            <span class="link-code">@AccessLinks.BuildUrl(l.Code)</span>
+                                            <span class="link-code">@AccessLinks.BuildUrl(l.Code, Navigation.BaseUri)</span>
                                             @CopyButton(l)
                                         }
                                         else
@@ -817,28 +817,7 @@
                     </div>
                 </details>
 
-                <details class="howto-box">
-                    <summary>
-                        <span class="toggle-label">IPv4 beacon</span>
-                        @if (string.IsNullOrEmpty(ChatConfig.Ipv4BeaconUrl))
-                        {
-                            <span class="howto-status">off — dualstack clients show IPv6 only</span>
-                        }
-                        else
-                        {
-                            <span class="howto-status on">@ChatConfig.Ipv4BeaconUrl</span>
-                        }
-                    </summary>
-                    <div class="howto-body">
-                        <p>A dualstack client connects over IPv6, so its IPv4 never reaches the server. The beacon makes the browser send one background request to an IPv4-only hostname. That request reveals the client's IPv4, and the Diagnostics sessions table then shows both addresses.</p>
-                        <ol>
-                            <li>Add a DNS <strong>A record only</strong> (no AAAA) for <code>ip4.your-domain.com</code>. Make it DNS-only (grey cloud). Point it at this server.</li>
-                            <li>Give this server a trusted TLS certificate for that hostname, same as for the upload subdomain.</li>
-                            <li>Set <code>ChatSettings:Ipv4BeaconUrl</code> to <code>https://ip4.your-domain.com</code> and restart. In Docker, set the env var <code>ChatSettings__Ipv4BeaconUrl</code> instead.</li>
-                        </ol>
-                        <p>Leave the setting empty to disable. The value is display-only and never affects login decisions.</p>
-                    </div>
-                </details>
+
             </div>
 
             @if (pendingUsersList.Count > 0)
@@ -944,7 +923,7 @@
                 <div class="media-stat-card">
                     <span class="media-stat-label">FFmpeg</span>
                     <span class="media-stat-value">
-                        <span class="status-dot @(VideoService.IsAvailable ? "status-online" : "status-offline")"></span>
+                        <span class="admin-status-dot @(VideoService.IsAvailable ? "status-online" : "status-offline")"></span>
                         @(VideoService.IsAvailable ? "Available" : "Unavailable")
                     </span>
                 </div>
@@ -1039,7 +1018,7 @@
                 <div class="media-stat-card">
                     <span class="media-stat-label">FFmpeg</span>
                     <span class="media-stat-value">
-                        <span class="status-dot @(VideoService.IsAvailable ? "status-online" : "status-offline")"></span>
+                        <span class="admin-status-dot @(VideoService.IsAvailable ? "status-online" : "status-offline")"></span>
                         @(VideoService.IsAvailable ? "Available" : "Unavailable")
                     </span>
                 </div>
@@ -1255,10 +1234,7 @@
                                         <td>@s.Username</td>
                                         <td>
                                             @(s.IsMobile == true ? "📱" : "🖥️") @(s.ClientIp ?? "—")
-                                            @if (s.ClientIpv4 != null && s.ClientIpv4 != s.ClientIp)
-                                            {
-                                                <span style="color: var(--text-secondary);" title="IPv4 reported by the beacon — the circuit itself connected over IPv6">· v4 @s.ClientIpv4</span>
-                                            }
+
                                         </td>
                                         <td>@(circuit?.IsWebSocket switch { true => "WS", false => "⚠ Fallback", null => "—" })</td>
                                         <td>@(circuit == null ? "—" : circuit.IsConnected ? "✓" : $"✗ {FormatAgo(circuit.DisconnectedAt)}")</td>
@@ -1293,7 +1269,6 @@
                                 <th>Connected</th>
                                 <th title="Client-measured circuit round trip: last / average / max">RTT last/avg/max</th>
                                 <th title="Inbound events the server took ≥100ms to process">Slow events</th>
-                                <th title="Client-measured: send click → own message rendered — last / average / max">Send→appear last/avg/max</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1309,16 +1284,13 @@
                                         @FormatMs(c.LastRttMs) / @FormatMs(c.AvgRttMs) / @FormatMs(c.MaxRttMs)
                                     </td>
                                     <td>@(c.SlowEventCount == 0 ? "—" : $"{c.SlowEventCount}× (max {c.MaxEventMs:F0}ms)")</td>
-                                    <td title="@c.SendSamples samples, last @FormatAgo(c.SendTimingAt)">
-                                        @FormatMs(c.LastSendToAppearMs) / @FormatMs(c.AvgSendToAppearMs) / @FormatMs(c.MaxSendToAppearMs)
-                                    </td>
                                 </tr>
                             }
                             @* Closed circuits continue the same row budget, so one button governs both segments. *@
                             @if (diagClosedCircuits.Count > 0 && diagCircuitsVisible > diagCircuits.Count)
                             {
                                 @* Bounded trail (last 50) — lets an admin inspect a user's numbers after they signed out *@
-                                <tr><td colspan="7" style="color: var(--text-secondary); padding-top: 10px;">Recently closed</td></tr>
+                                <tr><td colspan="6" style="color: var(--text-secondary); padding-top: 10px;">Recently closed</td></tr>
                                 @foreach (var c in diagClosedCircuits.Take(diagCircuitsVisible - diagCircuits.Count))
                                 {
                                     var laggy = c.IsWebSocket == false || c.AvgRttMs > 250;
@@ -1331,9 +1303,6 @@
                                             @FormatMs(c.LastRttMs) / @FormatMs(c.AvgRttMs) / @FormatMs(c.MaxRttMs)
                                         </td>
                                         <td>@(c.SlowEventCount == 0 ? "—" : $"{c.SlowEventCount}× (max {c.MaxEventMs:F0}ms)")</td>
-                                        <td title="@c.SendSamples samples, last @FormatAgo(c.SendTimingAt)">
-                                            @FormatMs(c.LastSendToAppearMs) / @FormatMs(c.AvgSendToAppearMs) / @FormatMs(c.MaxSendToAppearMs)
-                                        </td>
                                     </tr>
                                 }
                             }
@@ -1664,7 +1633,8 @@
         // Auth + admin guard
         if (!UserState.IsLoggedIn || !UserState.UserId.HasValue || !UserService.IsAdmin(UserState.UserId.Value))
         {
-            Navigation.NavigateTo("/lobby");
+            // Chat routes are document endpoints outside the retained Blazor router.
+            Navigation.NavigateTo("/lobby", forceLoad: true);
             return;
         }
     }
@@ -1929,7 +1899,7 @@
 
     private async Task CopyInviteLink(AccessLink link)
     {
-        await JS.InvokeVoidAsync("navigator.clipboard.writeText", AccessLinks.BuildUrl(link.Code));
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", AccessLinks.BuildUrl(link.Code, Navigation.BaseUri));
         copiedLinkId = link.Id;
         StateHasChanged();
         _ = Task.Delay(2000).ContinueWith(_ => InvokeAsync(() =>
@@ -2103,7 +2073,8 @@
 
     private void GoBack()
     {
-        Navigation.NavigateTo("/lobby");
+        // Chat routes are document endpoints outside the retained Blazor router.
+        Navigation.NavigateTo("/lobby", forceLoad: true);
     }
 
     private async Task DebounceFilterAsync(CancellationToken token, Func<Task> loadAction)

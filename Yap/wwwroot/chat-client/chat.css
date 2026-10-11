@@ -1,0 +1,84 @@
+/* Shell navigation, connection and delivery state; loaded last and owns shared visibility/state overrides. */
+[hidden] {
+    display: none !important;
+}
+#connection {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+.chat-menu a {
+    text-decoration: none;
+}
+#notice {
+    padding: 8px 16px;
+    color: var(--text-primary);
+    background: var(--bg-sidebar);
+    font-size: 0.875rem;
+}
+#notice a {
+    margin-left: 1em;
+}
+#timeline {
+    display: contents;
+}
+#rooms a,
+#dms a,
+#outgoing a {
+    text-decoration: none;
+}
+#history-note {
+    white-space: pre-line;
+}
+.chat-attachment-note {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+@media (max-width: 600px) {
+    #connection {
+        max-width: 110px;
+    }
+}
+@media (max-width: 600px) {
+    #connection {
+        font-size: 0;
+        max-width: 65px;
+    }
+    #connection::after {
+        content: attr(data-label);
+        font-size: 0.7rem;
+    }
+}
+#pending {
+    display: contents;
+}
+.delivery-status {
+    display: inline-block;
+    margin: 0 0.5rem 0 0;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+.delivery-status.failed,
+.delivery-error {
+    color: var(--color-danger);
+}
+.delivery-error {
+    font-size: 0.8rem;
+}
+.retry-send {
+    margin-left: 0.5rem;
+    color: var(--text-primary);
+    background: var(--bg-input);
+    border: 0;
+    border-radius: 4px;
+    padding: 3px 8px;
+    cursor: pointer;
+}
+#recovery {
+    height: auto;
+    flex: none;
+}
+
+#window-state {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}

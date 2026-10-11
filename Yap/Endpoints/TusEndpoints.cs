@@ -12,7 +12,7 @@ namespace Yap.Endpoints;
 
 public static class TusEndpoints
 {
-    private static readonly ConcurrentDictionary<string, object> _completedFiles = new();
+    private static readonly ConcurrentDictionary<string, (object Result, DateTime CreatedAt)> _completedFiles = new();
     private static readonly HashSet<string> _imageExtensions = new(StringComparer.OrdinalIgnoreCase)
         { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
     private static readonly HashSet<string> _videoExtensionsForGifProbe = new(StringComparer.OrdinalIgnoreCase)
@@ -38,7 +38,7 @@ public static class TusEndpoints
                     var token = eventContext.HttpContext.Request.Cookies[AuthMiddleware.CookieName];
                     var userService = eventContext.HttpContext.RequestServices.GetRequiredService<UserService>();
                     var user = !string.IsNullOrEmpty(token) ? userService.AuthenticateByToken(token) : null;
-                    if (user == null)
+                    if (user == null || (eventContext.HttpContext.Request.Headers.TryGetValue("X-Yap-Upload-User", out var expectedUser) && expectedUser != user.Id.ToString()))
                     {
                         eventContext.FailRequest(HttpStatusCode.Unauthorized, "Authentication required");
                     }
@@ -53,6 +53,12 @@ public static class TusEndpoints
                         ? m.GetString(System.Text.Encoding.UTF8) : null;
 
                     var kind = Meta("kind");
+                    if (kind != "gif-pack" && !eventContext.HttpContext.RequestServices.GetRequiredService<Yap.Offline.ChatLimits>()
+                        .AllowedExtensions.Contains(Path.GetExtension(Meta("filename") ?? ""), StringComparer.OrdinalIgnoreCase))
+                    {
+                        eventContext.FailRequest("This file extension is not allowed.");
+                        return Task.CompletedTask;
+                    }
                     var target = Meta("target");
                     if (kind is not ("gif" or "gif-pack") && target == null)
                         return Task.CompletedTask; // plain chat upload
@@ -110,6 +116,9 @@ public static class TusEndpoints
                     var extension = Path.GetExtension(originalFileName).ToLowerInvariant();
                     var kind = metadata.TryGetValue("kind", out var kindMeta)
                         ? kindMeta.GetString(System.Text.Encoding.UTF8) : null;
+                    if (kind != "gif-pack" && !eventContext.HttpContext.RequestServices.GetRequiredService<Yap.Offline.ChatLimits>()
+                        .AllowedExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+                        throw new InvalidOperationException("This file extension is not allowed.");
                     // Library uploads (GifLibraryManager) carry a destination; chat uploads don't.
                     var target = metadata.TryGetValue("target", out var targetMeta)
                         ? targetMeta.GetString(System.Text.Encoding.UTF8) : null;
@@ -119,6 +128,25 @@ public static class TusEndpoints
                     var token = eventContext.HttpContext.Request.Cookies[AuthMiddleware.CookieName];
                     var user = !string.IsNullOrEmpty(token) ? userService.AuthenticateByToken(token) : null;
 
+                    void Complete(object result)
+                    {
+                        // Offline sends may lose the completion response or restart the server.
+                        // Keep an account-owned receipt outside wwwroot; never consume it on read.
+                        if (user != null)
+                        {
+                            var directory = Path.Combine(app.Environment.ContentRootPath, "Data", "upload-receipts", user.Id.ToString("N"));
+                            Directory.CreateDirectory(directory);
+                            var path = Path.Combine(directory, file.Id + ".json");
+                            File.WriteAllText(path + ".tmp", System.Text.Json.JsonSerializer.Serialize(result));
+                            File.Move(path + ".tmp", path, true);
+                        }
+                        _completedFiles[file.Id] = (result, DateTime.UtcNow);
+                        // The final PATCH can acknowledge completed processing without a
+                        // follow-up GET. Retained clients may continue using the receipt route.
+                        if (!eventContext.HttpContext.Response.HasStarted)
+                            eventContext.HttpContext.Response.Headers["X-Yap-Upload-Complete"] =
+                                Convert.ToBase64String(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(result));
+                    }
                     var tusFilePath = Path.Combine(tusStorePath, file.Id);
                     void CleanupTusMetadata()
                     {
@@ -138,7 +166,7 @@ public static class TusEndpoints
                                 user == null ? "unauthenticated" : "server target without admin");
                             try { File.Delete(tusFilePath); } catch { }
                             CleanupTusMetadata();
-                            _completedFiles[file.Id] = new { type = "error", error = "Not allowed" };
+                            Complete(new { type = "error", error = "Not allowed" });
                             return;
                         }
 
@@ -151,7 +179,7 @@ public static class TusEndpoints
                             new FileInfo(zipPath).Length, "gif-pack", ".zip");
                         logger.LogInformation("GIF pack accepted from {User} → import {ImportId} (server: {Server})",
                             user.Username, importId, serverTarget);
-                        _completedFiles[file.Id] = new { type = "gif-pack", importId };
+                        Complete(new { type = "gif-pack", importId });
                         return;
                     }
 
@@ -193,8 +221,8 @@ public static class TusEndpoints
                             if (user == null || (target == "server" && !isAdmin) || overQuota)
                             {
                                 try { File.Delete(filePath); } catch { }
-                                _completedFiles[file.Id] = new
-                                    { type = "error", error = overQuota ? "GIF storage quota exceeded" : "Not allowed" };
+                                Complete(new
+                                { type = "error", error = overQuota ? "GIF storage quota exceeded" : "Not allowed" });
                                 return;
                             }
                         }
@@ -222,13 +250,13 @@ public static class TusEndpoints
                                     await gifService.SetFavoriteAsync(user.Id, gifAttachment.GifEntryId, favorite: true, folder);
                             }
 
-                            _completedFiles[file.Id] = new
+                            Complete(new
                             {
                                 type = "gif",
                                 gifEntryId = gifAttachment.GifEntryId,
                                 width = gifAttachment.Width,
                                 height = gifAttachment.Height
-                            };
+                            });
                             return;
                         }
                         else if (isLibraryUpload)
@@ -236,7 +264,7 @@ public static class TusEndpoints
                             // A failed manager upload must not fall through into the chat media
                             // pipeline — it would post as an orphan image nobody asked for.
                             try { File.Delete(filePath); } catch { }
-                            _completedFiles[file.Id] = new { type = "error", error = "Could not process this file as a GIF" };
+                            Complete(new { type = "error", error = "Could not process this file as a GIF" });
                             return;
                         }
                         else if (isExplicitGif)
@@ -257,6 +285,11 @@ public static class TusEndpoints
                     {
                         var sw = System.Diagnostics.Stopwatch.StartNew();
                         await imageService.GenerateMediumThumbnailAsync(filePath);
+                        if (!File.Exists(ImageService.GetMediumUrl(filePath)))
+                        {
+                            Complete(new { type = "error", error = "This image could not be decoded." });
+                            return;
+                        }
                         var mediumMs = sw.ElapsedMilliseconds;
 
                         _ = Task.Run(async () =>
@@ -296,15 +329,15 @@ public static class TusEndpoints
                         }
                     }
 
-                    _completedFiles[file.Id] = new { url = $"/uploads/{uniqueFileName}", path = filePath, type };
+                    Complete(new { url = $"/uploads/{uniqueFileName}", path = filePath, type });
                 }
             }
         }).RequireCors("TusUpload");
 
         app.MapGet("/api/tus/info/{fileId}", (string fileId) =>
         {
-            if (_completedFiles.TryRemove(fileId, out var result))
-                return Results.Ok(result);
+            if (_completedFiles.TryRemove(fileId, out var result) && result.CreatedAt >= DateTime.UtcNow - ChatReceiptCleanup.Retention)
+                return Results.Ok(result.Result);
             return Results.NotFound(new { error = "File not found or still processing" });
         }).RequireCors("TusUpload");
     }
@@ -315,6 +348,36 @@ public static class TusEndpoints
     /// sniffed from the create POST's Upload-Metadata header ("gif-pack" base64-encoded), the
     /// only place it's visible before tusdotnet validates Upload-Length against this limit.
     /// </summary>
+    public static System.Text.Json.JsonElement? Completed(IWebHostEnvironment env, Guid userId, string id)
+    {
+        if (!System.Text.RegularExpressions.Regex.IsMatch(id, "^[a-fA-F0-9]{16,64}$")) return null;
+        var path = Path.Combine(env.ContentRootPath, "Data", "upload-receipts", userId.ToString("N"), id + ".json");
+        try
+        {
+            return File.GetLastWriteTimeUtc(path) >= DateTime.UtcNow - ChatReceiptCleanup.Retention
+                ? System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(File.ReadAllText(path)) : null;
+        }
+        catch (FileNotFoundException) { return null; } // Cleanup may win a concurrent lookup.
+        catch (DirectoryNotFoundException) { return null; }
+    }
+
+    // Completion receipts share the send deduplication window; uploaded media is independent.
+    public static void PruneReceipts(IWebHostEnvironment env, DateTime before)
+    {
+        foreach (var pair in _completedFiles)
+            if (pair.Value.CreatedAt < before)
+                ((ICollection<KeyValuePair<string, (object Result, DateTime CreatedAt)>>)_completedFiles).Remove(pair);
+        var root = Path.Combine(env.ContentRootPath, "Data", "upload-receipts");
+        if (!Directory.Exists(root)) return;
+        foreach (var directory in Directory.EnumerateDirectories(root))
+        {
+            foreach (var path in Directory.EnumerateFiles(directory))
+                if (File.GetLastWriteTimeUtc(path) < before) File.Delete(path);
+            // A completion may be creating a file while the sweep removes an empty folder.
+            // Keep the account folders so writers never lose their parent directory.
+        }
+    }
+
     private static long GetMaxUploadBytes(HttpContext httpContext)
     {
         var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
