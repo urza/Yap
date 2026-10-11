@@ -95,8 +95,9 @@ static class DeliveryChecks
                     });
             }
             catch (ChatSendException error) when (error.Status == 404) { rejected = true; }
+            // Message IDs are server-generated, so look for any row in the deleted room.
             Check(rejected && await store.GetTextReceiptAsync(sender.Id, lostOperation) == null
-                && await store.GetAcceptedMessageAsync(lostOperation) == null,
+                && (db == null || !await db.Messages.AnyAsync(m => m.ChannelId == removed.Id)),
                 "deletion between access check and acceptance returns 404 without a phantom receipt");
         }
         finally

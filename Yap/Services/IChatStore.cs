@@ -7,7 +7,6 @@ namespace Yap.Services;
 public interface IChatStore
 {
     Task<TextSendReceipt?> GetTextReceiptAsync(Guid userId, Guid operationId);
-    Task<ChatMessage?> GetAcceptedMessageAsync(Guid messageId);
     Task PersistTextAcceptanceAsync(ChatMessage message, TextSendReceipt receipt, IReadOnlyList<Guid>? recipients = null);
     Task PersistMutationAsync(TextSendReceipt receipt, ChatMutation mutation);
     Task PersistReadStateAsync(ChannelReadState state);

@@ -1,4 +1,6 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Yap.Data;
 using Yap.Models;
 using Yap.Services;
 
@@ -8,6 +10,8 @@ static class StoreChecks
     {
         var chat = services.GetRequiredService<ChatService>();
         var store = services.GetRequiredService<IChatStore>();
+        // Null in memory mode, where ChatService holds the only message state.
+        await using var db = services.GetService<IDbContextFactory<ChatDbContext>>() is { } factory ? await factory.CreateDbContextAsync() : null;
         var channel = chat.GetLobbyId();
         var sent = await chat.SendTextAsync(user, channel, Guid.NewGuid(), "object identity");
         var target = chat.GetMessageById(channel, sent.MessageId)!;
@@ -32,8 +36,11 @@ static class StoreChecks
         await chat.MutateMessageAsync(other, channel, target.Id, Guid.NewGuid(), "reaction", null, "❤️", true);
         Check(snapshots.Message(target).Reactions.Select(r => r.Emoji).SequenceEqual(new[] { "👍", "❤️" }),
             "reaction pills retain first-used order instead of sorting by codepoint");
-        var stored = await store.GetAcceptedMessageAsync(target.Id);
-        Check(stored?.Content == target.Content && stored.IsEdited, "storage and live mutation agree");
+        if (db != null)
+        {
+            var stored = await db.Messages.AsNoTracking().SingleOrDefaultAsync(m => m.Id == target.Id);
+            Check(stored?.Content == target.Content && stored.IsEdited, "storage and live mutation agree");
+        }
         await chat.SendMessageAsync(channel, user.Id, user.Username, "server acceptance");
         var serverMessage = chat.GetMessages(channel, 100).Single(m => m.Content == "server acceptance");
         await chat.MutateMessageAsync(user, channel, serverMessage.Id, Guid.NewGuid(), "reaction", null, "👍", true);
@@ -46,6 +53,28 @@ static class StoreChecks
             throw new Exception("Media edit should fail");
         }
         catch (ChatSendException error) { Check(error.Code == "media_message", "media edit policy is enforced before either backend"); }
+
+        // A room deletion can remove the target after ChatService checked it. Neither backend
+        // may then store a receipt that acknowledges a change to nothing.
+        var ghost = new TextSendReceipt
+        {
+            UserId = user.Id,
+            OperationId = Guid.NewGuid(),
+            ChannelId = channel,
+            MessageId = Guid.NewGuid(),
+            ContentHash = "missing target fixture",
+            AcceptedAt = DateTime.UtcNow
+        };
+        try
+        {
+            await store.PersistMutationAsync(ghost, new ChatMutation("edit", "ghost", null, false, user.Id, user.Username));
+            throw new Exception("Mutation of a missing message should fail");
+        }
+        catch (ChatSendException error)
+        {
+            Check(error.Code == "message_unavailable" && await store.GetTextReceiptAsync(user.Id, ghost.OperationId) == null,
+                "both backends refuse a mutation receipt for a message they do not hold");
+        }
 
         // Competing messages must not reuse one mutation receipt, even in the memory store.
         var operation = Guid.NewGuid();
@@ -114,7 +143,8 @@ static class StoreChecks
         Check(await store.GetTextReceiptAsync(user.Id, receipt.OperationId) == null
             && await store.GetTextReceiptAsync(user.Id, sent.OperationId) != null,
             "receipt cleanup removes expired entries and preserves the retry window in both backends");
-        Check(await store.GetAcceptedMessageAsync(old.Id) != null, "receipt expiry never deletes accepted messages");
+        if (db != null)
+            Check(await db.Messages.AnyAsync(m => m.Id == old.Id), "receipt expiry never deletes accepted messages");
         var env = services.GetRequiredService<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>();
         var folder = Path.Combine(env.ContentRootPath, "Data", "upload-receipts", user.Id.ToString("N"));
         Directory.CreateDirectory(folder);

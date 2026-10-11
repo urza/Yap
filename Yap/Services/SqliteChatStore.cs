@@ -22,12 +22,6 @@ public sealed class SqliteChatStore(IDbContextFactory<ChatDbContext> dbFactory) 
         return await db.TextSendReceipts.AsNoTracking().SingleOrDefaultAsync(r => r.UserId == userId && r.OperationId == operationId);
     }
 
-    public async Task<ChatMessage?> GetAcceptedMessageAsync(Guid messageId)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync();
-        return await db.Messages.AsNoTracking().Include(m => m.Reactions).SingleOrDefaultAsync(m => m.Id == messageId);
-    }
-
     public async Task PersistTextAcceptanceAsync(ChatMessage message, TextSendReceipt receipt, IReadOnlyList<Guid>? recipients = null)
     {
         await using var db = await dbFactory.CreateDbContextAsync();

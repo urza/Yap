@@ -261,6 +261,10 @@ static async Task Run(bool persistent)
             var privateDm = await chat.OpenDirectMessageAsync(bob, carol.Username);
             Check((await Send(privateDm.Id, Guid.NewGuid(), "intrusion")).StatusCode == HttpStatusCode.NotFound, "nonmember DM write rejected");
             await using var db = persistent ? await factory.Services.GetRequiredService<IDbContextFactory<ChatDbContext>>().CreateDbContextAsync() : null;
+            // SQLite checks read the stored row. Memory mode keeps no copy outside ChatService.
+            async Task<ChatMessage?> Stored(Guid channelId, Guid messageId) => db == null
+                ? chat.GetMessageById(channelId, messageId)
+                : await db.Messages.AsNoTracking().SingleOrDefaultAsync(m => m.Id == messageId);
             if (db != null)
             {
                 await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER reject_fixture BEFORE INSERT ON Messages WHEN NEW.Content = 'reject-fixture' BEGIN SELECT RAISE(ABORT, 'test disk failure'); END;");
@@ -274,7 +278,7 @@ static async Task Run(bool persistent)
                 Check((await Send(dmId, failedOperation, "reject-fixture")).IsSuccessStatusCode, "retry succeeds after database recovers");
             }
             var mediaReceipt = await chat.SendTextAsync(alice, dmId, Guid.NewGuid(), "", images: ["/uploads/contract.png"]);
-            Check((await store.GetAcceptedMessageAsync(mediaReceipt.MessageId))!.ImageUrls.Single() == "/uploads/contract.png", "durable media acceptance preserves attachment list");
+            Check((await Stored(dmId, mediaReceipt.MessageId))!.ImageUrls.Single() == "/uploads/contract.png", "durable media acceptance preserves attachment list");
             var mediaReplayId = Guid.NewGuid();
             var resolveCount = 0;
             Task<(List<string>?, List<string>?, List<GifAttachment>?)> ResolveFixture()
@@ -287,7 +291,7 @@ static async Task Run(bool persistent)
             Check(resolveCount == 1, "media receipt replay skips upload/provider side effects");
             var actionMessage = await chat.SendTextAsync(alice, dmId, Guid.NewGuid(), "action target");
             var replyReceipt = await chat.SendTextAsync(alice, dmId, Guid.NewGuid(), "reply text", actionMessage.MessageId);
-            Check((await store.GetAcceptedMessageAsync(replyReceipt.MessageId))!.ReplyToMessageId == actionMessage.MessageId, "reply association persisted atomically");
+            Check((await Stored(dmId, replyReceipt.MessageId))!.ReplyToMessageId == actionMessage.MessageId, "reply association persisted atomically");
             var editOperation = Guid.NewGuid();
             await chat.MutateMessageAsync(alice, dmId, actionMessage.MessageId, editOperation, "edit", "first edit", null, false);
             await chat.MutateMessageAsync(alice, dmId, actionMessage.MessageId, Guid.NewGuid(), "edit", "latest edit", null, false);
@@ -327,7 +331,7 @@ static async Task Run(bool persistent)
             await Denied(() => chat.MutateMessageAsync(alice, dmId, actionMessage.MessageId, Guid.NewGuid(), "edit", "resurrect", null, false), 404, "edit cannot resurrect deleted message; repeat delete succeeds");
             await chat.MutateMessageAsync(alice, dmId, durableMessage, Guid.NewGuid(), "delete", null, null, false);
             Check((await Send(dmId, durableOperation, "durable once")).IsSuccessStatusCode
-                && chat.GetMessageById(dmId, durableMessage) == null && await store.GetAcceptedMessageAsync(durableMessage) == null,
+                && chat.GetMessageById(dmId, durableMessage) == null && await Stored(dmId, durableMessage) == null,
                 "receipt replay after deletion does not resurrect the message");
             var removable = (await chat.CreateRoomAsync(admin.Id, admin.Username, "removablefixture", sinceJoined: false))!;
             var removedOperation = Guid.NewGuid();

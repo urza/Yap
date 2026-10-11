@@ -7,16 +7,14 @@ public sealed class MemoryChatStore : IChatStore
     private readonly object gate = new();
     private readonly Dictionary<(Guid UserId, Guid OperationId), TextSendReceipt> receipts = new();
     private readonly Dictionary<Guid, LinkedList<TextSendReceipt>> receiptOrder = new();
-    // References are the accepted live objects, not a second copy of message state.
+    // Accepted message IDs, read only by the duplicate-ID check on acceptance and the
+    // missing-target check on mutation. ChatService owns message state: the values are
+    // its live objects, kept for their ChannelId, not a second copy to read back.
     private readonly Dictionary<Guid, ChatMessage> messages = new();
 
     public Task<TextSendReceipt?> GetTextReceiptAsync(Guid userId, Guid operationId)
     {
         lock (gate) return Task.FromResult(receipts.GetValueOrDefault((userId, operationId)));
-    }
-    public Task<ChatMessage?> GetAcceptedMessageAsync(Guid messageId)
-    {
-        lock (gate) return Task.FromResult(messages.GetValueOrDefault(messageId));
     }
     public Task PersistTextAcceptanceAsync(ChatMessage message, TextSendReceipt receipt, IReadOnlyList<Guid>? recipients = null)
     {
@@ -36,6 +34,11 @@ public sealed class MemoryChatStore : IChatStore
         {
             if (receipts.ContainsKey((receipt.UserId, receipt.OperationId)))
                 throw new ChatSendException(409, "operation_conflict", "Operation ID already accepted.");
+            // Same rule as SQLite: ChatService checked the target, but a room deletion can
+            // remove it before this call. A receipt here would acknowledge a change that
+            // never reaches any message. Delete stays idempotent.
+            if (mutation.Kind != "delete" && messages.GetValueOrDefault(receipt.MessageId)?.ChannelId != receipt.ChannelId)
+                throw new ChatSendException(404, "message_unavailable", "Message unavailable.");
             AddReceipt(receipt);
             if (mutation.Kind == "delete") messages.Remove(receipt.MessageId);
         }
