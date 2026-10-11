@@ -54,12 +54,17 @@ const { origin } = require('./support/phone.cjs');
             true,
             'the context reports a coarse pointer',
         );
-        await page.locator('.profile-info-btn').first().waitFor({ state: 'attached' });
-        const display = await page
-            .locator('.profile-info-btn')
-            .first()
-            .evaluate((n) => getComputedStyle(n).display);
-        assert.equal(display, 'flex', 'the info button shows under a coarse pointer at 1024 px');
+        // Found and read in one step: the sidebar rebuilds its rows on every render, and a node
+        // read after a separate lookup can be detached, which gives an empty display.
+        await page.waitForFunction(
+            () => {
+                const n = document.querySelector('.profile-info-btn');
+                return !!n && getComputedStyle(n).display === 'flex';
+            },
+            null,
+            { timeout: 10000 },
+        );
+        console.log('PASS the info button shows under a coarse pointer at 1024 px');
         // Uploaded video elements, where present, carry no playsinline flag.
         const inline = await page.evaluate(() =>
             [...document.querySelectorAll('video.video-player, video.cached-video-player')].map(
