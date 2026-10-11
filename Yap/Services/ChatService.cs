@@ -31,9 +31,11 @@ public partial class ChatService
     // Channels (rooms and DMs)
     private readonly ConcurrentDictionary<Guid, Channel> _channels = new();
     private readonly ConcurrentDictionary<Guid, List<ChatMessage>> _channelMessages = new();
-    // Distinct GIF references per channel avoid history scans when an uploader edits a profile.
-    // Counts are updated under the same channel lock as the messages they describe.
+    // Distinct GIF references and authors per channel avoid history scans when a profile or
+    // GIF changes. Counts are updated under the same channel lock as the messages they
+    // describe (IndexMessage), so a delete removes a key exactly when its last message goes.
     private readonly ConcurrentDictionary<Guid, Dictionary<Guid, int>> _channelGifReferences = new();
+    private readonly ConcurrentDictionary<Guid, Dictionary<Guid, int>> _channelAuthors = new();
     private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<string, DateTime>> _channelTypingUsers = new();
     private readonly OfflineChangeSignal _changes;
 
@@ -202,6 +204,7 @@ public partial class ChatService
         _channels.Clear();
         _channelMessages.Clear();
         _channelGifReferences.Clear();
+        _channelAuthors.Clear();
         _channelTypingUsers.Clear();
 
         // Load channels from database
@@ -210,7 +213,7 @@ public partial class ChatService
             _channels[channel.Id] = channel;
             _channelMessages[channel.Id] = snapshot.MessagesByChannel.GetValueOrDefault(channel.Id, new List<ChatMessage>());
             foreach (var message in _channelMessages[channel.Id])
-                IndexGifReferences(message, 1);
+                IndexMessage(message, 1);
             _channelTypingUsers[channel.Id] = new ConcurrentDictionary<string, DateTime>();
         }
 
@@ -352,6 +355,7 @@ public partial class ChatService
         _channels.TryRemove(channelId, out _);
         _channelMessages.TryRemove(channelId, out _);
         _channelGifReferences.TryRemove(channelId, out _);
+        _channelAuthors.TryRemove(channelId, out _);
         _channelTypingUsers.TryRemove(channelId, out _);
         _notifications.ClearOverridesForChannel(channelId);
 
@@ -1178,34 +1182,44 @@ public partial class ChatService
         }
     }
 
-    private void IndexGifReferences(ChatMessage message, int delta)
+    // Call under the channel lock (or during startup load) for every message that enters
+    // or leaves _channelMessages.
+    private void IndexMessage(ChatMessage message, int delta)
     {
-        if (message.GifAttachments.Count == 0) return;
-        var references = _channelGifReferences.GetOrAdd(message.ChannelId, _ => new());
-        foreach (var gif in message.GifAttachments)
-        {
-            var count = references.GetValueOrDefault(gif.GifEntryId) + delta;
-            if (count > 0) references[gif.GifEntryId] = count;
-            else references.Remove(gif.GifEntryId);
-        }
-        if (references.Count == 0) _channelGifReferences.TryRemove(message.ChannelId, out _);
+        Count(_channelAuthors, message.ChannelId, [message.UserId], delta);
+        Count(_channelGifReferences, message.ChannelId, message.GifAttachments.Select(g => g.GifEntryId), delta);
     }
 
-    internal Guid[] ChannelsWithGifsUploadedBy(Guid userId)
+    private static void Count(ConcurrentDictionary<Guid, Dictionary<Guid, int>> index, Guid channelId, IEnumerable<Guid> keys, int delta)
+    {
+        Dictionary<Guid, int>? counts = null;
+        foreach (var key in keys)
+        {
+            counts ??= index.GetOrAdd(channelId, _ => new());
+            var count = counts.GetValueOrDefault(key) + delta;
+            if (count > 0) counts[key] = count;
+            else counts.Remove(key);
+        }
+        if (counts?.Count == 0) index.TryRemove(channelId, out _);
+    }
+
+    internal Guid[] ChannelsWithMessagesBy(Guid userId) =>
+        ChannelsWhere(_channelAuthors, authors => authors.ContainsKey(userId));
+
+    internal Guid[] ChannelsWithGif(Guid gifEntryId) =>
+        ChannelsWhere(_channelGifReferences, references => references.ContainsKey(gifEntryId));
+
+    internal Guid[] ChannelsWithGifsUploadedBy(Guid userId) =>
+        ChannelsWhere(_channelGifReferences, references => references.Keys.Any(id => _gifService.GetEntry(id)?.UploadedByUserId == userId));
+
+    private Guid[] ChannelsWhere(ConcurrentDictionary<Guid, Dictionary<Guid, int>> index, Func<Dictionary<Guid, int>, bool> match)
     {
         var result = new List<Guid>();
-        foreach (var channelId in _channelGifReferences.Keys)
+        foreach (var channelId in index.Keys)
             lock (GetChannelLock(channelId))
-                if (_channels.ContainsKey(channelId) && _channelGifReferences.TryGetValue(channelId, out var references)
-                    && references.Keys.Any(id => _gifService.GetEntry(id)?.UploadedByUserId == userId))
+                if (_channels.ContainsKey(channelId) && index.TryGetValue(channelId, out var counts) && match(counts))
                     result.Add(channelId);
         return result.ToArray();
-    }
-
-    internal bool AnyMessage(Guid channelId, Func<ChatMessage, bool> predicate)
-    {
-        lock (GetChannelLock(channelId))
-            return _channelMessages.TryGetValue(channelId, out var messages) && messages.Any(predicate);
     }
 
     public List<ChatMessage> GetMessages(Guid channelId, int count = 50)

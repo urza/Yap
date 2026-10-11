@@ -79,7 +79,7 @@ public partial class ChatService
                     if (kind == "delete")
                     {
                         messages.Remove(target);
-                        IndexGifReferences(target, -1);
+                        IndexMessage(target, -1);
                     }
                     else
                         mutation.Apply(target);

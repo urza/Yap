@@ -86,12 +86,21 @@ public sealed class OfflineFanout : IDisposable
             case OfflineChangeKind.Favorites:
                 Favorites(change.Id);
                 break;
-            case OfflineChangeKind.Media:
             case OfflineChangeKind.Gif:
+                // The GIF reference index names the channels that embed this entry. Only
+                // those histories are scanned for the message IDs to touch.
+                foreach (var channelId in chat.ChannelsWithGif(change.Id))
+                    foreach (var message in chat.GetMessages(channelId, int.MaxValue).Where(m => m.GifAttachments.Any(g => g.GifEntryId == change.Id)))
+                        changes.Touch(channelId, message.Id);
+                break;
+            case OfflineChangeKind.Media:
+                // No index maps URLs in message text to channels, so this still scans all
+                // history. It runs after a background media download or preview fetch,
+                // not on a user's save.
+                if (change.Url == null)
+                    break;
                 foreach (var channel in chat.GetRooms().Concat(chat.GetAllDMChannels()))
-                    foreach (var message in chat.GetMessages(channel.Id, int.MaxValue).Where(m => change.Kind == OfflineChangeKind.Gif
-                        ? m.GifAttachments.Any(g => g.GifEntryId == change.Id)
-                        : change.Url != null && LinkPreviewService.ExtractUrls(m.Content).Contains(change.Url)))
+                    foreach (var message in chat.GetMessages(channel.Id, int.MaxValue).Where(m => LinkPreviewService.ExtractUrls(m.Content).Contains(change.Url)))
                         changes.Touch(channel.Id, message.Id);
                 break;
             case OfflineChangeKind.Settings:
@@ -218,10 +227,8 @@ public sealed class OfflineFanout : IDisposable
             People();
             // Profiles are embedded in cached message DTOs. A rare profile edit must also
             // invalidate those windows; this work never runs on the message arrival path.
-            var user = users.GetById(userId);
-            var authored = chat.GetRooms().Concat(user == null ? [] : chat.GetDMChannels(user.Username));
-            var affected = authored.Where(c => chat.AnyMessage(c.Id, m => m.UserId == userId))
-                .Select(c => c.Id).ToHashSet();
+            // The author index answers without scanning history on the save thread.
+            var affected = chat.ChannelsWithMessagesBy(userId).ToHashSet();
             // An uploader need never have posted in a room/DM that embeds their GIF.
             affected.UnionWith(chat.ChannelsWithGifsUploadedBy(userId));
             foreach (var id in affected)

@@ -153,6 +153,46 @@ static class ChangeChecks
         var expired = await subscription.Read(timeout.Token);
         Check(!alice.NotifServerMuted && expired.SelectMany(u => u.Conversations).Any(c => c.Id == channel.Id && !c.State.Muted),
             "timed mute expiry is persisted and reaches connected clients");
+
+        // Profile invalidation reads the per-channel author index. A deleted last message
+        // removes its author, so that DM must not be touched either.
+        var author = (await users.CreateUserAsync("authorindexfixture"))!;
+        var silent = (await users.CreateUserAsync("silentauthorfixture"))!;
+        var authorDm = chat.GetOrCreateDMChannel(author.Id, author.Username, alice.Id, alice.Username);
+        var emptiedDm = chat.GetOrCreateDMChannel(author.Id, author.Username, bob.Id, bob.Username);
+        await chat.SendTextAsync(author, room.Id, Guid.NewGuid(), "author index room");
+        var gifPost = await chat.SendTextAsync(author, authorDm.Id, Guid.NewGuid(), "author index GIF", gifs: [new GifAttachment(gif.Id, 1, 1)]);
+        var removed = await chat.SendTextAsync(author, emptiedDm.Id, Guid.NewGuid(), "author index deleted");
+        await chat.MutateMessageAsync(author, emptiedDm.Id, removed.MessageId, Guid.NewGuid(), "delete", null, null, false);
+        var touched = new List<(Guid Channel, Guid? Message)>();
+        Action<OfflineChange> record = c =>
+        {
+            if (c.Kind == OfflineChangeKind.Content)
+                lock (touched)
+                    touched.Add((c.Id, c.RelatedId));
+        };
+        (Guid Channel, Guid? Message)[] Touched()
+        {
+            lock (touched)
+            {
+                var result = touched.OrderBy(t => t.Channel).ToArray();
+                touched.Clear();
+                return result;
+            }
+        }
+        changes.Changed += record;
+        try
+        {
+            await users.UpdateProfileAsync(author.Id, "Author index", null, null, null);
+            Check(Touched().SequenceEqual(new (Guid, Guid?)[] { (room.Id, null), (authorDm.Id, null) }.OrderBy(t => t.Item1)),
+                "profile edit touches exactly the channels where the user still has messages");
+            await users.UpdateProfileAsync(silent.Id, "Silent author", null, null, null);
+            Check(Touched().Length == 0, "profile edit by a user with no messages touches no channel");
+            changes.Touch(OfflineChangeKind.Gif, gif.Id);
+            Check(Touched().SequenceEqual(new (Guid, Guid?)[] { (authorDm.Id, gifPost.MessageId) }),
+                "GIF change touches only the messages that embed it");
+        }
+        finally { changes.Changed -= record; }
     }
 
     private static void Check(bool condition, string label)
