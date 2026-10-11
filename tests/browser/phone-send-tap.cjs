@@ -1,7 +1,10 @@
-// Emulated phone: one tap on Send sends, with or without the emoji picker open.
-// Regression: Send's pointerdown focused the draft. With the draft unfocused, that focus closed
+// Emulated phone: one tap on Send sends, with or without the emoji picker open, and sending
+// leaves focus where the tap found it, so the phone keyboard stays open or closed as it was.
+// Regressions: Send's pointerdown focused the draft. With the draft unfocused, that focus closed
 // the picker during the tap; the composer dropped by the picker margin and Chromium's re-hit-tested
-// click landed on the timeline, so the first tap only closed the picker.
+// click landed on the timeline, so the first tap only closed the picker. After that fix, send()
+// still focused the draft once the message was queued, which opened the keyboard after every
+// send made from the picker with the keyboard down. The pre-rewrite page did neither.
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const assert = require('node:assert/strict');
 const origin = process.env.YAP_TEST_ORIGIN || 'http://127.0.0.1:7643';
@@ -57,6 +60,9 @@ async function centre(page, selector) {
     const box = await page.locator(selector).boundingBox();
     return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
+
+// Stands in for the phone keyboard: Android and iOS show it while the draft has focus.
+const isDraftFocused = (page) => page.evaluate(() => document.activeElement?.id === 'draft');
 
 // Picks three Unicode cells (custom :name: sections fill the first screen) and taps or clicks them.
 async function chooseEmojis(page, { tap }) {
@@ -158,17 +164,17 @@ const cases = [
             return chooseEmojis(page, { tap: true });
         },
         picker: true,
+        draftFocused: false,
     },
     {
         label: 'picker open, focus kept on the draft (button taps leave focus, as on iOS)',
         async prepare(page) {
             await page.focus('#draft');
             await page.evaluate(() => document.querySelector('#emoji-button').click());
-            const text = await chooseEmojis(page, { tap: false });
-            assert.equal(await page.evaluate(() => document.activeElement?.id), 'draft');
-            return text;
+            return chooseEmojis(page, { tap: false });
         },
         picker: true,
+        draftFocused: true,
     },
     {
         label: 'picker closed, draft blurred',
@@ -179,13 +185,14 @@ const cases = [
             return text;
         },
         picker: false,
+        draftFocused: false,
     },
 ];
 
 (async () => {
     const browser = await chromium.launch();
     try {
-        for (const { label, prepare, picker } of cases) {
+        for (const { label, prepare, picker, draftFocused } of cases) {
             const { context, page, errors } = await join(browser);
             try {
                 const text = await prepare(page);
@@ -196,7 +203,19 @@ const cases = [
                     picker,
                     `${label}: picker state before the tap`,
                 );
+                assert.equal(
+                    await isDraftFocused(page),
+                    draftFocused,
+                    `${label}: draft focus before the tap`,
+                );
                 await tapSendOnce(page, text, label);
+                // send() finishes after the queued row renders; let its tail run before reading focus.
+                await page.waitForTimeout(300);
+                assert.equal(
+                    await isDraftFocused(page),
+                    draftFocused,
+                    `${label}: sending must leave focus where the tap found it (keyboard state)`,
+                );
                 assert.equal(
                     await page.evaluate(
                         () => document.querySelector('.message-input-container').dataset.picker,
@@ -205,7 +224,7 @@ const cases = [
                     `${label}: picker closed after send`,
                 );
                 assert.deepEqual(errors, []);
-                console.log(`PASS 390x844 touch: ${label}; one tap on Send sends`);
+                console.log(`PASS 390x844 touch: ${label}; one tap on Send sends, focus unchanged`);
             } finally {
                 await context.close();
             }

@@ -130,7 +130,11 @@ export function createComposer({ identity, snapshot, selected, current, live, on
         } finally {
             submitting = false;
             updateComposer();
-            if (identity()?.epoch === account.epoch && selected() === channel) $('#draft').focus();
+            // No draft.focus() here: sending never moves focus (feature reference INPUT-08).
+            // A focus call at this point opened the phone keyboard after every send made
+            // from the emoji picker with the keyboard down. The pre-rewrite page left focus
+            // where the send found it. Send's click in pickers.js closes the picker, so
+            // nothing here depends on the draft focus listener.
         }
     }
     async function sendExtra(extra) {
@@ -264,11 +268,12 @@ export function createComposer({ identity, snapshot, selected, current, live, on
         }
     });
     $('#send').onclick = send;
-    // The button must not take focus: on a phone that closes the keyboard. It must not
-    // call draft.focus() either. With the draft unfocused that opens the keyboard and
-    // closes the picker (the draft focus listener) during the tap, the composer moves
-    // under the finger, and the click lands elsewhere. The pre-rewrite page only
-    // prevented the default, and a send from the emoji picker worked in one tap.
+    // Sending never moves focus (feature reference INPUT-08). The button must not take
+    // focus: on a phone that closes the keyboard. It must not call draft.focus() either.
+    // With the draft unfocused that opens the keyboard and closes the picker (the draft
+    // focus listener) during the tap, the composer moves under the finger, and the click
+    // lands elsewhere. The pre-rewrite page only prevented the default, and a send from
+    // the emoji picker worked in one tap.
     $('#send').addEventListener('pointerdown', (event) => event.preventDefault());
     $('#draft').addEventListener('keydown', (event) => {
         if (
