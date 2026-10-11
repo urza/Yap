@@ -19,6 +19,10 @@ const manifests = new Map(
 const announcesUpdates = fs
     .readFileSync(path.join(oldPackage, 'wwwroot/chat-client/app.js'), 'utf8')
     .includes('Yap was updated. Reload when convenient.');
+// The open tab keeps the incumbent's stylesheet, so the styled-control check needs it there.
+const stylesNotice = fs
+    .readFileSync(path.join(oldPackage, 'wwwroot/chat-client/chat.css'), 'utf8')
+    .includes('#notice button');
 let previousCache, candidateCache;
 const backend = new URL(process.env.YAP_TEST_ORIGIN || 'http://127.0.0.1:7643');
 if (backend.hostname !== '127.0.0.1' || backend.port === '7543')
@@ -241,6 +245,22 @@ proxy.on('upgrade', (req, socket, head) => {
                     .filter({ hasText: 'Yap was updated. Reload when convenient.' })
                     .locator('button', { hasText: 'Reload' })
                     .waitFor();
+                // The control carries the client's inline button style; a bare <button>
+                // shows the browser's grey bevel (border-style outset) inside the strip.
+                if (stylesNotice) {
+                    const reloadStyle = await page
+                        .locator('#notice button', { hasText: 'Reload' })
+                        .evaluate((b) => {
+                            const s = getComputedStyle(b);
+                            return {
+                                border: s.borderStyle,
+                                radius: s.borderRadius,
+                                font: s.fontFamily,
+                            };
+                        });
+                    assert.notEqual(reloadStyle.border, 'outset', JSON.stringify(reloadStyle));
+                    assert.notEqual(reloadStyle.radius, '0px', JSON.stringify(reloadStyle));
+                }
                 assert.equal(await page.evaluate(() => window.incumbentDocument), true);
                 assert.equal(
                     await page.locator('#draft').inputValue(),

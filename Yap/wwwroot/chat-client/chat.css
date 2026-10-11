@@ -9,14 +9,39 @@
 .chat-menu a {
     text-decoration: none;
 }
+/* The notice strip under the header: one line of text plus at most one control (Sign in,
+   Reload). Flex keeps a gap between text and control and lets the control wrap under the
+   text at phone width. The [hidden] rule above still wins over display: flex. */
 #notice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
     padding: 8px 16px;
     color: var(--text-primary);
     background: var(--bg-sidebar);
+    border-bottom: 1px solid var(--border-subtle);
     font-size: 0.875rem;
 }
-#notice a {
-    margin-left: 1em;
+/* Same look as the inline Retry control on a failed send (.retry-send). Without this a
+   bare <button> renders with the browser's grey bevel inside the strip. */
+#notice a,
+#notice button {
+    flex: none;
+    margin: 0;
+    padding: 4px 12px;
+    border: 0;
+    border-radius: 4px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font: inherit;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+}
+#notice a:hover,
+#notice button:hover {
+    background: var(--bg-muted);
 }
 #timeline {
     display: contents;
