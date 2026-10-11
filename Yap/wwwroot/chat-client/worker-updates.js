@@ -25,6 +25,36 @@ if ('serviceWorker' in navigator)
         .then(watchWorkerUpdates)
         .catch(() => {});
 
+// No API reports module service worker support, so app.js classifies a failed
+// registration by error name. Chromium 75-90 read `type` and reject 'module' with
+// NotSupportedError. Firefox before 147 and older Chromium do not know the
+// registration `type`: they load the module as a classic script, fail on `import`
+// and reject with a TypeError, the same error as a failed download. Safari 14 reads
+// the registration `type` and fails the same way, but it does not read
+// WorkerOptions.type, which arrived with module workers in Safari 15.
+// A getter records whether each dictionary reads `type` during argument conversion.
+// The unparsable URL then fails before any fetch, so neither call starts a worker or
+// a registration job (the usual `new Worker('data:,')` probe would start one).
+function readsType(construct) {
+    let read = false;
+    try {
+        construct('http://[', {
+            get type() {
+                read = true;
+                return 'module';
+            },
+        });
+    } catch {}
+    return read;
+}
+let moduleWorkers;
+function supportsModuleWorkers() {
+    return (moduleWorkers ??=
+        readsType((url, options) =>
+            navigator.serviceWorker.register(url, options).catch(() => {}),
+        ) && readsType((url, options) => new Worker(url, options)));
+}
+
 // A content-only release changes the registration URL even when worker source is identical.
 // Registration performs the browser's normal atomic install/activate lifecycle.
 let checking;
@@ -32,6 +62,9 @@ export function registerWorker() {
     return (checking ??= (async () => {
         const existing = await navigator.serviceWorker.getRegistration('/');
         await existing?.update().catch(() => {});
+        // app.js shows the update-your-browser text for this name, not the download text.
+        if (!supportsModuleWorkers())
+            throw new DOMException('Module service workers are unavailable.', 'NotSupportedError');
         try {
             const response = await fetch('/chat-client/manifest.json', {
                 cache: 'no-store',

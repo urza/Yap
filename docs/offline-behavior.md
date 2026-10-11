@@ -2,7 +2,7 @@
 
 Yap's chat runs in the browser on `/chat`, `/lobby`, `/room/{id}` and `/dm/{username}`. The server remains authoritative for accounts, permissions and accepted messages. Login, Settings, Admin and GIF library management remain online Blazor pages.
 
-A successful authenticated online visit prepares offline use. Opening an instance for the first time while disconnected cannot retrieve an account or its history. Offline reload requires a service worker, which needs trusted HTTPS or loopback HTTP. Offline reload and push require module service workers: Chrome/Edge 91+, Firefox 114+, or Safari 15+, plus the other browser APIs used by the client. Older or blocked browsers receive visible guidance; online chat/local drafts may remain usable. Cache eviction falls back to online requests rather than blocking APIs and transport. A shell readiness probe reinstalls an evicted current shell with hash verification; a failed download retries on the next online visit.
+A successful authenticated online visit prepares offline use. Opening an instance for the first time while disconnected cannot retrieve an account or its history. Offline reload requires a service worker, which needs trusted HTTPS or loopback HTTP. Offline reload and push require module service workers: Chrome/Edge 91+, Firefox 147+, or Safari 15+, plus the other browser APIs used by the client. Older or blocked browsers receive visible guidance; online chat/local drafts may remain usable. Cache eviction falls back to online requests rather than blocking APIs and transport. A shell readiness probe reinstalls an evicted current shell with hash verification; a failed download retries on the next online visit.
 
 ## What works offline
 
