@@ -103,8 +103,12 @@ export function createPwa({ identity, navigate, notice }) {
     const supported = () =>
         'Notification' in window && 'PushManager' in window && 'serviceWorker' in navigator;
     const close = () => {
-        prompt?.remove();
+        const node = prompt;
         prompt = null;
+        if (!node) return;
+        // 300 ms fade-out, as the old prompt's AnimateOut (audit D-19).
+        node.classList.add('hiding');
+        setTimeout(() => node.remove(), 300);
     };
     async function register(publicKey, owner) {
         let registration = await navigator.serviceWorker.getRegistration();
@@ -155,13 +159,16 @@ export function createPwa({ identity, navigate, notice }) {
             '<div class="push-prompt-card"><div class="push-prompt-icon"><svg width="56" height="56" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg></div><h2 class="push-prompt-heading">One more step</h2><p class="push-prompt-body">Please enable notifications so Yap can send you notifs about new DM messages / mentions when the app is not open. You can always change this later in Settings, and you can also disable notifications temporarily.</p><button class="push-prompt-enable">Enable Notifications</button><button class="push-prompt-later">Maybe Later</button></div>';
         const enable = prompt.querySelector('.push-prompt-enable');
         enable.onclick = async () => {
+            const label = enable.textContent;
             enable.disabled = true;
+            enable.textContent = 'Enabling...';
             try {
                 const permission = await Notification.requestPermission();
                 if (permission === 'granted') await register(publicKey, owner);
                 close();
             } catch (error) {
                 enable.disabled = false;
+                enable.textContent = label;
                 notice(error.message);
             }
         };

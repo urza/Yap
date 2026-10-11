@@ -60,6 +60,7 @@
 .history-start {
     text-align: center;
     padding: 1rem;
+    margin: 0; /* a <p> here; the old note was a <div> without margins (audit C-15) */
     color: var(--text-placeholder);
     font-size: 0.875rem;
     font-weight: 600;
@@ -158,7 +159,8 @@
     cursor: pointer;
     font-size: 0.8125rem;
     color: var(--text-secondary);
-    padding-left: calc(40px + 1rem); /* avatar + gap */
+    /* avatar + gap; a <button> otherwise keeps its 1px 6px browser padding (audit A-24) */
+    padding: 0 0 0 calc(40px + 1rem);
     margin-bottom: 0.25rem;
 }
 .reply-preview:hover .reply-author {
@@ -204,9 +206,9 @@
 .message-group.reply-target {
     background: var(--accent-tint);
 }
-.message-group:first-child {
-    margin-top: 0;
-}
+/* No first-child margin rule: on the old page a note or spacer always came first in the
+   flow, so its rule never matched; here rows come first in #timeline and the rule took the
+   first row's margin (audit A-14). */
 /* Message body - contains meta and content */
 .message-body {
     flex: 1;

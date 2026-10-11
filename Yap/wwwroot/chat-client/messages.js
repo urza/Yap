@@ -98,7 +98,7 @@ export function createMessages({ identity, snapshot, current, actions, history, 
             content.append(install, textWithLinks(after.join('[pwa-install]')));
         } else if (message.content) content.append(textWithLinks(message.content));
         if (message.author.username === 'System') node.classList.add('system-message');
-        if (message.isEdited) content.append(element('span', 'edited-indicator', ' (edited)'));
+        if (message.isEdited) content.append(element('span', 'edited-indicator', '(edited)'));
         if (message.images.length) {
             const gallery = element(
                 'div',

@@ -42,6 +42,16 @@ export function renderMedia(message, content, onFavorite) {
                     play.hidden = false;
                 });
             };
+            // The overlay returns at the end, or on a pause at the start, with the controls
+            // hidden, as the old showOverlay did (chat.js 1503-1514; audit C-18).
+            const showOverlay = () => {
+                play.hidden = false;
+                video.controls = false;
+            };
+            video.addEventListener('ended', showOverlay);
+            video.addEventListener('pause', () => {
+                if (video.ended || video.currentTime === 0) showOverlay();
+            });
             box.append(video, play);
             gallery.append(box);
         }

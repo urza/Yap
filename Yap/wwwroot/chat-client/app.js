@@ -28,7 +28,8 @@ const element = (tag, className, text) => {
     return node;
 };
 const scrolling = createScroll($('.messages'), $('#new-messages'));
-let newestRendered = null;
+let newestRendered = null,
+    lastOnline = new Map();
 /** @type {import('./contracts.js').AccountState | undefined | null} */
 let identity;
 /** @type {import('./contracts.js').ChatSnapshot | undefined | null} */
@@ -143,12 +144,15 @@ function stopConnection() {
     live.detach();
     return hubConnection?.stop();
 }
-async function loseAccount(remove = false) {
+// leaving: the caller navigates away next (sign out), so no cleared page or notice shows
+// first; the old page went straight to the sign-out page (audit D-23).
+async function loseAccount(remove = false, leaving = false) {
     forgetSession();
     await stopConnection();
     if (remove) await storage.forget();
     else await storage.lockAccount();
     identity = null;
+    if (leaving) return;
     // Logged out means the login page, as on the old page (decided 2026-10-11, audit D-09).
     // Offline there is no login page to load, so the notice below stays for that case.
     if (!remove && navigator.onLine) {
@@ -359,7 +363,10 @@ function sidebar() {
     }
     const people = $('#dms');
     people.replaceChildren();
-    const online = new Map((live.view?.users || []).map((p) => [p.username, p.status]));
+    // Without a live view (first paint, reconnect) the last known presence stands, so the
+    // list does not fall back to every known person (audit D-03).
+    if (live.view) lastOnline = new Map((live.view.users || []).map((p) => [p.username, p.status]));
+    const online = lastOnline;
     const dm = (person) =>
         snapshot.conversations.find(
             (c) => c.kind === 'dm' && c.path === '/dm/' + encodeURIComponent(person.username),
@@ -377,7 +384,7 @@ function sidebar() {
         return Date.parse(c?.messages.at(-1)?.timestamp || '') || 0;
     };
     const visible = (snapshot.people || []).filter(
-        (p) => !live.view || online.has(p.username) || dm(p) || p.id === snapshot.user.id,
+        (p) => online.has(p.username) || dm(p) || p.id === snapshot.user.id,
     );
     visible.sort(
         (a, b) =>
@@ -652,27 +659,41 @@ async function render() {
     const turn = ++renderGeneration;
     const c = snapshot.conversations.find((c) => c.id === selectedConversationId);
     window.syncThemeColorMeta?.();
-    $('.chat-container').dataset.context = c?.kind || 'room';
+    // A DM not in the snapshot yet (a first message, a link): the header shows the person at
+    // once while resolveDm() creates the conversation, as the old page opened the DM
+    // directly (audit D-10).
+    const dmName =
+        !c && location.pathname.startsWith('/dm/')
+            ? decodeURIComponent(location.pathname.slice(4)).toLowerCase()
+            : null;
+    const pendingPartner = dmName
+        ? snapshot.people?.find((p) => p.username.toLowerCase() === dmName)
+        : null;
+    $('.chat-container').dataset.context = c?.kind || (pendingPartner ? 'dm' : 'room');
     $('#header-line').src =
-        c?.kind === 'dm' ? '/images/purpleline01_3px.png' : '/images/turqline01_3px.png';
+        c?.kind === 'dm' || pendingPartner
+            ? '/images/purpleline01_3px.png'
+            : '/images/turqline01_3px.png';
     $('#title').replaceChildren(
         richText(
             c
                 ? c.kind === 'room'
                     ? chatLabel('roomHeaders', '# {0}', c.id, c.name)
                     : c.name
-                : snapshot.projectName,
+                : pendingPartner
+                  ? pendingPartner.displayName || pendingPartner.username
+                  : snapshot.projectName,
             true,
         ),
     );
     notifications.render();
     $('#window-state').hidden = !c?.sync?.stale;
-    $('#back').hidden = c?.kind !== 'dm';
+    $('#back').hidden = c?.kind !== 'dm' && !pendingPartner;
     $('#header-avatar').replaceChildren();
     const partner =
         c?.kind === 'dm'
             ? snapshot.people?.find((p) => '/dm/' + encodeURIComponent(p.username) === c.path)
-            : null;
+            : pendingPartner;
     $('#header-avatar').hidden = !partner;
     if (partner) {
         const face = avatar(partner);
@@ -823,7 +844,7 @@ $('#signout').onclick = async () => {
     await composer.settleDraft();
     if (!(await confirmDiscard('Sign out', $('#draft').value))) return;
     await pwa.signOut();
-    await loseAccount(true);
+    await loseAccount(true, true);
     location.href = '/auth/signout';
 };
 window.addEventListener('popstate', render);

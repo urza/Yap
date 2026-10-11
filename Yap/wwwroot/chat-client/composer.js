@@ -26,9 +26,9 @@ draft.addEventListener('blur', () => {
     caret = { start: draft.selectionStart, end: draft.selectionEnd };
 });
 export function insertEmoji(value) {
-    const start = Math.min(caret?.start ?? draft.value.length, draft.value.length),
-        end = Math.min(caret?.end ?? start, draft.value.length);
-    draft.setRangeText(value, start, end, 'end');
+    const start = Math.min(caret?.start ?? draft.value.length, draft.value.length);
+    // Inserted at the selection start with the selected text kept, as the old page did.
+    draft.setRangeText(value, start, start, 'end');
     caret = { start: draft.selectionStart, end: draft.selectionEnd };
     // Keep the picker open and the keyboard down; the next textarea gesture restores focus.
     draft.dispatchEvent(new Event('input', { bubbles: true }));
@@ -77,8 +77,8 @@ export function createComposer({ identity, snapshot, selected, current, live, on
             $(button).disabled = !allowed;
         $('#permission-note').hidden = !!c?.canWrite;
         if (!c?.canWrite)
-            $('#permission-note').textContent = c
-                ? 'You do not have permission to send messages in this channel.'
+            $('#permission-text').textContent = c
+                ? 'You do not have permission to send messages in this channel'
                 : 'Connect to open this conversation.';
     }
     $('#draft').oninput = () => {
@@ -227,7 +227,9 @@ export function createComposer({ identity, snapshot, selected, current, live, on
     $('#upload-button').onclick = () => {
         const input = $('#upload-files');
         input.dataset.gif = '';
-        input.accept = snapshot()?.allowedExtensions?.join(',') || 'image/*,video/*';
+        // As the old InputFile: phones then offer the camera and the photo library; an
+        // extension list can turn that into a document picker (audit B-08).
+        input.accept = 'image/*,video/*';
         input.multiple = true;
         input.click();
     };
@@ -313,6 +315,7 @@ export function createComposer({ identity, snapshot, selected, current, live, on
     }
     function beginNavigation(channelId) {
         closePickers();
+        caret = null; // the insertion point belongs to one conversation's text (audit B-19)
         loadingDraftFor = channelId;
         // Disable before the coordinator awaits its outbox read: fast input must not
         // be overwritten by a delayed draft restoration from the destination room.

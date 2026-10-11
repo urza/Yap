@@ -115,7 +115,7 @@ public sealed class OfflineSnapshotService(ChatService chat, UserService users, 
         ReaderReaction[] reactions;
         lock (message.Reactions)
             reactions = message.Reactions.GroupBy(r => r.Emoji)
-                .Select(g => new ReaderReaction(g.Key, g.Select(r => r.Username).Order().ToArray())).ToArray();
+                .Select(g => new ReaderReaction(g.Key, g.Select(r => r.Username).ToArray())).ToArray(); // reaction order, as the old tooltip (audit A-22)
         var author = users.GetById(message.UserId);
         var target = message.ReplyToMessageId is { } targetId ? chat.GetMessageById(message.ChannelId, targetId) : null;
         var viewer = viewerId is { } id ? users.GetById(id) : null;

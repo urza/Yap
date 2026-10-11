@@ -18,6 +18,22 @@ const icons = {
     edit: 'M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75z',
     more: 'M6 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z',
 };
+// Old chat.js copyTextToClipboard: the menu closes first, and an origin without
+// navigator.clipboard (plain http) falls back to execCommand (audit A-18).
+async function copyText(text) {
+    try {
+        await navigator.clipboard.writeText(text);
+    } catch {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.append(area);
+        area.select();
+        document.execCommand('copy');
+        area.remove();
+    }
+}
 export function createActions({
     snapshot = () => null,
     identity,
@@ -165,15 +181,13 @@ export function createActions({
                 ),
             );
         }
+        const tip = el('div', 'delete-confirm-tip', 'Pro tip: hold ');
+        tip.append(el('kbd', '', 'Shift'), ' when deleting to skip this confirmation.');
         dialog.append(
             el('h3', 'delete-confirm-title', 'Delete Message'),
             el('p', 'delete-confirm-text', 'Are you sure you want to delete this message?'),
             preview,
-            el(
-                'div',
-                'delete-confirm-tip',
-                'Pro tip: hold Shift when deleting to skip this confirmation.',
-            ),
+            tip,
         );
         const buttons = el('div', 'delete-confirm-actions');
         dialog.append(buttons);
@@ -292,15 +306,15 @@ export function createActions({
                 quick.replaceChildren(renderEmoji(emoji));
                 bar.append(quick);
             }
-            bar.append(
-                el('div', 'action-divider'),
-                button(
-                    'action-btn action-picker',
-                    'Add Reaction',
-                    (e) => pickEmoji(e.currentTarget, (emoji) => reaction(message, emoji)),
-                    'picker',
-                ),
+            const pick = button(
+                'action-btn action-picker',
+                'Add Reaction',
+                (e) => pickEmoji(e.currentTarget, (emoji) => reaction(message, emoji)),
+                'picker',
             );
+            // The old picker icon was 20 px where the other bar icons are 18 (MessageItem 250).
+            for (const side of ['width', 'height']) pick.querySelector('svg')?.setAttribute(side, '20');
+            bar.append(el('div', 'action-divider'), pick);
             bar.append(button('action-btn action-reply', 'Reply', () => reply(message), 'reply'));
         }
         if (!message.pending && message.gifs?.length)
@@ -326,9 +340,9 @@ export function createActions({
                                 button(
                                     'more-menu-item',
                                     'Copy Text',
-                                    async () => {
-                                        await navigator.clipboard.writeText(message.content);
+                                    () => {
                                         closePopup();
+                                        copyText(message.content);
                                     },
                                     'copy',
                                 ),

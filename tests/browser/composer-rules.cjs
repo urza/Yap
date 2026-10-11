@@ -138,11 +138,10 @@ const rowCount = (page) =>
             const hits = await page.evaluate(() => {
                 const at = (selector) => {
                     const r = document.querySelector(selector).getBoundingClientRect();
-                    const n = document.elementFromPoint(
-                        r.left + r.width / 2,
-                        r.top + r.height / 2,
-                    );
-                    return n?.id || n?.className || n?.tagName;
+                    const n = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+                    // The hit can be a button's SVG icon; name the control it belongs to.
+                    const hit = n?.closest('#send, #draft, #upload-button, .emoji-picker-backdrop');
+                    return hit?.id || hit?.className || n?.tagName;
                 };
                 return { upload: at('#upload-button'), draft: at('#draft'), send: at('#send') };
             });

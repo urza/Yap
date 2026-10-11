@@ -1,4 +1,5 @@
 import { closePickers } from './pickers.js';
+import { warn } from './warnings.js';
 import { get, post } from './api.js';
 import { warmMedia } from './media.js';
 import * as storage from './storage.js';
@@ -515,7 +516,13 @@ export function createGifPicker(identity, send, notice, upload) {
         overlay.hidden = !busy;
         add.disabled = busy;
         add.classList.toggle('is-busy', busy);
-        if (uploading && !busy && node.offsetWidth) closePickers();
+        // A failed upload keeps the picker open behind the old page's "Couldn't send GIF"
+        // modal, ready for a retry; only a finished upload closes it (audit B-10).
+        const failed = event.detail.find((item) => item.gifUpload && item.status === 'failed');
+        if (uploading && !busy && node.offsetWidth) {
+            if (failed) warn("Couldn't send GIF", failed.error || 'The upload failed.');
+            else closePickers();
+        }
         uploading = busy;
     };
     document.addEventListener('client-outbox', onOutgoing);

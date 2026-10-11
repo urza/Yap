@@ -22,7 +22,9 @@ export async function openGallery(images, start, userId) {
         if (closed) return;
         closed = true;
         observer.disconnect();
-        modal.remove();
+        // 0.15 s fade, as the old gallery's .closing (audit C-17).
+        modal.classList.add('closing');
+        setTimeout(() => modal.remove(), 150);
         document.removeEventListener('keydown', key);
         document.removeEventListener('chat-clear', close);
         window.removeEventListener('resize', resize);
@@ -73,13 +75,16 @@ export async function openGallery(images, start, userId) {
             0,
             Math.min(Math.round(strip.scrollLeft / strip.clientWidth), images.length - 1),
         );
-        counter.textContent = `${index + 1} / ${images.length}`;
     }
     strip.onscroll = update;
     const observer = new IntersectionObserver(
         (entries) => {
             for (const entry of entries) {
-                if (entry.isIntersecting) entry.target.upgrade?.();
+                if (entry.isIntersecting) {
+                    entry.target.upgrade?.();
+                    // The counter changes once 60 % of a stage is in view, as on the old page.
+                    counter.textContent = `${stages.indexOf(entry.target) + 1} / ${images.length}`;
+                }
                 else entry.target.classList.remove('fill', 'fill-w');
             }
         },
@@ -209,6 +214,10 @@ export async function openGallery(images, start, userId) {
     document.addEventListener('keydown', key);
     document.addEventListener('chat-clear', close);
     window.addEventListener('resize', resize);
+    // A tap anywhere outside the picture and the controls closes, the counter included.
+    modal.onclick = (event) => {
+        if (!event.target.closest('img, video, button')) close();
+    };
     document.body.append(modal);
     strip.scrollLeft = index * strip.clientWidth;
     update();
