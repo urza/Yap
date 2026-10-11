@@ -232,6 +232,7 @@ These are the maintained checks for the corresponding feature families. Their fi
 ## Implementation references
 
 - [Client architecture and module ownership](offline-client-architecture.md), [server types and request flow](../Yap/Offline/README.md).
+- [Parity audit against the pre-rewrite page](rewrite-parity-audit.md): every interaction state of the old chat page compared with this client, with the old behaviour as the target (2026-10-11).
 - [Authentication](../Yap/Endpoints/AuthEndpoints.cs), [Settings](../Yap/Components/Pages/Settings.razor), [Admin](../Yap/Components/Pages/Admin.razor).
 - [Notification rules](notification-settings-reference.md), [deployment and rollback](../GHCR-DEPLOYMENT-GUIDE.md#upgrading-yap-to-the-offline-client).
 
