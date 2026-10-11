@@ -60,17 +60,26 @@ const scrollState = (page) =>
             assert(state.gap < 2, `follows the bottom after the fill: ${JSON.stringify(state)}`);
             assert(state.top > 100, `the lobby scrolls on the phone: ${JSON.stringify(state)}`);
             // A tap with a small finger movement on a row (a finger is never perfectly still).
-            const target = await row(page, `Filler 14 ${stamp}`)
+            // Synthetic events: Chromium keeps a 6 px CDP move inside its touch slop and never
+            // delivers it to the page, while a phone browser does deliver such a touchmove.
+            await row(page, `Filler 14 ${stamp}`)
                 .locator('.message-content')
-                .boundingBox();
-            const cdp = await context.newCDPSession(page);
-            const at = { x: target.x + target.width / 2, y: target.y + target.height / 2 };
-            await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [at] });
-            await cdp.send('Input.dispatchTouchEvent', {
-                type: 'touchMove',
-                touchPoints: [{ x: at.x, y: at.y + 6 }],
-            });
-            await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+                .evaluate((node) => {
+                    const touch = (y) =>
+                        new Touch({ identifier: 1, target: node, clientX: 100, clientY: y });
+                    const fire = (type, y) =>
+                        node.dispatchEvent(
+                            new TouchEvent(type, {
+                                touches: type === 'touchend' ? [] : [touch(y)],
+                                changedTouches: [touch(y)],
+                                bubbles: true,
+                                cancelable: true,
+                            }),
+                        );
+                    fire('touchstart', 400);
+                    fire('touchmove', 406);
+                    fire('touchend', 406);
+                });
             await post(other.page, `After the nudge ${stamp}`);
             await row(page, `After the nudge ${stamp}`).waitFor();
             await page.waitForTimeout(500);

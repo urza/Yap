@@ -75,14 +75,21 @@
     transition: opacity 0.3s ease;
 }
 /* "New messages" pill: shown when someone else posts while the user reads older messages
-   (the view keeps its place); a tap goes to the bottom. A sibling of the scroller inside
-   .messages-container (position: relative), above the 18px typing strip. */
+   (the view keeps its place); a tap goes to the bottom. It floats in a zero-height anchor
+   between the list and the typing strip, so it sits just above the strip whatever the
+   composer's height; .messages-container also holds the composer, so a bottom offset from
+   that container landed the pill on the text box. */
+.new-messages-anchor {
+    position: relative;
+    height: 0;
+    overflow: visible;
+    z-index: 101;
+}
 .new-messages {
     position: absolute;
     left: 50%;
-    bottom: calc(18px + 10px);
+    bottom: 10px;
     transform: translateX(-50%);
-    z-index: 101;
     display: flex;
     align-items: center;
     gap: 4px;
