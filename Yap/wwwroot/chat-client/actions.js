@@ -82,7 +82,12 @@ export function createActions({
         popupOpen = true;
         menuOwner = messageId;
         anchor.closest('.message-group')?.classList.add('menu-open');
+        // The backdrop owns the closing tap, as on the pre-rewrite page (MessageItem.razor's
+        // more-menu-backdrop with @onclick). A document pointerdown closer removed the backdrop
+        // under the finger, so the same tap's click went on to whatever lay beneath: a
+        // reaction pill toggled, a link opened.
         const backdrop = el('div', 'more-menu-backdrop');
+        backdrop.onclick = () => closePopup();
         document.querySelector('.chat-container').append(backdrop);
         document.body.append(node);
         const rect = anchor.getBoundingClientRect();
@@ -105,10 +110,6 @@ export function createActions({
         }
         // Original menu CSS stays hidden until its positioning code reveals it.
         node.style.visibility = 'visible';
-        const outside = (e) => {
-            if (!node.contains(e.target)) closePopup();
-        };
-        document.addEventListener('pointerdown', outside);
         closePopup = () => {
             document
                 .querySelectorAll('.message-group.menu-open')
@@ -117,7 +118,6 @@ export function createActions({
             node.remove();
             backdrop.remove();
             popupOpen = false;
-            document.removeEventListener('pointerdown', outside);
             closePopup = () => {};
         };
     }
@@ -342,15 +342,25 @@ export function createActions({
                 reaction(message, pill.dataset.emoji).catch((err) => notice(err.message));
     }
     const scroller = document.querySelector('.messages');
-    let scrollStart = 0;
+    // Ported from the pre-rewrite chat.js (dismissActions / armActionsDismiss): the fade and
+    // the scroll rule run only after a touch armed a bar, so a mouse user on a touchscreen
+    // laptop keeps the hover reveal; and nothing hides the bar under an open menu or picker.
+    let scrollStart = 0,
+        armed = false;
     const dismiss = () => {
+        if (!armed) return;
         if (
-            !isTouchDevice() ||
             popupOpen ||
             document.querySelector('.client-reaction-picker') ||
             document.querySelector('.message-input-container[data-picker]')
-        )
+        ) {
+            // The old popups lived inside the row, so every tap in them re-armed the fade.
+            // Ours are body-level; a retry gives the same "5 s after the last touch" result.
+            clearTimeout(idleTimer);
+            idleTimer = setTimeout(dismiss, 5000);
             return;
+        }
+        armed = false;
         scroller.classList.add('scroll-dismissing');
         document
             .querySelectorAll('.touch-actions')
@@ -386,6 +396,7 @@ export function createActions({
             touchRow = null;
             if (!row?.isConnected || !row.contains(event.target)) return;
             clearTimeout(idleTimer);
+            armed = true;
             scroller.classList.remove('scroll-dismissing');
             document
                 .querySelectorAll('.touch-actions')
@@ -401,9 +412,10 @@ export function createActions({
             dismiss();
         }
     });
+    // A scroll never closes the More menu or the Delete dialog; the old page had no such
+    // rule, and the list scrolls by itself when a message arrives or the keyboard closes.
     scroller.addEventListener('scroll', () => {
-        closePopup();
-        if (Math.abs(scroller.scrollTop - scrollStart) > 50) dismiss();
+        if (armed && Math.abs(scroller.scrollTop - scrollStart) > 50) dismiss();
     });
     document.addEventListener('chat-clear', () => {
         closePopup();

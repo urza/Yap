@@ -115,9 +115,35 @@ async function sendAndFind(page, text) {
                 },
                 'a tap where the bar appears shows the bar and presses nothing',
             );
+            // The More sheet's backdrop owns the closing tap. A tap on the dimmed area over the
+            // row's own quick-reaction button (the bar stays visible under the backdrop while
+            // the menu is open) must close the sheet and press nothing; with the backdrop
+            // removed at pointerdown, the same tap's click toggled that reaction.
+            await first.row.locator('.message-content').tap();
+            await first.row.getByTitle('More', { exact: true }).tap();
+            await page.locator('.more-menu').waitFor();
+            await first.row.locator('.action-btn').first().tap({ force: true });
+            await page.waitForTimeout(500);
+            assert.equal(await page.locator('.more-menu').count(), 0, 'the tap closed the sheet');
+            assert.equal(
+                await first.row.locator('.reaction-pill').count(),
+                0,
+                'the tap that closed the sheet did not reach the quick reaction under it',
+            );
+            // A scroll of the list never closes the menu: the list scrolls by itself when a
+            // message arrives or the keyboard closes.
+            await first.row.getByTitle('More', { exact: true }).tap();
+            await page.locator('.more-menu').waitFor();
+            await page.evaluate(() =>
+                document.querySelector('.messages').dispatchEvent(new Event('scroll')),
+            );
+            await page.waitForTimeout(300);
+            assert.equal(await page.locator('.more-menu').count(), 1, 'a scroll keeps the menu');
+            await page.keyboard.press('Escape');
+            await page.locator('.more-menu').waitFor({ state: 'detached' });
             assert.deepEqual(errors, []);
             console.log(
-                'PASS 390x844 touch: one action bar at a time, with a sticky :hover on another row; a touch outside hides it; a tap where the bar appears presses nothing',
+                'PASS 390x844 touch: one action bar at a time, with a sticky :hover on another row; a touch outside hides it; a tap where the bar appears presses nothing; the More backdrop absorbs its closing tap; a scroll keeps the menu',
             );
         } finally {
             await context.close();

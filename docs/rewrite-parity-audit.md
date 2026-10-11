@@ -192,6 +192,12 @@ The user ruled on the class D items. "Keep" means the new behaviour stays and th
 | B-14 / C-10, B-04 location | Keep the full-row pending echo and the progress in that row. The bare progress bar still gets its styling. |
 | B-17, D-14 dialog, D-20, D-24, D-31 | Keep (minor, architectural). The install dialog's bare buttons still get their styling. |
 
+## Progress
+
+| Items | Commit |
+| --- | --- |
+| A-01, A-02, A-03 / C-02, A-04, A-11 | Backdrop owns the More sheet's closing tap; no scroll closes a menu; fade armed by touch only, retried under an open menu or picker |
+
 ---
 
 ## Appendix A: Message rows and actions
