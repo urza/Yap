@@ -264,11 +264,12 @@ export function createComposer({ identity, snapshot, selected, current, live, on
         }
     });
     $('#send').onclick = send;
-    // Keep mobile keyboard focus inside the user gesture, before IndexedDB work yields.
-    $('#send').addEventListener('pointerdown', (event) => {
-        event.preventDefault();
-        $('#draft').focus();
-    });
+    // The button must not take focus: on a phone that closes the keyboard. It must not
+    // call draft.focus() either. With the draft unfocused that opens the keyboard and
+    // closes the picker (the draft focus listener) during the tap, the composer moves
+    // under the finger, and the click lands elsewhere. The pre-rewrite page only
+    // prevented the default, and a send from the emoji picker worked in one tap.
+    $('#send').addEventListener('pointerdown', (event) => event.preventDefault());
     $('#draft').addEventListener('keydown', (event) => {
         if (
             event.key === 'Enter' &&
