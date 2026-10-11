@@ -76,7 +76,9 @@ work; as of 2026-10 `ThemeRegistry` has 11 themes (`discord-dark`, `midnight`, `
 It looks like it could: `--bg-primary` already accepts a full CSS `background` value — `ocean` and
 `sunset` put `linear-gradient(...)` in it today. But that variable is doing **two different jobs**:
 
-1. the **page canvas** — `.chat-container`, `.messages-container` (`wwwroot/chat-client/shared.css`)
+1. the **page canvas** — `.chat-container` (`Yap/wwwroot/chat-client/shared.css:621`). When this plan
+   was written, `.messages-container` also used it. Step 3 moved that rule to `--bg-canvas-panel`
+   (`shared.css:695`).
 2. an **opaque fill for small elements** — message hover states (`Yap/wwwroot/chat-client/messages.css`),
    the scrollbar thumb border (also `Yap/wwwroot/chat-client/messages.css`), and an Admin panel surface.
    The composer input uses `--bg-input`, not `--bg-primary`.
