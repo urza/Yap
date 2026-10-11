@@ -1,4 +1,10 @@
-export function createScroll(scroller) {
+// Follow-the-bottom state and the "New messages" indicator.
+// Follow is released only by an upward user scroll, a real scroll event, never by a wheel,
+// touch or key gesture that does not move the list. The gesture listeners that did that turned
+// follow off on a tap with a small finger movement, or on a swipe over a short conversation,
+// and new messages then landed below the fold with no sign (audit C-01). The pre-rewrite page
+// never let a tap change scrolling.
+export function createScroll(scroller, pill) {
     let following = true,
         previousTop = scroller.scrollTop,
         frame;
@@ -13,47 +19,25 @@ export function createScroll(scroller) {
             previousTop = scroller.scrollTop;
         });
     };
+    const bottom = () => {
+        following = true;
+        pill.hidden = true;
+        update();
+    };
     scroller.addEventListener(
         'scroll',
         () => {
             // Growing media can move the bottom without a user scroll. Only upward movement
             // releases the bottom lock; otherwise late images would strand us above new content.
-            if (nearBottom()) following = true;
-            else if (scroller.scrollTop < previousTop - 1) following = false;
+            if (nearBottom()) {
+                following = true;
+                pill.hidden = true;
+            } else if (scroller.scrollTop < previousTop - 1) following = false;
             previousTop = scroller.scrollTop;
         },
         { passive: true },
     );
-    scroller.addEventListener(
-        'wheel',
-        (event) => {
-            if (event.deltaY < 0) following = false;
-        },
-        { passive: true },
-    );
-    let touchY;
-    scroller.addEventListener(
-        'touchstart',
-        (event) => {
-            touchY = event.touches[0]?.clientY;
-        },
-        { passive: true },
-    );
-    scroller.addEventListener(
-        'touchmove',
-        (event) => {
-            if (event.touches[0]?.clientY > touchY) following = false;
-            touchY = event.touches[0]?.clientY;
-        },
-        { passive: true },
-    );
-    document.addEventListener('keydown', (event) => {
-        if (
-            !event.target.closest('input,textarea,[contenteditable]') &&
-            ['ArrowUp', 'PageUp', 'Home'].includes(event.key)
-        )
-            following = false;
-    });
+    pill.onclick = bottom;
     // Observe actual layout instead of fixed delays: uploads, lazy images, video metadata
     // and composer resizing can all finish after the conversation's first render.
     const resize = new ResizeObserver(update);
@@ -82,12 +66,15 @@ export function createScroll(scroller) {
                 }
             };
         },
-        bottom() {
-            following = true;
-            update();
+        // Someone else posted while the user reads older messages: the view keeps its place
+        // (decided 2026-10-11, audit C-03) and the pill offers the way down.
+        announce() {
+            if (!following) pill.hidden = false;
         },
+        bottom,
         reset() {
             following = false;
+            pill.hidden = true;
             cancelAnimationFrame(frame);
             previousTop = 0;
         },

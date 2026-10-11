@@ -74,6 +74,35 @@
     pointer-events: none !important;
     transition: opacity 0.3s ease;
 }
+/* "New messages" pill: shown when someone else posts while the user reads older messages
+   (the view keeps its place); a tap goes to the bottom. A sibling of the scroller inside
+   .messages-container (position: relative), above the 18px typing strip. */
+.new-messages {
+    position: absolute;
+    left: 50%;
+    bottom: calc(18px + 10px);
+    transform: translateX(-50%);
+    z-index: 101;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px 6px 10px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--accent-primary);
+    color: var(--text-white);
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+}
+.new-messages:hover {
+    background: var(--accent-hover);
+}
+.new-messages svg {
+    fill: currentColor;
+}
 /* System messages (for DM notice) */
 .system-message {
     text-align: center;

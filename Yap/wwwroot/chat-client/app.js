@@ -27,7 +27,8 @@ const element = (tag, className, text) => {
     if (text !== undefined) node.textContent = text;
     return node;
 };
-const scrolling = createScroll($('.messages'));
+const scrolling = createScroll($('.messages'), $('#new-messages'));
+let newestRendered = null;
 /** @type {import('./contracts.js').AccountState | undefined | null} */
 let identity;
 /** @type {import('./contracts.js').ChatSnapshot | undefined | null} */
@@ -698,6 +699,18 @@ async function render() {
     const restoreScroll = !switched && scrolling.preserve();
     messageView.render(display);
     if (restoreScroll) restoreScroll();
+    // A newer last message from someone else, while the user reads older ones, gets the
+    // "New messages" pill instead of a jump (decided 2026-10-11, audit C-03).
+    const newest = display?.messages.at(-1);
+    if (
+        !switched &&
+        newest &&
+        newestRendered &&
+        new Date(newest.timestamp) > new Date(newestRendered.timestamp) &&
+        newest.author?.username !== snapshot.user.username
+    )
+        scrolling.announce();
+    newestRendered = newest ?? null;
     // Arm following as soon as destination content exists. Read acknowledgements may
     // trigger a newer render before this one finishes its remaining IndexedDB awaits.
     if (switched) scrolling.bottom();

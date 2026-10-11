@@ -197,6 +197,7 @@ The user ruled on the class D items. "Keep" means the new behaviour stays and th
 | Items | Commit |
 | --- | --- |
 | A-01, A-02, A-03 / C-02, A-04, A-11 | Backdrop owns the More sheet's closing tap; no scroll closes a menu; fade armed by touch only, retried under an open menu or picker |
+| C-01, C-03 (decision), C-04 | Follow released only by an upward scroll; New messages pill for arrivals while scrolled up. On return to the tab a pending frame pins the bottom when following; otherwise the pill is already showing |
 
 ---
 
