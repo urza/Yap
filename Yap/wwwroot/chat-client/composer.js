@@ -65,7 +65,10 @@ export function createComposer({ identity, snapshot, selected, current, live, on
             snapshot().canSend &&
             loadingDraftFor !== selected()
         );
-        $('#send').disabled = !allowed || submitting || !$('#draft').value.trim();
+        // Never disabled for an empty draft or during a send, as on the old page: a tap on a
+        // disabled button can drop the pointerdown that keeps the phone keyboard open, and the
+        // CSS already collapses the button while the draft is empty. send() guards instead.
+        $('#send').disabled = !allowed;
         $('#draft').disabled = !c || !c.canWrite || loadingDraftFor === selected();
         $('#draft').maxLength = snapshot()?.maxTextLength || 4000;
         $('.message-input-container').hidden = !!c && !c.canWrite;
@@ -102,12 +105,17 @@ export function createComposer({ identity, snapshot, selected, current, live, on
         live.stopTyping();
     }
     async function send() {
-        if ($('#send').disabled || !identity()) return;
-        const content = $('#draft').value,
-            channel = selected(),
+        const content = $('#draft').value;
+        if ($('#send').disabled || submitting || !content.trim() || !identity()) return;
+        const channel = selected(),
             account = identity(),
             reply = replyingTo;
         submitting = true;
+        // Cleared in the click's own task, as the old page did (chat.js 1902-1907): text typed
+        // while the queue write runs must not land behind the sent text, and a second Enter
+        // must not send the same text twice.
+        $('#draft').value = '';
+        $('#draft').style.height = 'auto';
         updateComposer();
         try {
             await draftWrite;
@@ -120,13 +128,14 @@ export function createComposer({ identity, snapshot, selected, current, live, on
             );
             if (identity()?.epoch !== account.epoch) return;
             finishReply(account, channel, reply);
-            if (selected() === channel && $('#draft').value === content) {
-                $('#draft').value = '';
-                $('#draft').style.height = 'auto';
-            }
             await onQueued(channel);
         } catch (error) {
             notice(`Message could not be queued: ${error.message}`);
+            // Give the text back rather than lose it, unless the user has moved on.
+            if (selected() === channel && !$('#draft').value) {
+                $('#draft').value = content;
+                resizeDraft();
+            }
         } finally {
             submitting = false;
             updateComposer();
@@ -257,7 +266,16 @@ export function createComposer({ identity, snapshot, selected, current, live, on
         ).catch((error) => warn('Could not upload files', error.message));
     });
     document.addEventListener('dragend', resetDrag);
-    document.addEventListener('drop', resetDrag);
+    // The old page cancelled dragover and drop for the whole document (chat.js 320-337).
+    // Without that, a file dropped on the header, the sidebar or a disabled composer
+    // replaces the chat with the file in this tab.
+    document.addEventListener('dragover', (event) => {
+        if (fileDrag(event)) event.preventDefault();
+    });
+    document.addEventListener('drop', (event) => {
+        if (fileDrag(event)) event.preventDefault();
+        resetDrag();
+    });
     $('#draft').addEventListener('paste', (event) => {
         const files = [...event.clipboardData.items]
             .filter((i) => i.kind === 'file')

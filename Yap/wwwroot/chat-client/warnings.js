@@ -1,8 +1,9 @@
 let dismiss = () => {};
 export function warn(title, message) {
     dismiss();
-    const previous = document.activeElement,
-        backdrop = document.createElement('div'),
+    // No focus calls, as on the old page's modal: focusing the button closes the phone
+    // keyboard, and refocusing the draft on dismiss reopens it and closes an open picker.
+    const backdrop = document.createElement('div'),
         dialog = document.createElement('div');
     backdrop.className = 'warning-modal-backdrop';
     dialog.className = 'warning-modal';
@@ -25,7 +26,6 @@ export function warn(title, message) {
     okay.textContent = 'Got It';
     dismiss = () => {
         backdrop.remove();
-        previous?.focus();
         dismiss = () => {};
     };
     close.onclick = okay.onclick = () => dismiss();
@@ -35,7 +35,6 @@ export function warn(title, message) {
     dialog.append(close, heading, body, okay);
     backdrop.append(dialog);
     document.body.append(backdrop);
-    okay.focus();
 }
 document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') dismiss();

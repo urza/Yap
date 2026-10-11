@@ -286,19 +286,20 @@
 .message-input-container[data-picker='emoji'] [data-picker-pane='emoji'] {
     display: block;
 }
-/* While a picker is open (data-picker set by chat.js), lift the whole input box above the
-   picker backdrop (z-index 999) — like .send-button — so a single click reaches the
-   textarea, focusing it AND dismissing the picker in one gesture (the focusin handler in
-   chat.js clears data-picker). The textarea is transparent now, so lifting only it would
-   float bare text over the mobile backdrop; the box brings its background along. Scoped
-   to [data-picker] so the [data-dragging] "Drop images here" hint (container ::after)
-   stays above the box otherwise. */
+/* While a picker is open (data-picker set by pickers.js), the input box becomes a stacking
+   context that HOLDS the picker backdrop (z 999, appended inside .emoji-toggle-wrapper by
+   pickers.js). The box background, the + button and the toggles then sit under the
+   backdrop; only the lifted textarea (below), the picker pane and Send stay above it, so
+   one click reaches the textarea, focusing it AND dismissing the picker in one gesture,
+   and a tap on + or on the other toggle only closes the picker. Scoped to [data-picker]
+   so the [data-dragging] "Drop images here" hint (container ::after) stays above the box
+   otherwise. */
 .message-input-container[data-picker] .input-box {
     position: relative;
     z-index: 1000;
 }
-/* The box is now a stacking context holding the backdrop (z 999) — the static textarea
-   would paint UNDER it. Lift the textarea within the box so one click still reaches it. */
+/* The box is a stacking context holding the backdrop (z 999) — the static textarea would
+   paint UNDER it. Lift the textarea within the box so one click still reaches it. */
 .message-input-container[data-picker] .message-input {
     position: relative;
     z-index: 1000;

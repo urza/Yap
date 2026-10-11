@@ -15,8 +15,14 @@ let factories,
     popupRefresh;
 const backdrop = el('div', 'emoji-picker-backdrop');
 backdrop.hidden = true;
-// Chat isolates its stacking context for theme layers; a body-level backdrop would cover its picker.
-document.querySelector('.chat-container').append(backdrop);
+// Inside the input box, as on the old page (MessageInput.razor's PickerPane). While a picker
+// is open the box is lifted to z 1000 and becomes a stacking context, so this fixed backdrop
+// (z 999) covers the box background, the + button and the toggles, while the textarea, the
+// picker pane and Send stay above it. Appended to .chat-container instead, the whole box
+// floated above the backdrop: on a phone the box was not dimmed, and a tap on + opened the
+// file chooser under the open sheet. (A body-level backdrop would be outside the chat's
+// isolated stacking context and cover the picker.)
+document.querySelector('.emoji-toggle-wrapper').append(backdrop);
 backdrop.onclick = () => closePickers();
 function view(kind) {
     return (views[kind] ??= factories[kind]());

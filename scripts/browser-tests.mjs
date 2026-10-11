@@ -18,6 +18,7 @@ const standardSuites = [
     'phone-edit-actions',
     'phone-action-bars',
     'new-messages-indicator',
+    'composer-rules',
     'pwa-integration',
     'local-http',
 ];
