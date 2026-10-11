@@ -210,6 +210,7 @@ export function createMessages({ identity, snapshot, current, actions, history, 
                     node.id = `msg-${message.id}`;
                     node.classList.remove('pending-message');
                     delete node.dataset.operation;
+                    delete node.dataset.attempted;
                     record = { node };
                     nodes.set(message.id, record);
                 }

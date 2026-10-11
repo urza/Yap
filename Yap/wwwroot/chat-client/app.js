@@ -474,6 +474,19 @@ async function resolveDm() {
         resolvingDm = false;
     }
 }
+// A sibling tab can delete an unsent message while this tab edits it. Save would then
+// queue an edit for a message the server never received. An acknowledgement also
+// removes the outbox item, but it stores the accepted message in the same transaction,
+// and this tab's snapshot can still lack it. A delete (storage.changePending) removes
+// only items never attempted, so an attempted item always keeps its editor.
+async function editorOrphaned(row, pending, channel) {
+    const operation = row.dataset.operation;
+    if (row.dataset.attempted || pending.some((m) => m.operationId === operation)) return false;
+    const stored = await storage.readState();
+    return !stored?.snapshot?.conversations
+        .find((c) => c.id === channel)
+        ?.messages.some((m) => m.operationId === operation);
+}
 async function renderPending() {
     const account = identity,
         channel = selectedConversationId;
@@ -484,6 +497,14 @@ async function renderPending() {
     );
     if (identity?.epoch !== account.epoch || selectedConversationId !== channel || !snapshot)
         return;
+    const root = $('#pending');
+    const edited = [...root.children].find((row) => actions.isEditing(row.dataset.operation));
+    if (edited && (await editorOrphaned(edited, pending, channel))) {
+        if (identity?.epoch !== account.epoch || selectedConversationId !== channel || !snapshot)
+            return;
+        // The loop below removes the row once its editor is closed.
+        if (actions.isEditing(edited.dataset.operation)) actions.reset();
+    }
     document.dispatchEvent(new CustomEvent('client-outbox', { detail: all }));
     const outgoing = $('#outgoing');
     outgoing.replaceChildren();
@@ -507,7 +528,6 @@ async function renderPending() {
         outgoing.append(link);
     }
     $('#outgoing-section').hidden = !outgoing.children.length;
-    const root = $('#pending');
     // An outbox notice can precede this tab's snapshot merge. Keep its editor until
     // timeline rendering transfers the node to the accepted message (or it is canceled).
     for (const row of [...root.children]) {
@@ -535,6 +555,7 @@ async function renderPending() {
             gifs: item.gifPreview ? [item.gifPreview] : [],
         };
         if (editingRow) {
+            editingRow.dataset.attempted = item.attempted ? 'true' : '';
             previous = message;
             position++;
             continue;
@@ -553,6 +574,7 @@ async function renderPending() {
         row.removeAttribute('id');
         row.classList.add('pending-message');
         row.dataset.operation = item.operationId;
+        row.dataset.attempted = item.attempted ? 'true' : '';
         const body = row.querySelector('.message-body');
         previous = message;
         if (item.files?.length) {

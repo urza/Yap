@@ -211,6 +211,39 @@ fs.mkdirSync(output, { recursive: true });
             console.log(
                 'PASS offline edit/reaction/reply draft survive reload; unsent edit/cancel and reconnect reconcile',
             );
+            // A sibling tab deletes an unsent message while this tab edits it. Saving would
+            // queue an edit for a message the server never received, so the editor must close.
+            const sibling = await context.newPage();
+            sibling.on('pageerror', (e) => errors.push(e.message));
+            await sibling.goto(origin + '/dm/' + username + 'b');
+            await sibling.waitForFunction(() =>
+                document.querySelector('#connection')?.textContent.startsWith('Synced'),
+            );
+            await page.bringToFront();
+            await context.setOffline(true);
+            await send('Sibling deletes this');
+            await action('Sibling deletes this', 'Edit');
+            await page.locator('.edit-input').fill('Edit of a deleted send');
+            const siblingRow = sibling
+                .locator('#pending .message-group')
+                .filter({ hasText: 'Sibling deletes this' });
+            await siblingRow.hover();
+            await siblingRow.getByTitle('More', { exact: true }).click();
+            await sibling.getByRole('button', { name: 'Delete Message', exact: true }).click();
+            await sibling.locator('.confirm-delete').click();
+            await page.locator('.edit-input').waitFor({ state: 'detached' });
+            assert.equal(await page.locator('#pending [data-operation]').count(), 0);
+            assert.equal(
+                await page.evaluate(
+                    async () => (await (await import('/chat-client/storage.js')).outbox()).length,
+                ),
+                0,
+            );
+            await sibling.close();
+            await context.setOffline(false);
+            console.log(
+                'PASS editing an unsent message closes when a sibling tab deletes it and queues no edit',
+            );
             await draft.fill('😀');
             await page.locator('#send').click();
             const emojiRow = page
