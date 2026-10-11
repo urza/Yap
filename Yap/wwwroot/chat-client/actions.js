@@ -356,25 +356,44 @@ export function createActions({
             .querySelectorAll('.touch-actions')
             .forEach((n) => n.classList.remove('touch-actions'));
     };
+    // The bar appears after the tap, never under the finger. Shown at pointerdown, it sat
+    // under the finger at touchend and took that tap's click: a tap near the top of a row
+    // opened Edit or the reaction picker. The pre-rewrite page revealed on :hover, which a
+    // touch browser applies after the tap, and iOS swallows the click of a tap whose hover
+    // reveals content. So the row is noted at pointerdown and the bar is shown by the click,
+    // whose target is fixed by then. A scroll gesture ends without a click and shows nothing.
+    // A touch outside the rows still hides the bar at once.
+    let touchRow = null;
     document.addEventListener(
         'pointerdown',
         (event) => {
             if (event.pointerType !== 'touch') return;
+            touchRow = event.target.closest('.message-group');
+            if (touchRow) scrollStart = scroller.scrollTop;
+            else dismiss();
+        },
+        { passive: true },
+    );
+    document.addEventListener('pointercancel', () => {
+        touchRow = null;
+    });
+    // On the scroller, not the document, and in the capture phase: iOS only clicks when an
+    // element on the path listens, and bar buttons stop propagation.
+    scroller.addEventListener(
+        'click',
+        (event) => {
+            const row = touchRow;
+            touchRow = null;
+            if (!row?.isConnected || !row.contains(event.target)) return;
             clearTimeout(idleTimer);
-            const row = event.target.closest('.message-group');
-            if (!row) {
-                dismiss();
-                return;
-            }
             scroller.classList.remove('scroll-dismissing');
             document
                 .querySelectorAll('.touch-actions')
                 .forEach((n) => n.classList.remove('touch-actions'));
             row.classList.add('touch-actions');
-            scrollStart = scroller.scrollTop;
             idleTimer = setTimeout(dismiss, 5000);
         },
-        { passive: true },
+        true,
     );
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {

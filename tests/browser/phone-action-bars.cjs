@@ -74,9 +74,50 @@ async function sendAndFind(page, text) {
             await page.locator('#title').tap();
             await page.waitForTimeout(500);
             assert.deepEqual(await visibleBars(page), [], 'after a touch outside the messages');
+            // The bar appears after the tap, never under the finger. A tap on the spot where
+            // the row's bar will show must reveal the bar and press none of its buttons. A bar
+            // shown at pointerdown took that tap's click (Edit or the reaction picker opened).
+            const spot = await second.row.evaluate((row) => {
+                const bar = row.querySelector('.message-actions');
+                row.classList.add('touch-actions');
+                const b = bar.getBoundingClientRect(),
+                    r = row.getBoundingClientRect();
+                row.classList.remove('touch-actions');
+                // Inside the first bar button and inside the row's own box.
+                return { x: b.left + 14, y: Math.max(b.bottom - 6, r.top + 2) };
+            });
+            assert(
+                await page.evaluate(
+                    ({ x, y }) => !document.elementFromPoint(x, y)?.closest('.message-actions'),
+                    spot,
+                ),
+                'the hidden bar does not take hits at the spot',
+            );
+            await page.touchscreen.tap(spot.x, spot.y);
+            await page.waitForTimeout(500);
+            const fired = await second.row.evaluate((row) => ({
+                bar: row.classList.contains('touch-actions'),
+                reaction: !!row.querySelector('.reaction-pill'),
+                editor: !!row.querySelector('.edit-input'),
+                picker: !!document.querySelector('.client-reaction-picker'),
+                menu: !!document.querySelector('.more-menu'),
+                reply: !document.querySelector('#reply-bar').hidden,
+            }));
+            assert.deepEqual(
+                fired,
+                {
+                    bar: true,
+                    reaction: false,
+                    editor: false,
+                    picker: false,
+                    menu: false,
+                    reply: false,
+                },
+                'a tap where the bar appears shows the bar and presses nothing',
+            );
             assert.deepEqual(errors, []);
             console.log(
-                'PASS 390x844 touch: one action bar at a time, with a sticky :hover on another row; a touch outside hides it',
+                'PASS 390x844 touch: one action bar at a time, with a sticky :hover on another row; a touch outside hides it; a tap where the bar appears presses nothing',
             );
         } finally {
             await context.close();
