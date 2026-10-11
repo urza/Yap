@@ -84,8 +84,7 @@ export async function openGallery(images, start, userId) {
                     entry.target.upgrade?.();
                     // The counter changes once 60 % of a stage is in view, as on the old page.
                     counter.textContent = `${stages.indexOf(entry.target) + 1} / ${images.length}`;
-                }
-                else entry.target.classList.remove('fill', 'fill-w');
+                } else entry.target.classList.remove('fill', 'fill-w');
             }
         },
         { root: strip, threshold: 0.6 },

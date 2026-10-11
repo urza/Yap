@@ -48,12 +48,7 @@ const { origin } = require('./support/phone.cjs');
         // so the bracket stayed outside; the balanced-bracket rule applies to bare-domain paths.
         assert.deepEqual(
             await links('read https://en.wikipedia.org/wiki/Foo_(bar) now'),
-            [
-                [
-                    'https://en.wikipedia.org/wiki/Foo_(bar',
-                    'https://en.wikipedia.org/wiki/Foo_(bar',
-                ],
-            ],
+            [['https://en.wikipedia.org/wiki/Foo_(bar', 'https://en.wikipedia.org/wiki/Foo_(bar']],
             'http(s) links end before a closing bracket, as on the old page',
         );
         assert.deepEqual(

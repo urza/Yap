@@ -8,9 +8,13 @@ const { origin } = require('./support/phone.cjs');
 (async () => {
     const browser = await chromium.launch();
     try {
+        // A wide touch screen (phone in landscape, tablet). A real touch context: this Chromium
+        // ignores pointer and hover in CDP's emulated media features.
         const context = await browser.newContext({
             serviceWorkers: 'block',
             viewport: { width: 1024, height: 768 },
+            isMobile: true,
+            hasTouch: true,
         });
         const page = await context.newPage();
         const errors = [];
@@ -44,21 +48,18 @@ const { origin } = require('./support/phone.cjs');
             );
         });
         assert(fonts.length > 3 && fonts.every(Boolean), `menu items share one font: ${fonts}`);
-        // A wide touch screen (phone in landscape, tablet): the info button shows.
-        const cdp = await context.newCDPSession(page);
-        await cdp.send('Emulation.setEmulatedMedia', {
-            features: [
-                { name: 'pointer', value: 'coarse' },
-                { name: 'hover', value: 'none' },
-            ],
-        });
+        // A wide touch screen: the info button shows (the hover card is off for coarse pointers).
+        assert.equal(
+            await page.evaluate(() => matchMedia('(pointer: coarse)').matches),
+            true,
+            'the context reports a coarse pointer',
+        );
         await page.locator('.profile-info-btn').first().waitFor({ state: 'attached' });
         const display = await page
             .locator('.profile-info-btn')
             .first()
             .evaluate((n) => getComputedStyle(n).display);
         assert.equal(display, 'flex', 'the info button shows under a coarse pointer at 1024 px');
-        await cdp.send('Emulation.setEmulatedMedia', { features: [] });
         // Uploaded video elements, where present, carry no playsinline flag.
         const inline = await page.evaluate(() =>
             [...document.querySelectorAll('video.video-player, video.cached-video-player')].map(

@@ -313,7 +313,8 @@ export function createActions({
                 'picker',
             );
             // The old picker icon was 20 px where the other bar icons are 18 (MessageItem 250).
-            for (const side of ['width', 'height']) pick.querySelector('svg')?.setAttribute(side, '20');
+            for (const side of ['width', 'height'])
+                pick.querySelector('svg')?.setAttribute(side, '20');
             bar.append(el('div', 'action-divider'), pick);
             bar.append(button('action-btn action-reply', 'Reply', () => reply(message), 'reply'));
         }

@@ -464,6 +464,14 @@ const suffix = Date.now().toString(36),
             'PASS schema 2 → 4 preserves queued text and draft while adding read checkpoints and conversation storage',
         );
         // Authentication failure locks access without losing an unaccepted outgoing message.
+        // Online, the page then leaves for the login page (decided 2026-10-11, audit D-09); the
+        // lock and the unsent message are stored before it goes.
+        const chatUrl = alice.url();
+        // A stub login page: the real one sees the still-valid cookie and would send the page
+        // straight back; this check is about the stored lock and the resume after it.
+        await alice.route(/\/login\?returnUrl=/, (route) =>
+            route.fulfill({ status: 200, contentType: 'text/html', body: '<title>login</title>' }),
+        );
         await alice.evaluate(() => {
             window.fetch = async (url, options) => {
                 if (String(url).includes('/api/chat/')) return new Response('', { status: 401 });
@@ -471,6 +479,8 @@ const suffix = Date.now().toString(36),
             };
         });
         await send(alice, text('survives authentication loss'));
+        await alice.waitForURL(/\/login\?returnUrl=/);
+        await alice.unroute(/\/login\?returnUrl=/);
         await until(() =>
             alice.evaluate(
                 async () => !!(await (await import('/chat-client/storage.js')).readState())?.locked,
@@ -483,7 +493,7 @@ const suffix = Date.now().toString(36),
             1,
         );
         await contexts[0].setOffline(true);
-        await alice.reload();
+        await alice.goto(chatUrl);
         await until(() =>
             alice
                 .locator('#notice')
