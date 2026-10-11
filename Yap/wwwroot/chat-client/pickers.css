@@ -719,3 +719,19 @@
 .gif-attribution a {
     margin: 8px;
 }
+/* GIF search paging: a bare button before (audit B-27); same look as the inline controls. */
+.gif-load-more {
+    display: block;
+    margin: 8px auto;
+    padding: 6px 14px;
+    border: 0;
+    border-radius: 4px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font: inherit;
+    font-weight: 500;
+    cursor: pointer;
+}
+.gif-load-more:hover {
+    background: var(--bg-muted);
+}

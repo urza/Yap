@@ -41,6 +41,13 @@ export async function favorite(gif, button, owner) {
     gif.favorite = next;
     button.classList.toggle('favorited', next);
     button.title = next ? 'Remove from favorites' : 'Add to favorites';
+    // Both stars of a timeline GIF (the bar button on phones, the corner star) show one
+    // state, as both rendered from one source on the old page (audit A-09).
+    const row = button.closest('.message-group');
+    for (const star of row?.querySelectorAll('.action-gif-fav, .gif-message-fav') ?? []) {
+        star.classList.toggle('favorited', next);
+        star.title = button.title;
+    }
     document.dispatchEvent(new Event('client-gifs-changed'));
 }
 function preview(item) {

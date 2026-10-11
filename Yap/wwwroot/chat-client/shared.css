@@ -254,6 +254,7 @@
     border: none;
     color: var(--text-secondary);
     font-size: 0.875rem;
+    font-family: inherit; /* the <a> items inherit Inter; buttons must match (audit D-16) */
     text-align: left;
     border-radius: 2px;
     cursor: pointer;
@@ -995,7 +996,10 @@
 .profile-info-btn {
     display: none;
 }
-@media (max-width: 768px) {
+/* Every touch screen gets the button, a phone in landscape (844 px and more) included:
+   the hover card is off for coarse pointers (app.js), so without it the card could not
+   open there. The old page keyed this on the User-Agent, not on the width (audit D-01). */
+@media (max-width: 768px), (pointer: coarse) {
     .profile-info-btn {
         display: flex;
     }
@@ -1020,8 +1024,19 @@
 .install-guide p {
     line-height: 1.5;
 }
+/* Same look as the inline controls elsewhere (#notice button); without this the dialog's
+   buttons rendered with the browser's grey bevel and font on the dark card (audit D-14). */
 .install-guide button {
     margin-right: 0.5rem;
-    padding: 0.5rem 0.75rem;
+    padding: 0.5rem 0.875rem;
+    border: 0;
+    border-radius: 4px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font: inherit;
+    font-weight: 500;
     cursor: pointer;
+}
+.install-guide button:hover {
+    background: var(--bg-muted);
 }

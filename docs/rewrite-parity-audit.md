@@ -200,6 +200,7 @@ The user ruled on the class D items. "Keep" means the new behaviour stays and th
 | C-01, C-03 (decision), C-04 | Follow released only by an upward scroll; New messages pill for arrivals while scrolled up. On return to the tab a pending frame pins the bottom when following; otherwise the pill is already showing |
 | B-01, B-02, B-03, B-06 / D-12, B-12 | Document-level drop guard; picker backdrop back inside the input box; draft cleared in the click's task and given back on a queue failure; no focus calls in the warning modal; Send disabled only when the account or the room forbids sending |
 | A-06, A-07, A-12, A-17, C-05 | Editor focus rule, one-step save, empty save closes, IME keys ignored; gallery makes no focus calls |
+| D-01, D-04, D-05, D-07, D-09, D-13, D-14 (buttons), D-16, C-06, A-05, A-08 / C-08, A-09, B-04 (style), B-27 (style) | Info button on every touch screen; chip shows the chosen status without a live view; a direct connect clears the scheduled one; Connect and Reload labels; login redirect when online; iOS metas; styled install, load-more and progress controls; one menu font; no playsinline on videos; picker-open row state; the old link rule; both GIF stars in step. Still open in A-09: a stale snapshot clone can revert the star after a reaction update |
 
 ---
 

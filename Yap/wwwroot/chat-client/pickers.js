@@ -32,6 +32,9 @@ export function configurePickers(value) {
 }
 export function closePickers() {
     opened = null;
+    document
+        .querySelectorAll('.message-group.picker-open')
+        .forEach((row) => row.classList.remove('picker-open'));
     delete composer.dataset.picker;
     if (panel) panel.hidden = true;
     popup?.remove();
@@ -97,6 +100,9 @@ export function togglePicker(kind) {
 }
 export function showReactionPicker(anchor, node, refresh) {
     closePickers();
+    // The row keeps its bar and highlight while its reaction picker is open, as the old
+    // picker-open state did; the backdrop sits outside the row, so :hover is gone (audit A-05).
+    anchor.closest('.message-group')?.classList.add('picker-open');
     popupRefresh = refresh;
     popup = el('div', 'emoji-picker-wrapper client-reaction-picker');
     popup.append(node);

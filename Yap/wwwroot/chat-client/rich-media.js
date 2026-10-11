@@ -25,7 +25,7 @@ export function renderMedia(message, content, onFavorite) {
             const box = el('div', 'video-container'),
                 video = el('video', 'video-player');
             video.preload = 'none';
-            video.playsInline = true;
+            // No playsinline, as on the old page: iPhone opens its full-screen player (audit C-06).
             video.poster = url.replace(/\.[^.]+$/, '_poster.webp');
             source(video, url.replace(/\.[^.]+$/, '.mp4'), 'video/mp4');
             source(video, url);
@@ -130,7 +130,7 @@ export function renderMedia(message, content, onFavorite) {
                 const video = el('video', 'cached-video-player');
                 video.controls = true;
                 video.preload = 'metadata';
-                video.playsInline = true;
+                // No playsinline, as on the old MediaPlayer: iPhone opens its full-screen player.
                 // Safari does not preload video frames; prefer the stable local poster over expiring OG images.
                 if (preview.cachedPosterUrl || preview.imageUrl)
                     video.poster = preview.cachedPosterUrl || preview.imageUrl;

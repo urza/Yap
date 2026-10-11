@@ -19,6 +19,8 @@ const standardSuites = [
     'phone-action-bars',
     'new-messages-indicator',
     'composer-rules',
+    'shell-rules',
+    'text-links',
     'pwa-integration',
     'local-http',
 ];

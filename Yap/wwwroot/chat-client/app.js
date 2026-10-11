@@ -61,6 +61,9 @@ function connectionLabel(text) {
     if (text.includes('failed')) return 'Sync failed';
     if (text.startsWith('Sign')) return 'Sign in';
     if (text === 'Update required') return text;
+    // Both read as "Syncing" before; neither state syncs (audit D-07).
+    if (text.startsWith('Connect')) return 'Connect';
+    if (text.startsWith('Account changed')) return 'Reload';
     return 'Syncing';
 }
 function status(text) {
@@ -146,6 +149,13 @@ async function loseAccount(remove = false) {
     if (remove) await storage.forget();
     else await storage.lockAccount();
     identity = null;
+    // Logged out means the login page, as on the old page (decided 2026-10-11, audit D-09).
+    // Offline there is no login page to load, so the notice below stays for that case.
+    if (!remove && navigator.onLine) {
+        location.href =
+            '/login?returnUrl=' + encodeURIComponent(location.pathname + location.search);
+        return;
+    }
     clearUI();
     composer.update();
     status('Sign in required');
@@ -257,8 +267,10 @@ function formatTimestamp(value) {
     return timestamp(value, snapshot?.dateSettings);
 }
 function renderLive() {
+    // Without a live view (first paint, reconnect) the chip shows the chosen status, as the
+    // old header kept its state through a reconnect; grey read as "Invisible" (audit D-04).
     const state = live.view,
-        effective = state?.status || 'invisible';
+        effective = state?.status || live.chosen;
     $('#menu-button').className = 'status-button status-' + effective;
     document.querySelectorAll('[data-status]').forEach((button) => {
         button.classList.toggle(
@@ -903,6 +915,9 @@ async function bootstrapChat(cached = snapshot) {
 async function connectChat(bootstrap = null) {
     if (updateRequired || connecting || pageSuspended) return;
     connecting = true;
+    // A direct connect (visibility, online, Retry) supersedes a scheduled one; left pending,
+    // the timer tore down the healthy new connection a moment later (audit D-05).
+    clearTimeout(reconnectTimer);
     const attemptGeneration = ++connectionGeneration;
     try {
         live.detach();

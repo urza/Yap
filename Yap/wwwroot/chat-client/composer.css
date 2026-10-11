@@ -340,34 +340,36 @@
 .typing-dots .dot:nth-child(3) {
     animation-delay: 0s;
 }
-/* Upload progress bar */
-.upload-progress-row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    width: 100%;
-    color: var(--accent-primary);
+/* Upload progress in the pending row: the file list and a bare <progress>. The old strip's
+   track and fill rules carried names the script never used, so the bar was browser-default
+   (audit B-04). */
+.attachment-preview {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
 }
-.upload-progress-track {
+progress.upload-progress {
+    display: block;
+    width: 100%;
     height: 4px;
+    margin-top: 4px;
+    appearance: none;
+    border: 0;
     background: var(--bg-muted);
     border-radius: 2px;
     overflow: hidden;
-    flex: 1;
-    min-width: 60px;
 }
-.upload-progress-fill {
-    display: block;
-    height: 100%;
-    width: 0;
+progress.upload-progress::-webkit-progress-bar {
+    background: var(--bg-muted);
+    border-radius: 2px;
+}
+progress.upload-progress::-webkit-progress-value {
     background: var(--accent-primary);
     border-radius: 2px;
     transition: width 0.3s ease;
 }
-.upload-progress-text {
-    color: var(--accent-light, #b0b6fc);
-    font-size: 0.8125rem;
-    white-space: nowrap;
+progress.upload-progress::-moz-progress-bar {
+    background: var(--accent-primary);
+    border-radius: 2px;
 }
 @keyframes discordBounce {
     0%,

@@ -128,23 +128,48 @@ function emojiImage(item) {
     img.onerror = () => img.replaceWith(document.createTextNode(item.value));
     return img;
 }
+// The old page's URL rule (LinkPreviewService.UrlRegex, still the server's rule for link
+// previews): http(s) and www. links, bare domains with common endings, and no trailing
+// punctuation or unbalanced closing bracket inside the link (audit A-08). The rewrite linked
+// only http(s) text up to the next space, so "(https://x.com)." opened a wrong address.
+const linkPattern =
+    /(?:https?:\/\/|www\.)[^\s<>"'\])]*[^\s<>"'\]).,;:!?-]|(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:com|org|net|io|dev|app|co|me|info|edu|gov)\b(?:\/[^\s<>"']*)?/gi;
+function trimLink(url) {
+    // Balanced brackets stay (Wikipedia's Foo_(bar)); an excess closing one is punctuation.
+    while (url.endsWith(')') && (url.match(/\)/g) || []).length > (url.match(/\(/g) || []).length)
+        url = url.slice(0, -1);
+    while (url && '.,:;!?'.includes(url.at(-1))) url = url.slice(0, -1);
+    return url;
+}
+function splitLinks(text) {
+    const parts = [];
+    let last = 0;
+    for (const match of text.matchAll(linkPattern)) {
+        const url = trimLink(match[0]);
+        if (!url) continue;
+        parts.push({ text: text.slice(last, match.index) }, { url });
+        last = match.index + url.length;
+    }
+    parts.push({ text: text.slice(last) });
+    return parts;
+}
 // Labels use inline emoji conversion; only message bodies create links (never nested links in names).
 export function richText(text, small = false, links = !small) {
     const node = el('span', 'message-text' + (small ? ' emoji-small' : ''));
     textSources.set(node, [text, small, links]);
     let only = true,
         count = 0;
-    for (const part of links ? text.split(/(https?:\/\/[^\s<>]+)/g) : [text]) {
-        if (links && /^https?:\/\//.test(part)) {
-            const a = el('a', 'message-link', part);
-            a.href = part;
+    for (const part of links ? splitLinks(text) : [{ text }]) {
+        if (part.url) {
+            const a = el('a', 'message-link', part.url);
+            a.href = /^https?:\/\//i.test(part.url) ? part.url : 'https://' + part.url;
             a.target = '_blank';
             a.rel = 'noopener noreferrer';
             node.append(a);
             only = false;
             continue;
         }
-        for (const token of pattern ? part.split(pattern) : [part]) {
+        for (const token of pattern ? part.text.split(pattern) : [part.text]) {
             if (lookup.has(token) && token.startsWith(':')) {
                 node.append(emojiImage(lookup.get(token)));
                 count++;
