@@ -177,6 +177,21 @@ Each of these keeps an old mechanism and adds a second one, or makes a call the 
 
 Each fix gets a phone-suite check where emulation can reach it, and the feature reference row is updated with the rule. Items marked "device" are re-checked on the phone after the fix.
 
+## Decisions (2026-10-11)
+
+The user ruled on the class D items. "Keep" means the new behaviour stays and the row needs no work.
+
+| ID | Decision |
+| --- | --- |
+| C-03 | Keep the position while the user reads older messages. Add a floating "new messages" indicator with a down arrow that scrolls to the bottom. Return to the tab re-pins the bottom only when the view was already following it. |
+| B-05 | Keep: a file upload during a reply is a reply. |
+| D-07 | Keep the header label; the Blazor reconnect banner stays gone. The wrong short labels on phones are a bug to fix. |
+| D-09 | Restore: logged out means the login page, as on the old page. |
+| D-11, D-32 | Keep the new rule: the arriving conversation's mute setting decides the count and the sound. |
+| D-15 | Keep the notice strip as it is. |
+| B-14 / C-10, B-04 location | Keep the full-row pending echo and the progress in that row. The bare progress bar still gets its styling. |
+| B-17, D-14 dialog, D-20, D-24, D-31 | Keep (minor, architectural). The install dialog's bare buttons still get their styling. |
+
 ---
 
 ## Appendix A: Message rows and actions
