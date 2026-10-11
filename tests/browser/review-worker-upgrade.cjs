@@ -15,6 +15,10 @@ const { manifest } = require('./support/manifest.cjs');
 const manifests = new Map(
     [oldPackage, newPackage].map((p) => [p, manifest(path.join(p, 'wwwroot'))]),
 );
+// Releases before the update notice cannot show it; upgrades from them stay testable.
+const announcesUpdates = fs
+    .readFileSync(path.join(oldPackage, 'wwwroot/chat-client/app.js'), 'utf8')
+    .includes('Yap was updated. Reload when convenient.');
 let previousCache, candidateCache;
 const backend = new URL(process.env.YAP_TEST_ORIGIN || 'http://127.0.0.1:7643');
 if (backend.hostname !== '127.0.0.1' || backend.port === '7543')
@@ -149,6 +153,8 @@ proxy.on('upgrade', (req, socket, head) => {
             () =>
                 document.querySelector('#connection')?.textContent === 'Synced · available offline',
         );
+        // The first worker claims this page too; only a replaced shell is an update.
+        assert(!(await page.locator('#notice').innerText()).includes('Yap was updated'));
         previousCache = (await page.evaluate(() => caches.keys())).find((name) =>
             name.startsWith(SHELL_CACHE_PREFIX),
         );
@@ -204,6 +210,7 @@ proxy.on('upgrade', (req, socket, head) => {
             );
         } else {
             await page.reload();
+            await page.evaluate(() => (window.incumbentDocument = true));
             // Ordinary updates preserve the running document. Installation can complete
             // while the incumbent still controls it; there is no update prompt/reload.
             await poll(
@@ -219,6 +226,30 @@ proxy.on('upgrade', (req, socket, head) => {
                 },
                 manifests.get(newPackage).version,
             );
+            if (announcesUpdates) {
+                // The open tab still runs the incumbent modules once the candidate controls it.
+                await page.waitForFunction(
+                    (version) =>
+                        navigator.serviceWorker.controller &&
+                        new URL(navigator.serviceWorker.controller.scriptURL).searchParams.get(
+                            'v',
+                        ) === version,
+                    manifests.get(newPackage).version,
+                );
+                await page
+                    .locator('#notice:not([hidden])')
+                    .filter({ hasText: 'Yap was updated. Reload when convenient.' })
+                    .locator('button', { hasText: 'Reload' })
+                    .waitFor();
+                assert.equal(await page.evaluate(() => window.incumbentDocument), true);
+                assert.equal(
+                    await page.locator('#draft').inputValue(),
+                    'Unsent draft survives shell update',
+                );
+                console.log(
+                    'PASS open tab announces the adopted update without reloading or clearing the draft',
+                );
+            }
             // A normal departure releases the incumbent document/transport before reentry.
             await page.goto('about:blank');
             await page.goto(origin + '/lobby');

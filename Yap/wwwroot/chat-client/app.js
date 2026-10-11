@@ -51,6 +51,7 @@ let pendingOperations = [];
 let resolvingDm = false;
 let workerReady = false,
     workerWarning = '',
+    shellUpdated = false,
     readMarkers = [],
     lastBadge = -1;
 function connectionLabel(text) {
@@ -69,7 +70,10 @@ function status(text) {
     node.dataset.label = connectionLabel(text);
 }
 function notice(text, login = false) {
-    text ||= workerWarning;
+    // Every accepted snapshot calls notice('') to clear transient errors. Lasting states
+    // fill the empty notice instead, so they survive the next message.
+    const update = !text && !workerWarning && shellUpdated;
+    text ||= workerWarning || (update ? 'Yap was updated. Reload when convenient.' : '');
     const n = $('#notice');
     n.replaceChildren(document.createTextNode(text));
     n.hidden = !text;
@@ -77,6 +81,13 @@ function notice(text, login = false) {
         const a = element('a', '', 'Sign in');
         a.href = '/login?returnUrl=' + encodeURIComponent(location.pathname + location.search);
         n.append(a);
+    }
+    if (update) {
+        // Drafts and the outbox are already in IndexedDB; the new controller serves the
+        // new shell on reload.
+        const reload = element('button', '', 'Reload');
+        reload.onclick = () => location.reload();
+        n.append(reload);
     }
 }
 document.addEventListener('chat-update-required', () => {
@@ -1031,9 +1042,28 @@ async function boot() {
                 if ($('#connection').textContent.startsWith('Synced'))
                     status('Synced · available offline');
             });
+            // The controller at startup served this document's modules. A different module
+            // worker taking over means a release is active that this tab is not running.
+            // No controller (first install) or the classic bridge means the page came
+            // from the network and is current. A 426 reloads at once instead.
+            const shellWorker = navigator.serviceWorker.controller?.scriptURL;
             navigator.serviceWorker.addEventListener('controllerchange', () => {
-                if (updateRequired) location.reload();
-                else checkWorker();
+                if (updateRequired) {
+                    location.reload();
+                    return;
+                }
+                const active = navigator.serviceWorker.controller?.scriptURL;
+                if (
+                    shellWorker?.includes('/service-worker-module.js') &&
+                    active &&
+                    active !== shellWorker &&
+                    !shellUpdated
+                ) {
+                    shellUpdated = true;
+                    // Do not replace a notice that is on screen; it falls back to this one.
+                    if ($('#notice').hidden) notice('');
+                }
+                checkWorker();
             });
             registerWorker()
                 .then((registration) => {
