@@ -125,55 +125,68 @@ const server = http.createServer((req, res) => {
         await context.setOffline(false);
         await page.goto(origin + '/probe');
         console.log('PASS installed module worker serves offline chat navigation');
-        await page.evaluate(async () => {
-            for (const name of await caches.keys()) await caches.delete(name);
-        });
-        // Restart the actual worker so it cannot satisfy manifest() from its in-memory copy.
-        if (browser.browserType().name() === 'chromium') {
-            const cdp = await context.newCDPSession(page);
-            await cdp.send('ServiceWorker.enable');
-            await cdp.send('ServiceWorker.stopAllWorkers');
-            await cdp.detach();
-        }
-        const values = await page.evaluate(async () => {
-            const result = [];
-            for (const url of ['/api/probe', '/hubs/chat/negotiate', '/chat-client/constants.js']) {
-                const response = await fetch(url);
-                result.push({ ok: response.ok, text: await response.text() });
+        for (const restartWorker of [false, true]) {
+            await page.evaluate(async () => {
+                for (const name of await caches.keys()) await caches.delete(name);
+            });
+            // Restart the actual worker so it cannot satisfy manifest() from its in-memory copy.
+            if (restartWorker && browser.browserType().name() === 'chromium') {
+                const cdp = await context.newCDPSession(page);
+                await cdp.send('ServiceWorker.enable');
+                await cdp.send('ServiceWorker.stopAllWorkers');
+                await cdp.detach();
             }
-            return result;
-        });
-        assert(values.every((v) => v.ok));
-        assert(values[0].text.includes('network') && values[1].text.includes('network'));
-        await page.goto(origin + '/lobby');
-        assert.equal(await page.title(), 'Network /lobby');
-        console.log(
-            'PASS evicted shell and worker restart preserve API, hub, asset and navigation network access',
-        );
-        await page.evaluate(
-            () =>
-                new Promise((resolve, reject) => {
-                    const timer = setTimeout(() => reject(Error('Shell repair timed out')), 30000);
-                    navigator.serviceWorker.addEventListener('message', function ready(event) {
-                        if (event.data?.type !== 'CHAT_OFFLINE_READY') return;
-                        clearTimeout(timer);
-                        navigator.serviceWorker.removeEventListener('message', ready);
-                        resolve();
-                    });
-                    navigator.serviceWorker.controller.postMessage({ type: 'CHAT_OFFLINE_CHECK' });
-                }),
-        );
-        const restored = await page.evaluate(
-            async () =>
-                (await (await caches.open('yap-chat-shell-eviction-fixture')).keys()).length,
-        );
-        assert.equal(restored, required.length + 1);
-        await context.setOffline(true);
-        const repaired = await page.goto(origin + '/lobby');
-        assert(repaired.ok() && (await repaired.text()).includes('data-appearance'));
-        console.log(
-            'PASS evicted current shell reinstalls and supports offline reload without a release',
-        );
+            const values = await page.evaluate(async () => {
+                const result = [];
+                for (const url of [
+                    '/api/probe',
+                    '/hubs/chat/negotiate',
+                    '/chat-client/constants.js',
+                ]) {
+                    const response = await fetch(url);
+                    result.push({ ok: response.ok, text: await response.text() });
+                }
+                return result;
+            });
+            assert(values.every((v) => v.ok));
+            assert(values[0].text.includes('network') && values[1].text.includes('network'));
+            await page.goto(origin + '/lobby');
+            assert.equal(await page.title(), 'Network /lobby');
+            console.log(
+                'PASS evicted shell and worker restart preserve API, hub, asset and navigation network access',
+            );
+            await page.evaluate(
+                () =>
+                    new Promise((resolve, reject) => {
+                        const timer = setTimeout(
+                            () => reject(Error('Shell repair timed out')),
+                            30000,
+                        );
+                        navigator.serviceWorker.addEventListener('message', function ready(event) {
+                            if (event.data?.type !== 'CHAT_OFFLINE_READY') return;
+                            clearTimeout(timer);
+                            navigator.serviceWorker.removeEventListener('message', ready);
+                            resolve();
+                        });
+                        navigator.serviceWorker.controller.postMessage({
+                            type: 'CHAT_OFFLINE_CHECK',
+                        });
+                    }),
+            );
+            const restored = await page.evaluate(
+                async () =>
+                    (await (await caches.open('yap-chat-shell-eviction-fixture')).keys()).length,
+            );
+            assert.equal(restored, required.length + 1);
+            await context.setOffline(true);
+            const repaired = await page.goto(origin + '/lobby');
+            assert(repaired.ok() && (await repaired.text()).includes('data-appearance'));
+            console.log(
+                'PASS evicted current shell reinstalls and supports offline reload without a release',
+            );
+            await context.setOffline(false);
+            await page.goto(origin + '/probe');
+        }
         await context.close();
     } finally {
         await browser.close();

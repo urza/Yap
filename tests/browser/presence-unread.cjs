@@ -1,4 +1,5 @@
 const { readSnapshot } = require('./support/authority.cjs');
+const { poll } = require('./support/wait.cjs');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const assert = require('node:assert/strict'),
     fs = require('node:fs');
@@ -160,6 +161,49 @@ async function until(check) {
         await until(async () => (await unread()) === 1);
         await pause(700);
         assert.equal(await unread(), 1);
+        // A real profile change invalidates and refills the visible DM while Alice is Away.
+        let releaseWindow;
+        const heldWindow = new Promise((resolve) => (releaseWindow = resolve));
+        await contexts[0].route('**/api/chat/windows/' + dm.id, async (route) => {
+            await heldWindow;
+            await route.continue();
+        });
+        const profilePage = await contexts[1].newPage();
+        await profilePage.goto(origin + '/settings');
+        await profilePage.locator('#display-name').fill('Refill Bob');
+        await poll(
+            alice,
+            async (id) => {
+                const state = await (await import('/chat-client/storage.js')).readState();
+                const window = state.snapshot.conversations.find((c) => c.id === id);
+                return window.sync?.stale || window.sync?.loaded === false;
+            },
+            dm.id,
+        );
+        assert.equal(await unread(), 1);
+        releaseWindow();
+        await poll(
+            alice,
+            async (id) => {
+                const state = await (await import('/chat-client/storage.js')).readState();
+                const window = state.snapshot.conversations.find((c) => c.id === id);
+                return window.sync?.loaded && !window.sync.stale;
+            },
+            dm.id,
+        );
+        await pause(700);
+        assert.equal(await unread(), 1, 'Automatic refill cannot acknowledge Away arrivals');
+        await contexts[0].unroute('**/api/chat/windows/' + dm.id);
+        await profilePage.close();
+        await alice.locator('#back').click();
+        await row(alice, names[1]).click();
+        await until(async () => (await unread()) === 0);
+        await alice.locator('#menu-button.status-away').waitFor();
+        console.log(
+            'PASS Away refill keeps unread; explicit navigation still marks the observed window read',
+        );
+        await send('Away arrival before returning Online ' + names[0]);
+        await until(async () => (await unread()) === 1);
         await status(alice, 'online');
         await until(async () => (await unread()) === 0);
         // Deterministic visibility fixture; actual device lock/browser suspension remains device testing.

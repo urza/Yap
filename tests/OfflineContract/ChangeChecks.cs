@@ -70,6 +70,22 @@ static class ChangeChecks
                 "refilled GIF attribution uses the uploader's current display name");
         }
 
+        var secondGif = await chat.SendTextAsync(bob, channel.Id, Guid.NewGuid(), "second GIF attribution", gifs: [new GifAttachment(gif.Id, 1, 1)]);
+        await subscription.Read(timeout.Token);
+        await chat.MutateMessageAsync(bob, channel.Id, attributed.MessageId, Guid.NewGuid(), "delete", null, null, false);
+        await subscription.Read(timeout.Token);
+        await services.GetRequiredService<UserService>().UpdateProfileAsync(uploader.Id, "Still referenced", null, null, null);
+        var stillReferenced = (await subscription.Read(timeout.Token)).SelectMany(u => u.Conversations).ToArray();
+        Check(stillReferenced.Any(c => c.Id == channel.Id && c.Invalidate),
+            "GIF reference index retains a channel until its last matching message is deleted");
+        await chat.MutateMessageAsync(bob, channel.Id, secondGif.MessageId, Guid.NewGuid(), "delete", null, null, false);
+        await subscription.Read(timeout.Token);
+        await services.GetRequiredService<UserService>().UpdateProfileAsync(uploader.Id, "No longer referenced", null, null, null);
+        // People updates still produce an account packet; removed GIF references must not invalidate the DM.
+        var noReference = (await subscription.Read(timeout.Token)).SelectMany(u => u.Conversations).ToArray();
+        Check(!noReference.Any(c => c.Id == channel.Id && c.Invalidate),
+            "deleting the last GIF reference removes its profile invalidation target");
+
         // Hold the real lazy-description worker while two references arrive. Completing local
         // sidecars then exercises the normal callback without network/provider dependencies.
         var media = services.GetRequiredService<MediaCacheService>();

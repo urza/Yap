@@ -1,6 +1,11 @@
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright'),
     assert = require('node:assert/strict');
-const origin = 'http://127.0.0.1:7643';
+const origin = process.env.YAP_TEST_ORIGIN || 'http://127.0.0.1:7643';
+if (
+    !['localhost', '127.0.0.1'].includes(new URL(origin).hostname) ||
+    new URL(origin).port === '7543'
+)
+    throw Error('Disposable local fixture required');
 (async () => {
     const browser = await chromium.launch();
     try {
@@ -107,10 +112,18 @@ const origin = 'http://127.0.0.1:7643';
         assert.equal(prompts, 2);
         await current.setOffline(false);
         page.removeAllListeners('dialog');
-        page.once('dialog', async (dialog) => dialog.accept());
+        const confirmations = [];
+        page.on('dialog', async (dialog) => {
+            confirmations.push(dialog.message());
+            await dialog.accept();
+        });
         await page.locator('#menu-button').click();
         await page.locator('#signout').click();
         await page.waitForURL((url) => url.pathname === '/');
+        assert.equal(confirmations.length, 2);
+        assert.match(confirmations[0], /no login link and no secret code/);
+        assert.match(confirmations[1], /unsent|draft/i);
+        page.removeAllListeners('dialog');
         assert.equal((await current.request.get(origin + '/api/chat/session')).status(), 401);
         assert.equal(
             await page.evaluate(

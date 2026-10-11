@@ -61,6 +61,10 @@ async function join(page) {
             });
             await route.fulfill({ response, json });
         });
+        await context.route('**/api/chat/emoji/recent', async (route) => {
+            await gate;
+            await route.continue();
+        });
         // Image requests remain pending on first visit. Metadata still permits touch selection.
         await context.route('**/chat-client/emoji/*.svg', async (route) => {
             await gate;
@@ -83,8 +87,15 @@ async function join(page) {
             );
         });
         assert((await row.textContent()).includes(':late:'));
-        await poll(() => catalogs > 0);
+        // Start another refresh after selection but before its preference POST succeeds.
+        // A revision captured at request start alone cannot protect this local recent.
+        await page.evaluate(async () => {
+            const owner = await (await import('/chat-client/storage.js')).readIdentity();
+            window.catalogRefresh = (await import('/chat-client/content.js')).loadContent(owner);
+        });
+        await poll(() => catalogs >= 2);
         release();
+        await page.evaluate(() => window.catalogRefresh);
         await row.locator('img[alt=":late:"]').first().waitFor();
         await poll(() =>
             row
@@ -102,6 +113,9 @@ async function join(page) {
             ),
         );
         await page.locator('#emoji-button').click();
+        await page
+            .locator('.emoji-section[data-section="recent"] .emoji-btn[data-emoji="😀"]')
+            .waitFor();
         await page.locator('.emoji-search input').fill('late fixture');
         await page.locator('.emoji-btn[data-emoji=":late:"]:visible').waitFor();
         await page.keyboard.press('Escape');

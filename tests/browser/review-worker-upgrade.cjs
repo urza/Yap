@@ -72,7 +72,9 @@ const proxy = http.createServer((req, res) => {
             response.pipe(res);
         },
     );
+    res.on('close', () => upstream.destroy());
     upstream.on('error', () => {
+        if (res.destroyed) return;
         res.writeHead(503);
         res.end();
     });
@@ -90,6 +92,7 @@ proxy.on('upgrade', (req, socket, head) => {
         method: req.method,
         headers: req.headers,
     });
+    socket.on('close', () => upstream.destroy());
     upstream.on('upgrade', (response, back, extra) => {
         socket.write(
             `HTTP/1.1 ${response.statusCode} ${response.statusMessage}\r\n` +
@@ -104,7 +107,9 @@ proxy.on('upgrade', (req, socket, head) => {
         socket.pipe(back);
         back.pipe(socket);
         socket.on('error', () => back.destroy());
+        socket.on('close', () => back.destroy());
         back.on('error', () => socket.destroy());
+        back.on('close', () => socket.destroy());
     });
     upstream.on('response', () =>
         socket.end('HTTP/1.1 503 Unavailable\r\nConnection: close\r\n\r\n'),
@@ -128,14 +133,17 @@ proxy.on('upgrade', (req, socket, head) => {
             proxy.listen(7844, '127.0.0.1', resolve);
         });
         browser = await (process.env.YAP_BROWSER === 'firefox' ? firefox : chromium).launch();
-        const context = await browser.newContext(),
-            page = await context.newPage();
-        // Login on the backend creates only a synthetic account. Cookies share the host,
-        // while worker/cache/IndexedDB state on the disposable port starts empty.
-        await page.goto(backend.origin + '/login');
-        await page.locator('.username-input').fill('workerupgrade' + Date.now().toString(36));
-        await page.locator('.join-button').click();
-        await page.waitForURL('**/lobby');
+        // Authenticate separately so this lifecycle fixture has exactly one registration.
+        // A backend login page also installs a worker; it is not part of this upgrade.
+        const login = await browser.newContext({ serviceWorkers: 'block' });
+        const entry = await login.newPage();
+        await entry.goto(backend.origin + '/login');
+        await entry.locator('.username-input').fill('workerupgrade' + Date.now().toString(36));
+        await entry.locator('.join-button').click();
+        await entry.waitForURL('**/lobby');
+        const context = await browser.newContext({ storageState: await login.storageState() });
+        await login.close();
+        const page = await context.newPage();
         await page.goto(origin + '/lobby');
         await page.waitForFunction(
             () =>
@@ -164,6 +172,10 @@ proxy.on('upgrade', (req, socket, head) => {
         holdWrites = true;
         packagePath = newPackage;
         await context.setOffline(false);
+        // Finish the reconnect before testing navigation-triggered registration.
+        await page.waitForFunction(() =>
+            document.querySelector('#connection')?.textContent.startsWith('Synced'),
+        );
         if (process.env.YAP_PROTOCOL_UPGRADE === '1') {
             // Use a current-code incumbent with a distinct asset manifest to exercise 426
             // while it is already controlling an open editor, rather than navigation updates.
@@ -190,8 +202,41 @@ proxy.on('upgrade', (req, socket, head) => {
             console.log(
                 'PASS protocol 426 triggers worker update and reload on controller activation',
             );
-        } else await page.reload();
-        // Fresh HTML loads the watcher even while the incumbent worker serves the old app.
+        } else {
+            await page.reload();
+            // Ordinary updates preserve the running document. Installation can complete
+            // while the incumbent still controls it; there is no update prompt/reload.
+            await poll(
+                page,
+                async (version) => {
+                    const registration = await navigator.serviceWorker.getRegistration('/');
+                    return [registration?.waiting, registration?.active].some(
+                        (worker) =>
+                            worker &&
+                            ['installed', 'activated'].includes(worker.state) &&
+                            new URL(worker.scriptURL).searchParams.get('v') === version,
+                    );
+                },
+                manifests.get(newPackage).version,
+            );
+            // A normal departure releases the incumbent document/transport before reentry.
+            await page.goto('about:blank');
+            await page.goto(origin + '/lobby');
+        }
+        // Verify the real candidate controller, not just downloaded assets.
+        await poll(
+            page,
+            async (version) => {
+                const registration = await navigator.serviceWorker.getRegistration('/');
+                const controller = navigator.serviceWorker.controller;
+                return (
+                    registration?.active?.state === 'activated' &&
+                    controller?.scriptURL === registration.active.scriptURL &&
+                    new URL(controller.scriptURL).searchParams.get('v') === version
+                );
+            },
+            manifests.get(newPackage).version,
+        );
         await poll(
             page,
             async ({ previousCache, candidateCache }) => {
@@ -200,7 +245,7 @@ proxy.on('upgrade', (req, socket, head) => {
             },
             { previousCache, candidateCache },
         );
-        await page.reload();
+        await page.goto(origin + '/lobby');
         await page.waitForFunction(
             () =>
                 document.querySelector('#connection')?.textContent === 'Synced · available offline',
@@ -236,9 +281,13 @@ proxy.on('upgrade', (req, socket, head) => {
                 browser.version(),
         );
     } finally {
-        await browser?.close();
+        // Close forwarded sockets before browser teardown; an offline page can leave
+        // a forwarded stream otherwise, keeping the proxy (and the test) alive.
+        for (const context of browser?.contexts() || []) await context.setOffline(false);
+        const closed = new Promise((resolve) => proxy.close(resolve));
         for (const socket of sockets) socket.destroy();
-        await new Promise((resolve) => proxy.close(resolve));
+        await browser?.close();
+        await closed;
     }
 })().catch((error) => {
     console.error(error);

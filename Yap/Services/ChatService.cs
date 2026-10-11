@@ -31,6 +31,9 @@ public partial class ChatService
     // Channels (rooms and DMs)
     private readonly ConcurrentDictionary<Guid, Channel> _channels = new();
     private readonly ConcurrentDictionary<Guid, List<ChatMessage>> _channelMessages = new();
+    // Distinct GIF references per channel avoid history scans when an uploader edits a profile.
+    // Counts are updated under the same channel lock as the messages they describe.
+    private readonly ConcurrentDictionary<Guid, Dictionary<Guid, int>> _channelGifReferences = new();
     private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<string, DateTime>> _channelTypingUsers = new();
     private readonly OfflineChangeSignal _changes;
 
@@ -198,6 +201,7 @@ public partial class ChatService
         // Clear default lobby (will be replaced from DB or recreated)
         _channels.Clear();
         _channelMessages.Clear();
+        _channelGifReferences.Clear();
         _channelTypingUsers.Clear();
 
         // Load channels from database
@@ -205,6 +209,8 @@ public partial class ChatService
         {
             _channels[channel.Id] = channel;
             _channelMessages[channel.Id] = snapshot.MessagesByChannel.GetValueOrDefault(channel.Id, new List<ChatMessage>());
+            foreach (var message in _channelMessages[channel.Id])
+                IndexGifReferences(message, 1);
             _channelTypingUsers[channel.Id] = new ConcurrentDictionary<string, DateTime>();
         }
 
@@ -345,6 +351,7 @@ public partial class ChatService
 
         _channels.TryRemove(channelId, out _);
         _channelMessages.TryRemove(channelId, out _);
+        _channelGifReferences.TryRemove(channelId, out _);
         _channelTypingUsers.TryRemove(channelId, out _);
         _notifications.ClearOverridesForChannel(channelId);
 
@@ -1169,6 +1176,30 @@ public partial class ChatService
                 if (++visible > limit) return true;
             return false;
         }
+    }
+
+    private void IndexGifReferences(ChatMessage message, int delta)
+    {
+        if (message.GifAttachments.Count == 0) return;
+        var references = _channelGifReferences.GetOrAdd(message.ChannelId, _ => new());
+        foreach (var gif in message.GifAttachments)
+        {
+            var count = references.GetValueOrDefault(gif.GifEntryId) + delta;
+            if (count > 0) references[gif.GifEntryId] = count;
+            else references.Remove(gif.GifEntryId);
+        }
+        if (references.Count == 0) _channelGifReferences.TryRemove(message.ChannelId, out _);
+    }
+
+    internal Guid[] ChannelsWithGifsUploadedBy(Guid userId)
+    {
+        var result = new List<Guid>();
+        foreach (var channelId in _channelGifReferences.Keys)
+            lock (GetChannelLock(channelId))
+                if (_channels.ContainsKey(channelId) && _channelGifReferences.TryGetValue(channelId, out var references)
+                    && references.Keys.Any(id => _gifService.GetEntry(id)?.UploadedByUserId == userId))
+                    result.Add(channelId);
+        return result.ToArray();
     }
 
     internal bool AnyMessage(Guid channelId, Func<ChatMessage, bool> predicate)

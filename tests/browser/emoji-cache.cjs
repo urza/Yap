@@ -15,10 +15,17 @@ function read(url) {
     const bytes = fs.readFileSync(path.join(root, url));
     if (url === '/chat-client/chat.css' && phase)
         return Buffer.concat([bytes, Buffer.from('\n/* CSS-only release ' + phase + ' */')]);
-    if (url === '/chat-client/constants.js' && phase === 2)
-        return Buffer.from(
-            bytes.toString().replace('yap-chat-emoji-17.0.3', 'yap-chat-emoji-next-fixture'),
+    if (url === '/chat-client/constants.js' && phase === 2) {
+        const changed = bytes
+            .toString()
+            .replace("EMOJI_CACHE_PREFIX + '17.0.3'", "EMOJI_CACHE_PREFIX + 'next-fixture'");
+        assert.notEqual(
+            changed,
+            bytes.toString(),
+            'Artwork-pin fixture must change the cache name',
         );
+        return Buffer.from(changed);
+    }
     if (url.endsWith('.svg') && phase === 2)
         return Buffer.concat([bytes, Buffer.from('<!-- new artwork fixture -->')]);
     return bytes;

@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Threading.Channels;
 using Yap.Models;
 using Yap.Services;
-using Yap.Services.Gifs;
 
 namespace Yap.Offline;
 
@@ -11,7 +10,6 @@ public sealed class OfflineFanout : IDisposable
 {
     private readonly ILogger<OfflineFanout> logger;
     private readonly ChatService chat;
-    private readonly GifService gifs;
     private readonly UserService users;
     private readonly OfflineSnapshotService snapshots;
     private readonly OfflineChangeSignal changes;
@@ -19,7 +17,7 @@ public sealed class OfflineFanout : IDisposable
     private readonly ConcurrentDictionary<Guid, Subscription> connections = new();
     private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<Guid, Subscription>> accounts = new();
     private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<Guid, Subscription>> channels = new();
-    public OfflineFanout(ChatService chat, UserService users, OfflineSnapshotService snapshots, OfflineChangeSignal changes, NotificationSettingsService notifications, GifService gifs, ILogger<OfflineFanout> logger)
+    public OfflineFanout(ChatService chat, UserService users, OfflineSnapshotService snapshots, OfflineChangeSignal changes, NotificationSettingsService notifications, ILogger<OfflineFanout> logger)
     {
         this.logger = logger;
         this.chat = chat;
@@ -27,7 +25,6 @@ public sealed class OfflineFanout : IDisposable
         this.snapshots = snapshots;
         this.changes = changes;
         this.notifications = notifications;
-        this.gifs = gifs;
         changes.Changed += Changed;
     }
 
@@ -226,11 +223,7 @@ public sealed class OfflineFanout : IDisposable
             var affected = authored.Where(c => chat.AnyMessage(c.Id, m => m.UserId == userId))
                 .Select(c => c.Id).ToHashSet();
             // An uploader need never have posted in a room/DM that embeds their GIF.
-            var uploaded = gifs.GetAllEntries().Where(g => g.UploadedByUserId == userId).Select(g => g.Id).ToHashSet();
-            if (uploaded.Count > 0)
-                foreach (var channel in chat.GetRooms().Concat(chat.GetAllDMChannels()))
-                    if (chat.AnyMessage(channel.Id, m => m.GifAttachments.Any(g => uploaded.Contains(g.GifEntryId))))
-                        affected.Add(channel.Id);
+            affected.UnionWith(chat.ChannelsWithGifsUploadedBy(userId));
             foreach (var id in affected)
                 changes.Touch(id);
         }

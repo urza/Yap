@@ -6,8 +6,8 @@ export function watchWorkerUpdates(registration) {
     const watch = (worker) => {
         if (!worker) return;
         const activate = () => {
-            // Chromium can leave an update waiting despite install-time skipWaiting.
-            // Ask from the installed state, after the offline shell has been cached.
+            // Activate only after installation has cached the complete shell.
+            // Also cover a worker that was already waiting before this document opened.
             if (worker.state === 'installed') worker.postMessage({ type: 'SKIP_WAITING' });
         };
         worker.addEventListener('statechange', activate);
@@ -39,16 +39,14 @@ export function registerWorker() {
             });
             if (!response.ok) throw new Error('Shell manifest unavailable');
             const manifest = await response.json();
-            const registration = await navigator.serviceWorker
-                .register('/service-worker-module.js?v=' + encodeURIComponent(manifest.version), {
+            const registration = await navigator.serviceWorker.register(
+                '/service-worker-module.js?v=' + encodeURIComponent(manifest.version),
+                {
                     type: 'module',
                     updateViaCache: 'none',
                     scope: '/',
-                })
-                .catch((error) => {
-                    error.workerRegistration = true;
-                    throw error;
-                });
+                },
+            );
             watchWorkerUpdates(registration);
             return registration;
         } catch (error) {

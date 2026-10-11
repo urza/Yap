@@ -44,7 +44,8 @@ function applyCatalog(next, owner) {
 }
 export async function loadContent(owner, online = true) {
     const generation = ++loadGeneration,
-        startingRecents = recentRevision;
+        startingRecents = recentRevision,
+        pendingRecents = recentRevision > syncedRecentRevision;
     const current = async () => {
         const active = await storage.readIdentity();
         return generation === loadGeneration && !active?.locked && active?.epoch === owner.epoch;
@@ -56,11 +57,22 @@ export async function loadContent(owner, online = true) {
         try {
             const next = await get('catalog');
             if (!(await current())) return;
-            // A selection made while this request was in flight is newer than the response.
-            if (recentRevision !== startingRecents) next.recent = catalog.recent;
+            // Local picks remain newer until their preference POST succeeds, even if
+            // this refresh started after the pick but before its debounce fired.
+            if (
+                pendingRecents ||
+                recentRevision !== startingRecents ||
+                recentRevision > syncedRecentRevision
+            )
+                next.recent = catalog.recent;
             await storage.saveMetadata('catalog', next, owner);
             if (!(await current())) return;
-            if (recentRevision !== startingRecents) next.recent = catalog.recent;
+            if (
+                pendingRecents ||
+                recentRevision !== startingRecents ||
+                recentRevision > syncedRecentRevision
+            )
+                next.recent = catalog.recent;
             applyCatalog(next, owner);
         } catch {
             /* Cached and built-in metadata remain usable without the server. */
@@ -157,9 +169,11 @@ export function richText(text, small = false, links = !small) {
     return node;
 }
 let recentTimer,
-    recentRevision = 0;
+    recentRevision = 0,
+    syncedRecentRevision = 0;
 export function recordEmoji(value, owner) {
     if (!catalog || !owner) return;
+    catalogOwner = owner;
     recentRevision++;
     catalog = { ...catalog };
     catalog.recent = [value, ...(catalog.recent || []).filter((v) => v !== value)].slice(0, 20);
@@ -170,8 +184,10 @@ export function recordEmoji(value, owner) {
         try {
             if ((await storage.readIdentity())?.epoch !== owner.epoch) return;
             const session = await get('session');
-            if (session.userId === owner.userId)
-                await post('emoji/recent', { values: catalog.recent }, session);
+            if (session.userId !== owner.userId || catalogOwner?.epoch !== owner.epoch) return;
+            const sentRevision = recentRevision;
+            await post('emoji/recent', { values: catalog.recent }, session);
+            if (catalogOwner?.epoch === owner.epoch) syncedRecentRevision = sentRevision;
         } catch {
             /* A preference update must not delay local composition. */
         }
@@ -332,6 +348,7 @@ document.addEventListener('chat-clear', () => {
     catalog = builtInCatalog;
     labelChoices.clear();
     catalogOwner = null;
+    recentRevision = syncedRecentRevision = 0;
     indexCatalog();
     revision++;
 });

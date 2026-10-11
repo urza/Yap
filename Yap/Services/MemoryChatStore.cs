@@ -6,7 +6,7 @@ public sealed class MemoryChatStore : IChatStore
 {
     private readonly object gate = new();
     private readonly Dictionary<(Guid UserId, Guid OperationId), TextSendReceipt> receipts = new();
-    private readonly Dictionary<Guid, SortedSet<(DateTime At, Guid Id)>> receiptOrder = new();
+    private readonly Dictionary<Guid, LinkedList<TextSendReceipt>> receiptOrder = new();
     // References are the accepted live objects, not a second copy of message state.
     private readonly Dictionary<Guid, ChatMessage> messages = new();
 
@@ -56,12 +56,12 @@ public sealed class MemoryChatStore : IChatStore
         receipts.Add((receipt.UserId, receipt.OperationId), receipt);
         if (!receiptOrder.TryGetValue(receipt.UserId, out var order))
             receiptOrder[receipt.UserId] = order = new();
-        order.Add((receipt.AcceptedAt, receipt.OperationId));
+        // Count eviction follows acceptance order, independent of wall-clock adjustments.
+        order.AddLast(receipt);
         while (order.Count > ChatReceiptCleanup.MaxReceiptsPerUser)
         {
-            var oldest = order.Min;
-            receipts.Remove((receipt.UserId, oldest.Id));
-            order.Remove(oldest);
+            receipts.Remove((receipt.UserId, order.First!.Value.OperationId));
+            order.RemoveFirst();
         }
     }
 
@@ -70,11 +70,16 @@ public sealed class MemoryChatStore : IChatStore
         lock (gate)
             foreach (var (userId, order) in receiptOrder.ToArray())
             {
-                while (order.Count > 0 && order.Min.At < before)
+                // Acceptance order need not match UTC order after a clock correction.
+                for (var node = order.First; node != null;)
                 {
-                    var oldest = order.Min;
-                    receipts.Remove((userId, oldest.Id));
-                    order.Remove(oldest);
+                    var next = node.Next;
+                    if (node.Value.AcceptedAt < before)
+                    {
+                        receipts.Remove((userId, node.Value.OperationId));
+                        order.Remove(node);
+                    }
+                    node = next;
                 }
                 if (order.Count == 0) receiptOrder.Remove(userId);
             }

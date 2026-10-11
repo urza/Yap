@@ -508,13 +508,9 @@ async function renderPending() {
     }
     $('#outgoing-section').hidden = !outgoing.children.length;
     const root = $('#pending');
-    // Keep a pending editor mounted through status updates and acknowledgement.
+    // An outbox notice can precede this tab's snapshot merge. Keep its editor until
+    // timeline rendering transfers the node to the accepted message (or it is canceled).
     for (const row of [...root.children]) {
-        if (
-            actions.isEditing(row.dataset.operation) &&
-            !pending.some((item) => item.operationId === row.dataset.operation)
-        )
-            actions.reset();
         if (!actions.isEditing(row.dataset.operation)) row.remove();
     }
     const messages = snapshot.conversations.find((c) => c.id === channel)?.messages ?? [];
@@ -1023,7 +1019,7 @@ async function boot() {
                     checkWorker();
                 })
                 .catch((error) => {
-                    workerWarning = !error.workerRegistration
+                    workerWarning = !['NotSupportedError', 'SecurityError'].includes(error.name)
                         ? 'Offline setup could not finish downloading. Reconnect and reload to try again; online chat and saved drafts remain available.'
                         : 'Offline reload and push require a browser with module service workers (Chrome/Edge 91+, Firefox 114+, Safari 15+) and trusted HTTPS or localhost. Update your browser if needed.';
                     notice('');

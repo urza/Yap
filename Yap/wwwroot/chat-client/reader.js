@@ -73,6 +73,8 @@ export function createReader({
         flush,
         async observe(conversation, source = 'arrival') {
             const owner = identity();
+            // Refills can change the audit label, never the caller's read eligibility.
+            const explicit = source === 'open';
             const window =
                 owner &&
                 conversation &&
@@ -86,7 +88,6 @@ export function createReader({
             if (window && window !== eligibleWindow) source = 'open';
             // Hiding the same window is a resume, not a new conversation open.
             if (!document.hidden) eligibleWindow = window;
-            const explicit = source === 'open';
             if (!explicit && resumed) source = 'resume';
             if (
                 !owner ||

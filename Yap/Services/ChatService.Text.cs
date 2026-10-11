@@ -103,6 +103,7 @@ public partial class ChatService
                 if (_channelMessages.TryGetValue(channel.Id, out var messages))
                 {
                     messages.Add(message);
+                    IndexGifReferences(message, 1);
                     if (!countUnread)
                         messages.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
                 }

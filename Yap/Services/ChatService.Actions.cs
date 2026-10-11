@@ -77,7 +77,10 @@ public partial class ChatService
                 if (_channelMessages.TryGetValue(channelId, out var messages) && target != null)
                 {
                     if (kind == "delete")
+                    {
                         messages.Remove(target);
+                        IndexGifReferences(target, -1);
+                    }
                     else
                         mutation.Apply(target);
                 }

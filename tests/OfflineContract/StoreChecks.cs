@@ -86,7 +86,8 @@ static class StoreChecks
                 ChannelId = channel,
                 MessageId = Guid.NewGuid(),
                 ContentHash = "count fixture",
-                AcceptedAt = DateTime.UtcNow.AddHours(-1).AddMilliseconds(i)
+                // The last acceptance follows a backward clock step and must still survive the cap.
+                AcceptedAt = DateTime.UtcNow.AddHours(i == ChatReceiptCleanup.MaxReceiptsPerUser + 1 ? -2 : -1).AddMilliseconds(i)
             };
             capReceipts.Add(cappedReceipt);
             await store.PersistMutationAsync(cappedReceipt, new ChatMutation("delete", null, null, false, capped.Id, capped.Username));
@@ -96,7 +97,7 @@ static class StoreChecks
             && await store.GetTextReceiptAsync(capped.Id, capReceipts[2].OperationId) != null
             && await store.GetTextReceiptAsync(capped.Id, capReceipts[^1].OperationId) != null
             && await store.GetTextReceiptAsync(user.Id, sent.OperationId) != null,
-            "receipt count is capped at acceptance, evicts oldest first and isolates accounts");
+            "receipt cap follows acceptance order across backward clock steps and isolates accounts");
 
         var old = new ChatMessage(channel, user.Id, user.Username, "expired receipt", DateTime.UtcNow);
         var receipt = new TextSendReceipt

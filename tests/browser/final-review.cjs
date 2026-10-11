@@ -46,6 +46,35 @@ if (
             window.retainedEditor = node;
             node.setSelectionRange(6, 11);
         });
+        await page.evaluate(() => {
+            const operation = document.querySelector('#pending .editing').dataset.operation;
+            document.addEventListener('client-outbox', function observed(event) {
+                if (event.detail.some((item) => item.operationId === operation)) return;
+                window.observedOutboxRemoval = true;
+                document.removeEventListener('client-outbox', observed);
+            });
+        });
+        // A sibling's outbox notice may arrive before this tab applies its snapshot.
+        const sibling = await context.newPage();
+        await sibling.goto(origin + '/chat-client/index.html');
+        // Use the real shared storage notification, with delivery still held above.
+        await sibling.evaluate(async () => {
+            const storage = await import('/chat-client/storage.js');
+            const [pending] = await storage.outbox();
+            const db = await (await import('/chat-client/constants.js')).openDatabase();
+            await new Promise((resolve, reject) => {
+                const tx = db.transaction('outbox', 'readwrite');
+                tx.objectStore('outbox').delete(pending.operationId);
+                tx.oncomplete = resolve;
+                tx.onerror = () => reject(tx.error);
+            });
+            db.close();
+            storage.notify('outbox');
+        });
+        await page.waitForFunction(() => window.observedOutboxRemoval);
+        assert.equal(await input.inputValue(), 'Editor survives acknowledgement');
+        assert(await input.evaluate((node) => node === window.retainedEditor && node.isConnected));
+        await sibling.close();
         release();
         await page.locator('#timeline .edit-input').waitFor();
         assert(
@@ -73,33 +102,43 @@ if (
         );
         await context.close();
 
-        const failed = await browser.newContext();
-        await failed.route('**/chat-client/manifest.json', (route) => route.abort('timedout'));
-        const first = await failed.newPage();
-        await first.goto(origin + '/login');
-        await first.locator('.username-input').fill('download' + Date.now().toString(36));
-        await first.locator('.join-button').click();
-        await first.waitForURL('**/lobby');
-        await first.waitForFunction(() =>
-            document.querySelector('#connection')?.textContent.startsWith('Synced'),
-        );
-        await first
-            .getByText('Offline setup could not finish downloading.', { exact: false })
-            .waitFor();
-        assert(!(await first.locator('#notice').innerText()).includes('Update your browser'));
-        await first.locator('#draft').fill('Draft during setup failure');
-        await poll(first, async () => {
-            const storage = await import('/chat-client/storage.js');
-            const state = await storage.readState();
-            return (
-                (await storage.draft(state.snapshot.conversations.find((c) => c.isDefault).id)) ===
-                'Draft during setup failure'
+        for (const failedAsset of ['manifest', 'worker']) {
+            const failed = await browser.newContext();
+            await failed.route(
+                failedAsset === 'manifest'
+                    ? '**/chat-client/manifest.json'
+                    : '**/service-worker-module.js*',
+                (route) => route.abort('timedout'),
             );
-        });
-        console.log(
-            'PASS first-visit manifest timeout gives download retry guidance and preserves usable drafts',
-        );
-        await failed.close();
+            const first = await failed.newPage();
+            await first.goto(origin + '/login');
+            await first.locator('.username-input').fill(failedAsset + Date.now().toString(36));
+            await first.locator('.join-button').click();
+            await first.waitForURL('**/lobby');
+            await first.waitForFunction(() =>
+                document.querySelector('#connection')?.textContent.startsWith('Synced'),
+            );
+            await first
+                .getByText('Offline setup could not finish downloading.', { exact: false })
+                .waitFor();
+            assert(!(await first.locator('#notice').innerText()).includes('Update your browser'));
+            await first.locator('#draft').fill('Draft during setup failure');
+            await poll(first, async () => {
+                const storage = await import('/chat-client/storage.js');
+                const state = await storage.readState();
+                return (
+                    (await storage.draft(
+                        state.snapshot.conversations.find((c) => c.isDefault).id,
+                    )) === 'Draft during setup failure'
+                );
+            });
+            console.log(
+                'PASS first-visit ' +
+                    failedAsset +
+                    ' timeout gives download retry guidance and preserves usable drafts',
+            );
+            await failed.close();
+        }
     } finally {
         await browser.close();
     }

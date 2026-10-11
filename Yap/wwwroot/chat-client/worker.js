@@ -12,7 +12,16 @@ import {
 // Loaded by the single root worker. Never cache personalized HTML, API responses or auth redirects.
 const MANIFEST_URL = '/chat-client/manifest.json';
 const requestedVersion = new URL(self.location.href).searchParams.get('v');
-async function manifest() {
+let installedManifest;
+function manifest(refresh = false) {
+    // This worker URL pins one shell version. Probes recheck storage after eviction.
+    if (refresh) installedManifest = undefined;
+    return (installedManifest ??= readManifest().catch((error) => {
+        installedManifest = undefined;
+        throw error;
+    }));
+}
+async function readManifest() {
     // Workers can restart while offline; the installed manifest lives beside its assets.
     const names = requestedVersion
         ? [SHELL_CACHE_PREFIX + requestedVersion]
@@ -86,6 +95,7 @@ function installShell() {
                     headers: { 'Content-Type': 'application/json' },
                 }),
             );
+            installedManifest = Promise.resolve(next);
             const emoji = await caches.open(CHAT_EMOJI_CACHE);
             for (const path of CHAT_EMOJI_DEFAULTS)
                 if (!(await emoji.match(path)))
@@ -163,7 +173,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('message', (event) => {
     if (event.data?.type === 'CHAT_OFFLINE_CHECK')
         event.waitUntil(
-            manifest()
+            manifest(true)
                 .catch(async () => {
                     await installShell();
                     return manifest();

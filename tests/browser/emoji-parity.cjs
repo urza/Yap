@@ -10,9 +10,14 @@ fs.mkdirSync(out, { recursive: true });
     try {
         const geometry = {};
         for (const [label, origin] of [
-            ['reference', 'https://localhost:7443'],
-            ['rewrite', 'http://127.0.0.1:7643'],
+            ['reference', process.env.YAP_REFERENCE_ORIGIN || 'https://localhost:7443'],
+            ['rewrite', process.env.YAP_TEST_ORIGIN || 'http://127.0.0.1:7643'],
         ]) {
+            if (
+                !['localhost', '127.0.0.1'].includes(new URL(origin).hostname) ||
+                new URL(origin).port === '7543'
+            )
+                throw Error('Disposable local fixture required');
             const context = await browser.newContext({
                     ignoreHTTPSErrors: true,
                     viewport: { width: 1440, height: 1000 },
