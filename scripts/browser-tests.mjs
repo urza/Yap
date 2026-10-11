@@ -16,6 +16,7 @@ const standardSuites = [
     'message-actions',
     'phone-send-tap',
     'phone-edit-actions',
+    'phone-action-bars',
     'pwa-integration',
     'local-http',
 ];

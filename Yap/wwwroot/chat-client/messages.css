@@ -445,8 +445,17 @@
     pointer-events: none;
     transition: opacity 0.1s ease;
 }
-/* Show on hover or when picker/menu is open - pure CSS, no server round-trip */
-.message-group:hover:not(.system-message) .message-actions,
+/* Show on hover or when picker/menu is open - pure CSS, no server round-trip.
+   The hover reveal is limited to devices that can hover. A touch browser keeps a tapped
+   row in :hover until the next tap, while the tap state (.touch-actions, below) moves
+   with every touch, a scroll nudge included, so a phone showed two bars at once. On
+   touch the tap state is the only reveal; picker-open and menu-open stay unconditional. */
+@media (hover: hover) {
+    .message-group:hover:not(.system-message) .message-actions {
+        opacity: 1;
+        pointer-events: auto;
+    }
+}
 .message-group.picker-open .message-actions,
 .message-group.menu-open .message-actions {
     opacity: 1;
