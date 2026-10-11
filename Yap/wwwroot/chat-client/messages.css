@@ -931,7 +931,12 @@
 .message-group.editing .message-actions {
     display: none;
 }
-.message-group.touch-actions .message-actions {
+/* :not(.editing) is load-bearing: this rule and the one above tie on specificity, so
+   without it the display: flex here wins and the bar floats over the edit box on phones.
+   A row under edit never shows its bar (the pre-rewrite page did not render it during an
+   edit), and the JS cannot keep .touch-actions off the row: every tap inside the editor
+   lands in the row and re-arms it. */
+.message-group.touch-actions:not(.editing) .message-actions {
     opacity: 1;
     pointer-events: auto;
     display: flex;

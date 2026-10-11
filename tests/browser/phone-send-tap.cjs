@@ -7,59 +7,27 @@
 // send made from the picker with the keyboard down. The pre-rewrite page did neither.
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const assert = require('node:assert/strict');
-const origin = process.env.YAP_TEST_ORIGIN || 'http://127.0.0.1:7643';
-if (
-    !['localhost', '127.0.0.1'].includes(new URL(origin).hostname) ||
-    new URL(origin).port === '7543'
-)
-    throw Error('Disposable local fixture required');
+const { joinPhone, centre } = require('./support/phone.cjs');
 
-async function join(browser) {
-    const context = await browser.newContext({
-        serviceWorkers: 'block',
-        viewport: { width: 390, height: 844 },
-        isMobile: true,
-        hasTouch: true,
-    });
-    // Records where each click lands, so a missed tap names the element that took it.
-    await context.addInitScript(() => {
-        window.__clicks = [];
-        document.addEventListener(
-            'click',
-            (event) => {
-                const n = event.target;
-                window.__clicks.push(
-                    n.nodeType === 1
-                        ? n.tagName.toLowerCase() +
-                              (n.id ? '#' + n.id : '') +
-                              (n.className ? '.' + n.className : '')
-                        : n.nodeName,
-                );
-            },
-            true,
-        );
-    });
-    const page = await context.newPage();
-    const errors = [];
-    page.on('pageerror', (error) => errors.push(error.message));
-    await page.goto(origin + '/login');
-    // Usernames are length-capped; keep the prefix short so the unique suffix survives.
-    await page
-        .locator('.username-input')
-        .fill('tap' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
-    await page.locator('.join-button').click();
-    await page.waitForURL('**/lobby');
-    await page.locator('#draft:not([disabled])').waitFor();
-    await page.waitForFunction(() =>
-        document.querySelector('#connection')?.textContent.startsWith('Synced'),
+// Records where each click lands, so a missed tap names the element that took it.
+const recordClicks = () => {
+    window.__clicks = [];
+    document.addEventListener(
+        'click',
+        (event) => {
+            const n = event.target;
+            window.__clicks.push(
+                n.nodeType === 1
+                    ? n.tagName.toLowerCase() +
+                          (n.id ? '#' + n.id : '') +
+                          (n.className ? '.' + n.className : '')
+                    : n.nodeName,
+            );
+        },
+        true,
     );
-    return { context, page, errors };
-}
-
-async function centre(page, selector) {
-    const box = await page.locator(selector).boundingBox();
-    return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-}
+};
+const join = (browser) => joinPhone(browser, { prefix: 'tap', init: recordClicks });
 
 // Stands in for the phone keyboard: Android and iOS show it while the draft has focus.
 const isDraftFocused = (page) => page.evaluate(() => document.activeElement?.id === 'draft');

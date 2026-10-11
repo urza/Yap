@@ -14,6 +14,8 @@ const standardSuites = [
     'history-interface',
     'rich-content',
     'message-actions',
+    'phone-send-tap',
+    'phone-edit-actions',
     'pwa-integration',
     'local-http',
 ];
