@@ -180,19 +180,30 @@ export function recordEmoji(value, owner) {
     storage.saveMetadata('catalog', catalog, owner).catch(() => {});
     warmEmoji();
     clearTimeout(recentTimer);
-    recentTimer = setTimeout(async () => {
-        try {
-            if ((await storage.readIdentity())?.epoch !== owner.epoch) return;
-            const session = await get('session');
-            if (session.userId !== owner.userId || catalogOwner?.epoch !== owner.epoch) return;
-            const sentRevision = recentRevision;
-            await post('emoji/recent', { values: catalog.recent }, session);
-            if (catalogOwner?.epoch === owner.epoch) syncedRecentRevision = sentRevision;
-        } catch {
-            /* A preference update must not delay local composition. */
-        }
-    }, 500);
+    recentTimer = setTimeout(() => syncRecents(owner), 500);
 }
+async function syncRecents(owner) {
+    try {
+        if ((await storage.readIdentity())?.epoch !== owner.epoch) return;
+        const session = await get('session');
+        if (session.userId !== owner.userId || catalogOwner?.epoch !== owner.epoch) return;
+        const sentRevision = recentRevision;
+        await post('emoji/recent', { values: catalog.recent }, session);
+        if (catalogOwner?.epoch === owner.epoch) syncedRecentRevision = sentRevision;
+    } catch {
+        /* A preference update must not delay local composition. */
+    }
+}
+// A failed POST leaves the server list stale until the next pick, and a reload would then
+// replace the unsynced picks with that list. Retry when the page returns or the browser
+// is back online, which is when a failed request has a new chance to succeed.
+function retryRecents() {
+    if (document.hidden || !catalogOwner || recentRevision <= syncedRecentRevision) return;
+    clearTimeout(recentTimer);
+    syncRecents(catalogOwner);
+}
+document.addEventListener('visibilitychange', retryRecents);
+window.addEventListener('online', retryRecents);
 export function createEmojiPicker({ choose, identity, notice = () => {}, record = true }) {
     const picker = el('div', 'emoji-picker'),
         sidebar = el('div', 'emoji-sidebar'),
