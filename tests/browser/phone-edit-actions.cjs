@@ -53,7 +53,8 @@ async function hiddenBar(page, label) {
                 .filter({ has: page.locator('.message-content', { hasText: text }) })
                 .last();
             await byText.waitFor();
-            const row = page.locator('#' + (await byText.getAttribute('id')));
+            const id = await byText.getAttribute('id');
+            const row = page.locator('#' + id);
             await row.locator('.message-content').tap();
             assert(
                 await row.evaluate((n) => n.classList.contains('touch-actions')),
@@ -74,9 +75,70 @@ async function hiddenBar(page, label) {
                     ),
                 text + ' edited',
             );
+            // Keyboard up (focus kept on the draft through a button tap, as on iOS): Edit moves
+            // the focus into the editor, as the old page did. Keyboard down: it stays down.
+            await page.focus('#draft');
+            await row.evaluate((node) => node.querySelector('.action-edit').click());
+            await row.locator('.edit-input').waitFor();
+            assert.equal(
+                await page.evaluate(() => document.activeElement?.className),
+                'edit-input',
+                'Edit takes the focus when a field already holds the keyboard',
+            );
+            // Empty text: Save closes the editor and keeps the message.
+            await row.locator('.edit-input').fill('');
+            await row.locator('.edit-save').tap();
+            await row.locator('.edit-input').waitFor({ state: 'detached' });
+            assert(
+                (await row.locator('.message-content').innerText()).includes('edited'),
+                'an empty save keeps the message',
+            );
+            // IME composition owns Enter and Escape (keyCode 229).
+            await page.evaluate(() => document.querySelector('#draft').blur());
+            await row.locator('.message-content').tap();
+            await row.getByTitle('Edit', { exact: true }).tap();
+            await row.locator('.edit-input').waitFor();
+            await row.locator('.edit-input').evaluate((node) => {
+                for (const key of ['Enter', 'Escape'])
+                    node.dispatchEvent(
+                        new KeyboardEvent('keydown', { key, keyCode: 229, bubbles: true }),
+                    );
+            });
+            await page.waitForTimeout(200);
+            assert.equal(await row.locator('.edit-input').count(), 1, 'IME keys keep the editor');
+            // Save replaces the editor with the edited text in one step: no recorded state of
+            // the row shows the old text without the editor on the way.
+            const old = await row.locator('.edit-input').inputValue();
+            await row.locator('.edit-input').fill(old + ' again');
+            await page.evaluate((id) => {
+                window.__states = [];
+                const read = () =>
+                    document.getElementById(id)?.querySelector('.message-content')?.textContent ??
+                    null;
+                new MutationObserver(() => window.__states.push(read())).observe(
+                    document.querySelector('#timeline'),
+                    { subtree: true, childList: true, characterData: true },
+                );
+            }, id);
+            await row.locator('.edit-save').tap();
+            await page.waitForFunction(
+                (id) =>
+                    document
+                        .getElementById(id)
+                        ?.querySelector('.message-content')
+                        ?.textContent.includes('again'),
+                id,
+            );
+            const states = await page.evaluate(() => window.__states);
+            assert(
+                !states.some(
+                    (s) => s && s.startsWith(old) && !s.includes('again') && !s.includes('Save'),
+                ),
+                `no state showed the old text during the save: ${JSON.stringify(states)}`,
+            );
             assert.deepEqual(errors, []);
             console.log(
-                'PASS 390x844 touch: the action bar stays hidden after the Edit tap and after a tap inside the editor; Save applies the edit',
+                'PASS 390x844 touch: the action bar stays hidden after the Edit tap and after a tap inside the editor; Save applies the edit; focus, empty save, IME keys and one-step save match the old page',
             );
         } finally {
             await context.close();

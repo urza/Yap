@@ -1,8 +1,10 @@
 import { imageSource } from './media.js';
 export async function openGallery(images, start, userId) {
     if (!images.length) return;
-    const previous = document.activeElement,
-        modal = document.createElement('div'),
+    // No focus calls on open or close, as on the old page: focusing the close button on a
+    // phone closed the keyboard, and refocusing the thumbnail on close scrolled the list to
+    // it (audit C-05).
+    const modal = document.createElement('div'),
         strip = document.createElement('div');
     modal.className = 'image-modal';
     modal.setAttribute('role', 'dialog');
@@ -25,7 +27,6 @@ export async function openGallery(images, start, userId) {
         document.removeEventListener('chat-clear', close);
         window.removeEventListener('resize', resize);
         urls.forEach(URL.revokeObjectURL);
-        previous?.focus();
     };
     const button = (label, cls, title, action) => {
         const b = document.createElement('button');
@@ -211,5 +212,4 @@ export async function openGallery(images, start, userId) {
     document.body.append(modal);
     strip.scrollLeft = index * strip.clientWidth;
     update();
-    dismiss.focus();
 }

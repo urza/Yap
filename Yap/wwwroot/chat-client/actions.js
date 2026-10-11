@@ -58,7 +58,8 @@ export function createActions({
         };
         return b;
     };
-    async function mutate(message, kind, extra = {}) {
+    // beforeRender runs once the operation is queued and before the render that shows it.
+    async function mutate(message, kind, extra = {}, beforeRender) {
         const owner = identity(),
             channel = current()?.id;
         if (!owner || !channel) return;
@@ -74,6 +75,7 @@ export function createActions({
                 messageId: message.id,
                 ...extra,
             });
+        beforeRender?.();
         await render();
         flush();
     }
@@ -217,14 +219,16 @@ export function createActions({
             if (refresh) return render();
         };
         const save = async () => {
-            if (!input.value.trim()) return;
-            if (input.value === message.content) {
-                await cancel(true);
-                return;
-            }
-            await mutate(message, 'edit', { content: input.value });
-            cancel();
-            await render();
+            const value = input.value;
+            // Empty text closes the editor and keeps the message, as the old page did.
+            if (!value.trim() || value === message.content) return cancel(true);
+            // Release the row once the edit is queued, so the render that follows replaces
+            // the editor with the edited text in one step. Restoring the old nodes first
+            // showed the old text until a second render finished (audit A-07).
+            await mutate(message, 'edit', { content: value }, () => {
+                editing = null;
+                row.classList.remove('editing');
+            });
         };
         controls.append(
             button('edit-save', '✓ Save', save),
@@ -242,7 +246,11 @@ export function createActions({
         };
         row.classList.add('editing');
         content.replaceChildren(box);
-        if (!isTouchDevice()) input.focus();
+        // The old page focused the box from a server round trip, outside the tap, so a down
+        // phone keyboard stayed down and an open one moved into the editor. This call runs
+        // inside the tap, where a focus() would raise the keyboard, so on touch the editor
+        // takes focus only when a field already holds the keyboard (audit A-06).
+        if (!isTouchDevice() || document.activeElement?.matches('textarea, input')) input.focus();
         input.setSelectionRange(input.value.length, input.value.length);
         const resize = () => {
             input.style.height = 'auto';
@@ -252,10 +260,13 @@ export function createActions({
         input.oninput = resize;
         resize();
         input.onkeydown = (e) => {
+            // IME composition owns the keys (old chat.js 545): Enter picks a candidate, Escape
+            // cancels the composition, neither must save or close the editor.
+            if (e.isComposing || e.keyCode === 229) return;
             if (e.key === 'Escape') {
                 e.stopPropagation();
                 cancel(true).catch((err) => notice(err.message));
-            } else if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !isTouchDevice()) {
+            } else if (e.key === 'Enter' && !e.shiftKey && !isTouchDevice()) {
                 e.preventDefault();
                 save().catch((err) => notice(err.message));
             }
