@@ -499,7 +499,7 @@ namespace Yap.Migrations
 
                     b.HasIndex("AcceptedAt");
 
-                    b.HasIndex("UserId", "AcceptedAt", "OperationId");
+                    b.HasIndex("UserId");
 
                     b.ToTable("TextSendReceipts");
                 });
