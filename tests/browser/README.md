@@ -81,7 +81,7 @@ Restart, reference-only and diagnostic scripts remain directly runnable with Nod
 ```sh
 npm run format
 npm run format:check
-dotnet format whitespace BlazorChat.sln --no-restore --include Yap/Offline/*.cs Yap/Services/ChatService.*.cs
+dotnet format whitespace Yap.sln --no-restore --include Yap/Offline/*.cs Yap/Services/ChatService.*.cs
 dotnet format whitespace tests/OfflineContract/OfflineContract.csproj --no-restore --include tests/OfflineContract/*.cs
 ```
 
