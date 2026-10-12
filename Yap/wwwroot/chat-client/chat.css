@@ -2,9 +2,93 @@
 [hidden] {
     display: none !important;
 }
-#connection {
+/* The connection span keeps its full text, for the live region and for the browser tests,
+   but draws as a dot: ::before is the dot, coloured by data-state (set in status(), app.js),
+   and ::after is a bubble with the text on hover or after a tap. font-size: 0 hides the text
+   without taking it out of the DOM. The header line takes the same state (shared.css).
+   #window-state (history windows refreshing) draws the same way, as a small spinner. */
+#connection,
+#window-state {
+    position: relative;
+    display: flex;
+    align-items: center;
+    font-size: 0;
+    cursor: default;
+}
+#connection::before,
+#window-state::before {
+    content: '';
+    box-sizing: border-box;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+/* Working (opening, connecting, syncing): a pulsing dot in the old reconnect-strip orange. */
+#connection::before {
+    background: var(--status-away);
+    animation: connection-pulse 1.4s ease-in-out infinite;
+}
+/* Synced, but the shell cannot reload offline: a quiet grey dot, the reason in the bubble. */
+#connection[data-state='limited']::before {
+    background: var(--text-muted);
+    animation: none;
+}
+/* Offline or disconnected on cached chat: a hollow grey ring. */
+#connection[data-state='offline']::before {
+    background: transparent;
+    border: 2px solid var(--text-muted);
+    animation: none;
+}
+/* Sign in, update, reload, sync failed: red. The notice strip under the header carries the
+   words and the control for every one of these, so the header never needs them. */
+#connection[data-state='action']::before {
+    background: var(--color-danger);
+    animation: none;
+}
+#window-state::before {
+    border: 2px solid var(--text-muted);
+    border-top-color: var(--status-away);
+    animation: connection-spin 1s linear infinite;
+}
+#connection::after,
+#window-state::after {
+    content: attr(data-text);
+    position: absolute;
+    top: calc(100% + 8px);
+    right: -4px;
+    z-index: 1000;
+    display: none;
+    width: max-content;
+    max-width: min(280px, 80vw);
+    padding: 6px 10px;
+    border-radius: 4px;
+    background: var(--bg-darkest);
+    color: var(--text-primary);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
     font-size: 0.75rem;
-    color: var(--text-secondary);
+    line-height: 1.3;
+}
+#connection:hover::after,
+#connection.open::after,
+#window-state:hover::after,
+#window-state.open::after {
+    display: block;
+}
+@keyframes connection-pulse {
+    50% {
+        opacity: 0.35;
+    }
+}
+@keyframes connection-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    #connection::before,
+    #window-state::before {
+        animation: none;
+    }
 }
 .chat-menu a {
     text-decoration: none;
@@ -77,21 +161,6 @@
     color: var(--text-muted);
     font-size: 0.875rem;
 }
-@media (max-width: 600px) {
-    #connection {
-        max-width: 110px;
-    }
-}
-@media (max-width: 600px) {
-    #connection {
-        font-size: 0;
-        max-width: 65px;
-    }
-    #connection::after {
-        content: attr(data-label);
-        font-size: 0.7rem;
-    }
-}
 #pending {
     display: contents;
 }
@@ -120,9 +189,4 @@
 #recovery {
     height: auto;
     flex: none;
-}
-
-#window-state {
-    color: var(--text-secondary);
-    font-size: 0.75rem;
 }

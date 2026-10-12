@@ -682,6 +682,28 @@
     flex-shrink: 0;
     image-rendering: auto;
     object-fit: fill;
+    transition: filter 0.4s ease;
+}
+/* The line takes the connection state that status() (app.js) writes on <html>: grey when the
+   server is out of reach, a pulsing orange while a connection or sync is in progress. Sepia
+   then saturate turns the turquoise image orange, so one asset serves every state. Action
+   and limited states keep the plain line; the header dot and the notice strip carry those. */
+:root[data-connection='offline'] .header-line {
+    filter: grayscale(1) opacity(0.5);
+}
+:root[data-connection='working'] .header-line {
+    filter: sepia(1) saturate(5) hue-rotate(-10deg);
+    animation: header-line-pulse 1.4s ease-in-out infinite;
+}
+@keyframes header-line-pulse {
+    50% {
+        opacity: 0.4;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .header-line {
+        animation: none;
+    }
 }
 .chat-main {
     flex: 1;

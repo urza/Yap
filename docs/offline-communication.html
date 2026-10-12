@@ -1994,10 +1994,11 @@ builder.Services.AddHostedService&lt;OfflinePresenceTicker&gt;();</code></pre>
                         </li>
                         <li>
                             <strong>Offline:</strong> cached shell assets and stored state, failed
-                            network attempts, no successful live stream. The header reads
-                            Offline · cached chat, or Disconnected · cached chat when the server is
-                            unreachable while the device is online. A later reconnect begins with
-                            one HTTP bootstrap again.
+                            network attempts, no successful live stream. The header dot turns
+                            into a hollow grey ring and the header line goes grey; the dot's
+                            bubble reads Offline · cached chat, or Disconnected · cached chat when
+                            the server is unreachable while the device is online. A later
+                            reconnect begins with one HTTP bootstrap again.
                         </li>
                     </ul>
                 </details>

@@ -58,23 +58,25 @@ let workerReady = false,
     shellUpdated = false,
     readMarkers = [],
     lastBadge = -1;
-function connectionLabel(text) {
-    if (text.startsWith('Synced')) return 'Synced';
-    if (/Offline|Disconnected/.test(text)) return 'Offline';
-    if (text.includes('failed')) return 'Sync failed';
-    if (text.startsWith('Sign')) return 'Sign in';
-    if (text === 'Update required') return text;
-    // Both read as "Syncing" before; neither state syncs (audit D-07).
-    if (text.startsWith('Connect')) return 'Connect';
-    if (text.startsWith('Account changed')) return 'Reload';
-    return 'Syncing';
+// The header shows the connection as a dot (chat.css) and tints the line under the header
+// (shared.css); both read this state. The full text stays in the span for the live region
+// and shows in a bubble on hover or tap. Every action state also opens a notice with its
+// control, so the header never needs those words.
+function connectionState(text) {
+    if (text.startsWith('Synced')) return text.includes('unavailable') ? 'limited' : 'synced';
+    if (/cached chat|connect to set up/.test(text)) return 'offline';
+    if (/failed|required|changed|Connect to continue|unavailable/.test(text)) return 'action';
+    return 'working';
 }
 function status(text) {
     const node = $('#connection');
     node.textContent = text;
     node.hidden = text.startsWith('Synced') && !text.includes('unavailable');
-    node.title = text;
-    node.dataset.label = connectionLabel(text);
+    node.dataset.text = text;
+    node.classList.remove('open');
+    const state = connectionState(text);
+    node.dataset.state = state;
+    document.documentElement.dataset.connection = state;
 }
 function notice(text, login = false) {
     // Every accepted snapshot calls notice('') to clear transient errors. Lasting states
@@ -1263,6 +1265,14 @@ window.addEventListener('online', () => {
 window.addEventListener('offline', () => {
     stopConnection();
     status('Offline · cached chat');
+});
+// Phones have no hover: a tap on the connection dot or the history spinner shows its text,
+// and the next tap anywhere else closes it.
+for (const node of [$('#connection'), $('#window-state')])
+    node.addEventListener('click', () => node.classList.toggle('open'));
+document.addEventListener('pointerdown', (event) => {
+    for (const node of [$('#connection'), $('#window-state')])
+        if (!node.contains(event.target)) node.classList.remove('open');
 });
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden && identity) {
