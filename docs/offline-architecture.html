@@ -966,8 +966,8 @@
                         returns.
                     </p>
                     <div class="version">
-                        <strong>Browser + ASP.NET</strong>Native JavaScript modules<br />SQLite-backed
-                        acceptance
+                        <strong>Browser + ASP.NET</strong>Native JavaScript modules<br />SQLite or
+                        in-memory acceptance
                     </div>
                 </div>
                 <div class="principles">
@@ -982,7 +982,7 @@
                         <b>Retries keep the same identity</b>
                         <p>
                             Operation receipts let the server recognize work it has already
-                            accepted.
+                            accepted, for 24 hours and up to 4,096 per account.
                         </p>
                     </article>
                     <article>
@@ -1044,8 +1044,9 @@
                                 The JavaScript chat client writes to IndexedDB and uses a service
                                 worker and media cache. It sends HTTP operations to authenticated
                                 server endpoints and receives SignalR deltas. Shared chat services
-                                atomically persist messages and receipts to SQLite. Login, Settings
-                                and Admin remain on Blazor Server. Offline, the browser continues
+                                accept messages, receipts and unread checkpoints through one store,
+                                SQLite or memory. Login, Settings, Admin and six other pages remain
+                                on Blazor Server. Offline, the browser continues
                                 using local state while server communication pauses.
                             </desc>
                             <defs>
@@ -1071,7 +1072,7 @@
                                 app · composer · messages · sender
                             </text>
                             <text class="sub" x="62" y="157">
-                                Normal routes: /lobby · /room/… · /dm/…
+                                Routes: / · /chat · /lobby · /room/… · /dm/…
                             </text>
                             <path
                                 class="wire"
@@ -1086,16 +1087,18 @@
                                 Conversation records · drafts · outbox · reads
                             </text>
                             <rect class="store" x="42" y="337" width="372" height="77" rx="10" />
-                            <text class="text" x="62" y="367">Service worker + Cache Storage</text>
+                            <text class="text" x="62" y="367">
+                                Module service worker + Cache Storage
+                            </text>
                             <text class="sub" x="62" y="392">
-                                Static shell + separate account media caches
+                                Hashed shell · account media · emoji artwork
                             </text>
                             <g class="network">
                                 <path class="wire" d="M415 108 H690" marker-end="url(#arrow)" />
                                 <text class="sub" x="455" y="96">HTTP operations / uploads</text>
                                 <path class="wire" d="M691 149 H415" marker-end="url(#arrow)" />
                                 <text class="sub" x="461" y="176">Deltas + live events</text>
-                                <text class="label" x="484" y="223">COOKIE + CSRF</text>
+                                <text class="label" x="470" y="223">COOKIE · CSRF · TICKET</text>
                                 <text class="sub" x="468" y="246">One origin, two transports</text>
                             </g>
                             <rect class="node" x="692" y="82" width="366" height="91" rx="10" />
@@ -1117,13 +1120,13 @@
                             <path class="wire" d="M875 291 V318" marker-end="url(#arrow)" />
                             <rect class="store" x="692" y="327" width="366" height="53" rx="10" />
                             <text class="text" x="712" y="349">
-                                SQLite: messages + operation receipts
+                                IChatStore: SQLite or memory
                             </text>
                             <text class="sub" x="712" y="369">
-                                Atomic acceptance; read checkpoints persisted
+                                One commit: message, receipt, unread checkpoints
                             </text>
                             <text class="sub" x="713" y="410">
-                                Login / Settings / Admin → retained Blazor UI
+                                Login · Settings · Admin + 6 pages → Blazor Server
                             </text>
                         </svg>
                     </div>
@@ -1227,7 +1230,9 @@
                     <p>
                         The browser retries the same operation ID and payload. The server recognizes
                         its receipt and returns acceptance without repeating the mutation. A deleted
-                        message stays deleted; replaying an old receipt cannot recreate it.
+                        message stays deleted; replaying an old receipt cannot recreate it. The
+                        server keeps each receipt for 24 hours, up to 4,096 per account. A retry
+                        outside that window cannot rely on the receipt.
                     </p>
                 </div>
             </section>
@@ -1260,6 +1265,8 @@
                         <p>
                             A process epoch and per-record sequence checks order authority across
                             tabs and restarts. A delayed old response cannot restore stale data.
+                            After a restart, cached windows are stale until a complete window
+                            validates them, and a stale window cannot acknowledge reads.
                         </p>
                         <code>serverEpoch + sequence → per-record ordering</code>
                     </article>
@@ -1303,7 +1310,10 @@
                 </div>
                 <div class="repo-summary">
                     <div><strong>1</strong><span>existing deployable ASP.NET app</span></div>
-                    <div><strong>+1</strong><span>standalone .NET contract test project</span></div>
+                    <div>
+                        <strong>+3</strong
+                        ><span>standalone .NET tool projects (contracts, fan-out load, emoji)</span>
+                    </div>
                     <div>
                         <strong>0</strong><span>frontend build steps required to publish</span>
                     </div>
@@ -1319,9 +1329,11 @@
                         </summary>
                         <div class="repo-body">
                             <p>
-                                The browser chat application: native JavaScript modules, shell
-                                markup and styles. Owns normal chat routes. Local vendor/emoji
-                                assets keep shell dependencies available offline.
+                                The browser chat application: 33 native JavaScript modules, the
+                                shell markup and seven stylesheets. It owns the chat routes. Vendor
+                                scripts and emoji metadata ship with the shell. Emoji artwork caches
+                                on first use, and an uncached glyph falls back to native text
+                                offline.
                             </p>
                             <ul class="file-list">
                                 <li>
@@ -1329,32 +1341,51 @@
                                     coordination, composition and timeline rendering.
                                 </li>
                                 <li>
-                                    <code>storage.js · sender.js · uploads.js · api.js</code>Durable
-                                    browser state and network delivery.
+                                    <code>storage.js · sync.js · windows.js · constants.js</code
+                                    >Account-bound IndexedDB, per-record merge of wire updates,
+                                    missing-window refill and the shared namespaces.
+                                </li>
+                                <li>
+                                    <code>sender.js · uploads.js · api.js</code>Outbox delivery,
+                                    resumable uploads and authenticated HTTP.
                                 </li>
                                 <li>
                                     <code>actions.js · history.js · reader.js</code>Mutations, older
                                     pages and observed-read acknowledgements.
                                 </li>
                                 <li>
-                                    <code>live.js · notifications.js · pwa.js</code>Presence/typing,
-                                    title/audio and install/push integration.
+                                    <code>live.js · notifications.js · pwa.js · push.js</code
+                                    >Presence and typing, title and audio, install and push.
+                                    push.js is the worker's push handler.
                                 </li>
                                 <li>
-                                    <code>content.js · gifs.js · pickers.js</code>Emoji and GIF
-                                    catalogs, search and picker lifecycle.
+                                    <code>content.js · gifs.js · pickers.js · profiles.js · dates.js</code
+                                    >Emoji and GIF catalogs, picker lifecycle, profile cards and
+                                    time formatting.
                                 </li>
                                 <li>
                                     <code>media.js · rich-media.js · gallery.js · scroll.js</code
-                                    >Media caching/rendering, gallery and scroll behavior.
+                                    >Media caching and rendering, the gallery, the timeline follow
+                                    and the New messages pill.
                                 </li>
                                 <li>
-                                    <code>worker.js · worker-updates.js</code>Shell cache and
-                                    installed-worker activation.
+                                    <code>account-actions.js · session-renewal.js · warnings.js</code
+                                    >Unsent-work confirmation and hourly cookie renewal, shared with
+                                    the retained pages, and the warning modal.
                                 </li>
                                 <li>
-                                    <code>contracts.js · index.html · chat.css</code>Editor data
-                                    shapes, HTML entry and client styles.
+                                    <code>worker.js · worker-common.js · worker-updates.js</code
+                                    >Module worker shell cache, rules shared with the classic
+                                    bridge, and registration behind a support probe.
+                                </li>
+                                <li>
+                                    <code>contracts.js · index.html</code>Editor data shapes and the
+                                    HTML entry.
+                                </li>
+                                <li>
+                                    <code>shared.css + six stylesheets</code>Layout and shared rules,
+                                    also loaded by the retained pages, then message, composer,
+                                    picker, gallery, media and shell styles.
                                 </li>
                             </ul>
                         </div>
@@ -1369,22 +1400,32 @@
                             </p>
                             <ul class="file-list">
                                 <li>
-                                    <code>OfflineEndpoints.cs · ChatRoutes.cs</code>Chat shell
-                                    routes and canonical authenticated API groups.
+                                    <code>OfflineEndpoints.cs · ChatRoutes.cs · ChatRootPolicy.cs</code
+                                    >Chat shell routes, the authenticated API group, and chat
+                                    ownership of <code>/</code> for signed-in visits.
                                 </li>
                                 <li>
-                                    <code>OfflineSnapshotService.cs · OfflineSync.cs</code>Explicit
-                                    safe DTOs, incremental wire updates and authoritative recent
-                                    windows.
+                                    <code>OfflineSnapshotService.cs · OfflineSync.cs</code>Safe
+                                    DTOs, incremental wire updates and authoritative recent windows.
                                 </li>
                                 <li>
-                                    <code>OfflineHub.cs · OfflineFanout.cs · OfflineChangeSignal.cs</code>Targeted
-                                    event queues, content counters and bounded invalidation recovery.
+                                    <code>OfflineHub.cs · OfflineFanout.cs</code>Live methods behind
+                                    a per-connection rate limit, targeted event queues and bounded
+                                    invalidation recovery.
                                 </li>
                                 <li>
-                                    <code>OfflineLiveService.cs · OfflineContent.cs</code
-                                    >Presence/typing plus catalog, GIF and completed-upload
-                                    endpoints.
+                                    <code>OfflineLiveService.cs · OfflineContent.cs</code>Presence
+                                    and typing with a 100 ms ticker, plus catalog, GIF and
+                                    completed-upload endpoints.
+                                </li>
+                                <li>
+                                    <code>ChatLimits.cs · ChatProtocol.cs</code>Configured write and
+                                    history limits carried in bootstrap, and protocol 3. A mismatch
+                                    gets HTTP 426.
+                                </li>
+                                <li>
+                                    <code>ChatShellManifest.cs</code>A startup inventory that hashes
+                                    every shell file. A changed hash installs a new shell.
                                 </li>
                             </ul>
                         </div>
@@ -1397,24 +1438,39 @@
                             <p>
                                 Existing business logic remains shared. New partial class files
                                 isolate durable operations without creating a second chat service.
+                                One store interface carries acceptance for both deployment modes.
                             </p>
                             <ul class="file-list">
                                 <li>
-                                    <code>ChatService.Text.cs</code>New: idempotent text/media
-                                    acceptance and receipt compatibility.
+                                    <code>IChatStore.cs · SqliteChatStore.cs · MemoryChatStore.cs</code
+                                    >One acceptance boundary, two backends. SQLite commits in one
+                                    transaction; memory mode uses one lock.
                                 </li>
                                 <li>
-                                    <code>ChatService.Actions.cs · ChatService.Reads.cs</code>New:
-                                    accepted mutations and observed read checkpoints.
+                                    <code>ChatService.Text.cs · ChatService.Actions.cs · ChatService.Reads.cs</code
+                                    >Idempotent text and media acceptance, accepted mutations and
+                                    observed read checkpoints.
                                 </li>
                                 <li>
-                                    <code>ChatService.cs · ChatPersistenceService.cs</code>Modified:
-                                    change notifications, history versions and atomic persistence.
+                                    <code>ChatService.Acceptance.cs · ChatService.Connections.cs</code
+                                    >Per-message acceptance gates, and the disconnect timers shared
+                                    by hub and circuit sessions.
                                 </li>
                                 <li>
-                                    <code>AccessLinkService.cs · ChatCircuitHandler.cs</code
-                                    >Modified: login-link renewal and retained Blazor session
-                                    integration.
+                                    <code>ChatService.cs · ChatPersistenceService.cs</code>Change
+                                    notifications, history versions and the per-channel author and
+                                    GIF indexes. Persistence keeps channel configuration and startup
+                                    loading.
+                                </li>
+                                <li>
+                                    <code>ChatReceiptCleanup.cs · OfflineChangeSignal.cs · PresenceOptions.cs</code
+                                    >Receipt retention (24 hours, 4,096 per account), change
+                                    sequences and the 30 s disconnect grace.
+                                </li>
+                                <li>
+                                    <code>AccessLinkService.cs · AuthCookieRenewal.cs · ChatCircuitHandler.cs</code
+                                    >Per-user login-link origins, hourly cookie renewal and retained
+                                    Blazor sessions.
                                 </li>
                             </ul>
                         </div>
@@ -1426,8 +1482,9 @@
                         </summary>
                         <div class="repo-body">
                             <p>
-                                Extend the existing EF/SQLite schema for retry identity and observed
-                                reads. The two migrations preserve existing messages and accounts.
+                                Extend the existing EF/SQLite schema for retry identity, observed
+                                reads and login origins. Five migrations preserve existing messages
+                                and accounts.
                             </p>
                             <ul class="file-list">
                                 <li>
@@ -1435,16 +1492,20 @@
                                     receipt model.
                                 </li>
                                 <li>
-                                    <code>Models/ChatMessage.cs · ChannelReadState.cs</code
-                                    >Operation association and recipient checkpoints.
+                                    <code>Models/ChatMessage.cs · ChannelReadState.cs · User.cs</code
+                                    >Operation association, recipient checkpoints and the recorded
+                                    login origin.
                                 </li>
                                 <li>
                                     <code>Data/ChatDbContext.cs</code>Receipt mapping and related
                                     schema configuration.
                                 </li>
                                 <li>
-                                    <code>DurableTextSends · ObservedReadCheckpoints</code>Two new
-                                    migrations, generated designers and updated model snapshot.
+                                    <code
+                                        >DurableTextSends · ObservedReadCheckpoints · UserLoginOrigin
+                                        · ReceiptCountCap · ReceiptIndexByUser</code
+                                    >Five migrations with generated designers and the updated model
+                                    snapshot.
                                 </li>
                             </ul>
                         </div>
@@ -1456,12 +1517,16 @@
                         <div class="repo-body">
                             <p>
                                 Chat route ownership moved out of <code>RoomChat.razor</code> and
-                                <code>DmChat.razor</code>. The unused components and their chat-only dependencies are removed;
-                                browser chat owns an explicit static stylesheet. Login,
-                                Settings, Admin and other retained pages continue using Blazor
-                                Server.
+                                <code>DmChat.razor</code>, which are gone with their chat-only
+                                dependencies. Nine Razor pages stay on Blazor Server: Welcome,
+                                Login, VerifyDevice, Invite, Settings, ChannelSettings, Admin,
+                                NotFound and Error.
                             </p>
                             <ul class="file-list">
+                                <li>
+                                    <code>App.razor</code>Loads appearance.js, session-renewal.js
+                                    and shared.css, and registers the chat service worker.
+                                </li>
                                 <li>
                                     <code
                                         >Pages/Settings.razor · Admin.razor ·
@@ -1472,8 +1537,8 @@
                                     <code
                                         >Layout/ChatLayout.razor · ChatHeader.razor ·
                                         ChatSidebar.razor</code
-                                    >Retained navigation and session integration; existing component
-                                    styles are reused by the client.
+                                    >Retained navigation and presence over the circuit. Their scoped
+                                    styles moved to <code>chat-client/shared.css</code>.
                                 </li>
                             </ul>
                         </div>
@@ -1491,46 +1556,53 @@
                             </p>
                             <ul class="file-list">
                                 <li>
-                                    <code>Endpoints/TusEndpoints.cs · PwaEndpoints.cs</code
-                                    >Account-bound uploads, completed-upload receipts and PWA
-                                    handoff.
+                                    <code>Endpoints/TusEndpoints.cs · PwaEndpoints.cs · PushEndpoints.cs</code
+                                    >Account-bound uploads, completed-upload receipts, PWA handoff
+                                    and push subscriptions.
                                 </li>
                                 <li>
-                                    <code>Middleware/AuthMiddleware.cs · Program.cs</code>Route/auth
-                                    integration, public-origin handling and asset cache policy.
+                                    <code>Middleware/AuthMiddleware.cs · Program.cs</code>Route and
+                                    auth integration, public-origin handling, protocol checks and
+                                    asset cache policy. The old beacon endpoint is gone.
                                 </li>
                                 <li>
-                                    <code>wwwroot/service-worker.js · app.css · themes.css</code
-                                    >Extend the root worker for offline chat; shared appearance and
-                                    legibility adjustments.
+                                    <code>wwwroot/service-worker-module.js · service-worker.js</code
+                                    >The module worker entry, and a classic bridge that stages the
+                                    shell for old installs.
                                 </li>
                                 <li>
-                                    <code>Yap.csproj</code>Embed reused component styles and package
-                                    the required static dependencies.
+                                    <code>wwwroot/js/appearance.js · js/chat.js · app.css · themes.css</code
+                                    >Appearance before CSS for both shells, retained-page interop,
+                                    and shared legibility rules.
                                 </li>
                             </ul>
                         </div>
                     </details>
                     <details>
                         <summary>
-                            <code>tests/OfflineContract/ · tests/browser/</code
+                            <code>tests/OfflineContract/ · tests/FanoutLoad/ · tests/browser/</code
                             ><span class="tag">NEW</span>
                         </summary>
                         <div class="repo-body">
                             <p>
-                                <code>OfflineContract.csproj</code> is a new standalone test harness
-                                referencing Yap. It is outside <code>BlazorChat.sln</code>. Browser
-                                checks use Playwright against isolated running instances and the
-                                frozen original.
+                                The .NET test projects live outside <code>BlazorChat.sln</code> and
+                                reference Yap. Browser checks use Playwright against isolated running
+                                instances and the frozen original.
                             </p>
                             <ul class="file-list">
                                 <li>
                                     <code>OfflineContract/*.cs</code>Authorization, receipts,
-                                    persistence/restart, migrations, media, presence and upgrades.
+                                    persistence and restart, migrations, media, presence and
+                                    upgrades, run in the SQLite and the memory mode.
                                 </li>
                                 <li>
-                                    <code>browser/*.cjs</code>Recovery, parity, UI races, offline
-                                    operations, PWA and upgrade regressions.
+                                    <code>FanoutLoad/</code>A SignalR fan-out benchmark with 10, 30
+                                    and 50 clients.
+                                </li>
+                                <li>
+                                    <code>browser/*.cjs</code>55 suites: recovery, parity, UI races,
+                                    offline operations, PWA and upgrade, emulated phone taps and
+                                    the rules restored from the old page. 18 run by default.
                                 </li>
                             </ul>
                         </div>
@@ -1542,15 +1614,21 @@
                         </summary>
                         <div class="repo-body">
                             <p>
-                                Development tooling only. Pinned Playwright and Prettier, a
-                                sequential browser runner, and scoped C# formatting conventions. The
-                                existing .NET publish process remains independent of npm.
+                                Development tooling only. Pinned Playwright, Prettier and
+                                tus-js-client, a sequential browser runner, and the emoji catalog
+                                generator. The existing .NET publish process remains independent of
+                                npm.
                             </p>
                             <ul class="file-list">
                                 <li>
                                     <code>scripts/browser-tests.mjs</code>Named suites,
                                     isolated-origin guard, fail-fast execution and per-suite
                                     artifacts.
+                                </li>
+                                <li>
+                                    <code>scripts/EmojiCatalog/</code>Generates the shipped emoji
+                                    metadata, <code>chat-client/emoji/catalog.js</code>. Run by hand,
+                                    not at publish.
                                 </li>
                                 <li>
                                     <code
@@ -1569,9 +1647,10 @@
                         </summary>
                         <div class="repo-body">
                             <p>
-                                Current architecture and offline behavior, feature coverage,
-                                testing instructions and deployment guidance. Project instructions
-                                record coding principles and validation expectations.
+                                Current architecture and offline behavior, the feature reference,
+                                the old-versus-new interaction audit, testing instructions and
+                                deployment guidance. Project instructions record coding principles
+                                and validation expectations.
                             </p>
                             <p>
                                 Private runtime databases and credentials stay outside the
@@ -1648,12 +1727,18 @@
                         <h3>Maintained regression checks</h3>
                         <ul class="checks">
                             <li>
-                                Server authorization, persistence, receipt replay and migrations.
+                                Server authorization, persistence, receipt replay and migrations:
+                                the contract harness, run in the SQLite and the memory mode.
                             </li>
                             <li>
-                                Browser sends, reply races, history reconciliation and cached media.
+                                Browser sends, reply races, history reconciliation, cached media,
+                                phone taps and the rules restored from the old page: 55 Playwright
+                                suites, 18 in the default run.
                             </li>
-                            <li>Draft/outbox survival, worker activation and offline reload.</li>
+                            <li>
+                                Draft/outbox survival, worker activation, the update notice and
+                                offline reload.
+                            </li>
                             <li>
                                 Retained Settings/Admin integration and instrumented PWA behavior.
                                 Coverage is scoped in the feature reference.
@@ -1665,20 +1750,32 @@
                         <ul class="checks limits">
                             <li>
                                 Device installation, external push/providers, Safari and broader
-                                storage/accessibility coverage remain separate checks.
+                                storage/accessibility coverage remain separate checks. Offline
+                                reload and push need module service workers: Chrome/Edge 91+,
+                                Firefox 147+ or Safari 15+.
                             </li>
                             <li>
                                 Browser storage can be evicted; it is not a backup. Cold offline
-                                access has no elapsed-time limit for an unlocked saved account.
+                                access has no elapsed-time limit for an unlocked saved account. A
+                                memory-mode restart invalidates accounts, so old clients lock their
+                                cached work.
                             </li>
                             <li>
-                                Recipient unread/notification side effects follow message
-                                acceptance. A later failure can miss an unread increment.
+                                Unread checkpoints commit with the message. A failed unread write
+                                rolls back acceptance for a safe retry. Notifications run after
+                                commit, and one failed listener cannot block the others.
                             </li>
                             <li>
-                                Keep deployed browser namespaces stable. Add runtime assets to the
-                                worker and bump its shell version; keep APIs and tokens out of
-                                static caches.
+                                Keep deployed browser namespaces stable. Publish all files at once,
+                                then restart the server. The startup manifest hashes each shell
+                                file, and a changed hash installs a new shell. Keep APIs and tokens
+                                out of static caches.
+                            </li>
+                            <li>
+                                Defaults: 4,000-character text, 16 operations or 48 KiB per batch,
+                                20 files per message, 100 MB uploads, history pages of 50 up to
+                                500, a recent window of 100 messages, and a queue of 128 entries
+                                per live connection.
                             </li>
                         </ul>
                     </article>
@@ -1746,15 +1843,15 @@
                     trace: ['Sender lock', 'Resume upload', 'HTTP operation'],
                 },
                 {
-                    owner: 'Server / ChatService + persistence',
+                    owner: 'Server / ChatService + IChatStore',
                     title: 'Persist the change and its receipt together.',
-                    body: 'Validate identity, permissions and payload. Commit the message or mutation with its receipt atomically. If the request already succeeded, recognize the receipt without applying the mutation again. Receipt hash serialization is persisted protocol data.',
-                    trace: ['Authorize', 'Message + receipt', 'SQLite commit'],
+                    body: 'Validate identity, permissions and payload. Commit the message or mutation with its receipt and the recipient unread checkpoints through IChatStore. SQLite uses one transaction; memory mode uses one lock. If the request already succeeded, recognize the receipt without applying the mutation again. Receipt hash serialization is persisted protocol data.',
+                    trace: ['Authorize', 'Message + receipt', 'Store commit'],
                 },
                 {
-                    owner: 'Browser / app.js → storage.js → messages.js',
+                    owner: 'Browser / app.js → storage.js + sync.js → messages.js',
                     title: 'Converge on accepted state without a duplicate.',
-                    body: 'Compact HTTP acknowledgements and SignalR deltas use the same atomic commit path. Storage orders authority and reconciles accepted operation IDs, even when the stream arrives first. Rendering preserves active editors and playing media; versioned older history is reconciled separately.',
+                    body: 'Compact HTTP acknowledgements and SignalR deltas use the same atomic commit path. sync.js orders each record by server epoch and sequence inside the storage commit, and reconciles accepted operation IDs, even when the stream arrives first. Rendering preserves active editors and playing media; versioned older history is reconciled separately.',
                     trace: ['Snapshot queue', 'Commit + reconcile', 'Update timeline'],
                 },
             ];

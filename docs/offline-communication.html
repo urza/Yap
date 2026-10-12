@@ -655,8 +655,9 @@
                         <span class="tag blazor">Blazor Server</span>
                         <h3>Run retained Razor pages</h3>
                         <p>
-                            Welcome, Login, Settings and Admin keep server-side components. Their
-                            events and render updates use <code>/_blazor</code>.
+                            Nine Razor pages keep server-side components: Welcome, Login,
+                            VerifyDevice, Invite, Settings, ChannelSettings, Admin, NotFound and
+                            Error. Their events and render updates use <code>/_blazor</code>.
                         </p>
                     </article>
                 </div>
@@ -685,8 +686,9 @@
                         </title>
                         <desc id="map-desc">
                             Chat uses HTTP APIs and the custom chat hub, backed by shared services.
-                            Retained Razor pages use the Blazor circuit and also HTTP for selected
-                            endpoints. IndexedDB and caches remain in the browser.
+                            Retained Razor pages use the Blazor circuit, and HTTP for session
+                            renewal and the worker manifest. IndexedDB and caches remain in the
+                            browser.
                         </desc>
                         <defs>
                             <marker
@@ -715,7 +717,7 @@
                         <text x="63" y="138" class="sub">
                             index.html + app.js · renders locally
                         </text>
-                        <text x="63" y="160" class="sub">/lobby · /room/{id} · /dm/{username}</text>
+                        <text x="63" y="160" class="sub">/ · /chat · /lobby · /room/… · /dm/…</text>
                         <rect x="45" y="211" width="280" height="76" rx="12" fill="#e7eef5" />
                         <text x="63" y="242" class="label">Local state + offline shell</text>
                         <text x="63" y="265" class="sub">IndexedDB · Cache Storage · worker</text>
@@ -737,7 +739,7 @@
                         />
                         <text x="63" y="387" class="label">Retained Razor document</text>
                         <text x="63" y="415" class="sub">App.razor + blazor.web.js</text>
-                        <text x="63" y="442" class="sub">Welcome / Login / Settings / Admin</text>
+                        <text x="63" y="442" class="sub">Welcome · Login · Settings · Admin + 5</text>
                         <text x="63" y="327" class="sub">
                             Full navigation switches documents ↕
                         </text>
@@ -745,7 +747,7 @@
                         <text x="606" y="57" class="label">ASP.NET application</text>
                         <rect x="605" y="79" width="245" height="82" rx="12" fill="#e0f2e9" />
                         <text x="623" y="110" class="label">HTTP endpoints</text>
-                        <text x="623" y="138" class="sub">/api/chat · /api/tus · assets</text>
+                        <text x="623" y="138" class="sub">/api/chat · /api/tus · /api/push</text>
                         <rect x="605" y="193" width="245" height="88" rx="12" fill="#fff0d5" />
                         <text x="623" y="225" class="label">OfflineHub /hubs/chat</text>
                         <text x="623" y="250" class="sub">WatchChanges · WatchActivity</text>
@@ -802,7 +804,7 @@
                             marker-end="url(#arrow)"
                         />
                         <text x="364" y="391" class="sub">Separate Blazor connection</text>
-                        <text x="370" y="438" class="sub">Plus HTTP for selected operations</text>
+                        <text x="464" y="438" class="sub" text-anchor="middle">Plus HTTP: session + worker manifest</text>
                     </svg>
                     <figcaption>
                         These are separate logical paths. A chat tab does not need a Blazor circuit.
@@ -855,11 +857,12 @@
                                 <span class="tag http">HTTP</span>
                                 <h4>GET / → authenticated chat shell</h4>
                                 <p>
-                                    Program.cs checks the authenticated user and returnUrl. For the
-                                    ordinary signed-in visit it returns the static client document,
-                                    avoiding the Welcome circuit and subsequent document navigation.
-                                    Root remains network-first in the worker for authentication and
-                                    rollback.
+                                    ChatRootPolicy selects the chat endpoint for an authenticated
+                                    GET / without a returnUrl. The server returns index.html with
+                                    the account theme, font size and user ID filled in, as a
+                                    no-store response, avoiding the Welcome circuit and a second
+                                    document navigation. Root remains network-first in the worker
+                                    for authentication and rollback.
                                 </p>
                                 <small>Browser → ASP.NET → chat document</small>
                             </div>
@@ -870,10 +873,11 @@
                                 <span class="tag local">Browser local</span>
                                 <h4>Prepare local storage</h4>
                                 <p>
-                                    Service-worker registration runs independently. Read
-                                    account-bound IndexedDB schema 4; conversation bodies are stored
-                                    separately from the global header. Local drafts/outbox remain
-                                    independent of server data.
+                                    Service-worker registration runs independently: a module-worker
+                                    probe, then the shell manifest, then service-worker-module.js.
+                                    Read account-bound IndexedDB schema 4; conversation bodies are
+                                    stored separately from the global header. Local drafts/outbox
+                                    remain independent of server data.
                                 </p>
                                 <small>Browser ↔ IndexedDB</small>
                             </div>
@@ -885,8 +889,10 @@
                                 <h4>One GET /api/chat/bootstrap</h4>
                                 <p>
                                     Cookie validation, memory-only CSRF token, live ticket, global
-                                    settings, conversation summaries and the selected recent window
-                                    share one response. Matching cached account/epoch/revision omits
+                                    settings and limits, conversation summaries and the selected
+                                    recent window share one response. Every request carries
+                                    X-Yap-Chat-Protocol: 3; a mismatch returns 426 and the client
+                                    asks for a reload. Matching cached account/epoch/revision omits
                                     unchanged active message bodies. No separate startup /session or
                                     /sync is needed.
                                 </p>
@@ -913,11 +919,12 @@
                                 <span class="tag http">HTTP</span>
                                 <h4>Start optional background work</h4>
                                 <p>
-                                    Catalog, saved-read batches, missing recent windows and PWA
-                                    setup do not gate sending or hub startup. Window recovery
-                                    prioritizes the active conversation, then unread ones;
-                                    foreground work and navigation cancel or pause obsolete
-                                    downloads.
+                                    Catalog, saved-read batches, missing recent windows and locale
+                                    detection run in the background. They do not gate sending or
+                                    hub startup. Push and install setup starts after the hub
+                                    connects. Window recovery prioritizes the active conversation,
+                                    then unread ones; foreground work and navigation cancel or
+                                    pause obsolete downloads.
                                 </p>
                                 <small>Background HTTP alongside active chat</small>
                             </div>
@@ -928,9 +935,10 @@
                                 <span class="tag signalr">Chat SignalR</span>
                                 <h4>Connect to /hubs/chat</h4>
                                 <p>
-                                    SignalR negotiates over HTTP and opens an available transport,
-                                    normally WebSockets. Transport fallback is retained. This
-                                    connection carries chat updates, not Blazor render batches.
+                                    SignalR negotiates over HTTP with ?protocol=3 and opens an
+                                    available transport, normally WebSockets. Transport fallback is
+                                    retained. This connection carries chat updates, not Blazor
+                                    render batches.
                                 </p>
                                 <small>Browser ⇄ chat hub</small>
                             </div>
@@ -973,7 +981,8 @@
                         <code
                             >/bootstrap → apply active state → sender.start() + background work →
                             hub.start() → WatchActivity + WatchChanges</code
-                        >. Catalog, saved reads, missing windows and PWA setup do not block sending.
+                        >. Catalog, saved reads, missing windows and locale detection do not block
+                        sending. Push setup starts after the hub connects.
                         Transport negotiation still takes network exchanges; changing from HTTP to a
                         hub invocation would not eliminate the propagation time for a write
                         acknowledgement.
@@ -998,7 +1007,7 @@
                     ><button data-filter="blazor" aria-pressed="false">Blazor Server</button
                     ><button data-filter="local" aria-pressed="false">Browser local</button>
                 </div>
-                <p id="feature-count" role="status">16 features shown</p>
+                <p id="feature-count" role="status">18 features shown</p>
                 <div
                     class="table-wrap"
                     tabindex="0"
@@ -1020,8 +1029,10 @@
                                     <code>GET /, /lobby, /chat, /room/{id}, /dm/{username}</code>
                                     <p>
                                         Authenticated root without returnUrl and direct chat routes
-                                        serve index.html. Prepared canonical chat routes use the
-                                        shell cache immediately.
+                                        serve index.html with the account appearance filled in.
+                                        Prepared canonical chat routes use the shell cache
+                                        immediately. Each load also fetches
+                                        /chat-client/manifest.json to keep the worker current.
                                     </p>
                                 </td>
                             </tr>
@@ -1043,9 +1054,10 @@
                                 <td>
                                     <code>GET /api/chat/session</code>
                                     <p>
-                                        Shared refresh after explicit CSRF rejection, plus a
-                                        30-second background account-cookie check. No preflight per
-                                        ordinary write.
+                                        Shared refresh after an explicit CSRF rejection, a 30-second
+                                        background account check in chat, and an hourly renewal from
+                                        the retained pages. The cookie itself renews at most once an
+                                        hour. No preflight per ordinary write.
                                     </p>
                                 </td>
                             </tr>
@@ -1117,13 +1129,14 @@
                                 <th scope="row">Catalog, emoji and GIFs</th>
                                 <td>
                                     <code
-                                        >GET /api/chat/catalog, /gifs, /gifs/library,
-                                        /gifs/categories · POST /emoji/recent, /gifs/favorite,
-                                        /gifs/select</code
+                                        >GET /api/chat/catalog, /gifs, /gifs/library · POST
+                                        /emoji/recent, /gifs/favorite, /gifs/select</code
                                     >
                                     <p>
                                         Catalog does not block startup. Emoji recents coalesce for
-                                        500 ms; provider search needs connectivity.
+                                        500 ms, and a failed sync retries when the page is visible
+                                        or online again. Cached GIF pages show offline; a new
+                                        search needs a connection.
                                     </p>
                                 </td>
                             </tr>
@@ -1174,13 +1187,15 @@
                             </tr>
                             <tr data-transport="blazor">
                                 <td><span class="tag blazor">Blazor Server</span></td>
-                                <th scope="row">Welcome, Login, Settings and Admin</th>
+                                <th scope="row">Nine retained Razor pages</th>
                                 <td>
                                     <code>Page GET → App.razor → /_blazor</code>
                                     <p>
-                                        Retained interactive server components. The ordinary
-                                        authenticated root bypasses Welcome; guest/returnUrl flows
-                                        still use it.
+                                        Welcome, Login, VerifyDevice, Invite, Settings,
+                                        ChannelSettings, Admin, NotFound and Error are interactive
+                                        server components. The ordinary authenticated root bypasses
+                                        Welcome; guest/returnUrl flows still use it. These pages
+                                        also renew the cookie through GET /api/chat/session.
                                     </p>
                                 </td>
                             </tr>
@@ -1189,7 +1204,7 @@
                                 <th scope="row">Authentication and PWA handoff</th>
                                 <td>
                                     <code
-                                        >/auth/* · /invite/{code} · /pwa-launch ·
+                                        >/auth/* (including POST /auth/invite) · /pwa-launch ·
                                         /manifest.webmanifest</code
                                     >
                                     <p>
@@ -1204,9 +1219,38 @@
                                 <td>
                                     <code>/api/push/* · POST /api/chat/pwa/installed</code>
                                     <p>
-                                        Setup runs independently of chat. Later Web Push uses the
-                                        browser push service and worker, not either SignalR
-                                        connection.
+                                        Setup starts after the hub connects and never blocks chat.
+                                        Later Web Push uses the browser push service and worker,
+                                        not either SignalR connection; the worker posts a delivery
+                                        receipt and sets the badge.
+                                    </p>
+                                </td>
+                            </tr>
+                            <tr data-transport="http">
+                                <td><span class="tag http">HTTP</span></td>
+                                <th scope="row">Locale detection and presence leave</th>
+                                <td>
+                                    <code
+                                        >POST /api/chat/preferences/detect · POST
+                                        /api/chat/presence/leave</code
+                                    >
+                                    <p>
+                                        Detection runs once in the background with a 3 s timeout
+                                        and updates preferences. On pagehide the client closes its
+                                        exact presence session with a keepalive request.
+                                    </p>
+                                </td>
+                            </tr>
+                            <tr data-transport="http">
+                                <td><span class="tag http">HTTP</span></td>
+                                <th scope="row">Protocol and release updates</th>
+                                <td>
+                                    <code>X-Yap-Chat-Protocol: 3 · 426 update_required</code>
+                                    <p>
+                                        A protocol mismatch returns 426, and the client shows Update
+                                        required with a Reload button. When a new module worker
+                                        takes control of an open tab, the client shows "Yap was
+                                        updated. Reload when convenient."
                                     </p>
                                 </td>
                             </tr>
@@ -1275,7 +1319,7 @@
                         <text x="50" y="108" class="label">1 · Save locally</text>
                         <text x="50" y="133" class="sub">operationId + payload → outbox</text>
                         <text x="141" y="178" class="sub">
-                            2 · Reuse token; upload only if attaching media
+                            2 · Reuse token; upload or GIF select when attaching
                         </text>
                         <text x="143" y="223" class="sub">3 · POST …/messages + token</text>
                         <path
@@ -1291,9 +1335,9 @@
                             stroke-width="2.5"
                             marker-end="url(#send-arrow)"
                         />
-                        <rect x="551" y="307" width="234" height="69" rx="10" fill="#e0f2e9" />
-                        <text x="568" y="335" class="label">Atomic commit</text>
-                        <text x="568" y="358" class="sub">Message + durable operation receipt</text>
+                        <rect x="532" y="307" width="272" height="69" rx="10" fill="#e0f2e9" />
+                        <text x="549" y="335" class="label">Atomic commit</text>
+                        <text x="549" y="358" class="sub">Message + receipt + unread checkpoints</text>
                         <text x="176" y="413" class="sub">
                             A · HTTP receipt + affected records back to sender
                         </text>
@@ -1331,9 +1375,9 @@
                         </text>
                     </svg>
                     <figcaption>
-                        The API and hub share OfflineSync and authorized projections. The hub does
-                        not persist the send, and the HTTP reply is not the only way the sender can
-                        learn that its message was accepted.
+                        The API and hub share the ChatUpdate record and the authorized snapshot
+                        projections. The hub does not persist the send, and the HTTP reply is not
+                        the only way the sender can learn that its message was accepted.
                     </figcaption>
                 </figure>
                 <div class="two">
@@ -1360,7 +1404,9 @@
                         <p>
                             A response identifies acceptance or a specific failure. If it disappears
                             after the database commit, the browser retries the same operation ID.
-                            The persisted receipt prevents accepting the same operation twice.
+                            The server keeps each receipt for 24 hours, up to 4,096 per account,
+                            so a retry in that window gets the saved acceptance. The same ID with
+                            other content gets 409.
                         </p>
                         <p>
                             <code>sender.start()</code> runs before hub startup, so HTTP sends can
@@ -1396,9 +1442,11 @@
                     <div>
                         <h2>Where App.razor still fits</h2>
                         <p>
-                            <code>App.razor</code> and <code>Routes.razor</code> are unchanged from
-                            the pre-rewrite baseline <code>0cb6742</code>. The rewrite routes chat
-                            documents around that host through explicit HTTP endpoints.
+                            <code>Routes.razor</code> is unchanged from the pre-rewrite baseline
+                            <code>0cb6742</code>. <code>App.razor</code> now loads appearance.js,
+                            session-renewal.js and shared.css, and registers the chat service
+                            worker. The rewrite routes chat documents around that host through
+                            explicit HTTP endpoints.
                         </p>
                     </div>
                 </div>
@@ -1427,15 +1475,19 @@
                         <span class="tag http">Standalone chat</span>
                         <h3>index.html is the chat host</h3>
                         <p>
-                            <code>MapOfflineChat()</code> maps ordinary chat URLs to the static
-                            client document. It loads the SignalR JavaScript library and
-                            <code>app.js</code>, with no <code>blazor.web.js</code> and no Razor
-                            render-mode declaration.
+                            <code>MapOfflineChat()</code> maps <code>/</code> (signed in),
+                            <code>/chat</code>, <code>/lobby</code>, <code>/room/{id}</code> and
+                            <code>/dm/{username}</code> to the client document, with the account
+                            theme, font size and user ID filled into one
+                            <code>data-appearance</code> token. It loads the SignalR JavaScript
+                            library and <code>app.js</code>, with no <code>blazor.web.js</code>
+                            and no Razor render-mode declaration.
                         </p>
                         <p>
-                            JavaScript owns the DOM. Shared styles, including the extracted
-                            component stylesheet, preserve the existing appearance; using those
-                            styles does not instantiate Razor components.
+                            JavaScript owns the DOM. App, theme and client stylesheets preserve
+                            the existing appearance; the chat document loads no Razor component
+                            stylesheet, and using shared styles does not instantiate Razor
+                            components.
                         </p>
                         <p>
                             The old <code>RoomChat.razor</code>, <code>DmChat.razor</code> and their
@@ -1448,7 +1500,7 @@
                 <details open>
                     <summary>The actual render-mode declarations</summary>
                     <a class="source" href="../Yap/Components/App.razor"
-                        >Yap/Components/App.razor · line 80 ↗</a
+                        >Yap/Components/App.razor · line 39 ↗</a
                     >
                     <pre><code>    &lt;Routes @rendermode=&quot;@(new InteractiveServerRenderMode(prerender: false))&quot; /&gt;</code></pre>
                     <p>
@@ -1457,14 +1509,14 @@
                         document.
                     </p>
                     <a class="source" href="../Yap/Components/App.razor"
-                        >Yap/Components/App.razor · line 76 ↗</a
+                        >Yap/Components/App.razor · line 35 ↗</a
                     >
                     <pre><code>    &lt;HeadOutlet @rendermode=&quot;@(new InteractiveServerRenderMode(prerender: false))&quot; /&gt;</code></pre>
                 </details>
                 <details>
                     <summary>Blazor startup and its own reconnect policy</summary>
                     <a class="source" href="../Yap/Components/App.razor"
-                        >Yap/Components/App.razor · line 126 ↗</a
+                        >Yap/Components/App.razor · line 85 ↗</a
                     >
                     <pre><code>    &lt;script src=&quot;@Assets[&quot;_framework/blazor.web.js&quot;]&quot; autostart=&quot;false&quot;&gt;&lt;/script&gt;
     &lt;script&gt;
@@ -1496,8 +1548,10 @@
                     <h3>Moving between the two worlds</h3>
                     <p>
                         Inside chat, known conversation navigation uses
-                        <code>history.pushState</code> and local rendering. The Settings/Admin links
-                        load another document and start Blazor. Returning to chat uses a full
+                        <code>history.pushState</code> and local rendering. Links to Settings,
+                        channel settings, a new channel and Admin load another document and start
+                        Blazor. An online 401 sends chat to Login with a returnUrl. Returning to
+                        chat uses a full
                         navigation, including explicit <code>forceLoad: true</code> in retained
                         pages. The old document’s connection closes; chat creates its own HTTP
                         bootstrap and hub lifecycle again.
@@ -1524,9 +1578,10 @@
                             <li>
                                 <a href="../Yap/Offline/OfflineEndpoints.cs">OfflineEndpoints.cs</a
                                 ><span
-                                    >Shell routes, combined bootstrap, windows, compact
-                                    sends/actions, read/operation batches and history; account-bound
-                                    write filter.</span
+                                    >Shell routes with the appearance token, the worker manifest,
+                                    combined bootstrap, windows, compact sends/actions,
+                                    read/operation batches, history, locale detection and presence
+                                    leave; account-bound write filter.</span
                                 >
                             </li>
                             <li>
@@ -1536,8 +1591,8 @@
                             <li>
                                 <a href="../Yap/wwwroot/chat-client/api.js">api.js</a
                                 ><span
-                                    >fetch wrappers, request timeouts, token header and response
-                                    errors.</span
+                                    >fetch wrappers, 10 s GET and 15 s POST timeouts, protocol and
+                                    token headers, and response errors.</span
                                 >
                             </li>
                             <li>
@@ -1554,6 +1609,14 @@
                                 <a href="../Yap/Endpoints/TusEndpoints.cs">TusEndpoints.cs</a
                                 ><span>Resumable binary transfer through HTTP.</span>
                             </li>
+                            <li>
+                                <a href="../Yap/wwwroot/chat-client/session-renewal.js"
+                                    >session-renewal.js</a
+                                ><span
+                                    >Hourly cookie renewal for the retained pages through GET
+                                    /api/chat/session.</span
+                                >
+                            </li>
                         </ul>
                     </article>
                     <article class="card signalr">
@@ -1563,8 +1626,10 @@
                             <li>
                                 <a href="../Yap/Offline/OfflineHub.cs">OfflineHub.cs</a
                                 ><span
-                                    >WatchChanges / WatchActivity and Report / SetStatus / Typing.
-                                    Each connection has one bounded change stream; legacy Watch is removed.</span
+                                    >WatchChanges / WatchActivity and Report / SetStatus / Typing,
+                                    rate-limited per connection: a burst of 12 calls, then four per
+                                    second. Each connection has one change stream with a queue of
+                                    128 entries. A protocol mismatch fails the connection.</span
                                 >
                             </li>
                             <li>
@@ -1586,7 +1651,8 @@
                             <li>
                                 <a href="../Yap/wwwroot/chat-client/app.js">app.js</a
                                 ><span
-                                    >connectChat, WatchChanges subscription and reconnection.</span
+                                    >connectChat with ?protocol=3, the WatchChanges subscription,
+                                    reconnection after 2.5 to 3.5 s, and the update notice.</span
                                 >
                             </li>
                             <li>
@@ -1612,25 +1678,35 @@
                             </li>
                             <li>
                                 <a href="../Yap/Components/Pages/Welcome.razor">Welcome.razor</a> /
-                                <a href="../Yap/Components/Pages/Login.razor">Login.razor</a
+                                <a href="../Yap/Components/Pages/Login.razor">Login.razor</a> /
+                                <a href="../Yap/Components/Pages/VerifyDevice.razor"
+                                    >VerifyDevice.razor</a
+                                >
+                                / <a href="../Yap/Components/Pages/Invite.razor">Invite.razor</a
                                 ><span
-                                    >Guest/returnUrl root entry, sign-in UI and navigation into
-                                    chat.</span
+                                    >Guest/returnUrl root entry, sign-in, device verification,
+                                    invites and navigation into chat.</span
                                 >
                             </li>
                             <li>
                                 <a href="../Yap/Components/Pages/Settings.razor">Settings.razor</a>
+                                /
+                                <a href="../Yap/Components/Pages/ChannelSettings.razor"
+                                    >ChannelSettings.razor</a
+                                >
                                 / <a href="../Yap/Components/Pages/Admin.razor">Admin.razor</a
                                 ><span
-                                    >C# event handlers, injected services and Razor rendering.</span
+                                    >C# event handlers, injected services and Razor rendering.
+                                    ChatLayout registers presence over the circuit.</span
                                 >
                             </li>
                             <li>
                                 <a href="../Yap/Services/ChatCircuitHandler.cs"
                                     >ChatCircuitHandler.cs</a
                                 ><span
-                                    >Framework circuit lifecycle; separate from OfflineHub
-                                    connection bookkeeping.</span
+                                    >Reports circuit up and down to ChatService, which keeps circuit
+                                    and hub sessions under one presence policy: a 30 s grace and
+                                    4 h retention.</span
                                 >
                             </li>
                         </ul>
@@ -1640,8 +1716,10 @@
                     <strong>Shared below the transport boundary:</strong>
                     <a href="../Yap/Services/ChatService.cs">ChatService</a> and its partials own
                     chat rules;
+                    <a href="../Yap/Services/IChatStore.cs">IChatStore</a> (SqliteChatStore or
+                    MemoryChatStore) owns durable acceptance, and
                     <a href="../Yap/Services/ChatPersistenceService.cs">ChatPersistenceService</a>
-                    owns durable acceptance.
+                    keeps channel configuration and preferences.
                     <a href="../Yap/Offline/OfflineSnapshotService.cs">OfflineSnapshotService</a>
                     projects safe authorized records.
                     <a href="../Yap/Offline/OfflineSync.cs">OfflineSync</a> forms compact HTTP and
@@ -1655,20 +1733,41 @@
                 <details>
                     <summary>Routing: the standalone document and custom hub</summary>
                     <a class="source" href="../Yap/Offline/OfflineEndpoints.cs"
-                        >Yap/Offline/OfflineEndpoints.cs · line 16 ↗</a
+                        >Yap/Offline/OfflineEndpoints.cs · line 15 ↗</a
                     >
                     <pre><code>    public static void MapOfflineChat(this WebApplication app)
     {
+        // Compute once from the complete deployed package, never from personalized HTML.
+        var manifest = new ChatShellManifest(app.Environment);
+        app.MapGet(&quot;/chat-client/manifest.json&quot;, (HttpContext http) =&gt;
+        {
+            http.Response.Headers.CacheControl = &quot;no-store&quot;;
+            return Results.Ok(manifest);
+        });
+        // Fail a broken release before accepting requests, rather than on every chat load.
+        var shellHtml = File.ReadAllText(Path.Combine(app.Environment.WebRootPath, &quot;chat-client&quot;, &quot;index.html&quot;));
+        var appearanceToken = new System.Text.RegularExpressions.Regex(@&quot;\bdata-appearance(?=\s|&gt;)&quot;);
+        if (appearanceToken.Matches(shellHtml).Count != 1)
+            throw new InvalidOperationException(&quot;Chat shell must contain exactly one data-appearance placeholder.&quot;);
         MapApi(app.MapGroup(&quot;/api/chat&quot;));
         app.MapHub&lt;OfflineHub&gt;(&quot;/hubs/chat&quot;);
-        foreach (var path in new[] { &quot;/chat&quot;, &quot;/lobby&quot;, &quot;/room/{id:guid}&quot;, &quot;/dm/{username}&quot; })
-            app.MapGet(path, ServeShell);
+        foreach (var path in new[] { &quot;/&quot;, &quot;/chat&quot;, &quot;/lobby&quot;, &quot;/room/{id:guid}&quot;, &quot;/dm/{username}&quot; })
+        {
+            var endpoint = app.MapGet(path, (HttpContext http, UserStateService user) =&gt; ServeShell(http, user, shellHtml, appearanceToken));
+            if (path == &quot;/&quot;)
+                endpoint.WithOrder(-1).WithMetadata(new ChatRootPolicy());
+        }
     }</code></pre>
+                    <p>
+                        The worker manifest is anonymous and hashes every shell file. The shell is
+                        read once at startup, and a release without exactly one appearance token
+                        fails before it serves a request.
+                    </p>
                 </details>
                 <details>
                     <summary>Client startup: one bootstrap, then independent work</summary>
                     <a class="source" href="../Yap/wwwroot/chat-client/app.js"
-                        >Yap/wwwroot/chat-client/app.js · line 807 ↗</a
+                        >Yap/wwwroot/chat-client/app.js · line 950 ↗</a
                     >
                     <pre><code>        bootstrap ||= await bootstrapChat();
         if (attemptGeneration !== connectionGeneration) return;
@@ -1678,6 +1777,14 @@
         if (attemptGeneration !== connectionGeneration) return;
         await acceptSnapshot(bootstrap.update, attemptGeneration, null, { baseline: true });
         sender.start();
+        if (session.needsLocaleDetection) {
+            // Detection is optional background work: a stalled request cannot delay the
+            // first send, presence connection, or the selected conversation&#x27;s bootstrap.
+            post(&#x27;preferences/detect&#x27;, { /* time zone, locale, hour cycle, path */ }, session, {
+                signal: AbortSignal.timeout(3000),
+            });
+            // … the response is accepted as a snapshot update; failures retry next time …
+        }
         // Optional data never gates the active view or outgoing operations.
         reader.flush();
         loadContent(identity)
@@ -1685,7 +1792,9 @@
             .catch(() =&gt; {});
         windows.schedule();
         hubConnection = new signalR.HubConnectionBuilder()
-            .withUrl(&#x27;/hubs/chat&#x27;)
+            .withUrl(&#x27;/hubs/chat?protocol=&#x27; + PROTOCOL, {
+                headers: { &#x27;X-Yap-Chat-Protocol&#x27;: String(PROTOCOL) },
+            })
             .configureLogging(signalR.LogLevel.Warning)
             .build();
         await hubConnection.start();
@@ -1693,19 +1802,20 @@
             await hubConnection.stop();
             return;
         }
+        presenceConnectionId = hubConnection.connectionId;
         await storage.saveMetadata(&#x27;hasWayBack&#x27;, session.hasWayBack, identity);
         await live.attach(hubConnection, session.liveTicket);
         pwa.start(session);</code></pre>
                     <p>
                         <code>WatchChanges</code> is subscribed immediately after this excerpt. The
-                        complete method also owns stale-attempt guards, error handling and reconnect
-                        scheduling.
+                        locale detection call is shortened here; the complete method also owns
+                        stale-attempt guards, error handling and reconnect scheduling.
                     </p>
                 </details>
                 <details>
-                    <summary>HTTP writes: JSON body and antiforgery header</summary>
+                    <summary>HTTP writes: JSON body, protocol and antiforgery headers</summary>
                     <a class="source" href="../Yap/wwwroot/chat-client/api.js"
-                        >Yap/wwwroot/chat-client/api.js · line 72 ↗</a
+                        >Yap/wwwroot/chat-client/api.js · line 91 ↗</a
                     >
                     <pre><code>export async function post(path, body, credentials, { signal } = {}) {
     const account = credentials.userId;
@@ -1718,34 +1828,62 @@
                 headers: {
                     &#x27;Content-Type&#x27;: &#x27;application/json&#x27;,
                     &#x27;X-CSRF-TOKEN&#x27;: credentials.csrfToken,
-                    &#x27;X-Yap-Chat-Protocol&#x27;: &#x27;2&#x27;,
+                    &#x27;X-Yap-Chat-Protocol&#x27;: String(PROTOCOL),
                     ...(account ? { &#x27;X-Yap-Chat-User&#x27;: account } : {}),
                 },
                 body: JSON.stringify(body),
                 signal: signal
                     ? AbortSignal.any([signal, AbortSignal.timeout(15000)])
                     : AbortSignal.timeout(15000),
-            });</code></pre>
+            });
+            const result = await response.json().catch(() =&gt; ({}));
+            if (response.ok) return result;
+            if (response.status === 426) throw updateRequired();
+            if (result.code === &#x27;account_changed&#x27;) throw new Error(&#x27;ACCOUNT_CHANGED&#x27;);</code></pre>
                 </details>
                 <details>
                     <summary>Hub methods: live activity, not message acceptance</summary>
                     <a class="source" href="../Yap/Offline/OfflineHub.cs"
-                        >Yap/Offline/OfflineHub.cs · line 18 ↗</a
+                        >Yap/Offline/OfflineHub.cs · line 22 ↗</a
                     >
-                    <pre><code>    public Task Join(string ticket, UserStatus chosen, bool visible, bool mobile, double idleSeconds)
+                    <pre><code>    private void EnsureProtocol()
+    {
+        if (Context.GetHttpContext() is { } http &amp;&amp; !ChatProtocol.Accepts(http.Request, hub: true))
+            throw new HubException(&quot;UPDATE_REQUIRED&quot;);
+    }
+    public Task Join(string ticket, UserStatus chosen, bool visible, bool mobile, double idleSeconds)
         =&gt; live.Join(Context.ConnectionId, CurrentUser(), ticket, chosen, visible, mobile, idleSeconds, Context.GetHttpContext()?.Items[&quot;ClientIp&quot;] as string);
     public Task Report(bool visible, double idleSeconds, Guid? channelId)
-        =&gt; live.Report(Context.ConnectionId, CurrentUser(), visible, idleSeconds, channelId);
-    public Task SetStatus(UserStatus status) =&gt; live.SetStatus(Context.ConnectionId, CurrentUser(), status);
-    public Task Typing(Guid channelId, bool active) =&gt; live.Typing(Context.ConnectionId, CurrentUser(), channelId, active);</code></pre>
+        =&gt; Permit(&quot;report&quot;) ? live.Report(Context.ConnectionId, CurrentUser(), visible, idleSeconds, channelId,
+            // Older, unversioned hub clients report a selection before its window loads.
+            // Keep their observed-read accounting until the new shell opts into this URL.
+            validatedView: Context.GetHttpContext()?.Request.Query[&quot;protocol&quot;].ToString() == ChatProtocol.Version) : Task.CompletedTask;
+    public Task SetStatus(UserStatus status) =&gt; !Permit(&quot;status&quot;) ? Task.CompletedTask : live.SetStatus(Context.ConnectionId, CurrentUser(), status);
+    public Task Typing(Guid channelId, bool active) =&gt; !Permit(&quot;typing&quot;) ? Task.CompletedTask : live.Typing(Context.ConnectionId, CurrentUser(), channelId, active);
+    // A small burst allows normal navigation/status changes; a sustained caller is limited
+    // to four changes/second. State lives with the connection, not a transient Hub instance.
+    private bool Permit(string operation)
+    {
+        EnsureProtocol();
+        lock (Context.Items)
+        {
+            var key = &quot;rate:&quot; + operation;
+            var now = System.Diagnostics.Stopwatch.GetTimestamp();
+            var previous = Context.Items.TryGetValue(key, out var value) ? ((long At, double Tokens))value! : (now, 12d);
+            var tokens = Math.Min(12, previous.Item2 + (now - previous.Item1) * 4d / System.Diagnostics.Stopwatch.Frequency);
+            Context.Items[key] = (now, tokens &gt;= 1 ? tokens - 1 : tokens);
+            return tokens &gt;= 1;
+        }
+    }</code></pre>
                 </details>
                 <details>
                     <summary>ASP.NET wiring: both runtime families remain registered</summary>
-                    <a class="source" href="../Yap/Program.cs">Yap/Program.cs · line 194 ↗</a>
+                    <a class="source" href="../Yap/Program.cs">Yap/Program.cs · line 199 ↗</a>
                     <pre><code>builder.Services.AddSignalR();
 builder.Services.AddAntiforgery(options =&gt; options.HeaderName = &quot;X-CSRF-TOKEN&quot;);
 builder.Services.AddSingleton&lt;OfflineSnapshotService&gt;();
 builder.Services.AddSingleton&lt;OfflineSync&gt;();
+builder.Services.AddSingleton&lt;ChatLimits&gt;();
 builder.Services.AddSingleton&lt;OfflineChangeSignal&gt;();
 builder.Services.AddSingleton&lt;OfflineFanout&gt;();
 builder.Services.AddSingleton&lt;OfflineLiveService&gt;();
@@ -1756,7 +1894,7 @@ builder.Services.AddHostedService&lt;OfflinePresenceTicker&gt;();</code></pre>
                         configures retained server components and circuit retention. Their routes
                         are mapped separately:
                     </p>
-                    <a class="source" href="../Yap/Program.cs">Yap/Program.cs · line 462 ↗</a>
+                    <a class="source" href="../Yap/Program.cs">Yap/Program.cs · line 461 ↗</a>
                     <pre><code>app.MapRazorComponents&lt;App&gt;()
     .AddInteractiveServerRenderMode();</code></pre>
                 </details>
@@ -1781,7 +1919,9 @@ builder.Services.AddHostedService&lt;OfflinePresenceTicker&gt;();</code></pre>
                             failed for review. A lost response can be retried with the same ID. It
                             reuses the current memory-only token and sends the expected account. The
                             server checks both; explicit CSRF rejection refreshes once, without
-                            replay under a changed account.
+                            replay under a changed account. Retries back off from 3 s to a 60 s
+                            cap with jitter. After eight failed attempts, or on a 4xx other than
+                            408, 429 or a CSRF rejection, sending waits for the user's Retry.
                         </p>
                     </article>
                     <article class="card signalr">
@@ -1789,8 +1929,11 @@ builder.Services.AddHostedService&lt;OfflinePresenceTicker&gt;();</code></pre>
                         <h3>Reconnect means catch up</h3>
                         <p>
                             There is no <code>withAutomaticReconnect()</code> here.
-                            <code>app.js</code> schedules its own roughly three-second reconnect and
-                            runs HTTP synchronization again before opening a fresh hub connection.
+                            <code>app.js</code> schedules its own reconnect after 2.5 to 3.5
+                            seconds, and also on online, on return to a visible tab, on pageshow
+                            and on Retry. It runs HTTP synchronization again before opening a
+                            fresh hub connection. The live ticket lasts two minutes, so each
+                            reconnect bootstraps again.
                         </p>
                         <p>
                             WatchActivity is transient. It does not restore old typing events from
@@ -1803,7 +1946,9 @@ builder.Services.AddHostedService&lt;OfflinePresenceTicker&gt;();</code></pre>
                         <p>
                             Retained pages depend on the server circuit and use the Blazor reconnect
                             UI/policy. Their interactivity is not supplied by the chat snapshot
-                            cache or outbox.
+                            cache or outbox. Settings and ChannelSettings register a presence
+                            session over the circuit, so a Settings tab shows the user online
+                            without the chat hub.
                         </p>
                         <p>
                             Chat’s service worker does not turn Settings/Admin into offline pages.
@@ -1814,11 +1959,13 @@ builder.Services.AddHostedService&lt;OfflinePresenceTicker&gt;();</code></pre>
                     <summary>What you should expect in browser DevTools</summary>
                     <ul class="checklist">
                         <li>
-                            <strong>Chat:</strong> the static document and assets, one
+                            <strong>Chat:</strong> the document and assets,
+                            <code>/chat-client/manifest.json</code>, one
                             <code>/api/chat/bootstrap</code>, parallel optional
                             <code>/catalog</code> and missing windows, then
-                            <code>/hubs/chat/negotiate</code> and usually a WebSocket request under
-                            <code>/hubs/chat</code>.
+                            <code>/hubs/chat/negotiate?protocol=3</code> and usually a WebSocket
+                            request under <code>/hubs/chat</code>. Push setup then requests
+                            <code>/api/push/vapid-public-key</code>.
                         </li>
                         <li>
                             <strong>Send:</strong> an HTTP <code>POST …/messages</code>, plus delta
@@ -1833,8 +1980,10 @@ builder.Services.AddHostedService&lt;OfflinePresenceTicker&gt;();</code></pre>
                         </li>
                         <li>
                             <strong>Settings/Admin:</strong> <code>blazor.web.js</code> and
-                            framework <code>/_blazor</code> traffic. Ordinary Razor button events
-                            are circuit messages, not individual chat API requests.
+                            framework <code>/_blazor</code> traffic, plus
+                            <code>/api/chat/session</code> for the hourly cookie renewal and
+                            <code>/chat-client/manifest.json</code> for the worker. Ordinary Razor
+                            button events are circuit messages, not individual chat API requests.
                         </li>
                         <li>
                             <strong>Visit / then enter chat:</strong> an ordinary authenticated
@@ -1844,8 +1993,10 @@ builder.Services.AddHostedService&lt;OfflinePresenceTicker&gt;();</code></pre>
                         </li>
                         <li>
                             <strong>Offline:</strong> cached shell assets and stored state, failed
-                            network attempts, no successful live stream. A later reconnect begins
-                            with one HTTP bootstrap again.
+                            network attempts, no successful live stream. The header reads
+                            Offline · cached chat, or Disconnected · cached chat when the server is
+                            unreachable while the device is online. A later reconnect begins with
+                            one HTTP bootstrap again.
                         </li>
                     </ul>
                 </details>
@@ -1873,7 +2024,7 @@ builder.Services.AddHostedService&lt;OfflinePresenceTicker&gt;();</code></pre>
                     ><a href="feature-parity-inventory.md">Feature reference ↗</a>
                 </div>
                 <p>
-                    Source-based guide · 9 October 2026 · incremental protocol 3 · content-hashed shell /
+                    Source-based guide · 12 October 2026 · incremental protocol 3 · content-hashed shell /
                     schema 4. Diagrams describe application order, not a recorded packet capture.
                     Transport fallback depends on browser and deployment support.
                 </p>
@@ -1893,19 +2044,19 @@ builder.Services.AddHostedService&lt;OfflinePresenceTicker&gt;();</code></pre>
                         [
                             'http',
                             'GET / → authenticated chat shell',
-                            'Program.cs checks the authenticated user and returnUrl. For the ordinary signed-in visit it returns the static client document, avoiding the Welcome circuit and subsequent document navigation. Root remains network-first in the worker for authentication and rollback.',
+                            'ChatRootPolicy selects the chat endpoint for an authenticated GET / without a returnUrl. The server returns index.html with the account theme, font size and user ID filled in, as a no-store response, avoiding the Welcome circuit and a second document navigation. Root remains network-first in the worker for authentication and rollback.',
                             'Browser → ASP.NET → chat document',
                         ],
                         [
                             'local',
                             'Prepare local storage',
-                            'Service-worker registration runs independently. Read account-bound IndexedDB schema 4; conversation bodies are stored separately from the global header. Local drafts/outbox remain independent of server data.',
+                            'Service-worker registration runs independently: a module-worker probe, then the shell manifest, then service-worker-module.js. Read account-bound IndexedDB schema 4; conversation bodies are stored separately from the global header. Local drafts/outbox remain independent of server data.',
                             'Browser ↔ IndexedDB',
                         ],
                         [
                             'http',
                             'One GET /api/chat/bootstrap',
-                            'Cookie validation, memory-only CSRF token, live ticket, global settings, conversation summaries and the selected recent window share one response. Matching cached account/epoch/revision omits unchanged active message bodies. No separate startup /session or /sync is needed.',
+                            'Cookie validation, memory-only CSRF token, live ticket, global settings and limits, conversation summaries and the selected recent window share one response. Every request carries X-Yap-Chat-Protocol: 3; a mismatch returns 426 and the client asks for a reload. Matching cached account/epoch/revision omits unchanged active message bodies. No separate startup /session or /sync is needed.',
                             'Browser → HTTP API → browser',
                         ],
                         [
@@ -1917,13 +2068,13 @@ builder.Services.AddHostedService&lt;OfflinePresenceTicker&gt;();</code></pre>
                         [
                             'http',
                             'Start optional background work',
-                            'Catalog, saved-read batches, missing recent windows and PWA setup do not gate sending or hub startup. Window recovery prioritizes the active conversation, then unread ones; foreground work and navigation cancel or pause obsolete downloads.',
+                            'Catalog, saved-read batches, missing recent windows and locale detection run in the background. They do not gate sending or hub startup. Push and install setup starts after the hub connects. Window recovery prioritizes the active conversation, then unread ones; foreground work and navigation cancel or pause obsolete downloads.',
                             'Background HTTP alongside active chat',
                         ],
                         [
                             'signalr',
                             'Connect to /hubs/chat',
-                            'SignalR negotiates over HTTP and opens an available transport, normally WebSockets. Transport fallback is retained. This connection carries chat updates, not Blazor render batches.',
+                            'SignalR negotiates over HTTP with ?protocol=3 and opens an available transport, normally WebSockets. Transport fallback is retained. This connection carries chat updates, not Blazor render batches.',
                             'Browser ⇄ chat hub',
                         ],
                         [
@@ -1953,13 +2104,13 @@ builder.Services.AddHostedService&lt;OfflinePresenceTicker&gt;();</code></pre>
                         [
                             'local',
                             'Prepare local storage',
-                            'Service-worker registration runs independently. Read account-bound IndexedDB schema 4; conversation bodies are stored separately from the global header. Local drafts/outbox remain independent of server data.',
+                            'Service-worker registration runs independently: a module-worker probe, then the shell manifest, then service-worker-module.js. Read account-bound IndexedDB schema 4; conversation bodies are stored separately from the global header. Local drafts/outbox remain independent of server data.',
                             'Browser ↔ IndexedDB',
                         ],
                         [
                             'http',
                             'One GET /api/chat/bootstrap',
-                            'Cookie validation, memory-only CSRF token, live ticket, global settings, conversation summaries and the selected recent window share one response. Matching cached account/epoch/revision omits unchanged active message bodies. No separate startup /session or /sync is needed.',
+                            'Cookie validation, memory-only CSRF token, live ticket, global settings and limits, conversation summaries and the selected recent window share one response. Every request carries X-Yap-Chat-Protocol: 3; a mismatch returns 426 and the client asks for a reload. Matching cached account/epoch/revision omits unchanged active message bodies. No separate startup /session or /sync is needed.',
                             'Browser → HTTP API → browser',
                         ],
                         [
@@ -1971,13 +2122,13 @@ builder.Services.AddHostedService&lt;OfflinePresenceTicker&gt;();</code></pre>
                         [
                             'http',
                             'Start optional background work',
-                            'Catalog, saved-read batches, missing recent windows and PWA setup do not gate sending or hub startup. Window recovery prioritizes the active conversation, then unread ones; foreground work and navigation cancel or pause obsolete downloads.',
+                            'Catalog, saved-read batches, missing recent windows and locale detection run in the background. They do not gate sending or hub startup. Push and install setup starts after the hub connects. Window recovery prioritizes the active conversation, then unread ones; foreground work and navigation cancel or pause obsolete downloads.',
                             'Background HTTP alongside active chat',
                         ],
                         [
                             'signalr',
                             'Connect to /hubs/chat',
-                            'SignalR negotiates over HTTP and opens an available transport, normally WebSockets. Transport fallback is retained. This connection carries chat updates, not Blazor render batches.',
+                            'SignalR negotiates over HTTP with ?protocol=3 and opens an available transport, normally WebSockets. Transport fallback is retained. This connection carries chat updates, not Blazor render batches.',
                             'Browser ⇄ chat hub',
                         ],
                         [
