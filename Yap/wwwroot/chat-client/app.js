@@ -444,8 +444,12 @@ function sidebar() {
         badge(a, c);
         people.append(a);
     }
+    // The open conversation never counts, room or DM, so the total is the sum of the counts
+    // the rows show. An Away or hidden session keeps the open room's arrivals unread until
+    // the status restores; the old header excluded only the open DM, which showed a count
+    // that no row carried (reported 2026-10-12).
     const total = snapshot.conversations
-        .filter((c) => !c.muted && !(c.kind === 'dm' && c.id === selectedConversationId))
+        .filter((c) => !c.muted && c.id !== selectedConversationId)
         .reduce((n, c) => n + unread(c), 0);
     $('#mailbox').hidden = total === 0;
     $('#mailbox').title = `${total} unread messages`;

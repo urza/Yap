@@ -21,6 +21,7 @@ const standardSuites = [
     'composer-rules',
     'shell-rules',
     'text-links',
+    'mailbox-rules',
     'pwa-integration',
     'local-http',
 ];
