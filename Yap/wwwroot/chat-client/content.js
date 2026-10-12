@@ -101,12 +101,20 @@ export function chatLabel(kind, fallback, key, ...values) {
             (value) => typeof value === 'string' && value.length,
         ) || [];
     if (!choices.length) choices.push(fallback);
-    const id = kind + ':' + key;
-    let selected = labelChoices.get(id);
-    // Choose once per conversation; unrelated live snapshots must not reshuffle branding text.
-    if (!choices.includes(selected)) {
-        selected = choices[Math.floor(Math.random() * choices.length)];
-        labelChoices.set(id, selected);
+    const pick = () => choices[Math.floor(Math.random() * choices.length)];
+    let selected;
+    if (key == null) {
+        // No key: a fresh pick on every call, the way the typing strip reshuffles. The
+        // "New messages" pill uses this so each appearance reads differently.
+        selected = pick();
+    } else {
+        const id = kind + ':' + key;
+        selected = labelChoices.get(id);
+        // Choose once per conversation; unrelated live snapshots must not reshuffle branding text.
+        if (!choices.includes(selected)) {
+            selected = pick();
+            labelChoices.set(id, selected);
+        }
     }
     return selected.replace(/\{(\d+)\}/g, (match, index) => values[index] ?? match);
 }

@@ -198,6 +198,17 @@ User join and leave messages. `{0}` is the username.
 }
 ```
 
+#### New Messages Pill
+The pill that appears when someone posts while you read older messages. A tap on it goes to the bottom. Each appearance picks a new line.
+
+```json
+"NewMessagesPill": [
+  "new gold just spawned",
+  "fresh yaps below",
+  "scroll down, legend"
+]
+```
+
 #### Other UI Elements
 
 ```json

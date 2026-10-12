@@ -43,6 +43,25 @@
 #notice button:hover {
     background: var(--bg-muted);
 }
+/* The new-version strip wears the orange of the Blazor Server reconnect banner that the
+   rewrite retired (ReconnectModal.razor.css): same place in the layout as every other
+   notice, only the colours change. White text on the gradient needs its own button look;
+   the grey inline control above vanishes on orange. */
+#notice.new-version {
+    background: linear-gradient(135deg, var(--status-away) 0%, #f57731 100%);
+    color: white;
+    border-bottom: 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    font-weight: 500;
+}
+#notice.new-version button {
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+#notice.new-version button:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
 #timeline {
     display: contents;
 }

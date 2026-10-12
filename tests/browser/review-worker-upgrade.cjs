@@ -15,10 +15,14 @@ const { manifest } = require('./support/manifest.cjs');
 const manifests = new Map(
     [oldPackage, newPackage].map((p) => [p, manifest(path.join(p, 'wwwroot'))]),
 );
+// The open tab keeps the incumbent document, so the notice carries the incumbent's wording.
 // Releases before the update notice cannot show it; upgrades from them stay testable.
-const announcesUpdates = fs
-    .readFileSync(path.join(oldPackage, 'wwwroot/chat-client/app.js'), 'utf8')
-    .includes('Yap was updated. Reload when convenient.');
+const incumbentApp = fs.readFileSync(path.join(oldPackage, 'wwwroot/chat-client/app.js'), 'utf8');
+const updateNotice = [
+    'You are awesome and so is the new version of this app. Please refresh.',
+    'Yap was updated. Reload when convenient.',
+].find((text) => incumbentApp.includes(text));
+const announcesUpdates = Boolean(updateNotice);
 // The open tab keeps the incumbent's stylesheet, so the styled-control check needs it there.
 const stylesNotice = fs
     .readFileSync(path.join(oldPackage, 'wwwroot/chat-client/chat.css'), 'utf8')
@@ -158,7 +162,9 @@ proxy.on('upgrade', (req, socket, head) => {
                 document.querySelector('#connection')?.textContent === 'Synced · available offline',
         );
         // The first worker claims this page too; only a replaced shell is an update.
-        assert(!(await page.locator('#notice').innerText()).includes('Yap was updated'));
+        assert(
+            !updateNotice || !(await page.locator('#notice').innerText()).includes(updateNotice),
+        );
         previousCache = (await page.evaluate(() => caches.keys())).find((name) =>
             name.startsWith(SHELL_CACHE_PREFIX),
         );
@@ -242,7 +248,7 @@ proxy.on('upgrade', (req, socket, head) => {
                 );
                 await page
                     .locator('#notice:not([hidden])')
-                    .filter({ hasText: 'Yap was updated. Reload when convenient.' })
+                    .filter({ hasText: updateNotice })
                     .locator('button', { hasText: 'Reload' })
                     .waitFor();
                 // The control carries the client's inline button style; a bare <button>

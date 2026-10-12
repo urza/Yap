@@ -27,7 +27,9 @@ const element = (tag, className, text) => {
     if (text !== undefined) node.textContent = text;
     return node;
 };
-const scrolling = createScroll($('.messages'), $('#new-messages'));
+const scrolling = createScroll($('.messages'), $('#new-messages'), () =>
+    chatLabel('newMessagesPill', 'New messages', null),
+);
 let newestRendered = null,
     lastOnline = new Map();
 /** @type {import('./contracts.js').AccountState | undefined | null} */
@@ -78,10 +80,15 @@ function notice(text, login = false) {
     // Every accepted snapshot calls notice('') to clear transient errors. Lasting states
     // fill the empty notice instead, so they survive the next message.
     const update = !text && !workerWarning && shellUpdated;
-    text ||= workerWarning || (update ? 'Yap was updated. Reload when convenient.' : '');
+    text ||=
+        workerWarning ||
+        (update ? 'You are awesome and so is the new version of this app. Please refresh.' : '');
     const n = $('#notice');
     n.replaceChildren(document.createTextNode(text));
     n.hidden = !text;
+    // The new-version strip wears the warm orange of the old reconnect banner (chat.css);
+    // every other notice keeps the plain look, so the class follows this call's state.
+    n.classList.toggle('new-version', update);
     if (login) {
         const a = element('a', '', 'Sign in');
         a.href = '/login?returnUrl=' + encodeURIComponent(location.pathname + location.search);

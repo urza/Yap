@@ -4,7 +4,8 @@
 // follow off on a tap with a small finger movement, or on a swipe over a short conversation,
 // and new messages then landed below the fold with no sign (audit C-01). The pre-rewrite page
 // never let a tap change scrolling.
-export function createScroll(scroller, pill) {
+// `label` returns the pill's wording; it is read each time the pill appears.
+export function createScroll(scroller, pill, label) {
     let following = true,
         previousTop = scroller.scrollTop,
         frame;
@@ -69,7 +70,11 @@ export function createScroll(scroller, pill) {
         // Someone else posted while the user reads older messages: the view keeps its place
         // (decided 2026-10-11, audit C-03) and the pill offers the way down.
         announce() {
-            if (!following) pill.hidden = false;
+            if (following || !pill.hidden) return;
+            // Fresh wording for each appearance; a second arrival while the pill shows
+            // keeps the text still, so it never flickers under the reader's eye.
+            pill.querySelector('#new-messages-text').textContent = label();
+            pill.hidden = false;
         },
         bottom,
         reset() {

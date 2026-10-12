@@ -93,7 +93,8 @@ public static class OfflineContent
             labels = new
             {
                 roomHeaders = config.GetSection("ChatSettings:FunnyTexts:RoomHeaders").Get<string[]>() ?? ["# {0}"],
-                messagePlaceholders = config.GetSection("ChatSettings:FunnyTexts:MessagePlaceholders").Get<string[]>() ?? ["Type a message..."]
+                messagePlaceholders = config.GetSection("ChatSettings:FunnyTexts:MessagePlaceholders").Get<string[]>() ?? ["Type a message..."],
+                newMessagesPill = config.GetSection("ChatSettings:FunnyTexts:NewMessagesPill").Get<string[]>() ?? ["New messages"]
             },
             uploadEndpoint = config["ChatSettings:UploadUrl"] ?? "/api/tus",
             maxUploadBytes = http.RequestServices.GetRequiredService<ChatLimits>().MaxUploadBytes
