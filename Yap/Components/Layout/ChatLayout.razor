@@ -10,12 +10,10 @@
 @inject ILogger<ChatLayout> Logger
 @implements IDisposable
 
-@* data-context lets any theme shift its look between rooms and DMs, so you can tell
-   where you are from the corner of your eye. Blazor owns this attribute outright (no
-   JS touches it) and reads the same NavState the header line does, so the two can
-   never disagree. Deliberately narrower than data-theme: a context may move the
-   pattern and tint only, never a status colour - it changes many times a minute. *@
-<div class="chat-container" data-context="@(NavState.CurrentDmUser != null ? "dm" : "room")">
+@* data-context lets a theme shift its look between rooms and DMs. This layout only hosts
+   Settings and ChannelSettings since the chat moved to the JS client, so it is always the
+   room look; the chat shell sets its own data-context. *@
+<div class="chat-container" data-context="room">
     @* Themed background scene + legibility wash. Empty by design: both are painted
        entirely from CSS variables the active theme sets, so they stay inert for
        every theme that defines none. Order matters - the scrim paints over the
@@ -26,8 +24,7 @@
 
     <ChatHeader />
 
-    <img src="images/@(NavState.CurrentDmUser != null ? "purpleline01_3px.png" : "turqline01_3px.png")"
-         class="header-line" alt="" />
+    <img src="images/turqline01_3px.png" class="header-line" alt="" />
 
     <div class="chat-main">
         <div class="messages-container">
@@ -51,7 +48,6 @@
 
     <div class="sidebar-backdrop @(NavState.SidebarOpen ? "show" : "")" @onclick="NavState.ToggleSidebar"></div>
 
-    @* <PwaInstallBanner /> — PWA nudge now handled by Ping bot welcome DM *@
     <PushPermissionPrompt />
 </div>
 

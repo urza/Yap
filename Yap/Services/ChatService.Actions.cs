@@ -90,18 +90,8 @@ public partial class ChatService
             if (kind is "edit" or "delete")
                 foreach (var reply in GetMessages(channelId, int.MaxValue).Where(m => m.ReplyToMessageId == messageId))
                     _changes.Touch(channelId, reply.Id);
-            if (kind == "delete")
-            {
-                if (target != null)
-                    RunNotification(() => _gifService.DecrementReferences(target.GifAttachments));
-                if (OnMessageDeleted is { } handlers)
-                    foreach (Action<Guid, Guid> handler in handlers.GetInvocationList())
-                        RunNotification(() => handler(messageId, channelId));
-            }
-            else if (kind == "reaction")
-                NotifySubscribers(OnReactionChanged, target!);
-            else
-                NotifySubscribers(OnMessageUpdated, target!);
+            if (kind == "delete" && target != null)
+                RunNotification(() => _gifService.DecrementReferences(target.GifAttachments));
             return receipt;
         }
     }

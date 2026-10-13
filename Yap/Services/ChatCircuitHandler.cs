@@ -89,7 +89,7 @@ public sealed class ChatCircuitHandler : CircuitHandler
         _circuitTracker.SetUser(circuit.Id, _userState.Username, _clientIp,
             _httpContextAccessor.HttpContext?.WebSockets.IsWebSocketRequest);
 
-        // Deliberately NO SetPageVisibility(true) here: a reconnect says nothing about visibility.
+        // Deliberately no "page visible" assert here: a reconnect says nothing about visibility.
         // Hidden tabs reconnect after every deploy/blip and fire no visibilitychange to correct a
         // blind "visible" assert — which then suppresses push for the whole account. The probe
         // heartbeat reports the real state within ~10s.

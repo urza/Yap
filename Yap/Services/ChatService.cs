@@ -49,12 +49,8 @@ public partial class ChatService
     // Events for real-time updates (unified for all channel types)
     // All events are synchronous (Action) - handlers use fire-and-forget internally
     public event Action<ChatMessage>? OnMessageReceived;
-    public event Action<ChatMessage>? OnMessageUpdated;
-    public event Action<Guid, Guid>? OnMessageDeleted; // messageId, channelId
-    public event Action<ChatMessage>? OnReactionChanged;
     public event Action<string, bool>? OnUserChanged;
     public event Action? OnUsersListChanged;
-    public event Action<Guid>? OnTypingUsersChanged; // channelId
 
     // Channel events
     public event Action<Channel>? OnChannelCreated;
@@ -69,12 +65,6 @@ public partial class ChatService
 
     // Session kicked event (sessionId) - used to force-disconnect remote circuits
     public event Action<string>? OnSessionKicked;
-
-    // Link preview ready (messageId) - fired when OG data is fetched for a message's URL
-    public event Action<Guid>? OnLinkPreviewReady;
-
-    // Media cache ready (messageId) - fired when yt-dlp download completes
-    public event Action<Guid>? OnMediaCacheReady;
 
     // Per-user status (shared across all sessions for the same user)
     private readonly ConcurrentDictionary<string, UserStatus> _userStatuses = new(StringComparer.OrdinalIgnoreCase);
@@ -119,10 +109,8 @@ public partial class ChatService
         _connectionClock = connectionClock;
         _presenceOptions = presenceOptions;
 
-        // Wire link preview callback
-        _linkPreviewService.OnPreviewFetched = (msgId, url, preview) => OnLinkPreviewReady?.Invoke(msgId);
-
-        // Wire media cache callback: attach media info to LinkPreview, then fire event
+        // Wire media cache callback: attach media info to LinkPreview. The JS client learns about
+        // the finished download through the change tracker (Media kind), not through an event here.
         _mediaCacheService.OnMediaCached = (msgId, url, entry) =>
         {
             var preview = _linkPreviewService.GetOrCreatePreview(url);
@@ -143,7 +131,6 @@ public partial class ChatService
             // clear the flag so HasContent turns true and the card renders.
             if (!string.IsNullOrEmpty(preview.Title) || !string.IsNullOrEmpty(preview.ImageUrl) || !string.IsNullOrEmpty(preview.CachedMediaUrl))
                 preview.Failed = false;
-            OnMediaCacheReady?.Invoke(msgId);
         };
 
         // Create default lobby channel (will be replaced if loading from DB)
@@ -173,12 +160,8 @@ public partial class ChatService
             EventSubscribers = new Dictionary<string, int>
             {
                 ["OnMessageReceived"] = OnMessageReceived?.GetInvocationList().Length ?? 0,
-                ["OnMessageUpdated"] = OnMessageUpdated?.GetInvocationList().Length ?? 0,
-                ["OnMessageDeleted"] = OnMessageDeleted?.GetInvocationList().Length ?? 0,
-                ["OnReactionChanged"] = OnReactionChanged?.GetInvocationList().Length ?? 0,
                 ["OnUserChanged"] = OnUserChanged?.GetInvocationList().Length ?? 0,
                 ["OnUsersListChanged"] = OnUsersListChanged?.GetInvocationList().Length ?? 0,
-                ["OnTypingUsersChanged"] = OnTypingUsersChanged?.GetInvocationList().Length ?? 0,
                 ["OnChannelCreated"] = OnChannelCreated?.GetInvocationList().Length ?? 0,
                 ["OnChannelUpdated"] = OnChannelUpdated?.GetInvocationList().Length ?? 0,
                 ["OnChannelDeleted"] = OnChannelDeleted?.GetInvocationList().Length ?? 0,
@@ -615,7 +598,7 @@ public partial class ChatService
     /// <summary>
     /// The status the user held before auto-away kicked in, or null when their current status
     /// wasn't applied automatically. The record's existence is what MAKES an Away automatic —
-    /// it's what activity restores via TryRestoreFromAutoAway. A chosen Away has no record and
+    /// it's what activity restores via RestoreFromAutoAway. A chosen Away has no record and
     /// never self-reverts, so any code that re-applies or copies a status must go through here
     /// first: treating an auto-Away as chosen strands the user Away (mark-read-on-receive and
     /// push suppression both gate on Away → unread piles up and push fires mid-conversation).
@@ -625,18 +608,6 @@ public partial class ChatService
 
     /// <summary>True when the user's current Away was applied automatically (restore record exists).</summary>
     public bool IsAutoAway(string username) => _statusBeforeAutoAway.ContainsKey(username);
-
-    /// <summary>
-    /// Attempts to restore a user from auto-away to their previous status.
-    /// Returns the restored status if successful, null if user wasn't auto-away.
-    /// Can be called from any circuit/session for the user.
-    /// </summary>
-    public UserStatus? TryRestoreFromAutoAway(string sessionId)
-    {
-        UserStatus? restored = null;
-        ChangeConnections(notifications => restored = RestoreFromAutoAway(sessionId, notifications));
-        return restored;
-    }
 
     private UserStatus? RestoreFromAutoAway(string sessionId, List<Action> notifications)
     {
@@ -678,12 +649,6 @@ public partial class ChatService
         return Task.CompletedTask;
     }
 
-    public Task TrySetAutoAwayIfAllIdleAsync(string sessionId)
-    {
-        ChangeConnections(notifications => SetAutoAwayIfAllIdle(sessionId, notifications));
-        return Task.CompletedTask;
-    }
-
     private void SetAutoAwayIfAllIdle(string sessionId, List<Action> notifications)
     {
         var now = DateTime.UtcNow;
@@ -698,12 +663,6 @@ public partial class ChatService
     /// keep the user Online here — but a visible, heartbeating tab does, even if its user is just
     /// reading. Prevents the phone-locks → attended-desktop-flaps-to-Away regression.
     /// </summary>
-    public Task TrySetAutoAwayAfterDisconnectAsync(string sessionId)
-    {
-        ChangeConnections(notifications => TrySetAutoAwayAfterDisconnect(sessionId, notifications));
-        return Task.CompletedTask;
-    }
-
     private void TrySetAutoAwayAfterDisconnect(string sessionId, List<Action> notifications)
     {
         var now = DateTime.UtcNow;
@@ -730,15 +689,6 @@ public partial class ChatService
 
         _logger.LogDebug("Auto-away: no session for {Username} shows signs of life, setting Away", session.Username);
         SetUserStatus(sessionId, UserStatus.Away, notifications, autoAwayPreviousStatus: currentStatus ?? UserStatus.Online);
-    }
-
-    public void SetPageVisibility(string sessionId, bool visible)
-    {
-        lock (_connectionGate)
-        {
-            if (_users.TryGetValue(sessionId, out var session))
-                _users[sessionId] = session with { PageVisible = visible };
-        }
     }
 
     public bool IsPageVisible(string username)
@@ -824,9 +774,6 @@ public partial class ChatService
             .Select(g => (g.Key, _userStatuses.GetValueOrDefault(g.Key, UserStatus.Online), g.First().IsMobile))
             .ToList();
 
-    public bool IsUsernameTaken(string username) =>
-        _users.Values.Any(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase));
-
     /// <summary>
     /// Checks if any session for the given user is on mobile.
     /// </summary>
@@ -851,9 +798,6 @@ public partial class ChatService
     /// <summary>
     /// Marks transport connectivity without deleting retained presence state.
     /// </summary>
-    public void SetSessionConnected(string sessionId, bool connected) =>
-        ChangeConnections(notifications => SetSessionConnected(sessionId, connected, notifications));
-
     private void SetSessionConnected(string sessionId, bool connected, List<Action> notifications)
     {
         if (!_users.TryGetValue(sessionId, out var session) || session.Connected == connected) return;
@@ -964,12 +908,9 @@ public partial class ChatService
         var content = message.Content;
         RunNotification(() => _gifService.IncrementReferences(message.GifAttachments));
 
-        // Clear typing state in memory (fast, no event dispatch)
-        var wasTyping = _channelTypingUsers.TryGetValue(channelId, out var typingUsers) && typingUsers.TryRemove(username, out _);
-
-        // Notify all subscribers
-        if (wasTyping)
-            NotifySubscribers(OnTypingUsersChanged, channelId);
+        // Clear typing state in memory; the presence ticker picks the change up on its next tick.
+        if (_channelTypingUsers.TryGetValue(channelId, out var typingUsers))
+            typingUsers.TryRemove(username, out _);
 
         _changes.Touch(message.ChannelId, message.Id, history: false);
         NotifySubscribers(OnMessageReceived, message);
@@ -1511,37 +1452,6 @@ public partial class ChatService
         return _notifications.IsMuted(userId, channelId, channel.IsDirectMessage);
     }
 
-    /// <summary>
-    /// Clears all read states for a user (used when user is deleted).
-    /// </summary>
-    public void ClearReadStatesForUser(Guid userId)
-    {
-        var keysToRemove = _readStates.Keys.Where(k => k.UserId == userId).ToList();
-        foreach (var key in keysToRemove)
-        {
-            _readStates.TryRemove(key, out _);
-        }
-    }
-
-    #endregion
-
-    #region DM-specific helpers
-
-    /// <summary>
-    /// Gets the timestamp of the last message in a DM channel
-    /// </summary>
-    public DateTime? GetLastDMTimestamp(string user1, string user2)
-    {
-        var channel = _channels.Values.FirstOrDefault(c => c.IsDMBetween(user1, user2));
-        if (channel == null || !_channelMessages.TryGetValue(channel.Id, out var messages) || messages.Count == 0)
-            return null;
-
-        lock (GetChannelLock(channel.Id))
-        {
-            return messages.LastOrDefault()?.Timestamp;
-        }
-    }
-
     #endregion
 
     #region Typing Indicators
@@ -1552,7 +1462,6 @@ public partial class ChatService
         {
             typingUsers[username] = DateTime.UtcNow;
             _logger.LogDebug("StartTyping {User} in channel {ChannelId}", username, channelId);
-            OnTypingUsersChanged?.Invoke(channelId);
         }
         return Task.CompletedTask;
     }
@@ -1563,7 +1472,6 @@ public partial class ChatService
         {
             typingUsers.TryRemove(username, out _);
             _logger.LogDebug("StopTyping {User} in channel {ChannelId}", username, channelId);
-            OnTypingUsersChanged?.Invoke(channelId);
         }
         return Task.CompletedTask;
     }

@@ -102,21 +102,6 @@ window.getLastPwaRoute = () => {
     return localStorage.getItem('yap-last-route');
 };
 
-// PWA Install Banner helpers
-window.isMessageInputFocused = () => {
-    return document.activeElement?.classList.contains('message-input') === true;
-};
-
-window.shouldShowPwaInstallBanner = () => {
-    if (window.isPwaInstalled()) return false;
-    if (sessionStorage.getItem('pwa-banner-dismissed')) return false;
-    return true;
-};
-
-window.dismissPwaInstallBanner = () => {
-    sessionStorage.setItem('pwa-banner-dismissed', 'true');
-};
-
 // Push permission prompt (full-page overlay for PWA users)
 window.shouldShowPushPermissionPrompt = () => {
     if (!window.isPwaInstalled()) return false;

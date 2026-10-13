@@ -13,22 +13,7 @@
 @implements IDisposable
 
 <div class="chat-header">
-    @if (!string.IsNullOrEmpty(NavState.CurrentDmUser))
-    {
-        var dmUser = UserService.GetByUsername(NavState.CurrentDmUser);
-        <div class="dm-header-title">
-            <button class="back-button" @onclick="NavigateBack" title="Back to lobby">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
-                </svg>
-            </button>
-            <Avatar Username="@(dmUser?.Username ?? NavState.CurrentDmUser)"
-                    ProfilePictureUrl="@dmUser?.ProfilePictureUrl"
-                    Size="AvatarSize.Small" />
-            <h3>@EmojiService.ConvertEmojis(dmUser?.EffectiveDisplayName ?? NavState.CurrentDmUser, inline: true)</h3>
-        </div>
-    }
-    else if (NavState.ShowBackButton)
+    @if (NavState.ShowBackButton)
     {
         <div class="dm-header-title">
             <button class="back-button" @onclick="NavigateBack" title="Back to lobby">
@@ -268,19 +253,8 @@
 
         try
         {
-            // Exclude currently viewed DM channel from unread count
-            Guid? excludeChannelId = null;
-            if (!string.IsNullOrEmpty(NavState.CurrentDmUser))
-            {
-                var otherUser = UserService.GetByUsername(NavState.CurrentDmUser);
-                if (otherUser != null)
-                {
-                    var channel = ChatService.GetOrCreateDMChannelByUsername(UserState.Username, NavState.CurrentDmUser);
-                    excludeChannelId = channel?.Id;
-                }
-            }
-
-            unreadCount = ChatService.GetTotalUnreadCount(UserState.UserId.Value, excludeChannelId);
+            // No conversation is open on the Blazor pages, so nothing is excluded from the count.
+            unreadCount = ChatService.GetTotalUnreadCount(UserState.UserId.Value, null);
             await UpdateBadgeAsync();
         }
         catch (Exception)

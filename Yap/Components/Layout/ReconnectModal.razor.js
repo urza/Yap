@@ -150,7 +150,7 @@ async function manualRetry() {
  *
  * This means:
  * - UserStateService.Username is restored (user stays "logged in")
- * - ChatNavigationState.CurrentRoomId is restored (user stays in same room)
+ * - ChatNavigationState.Title and SidebarOpen are restored
  * - No need for user to click anything - it's automatic
  */
 async function autoResume() {

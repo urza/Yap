@@ -10,12 +10,8 @@ namespace Yap.Services;
 /// Properties marked with [PersistentState] are automatically serialized when
 /// the circuit is evicted and restored when the user reconnects.
 ///
-/// This means:
-/// - User is viewing a specific room or DM
-/// - User closes laptop for 2 hours → circuit evicted
-/// - User opens laptop → Blazor.resumeCircuit() called
-/// - CurrentRoomId/CurrentDmUser are restored
-/// - App can navigate user back to where they were
+/// Since the chat page moved to the JS client, the only Blazor pages under ChatLayout are
+/// Settings and ChannelSettings, so this holds the header title and the mobile sidebar state.
 ///
 /// Note: The OnChange event is NOT persisted (events can't be serialized).
 /// Components need to re-subscribe after circuit restoration.
@@ -29,22 +25,6 @@ public class ChatNavigationState
     /// </summary>
     [PersistentState]
     public string Title { get; set; } = "";
-
-    /// <summary>
-    /// The ID of the currently viewed room, or null if viewing a DM.
-    /// Persisted so we know which room to restore after reconnection.
-    /// Note: Setter must be public for [PersistentState] to work.
-    /// </summary>
-    [PersistentState]
-    public Guid? CurrentRoomId { get; set; }
-
-    /// <summary>
-    /// The username of the current DM partner, or null if viewing a room.
-    /// Persisted so we know which DM to restore after reconnection.
-    /// Note: Setter must be public for [PersistentState] to work.
-    /// </summary>
-    [PersistentState]
-    public string? CurrentDmUser { get; set; }
 
     /// <summary>
     /// Whether the sidebar is currently open (for mobile responsiveness).
@@ -100,8 +80,6 @@ public class ChatNavigationState
     {
         Title = title;
         ShowBackButton = true;
-        CurrentRoomId = null;
-        CurrentDmUser = null;
         NotifyStateChanged();
     }
 

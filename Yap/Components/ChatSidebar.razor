@@ -18,10 +18,9 @@
         <div class="rooms-list">
             @foreach (var room in rooms)
             {
-                var isActive = NavState.CurrentDmUser == null && NavState.CurrentRoomId == room.Id;
-                var roomUnread = isActive ? 0 : GetUnreadCount(room.Id);
+                var roomUnread = GetUnreadCount(room.Id);
                 var roomMuted = ChatService.IsChannelMuted(UserId, room.Id);
-                <div class="room-item @(isActive ? "active" : "") @(roomUnread > 0 ? "has-unread" : "")" @onclick="() => SwitchToRoom(room.Id)">
+                <div class="room-item @(roomUnread > 0 ? "has-unread" : "")" @onclick="() => SwitchToRoom(room.Id)">
                     <span class="room-icon">#</span>
                     <span class="room-name">@EmojiService.ConvertEmojis(room.Name, inline: true)</span>
                     @* Room bell: per-room Individual choice only (ShowsRoomMuteBell), NOT the
@@ -73,11 +72,10 @@
                 var isCurrentUser = user.Equals(Username, StringComparison.OrdinalIgnoreCase);
                 var isUserAdmin = ChatService.IsAdmin(user);
                 var dm = isCurrentUser ? (Count: 0, Muted: false) : GetDmUnread(user);
-                var isActiveDM = NavState.CurrentDmUser != null && NavState.CurrentDmUser.Equals(user, StringComparison.OrdinalIgnoreCase);
                 var statusClass = status.ToString().ToLower();
                 var displayName = GetDisplayName(user);
 
-                <div class="user-item @(isCurrentUser ? "current-user" : "") @(isActiveDM ? "active-dm" : "")"
+                <div class="user-item @(isCurrentUser ? "current-user" : "")"
                      @onclick="() => OpenDM(user)">
                     <span class="user-status-dot @statusClass"></span>
                     <span class="user-name"
@@ -289,12 +287,6 @@
             if (dmChannel == null) return (0, false);
 
             var muted = ChatService.IsChannelMuted(UserId, dmChannel.Id);
-
-            // Currently viewing this DM: nothing is unread by definition. Mute still resolves —
-            // the row's bell must not vanish just because the DM is the open one.
-            if (NavState.CurrentDmUser?.Equals(otherUsername, StringComparison.OrdinalIgnoreCase) == true)
-                return (0, muted);
-
             return (ChatService.GetUnreadCount(UserId, dmChannel.Id), muted);
         }
         catch (Exception)
