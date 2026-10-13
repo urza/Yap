@@ -51,6 +51,10 @@ code { font-family: var(--mono); font-size: 0.88em; background: var(--surface-2)
 .eyebrow { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .lede { font-size: 1.1rem; }
 .rules { border: 1px solid var(--line); border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; padding: 14px 18px 14px 36px; max-width: 72ch; }
+.words { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 18px; margin: 0; max-width: 80ch; font-size: 0.95rem; }
+.words dt { font-family: var(--mono); font-size: 0.85rem; padding-top: 2px; color: var(--accent); }
+.words dd { margin: 0; }
+@media (max-width: 560px) { .words { grid-template-columns: 1fr; gap: 2px 0; } .words dd { margin-bottom: 8px; } }
 .toc { display: flex; flex-wrap: wrap; gap: 6px 8px; padding: 0; list-style: none; max-width: none; flex-direction: row; }
 .toc a { display: inline-block; padding: 3px 10px; border: 1px solid var(--line); border-radius: 4px; text-decoration: none; color: var(--fg); background: var(--surface); font-size: 0.9rem; }
 .toc a:hover { border-color: var(--accent); }
@@ -116,12 +120,31 @@ tr.group td { background: var(--surface-2); font-family: var(--display); font-we
   <div class="eyebrow">Yap · chat client and server · read at commit c19d67a6 · 2026-10-13</div>
   <h1>How a chat message moves in Yap</h1>
   <p class="lede">This page shows the chat path only. It covers the JS client in <code>wwwroot/chat-client</code> and the .NET code that serves it. It does not cover Login, Settings, Admin or Blazor.</p>
+  <h3>Two connections</h3>
   <ul class="rules">
-    <li>The browser sends each change as an HTTP POST. The hub does not accept messages.</li>
-    <li>The server sends each change to the browser on a SignalR stream.</li>
-    <li>The browser keeps a copy of the chat in IndexedDB. It can show the chat and queue messages with no network.</li>
+    <li><b>HTTP requests</b> to <code>/api/chat</code>. The browser uses them to send messages and to get conversations.</li>
+    <li><b>One SignalR connection</b> to <code>/hubs/chat</code>. SignalR is the ASP.NET Core library that keeps a connection open between the browser and the server. The server class for this connection is the <b>hub</b>, <code>OfflineHub</code>. The hub sends changes to the browser as <b>streams</b>. A stream is a series of items that the server sends one by one on the open connection.</li>
+  </ul>
+  <h3>Main rules</h3>
+  <ul class="rules">
+    <li>The browser sends each new message as an HTTP POST. It does not send messages through the hub.</li>
+    <li>The server sends each change to the browser as an item on a hub stream.</li>
+    <li>The browser keeps a copy of the chat in <b>IndexedDB</b>, a database inside the browser. Thus it can show the chat and queue messages with no network.</li>
     <li>The server keeps all messages in memory. SQLite stores each accepted write. In no-database mode, memory replaces SQLite.</li>
   </ul>
+  <h3>Words on this page</h3>
+  <dl class="words">
+    <dt>outbox</dt><dd>A store in IndexedDB. It holds the messages that the server did not accept yet. Each row is one message.</dd>
+    <dt>operationId</dt><dd>A random id that the browser gives to each outbox row. The server uses it to accept each message only one time.</dd>
+    <dt>receipt</dt><dd>A server record of an accepted <code>operationId</code>. It holds the id of the message that the server made.</dd>
+    <dt>update</dt><dd>One packet from the server, type <code>ChatUpdate</code>. It has a sequence number and changes for one or more conversations.</dd>
+    <dt>patch</dt><dd>The part of an update for one conversation, type <code>ConversationUpdate</code>. It can hold new messages, removed message ids and new conversation data.</dd>
+    <dt>revision</dt><dd>A version number of a conversation. It increases by one at each change. The browser compares revisions to find a missed patch.</dd>
+    <dt>window</dt><dd>The recent messages of one conversation that the browser keeps. It holds up to 100 messages.</dd>
+    <dt>epoch</dt><dd>A new id each time the server starts. The revisions start again after a restart, so the browser does not compare them with old revisions.</dd>
+    <dt>fan-out</dt><dd><code>OfflineFanout</code>. It sends one change to each connection that can read the conversation.</dd>
+    <dt>DTO</dt><dd>The message object that the server sends to the browser, type <code>ReaderMessage</code>. It does not include passwords or database fields.</dd>
+  </dl>
   <ol class="toc">
     <li><a href="#parts">1. The parts</a></li>
     <li><a href="#open">2. Open the chat</a></li>
@@ -189,7 +212,7 @@ tr.group td { background: var(--surface-2); font-family: var(--display); font-we
     <li>Bootstrap returns all conversations. Only the open conversation comes with its messages.</li>
     <li>If the cached revision of the open conversation is current, the server leaves out its messages. The browser sends the revision, the server epoch and the user id for this check.</li>
     <li>The other conversations come without messages. <code>windows.js</code> fetches them one at a time. It fetches the open conversation first, then the conversations with the most unread messages.</li>
-    <li>The first item on <code>WatchChanges</code> is the base state. The page does not show notifications for it.</li>
+    <li>The first item on <code>WatchChanges</code> holds the current state of all conversations. The page does not show notifications for it.</li>
   </ul>
 </section>
 

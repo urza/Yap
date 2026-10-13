@@ -61,7 +61,7 @@ def connect():
         S('P', 'U', 'start()', 'hub', 'negotiate, then WebSocket'),
         S('P', 'U', 'stream WatchActivity(ticket, …)', 'hub'),
         S('P', 'U', 'stream WatchChanges(known)', 'hub', 'known: cached revision per conversation'),
-        S('U', 'P', 'first item: the base state', 'stream', 'header and one patch per conversation'),
+        S('U', 'P', 'first item: the current state', 'stream', 'header and one patch per conversation'),
     ]
     return sequence('con', lanes, steps, bands=[(6, 7, 'background: runs at the same time as steps 9 to 12')],
                     aria='Opening the chat: read IndexedDB, render, GET bootstrap, commit, start the sender, fetch missing windows, start the hub, open WatchActivity and WatchChanges.')
