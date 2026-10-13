@@ -51,9 +51,10 @@ public partial class ChatService
             state.ReadThrough = target;
             state.UnreadCount = checked((int)(state.ReceivedCount - target));
             state.LastReadAt = DateTime.UtcNow;
-            // Memory first; the database copy follows while the gate still orders the writes.
+            // Memory first. The copy is queued while the gate still holds, so the writer gets
+            // read states in memory order.
             _readStates[(userId, channelId)] = state;
-            await _persistence.PersistReadStateAsync(state);
+            _persistence.PersistReadState(state);
             if (channel.IsDirectMessage && previousCount > state.UnreadCount)
             {
                 UserSession? caller = null;

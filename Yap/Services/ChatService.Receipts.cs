@@ -54,7 +54,7 @@ public partial class ChatService
     }
 
     // Age-based retention, memory first. The database copy applies the same bound afterwards.
-    public async Task PruneReceiptsAsync(DateTime before)
+    public void PruneReceipts(DateTime before)
     {
         lock (receiptGate)
             foreach (var (userId, order) in receiptOrder.ToArray())
@@ -72,6 +72,6 @@ public partial class ChatService
                 }
                 if (order.Count == 0) receiptOrder.Remove(userId);
             }
-        await _persistence.PruneReceiptsAsync(before);
+        _persistence.PruneReceipts(before);
     }
 }

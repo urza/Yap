@@ -10,7 +10,7 @@ static class GifPagingChecks
     public static async Task Run(HttpClient http, string csrf, ChatService chat, User admin)
     {
         // Separate conversation: provider fixtures must not alter the receipt/restart scenarios.
-        var room = (await chat.CreateRoomAsync(admin.Id, admin.Username, "gif-paging"))!;
+        var room = chat.CreateRoom(admin.Id, admin.Username, "gif-paging")!;
         async Task<JsonElement> Post(string path, object body)
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = JsonContent.Create(body) };

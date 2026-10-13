@@ -286,7 +286,7 @@
             Navigation.NavigateTo("/lobby", forceLoad: true);
     }
 
-    private async Task Save()
+    private void Save()
     {
         if (isSaving) return;
         errorMessage = null;
@@ -298,7 +298,7 @@
 
             try
             {
-                var error = await ChatService.UpdateChannelAsync(UserId, ChannelId!.Value,
+                var error = ChatService.UpdateChannel(UserId, ChannelId!.Value,
                     channelName, description, writePermission, historyLimit, sinceJoined);
 
                 if (error == null)
@@ -331,7 +331,7 @@
 
             try
             {
-                var newChannel = await ChatService.CreateRoomAsync(UserId, Username, name,
+                var newChannel = ChatService.CreateRoom(UserId, Username, name,
                     description: string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
                     writePermission: writePermission,
                     historyLimit: historyLimit,
@@ -355,20 +355,20 @@
         }
     }
 
-    private async Task MoveChannel(Guid roomId, bool moveUp)
+    private void MoveChannel(Guid roomId, bool moveUp)
     {
-        var success = await ChatService.ReorderChannelAsync(UserId, roomId, moveUp);
+        var success = ChatService.ReorderChannel(UserId, roomId, moveUp);
         if (success)
         {
             RefreshOrderedRooms();
         }
     }
 
-    private async Task DeleteChannel()
+    private void DeleteChannel()
     {
         if (channel == null) return;
 
-        var success = await ChatService.DeleteRoomAsync(UserId, channel.Id);
+        var success = ChatService.DeleteRoom(UserId, channel.Id);
         if (success)
         {
             // Chat routes are document endpoints outside the retained Blazor router.

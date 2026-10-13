@@ -59,6 +59,7 @@ static async Task Run(bool persistent)
     string token;
     var durableOperation = Guid.NewGuid();
     Guid durableMessage = Guid.Empty;
+    Guid shutdownMessage = Guid.Empty;
     try
     {
         using (var factory = Factory())
@@ -88,6 +89,7 @@ static async Task Run(bool persistent)
             }
             var users = factory.Services.GetRequiredService<UserService>();
             var chat = factory.Services.GetRequiredService<ChatService>();
+            var persistence = factory.Services.GetRequiredService<ChatPersistenceService>();
             using var scope = factory.Services.CreateScope();
             var snapshots = scope.ServiceProvider.GetRequiredService<ChatProjection>();
             var admin = (await users.CreateUserAsync("adminfixture"))!;
@@ -119,11 +121,11 @@ static async Task Run(bool persistent)
             var changed = after.Conversations.Single(c => c.Id == dm.Id);
             Check(after.Revision != before.Revision && changed.Messages.All(m => m.Id != deletedId) && changed.Messages.Single(m => m.Id == editedId).Content == "edited" && changed.Messages.Single(m => m.Id == editedId).Reactions.Single().Users.Single() == alice.Username, "authoritative edit/delete/reaction replacement");
             // Change a room's permissions/history through shared admin operations, including since-signup visibility.
-            var room = (await chat.CreateRoomAsync(admin.Id, admin.Username, "historyfixture"))!;
+            var room = chat.CreateRoom(admin.Id, admin.Username, "historyfixture")!;
             await chat.SendMessageAsync(room.Id, admin.Id, admin.Username, "before signup cutoff");
             await Task.Delay(20);
             alice.CreatedAt = DateTime.UtcNow;
-            await chat.UpdateChannelAsync(admin.Id, room.Id, room.Name, "restricted", ChannelPermission.AdminOnly, HistoryLimit.Unlimited, true);
+            chat.UpdateChannel(admin.Id, room.Id, room.Name, "restricted", ChannelPermission.AdminOnly, HistoryLimit.Unlimited, true);
             Check(snapshots.Conversation(alice, room.Id) is { Messages.Length: 0, CanWrite: false, HistoryLimited: true }, "since-signup and write permissions enforced");
             Check(snapshots.Conversation(admin, room.Id)!.Messages.Length == 1, "admin history exception");
             var oldMessage = chat.GetMessages(dmId, 100).First();
@@ -261,10 +263,15 @@ static async Task Run(bool persistent)
             var privateDm = await chat.OpenDirectMessageAsync(bob, carol.Username);
             Check((await Send(privateDm.Id, Guid.NewGuid(), "intrusion")).StatusCode == HttpStatusCode.NotFound, "nonmember DM write rejected");
             await using var db = persistent ? await factory.Services.GetRequiredService<IDbContextFactory<ChatDbContext>>().CreateDbContextAsync() : null;
-            // SQLite checks read the stored row. Memory mode keeps no copy outside ChatService.
-            async Task<ChatMessage?> Stored(Guid channelId, Guid messageId) => db == null
-                ? chat.GetMessageById(channelId, messageId)
-                : await db.Messages.AsNoTracking().SingleOrDefaultAsync(m => m.Id == messageId);
+            // SQLite checks read the stored row once the write queue has caught up.
+            // Memory mode keeps no copy outside ChatService.
+            async Task<ChatMessage?> Stored(Guid channelId, Guid messageId)
+            {
+                if (db == null)
+                    return chat.GetMessageById(channelId, messageId);
+                await persistence.FlushAsync();
+                return await db.Messages.AsNoTracking().SingleOrDefaultAsync(m => m.Id == messageId);
+            }
             if (db != null)
             {
                 // Memory is the data layer. A rejected database copy is logged; the send is still
@@ -274,6 +281,7 @@ static async Task Run(bool persistent)
                 var beforeFailure = chat.GetMessages(dmId, 100).Count;
                 var unsaved = await Send(dmId, failedOperation, "reject-fixture");
                 var unsavedId = (await unsaved.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("messageId").GetGuid();
+                await persistence.FlushAsync();
                 Check(unsaved.IsSuccessStatusCode && chat.GetMessages(dmId, 100).Count == beforeFailure + 1
                     && chat.GetReceipt(alice.Id, failedOperation)?.MessageId == unsavedId
                     && !await db.Messages.AnyAsync(m => m.Id == unsavedId) && !await db.TextSendReceipts.AnyAsync(r => r.OperationId == failedOperation),
@@ -324,6 +332,7 @@ static async Task Run(bool persistent)
                 await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER reject_edit BEFORE UPDATE ON Messages WHEN NEW.Content = 'reject-edit' BEGIN SELECT RAISE(ABORT, 'test disk failure'); END;");
                 var failedEdit = Guid.NewGuid();
                 await chat.MutateMessageAsync(alice, dmId, actionMessage.MessageId, failedEdit, "edit", "reject-edit", null, false);
+                await persistence.FlushAsync();
                 Check(chat.GetMessageById(dmId, actionMessage.MessageId)!.Content == "reject-edit"
                     && (await db.Messages.AsNoTracking().SingleAsync(m => m.Id == actionMessage.MessageId)).Content == "latest edit"
                     && chat.GetReceipt(alice.Id, failedEdit) != null && !await db.TextSendReceipts.AnyAsync(r => r.OperationId == failedEdit),
@@ -337,10 +346,10 @@ static async Task Run(bool persistent)
             Check((await Send(dmId, durableOperation, "durable once")).IsSuccessStatusCode
                 && chat.GetMessageById(dmId, durableMessage) == null && await Stored(dmId, durableMessage) == null,
                 "receipt replay after deletion does not resurrect the message");
-            var removable = (await chat.CreateRoomAsync(admin.Id, admin.Username, "removablefixture", sinceJoined: false))!;
+            var removable = chat.CreateRoom(admin.Id, admin.Username, "removablefixture", sinceJoined: false)!;
             var removedOperation = Guid.NewGuid();
             Check((await Send(removable.Id, removedOperation, "accepted before room deletion")).IsSuccessStatusCode, "send accepted before room deletion");
-            await chat.DeleteRoomAsync(admin.Id, removable.Id);
+            chat.DeleteRoom(admin.Id, removable.Id);
             Check(!snapshots.FullView(alice).Conversations.Any(c => c.Id == removable.Id)
                 && (await Send(removable.Id, removedOperation, "accepted before room deletion")).IsSuccessStatusCode
                 && (await Send(removable.Id, Guid.NewGuid(), "new send to deleted room")).StatusCode == HttpStatusCode.NotFound,
@@ -357,6 +366,8 @@ static async Task Run(bool persistent)
             await users.RotateTokenAsync(alice.Id);
             Check((await http.GetAsync("/api/chat/bootstrap")).StatusCode == HttpStatusCode.Unauthorized, "token revocation enforced");
             token = alice.Token;
+            // Queued and never flushed: the host's graceful stop must drain the write queue.
+            shutdownMessage = (await chat.SendTextAsync(alice, dmId, Guid.NewGuid(), "written just before shutdown")).MessageId;
         }
         // The restarted host also verifies deployers can opt back into restricted proxy trust.
         config["ReverseProxy:KnownProxies:0"] = "192.0.2.25";
@@ -389,6 +400,7 @@ static async Task Run(bool persistent)
                 Check(chat.GetUnreadCount(alice.Id, readDm.Id) == 1, "read replay after restart preserves unseen arrival");
                 var replay = await chat.SendTextAsync(alice, dmId, durableOperation, "durable once");
                 Check(replay.MessageId == durableMessage && chat.GetMessageById(dmId, durableMessage) == null, "durable receipt survives host restart and deletion");
+                Check(chat.GetMessageById(dmId, shutdownMessage)?.Content == "written just before shutdown", "a graceful stop drains the write queue before the host ends");
                 Check(window.Messages.All(m => m.Id != deletedId) && window.Messages.Single(m => m.Id == editedId).Content == "edited" && window.Messages.Single(m => m.Id == editedId).Reactions.Length == 1, "recovery survives application restart");
             }
             else

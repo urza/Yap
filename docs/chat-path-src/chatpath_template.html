@@ -130,7 +130,7 @@ tr.group td { background: var(--surface-2); font-family: var(--display); font-we
     <li>The browser sends each new message as an HTTP POST. It does not send messages through the hub.</li>
     <li>The server sends each change to the browser as an item on a hub stream.</li>
     <li>The browser keeps a copy of the chat in <b>IndexedDB</b>, a database inside the browser. Thus it can show the chat and queue messages with no network.</li>
-    <li>The server keeps all messages and receipts in memory. Memory is the data layer. When the database is enabled, SQLite gets a copy of each accepted write after memory has it. A failed copy is logged and does not block the write.</li>
+    <li>The server keeps all messages and receipts in memory. Memory is the data layer. When the database is enabled, each accepted write goes into a queue, and one background task copies the queue to SQLite in order. No request waits for the database. A failed copy is logged.</li>
   </ul>
   <h3>Words on this page</h3>
   <dl class="words">
@@ -189,7 +189,7 @@ tr.group td { background: var(--surface-2); font-family: var(--display); font-we
       <tr class="group"><td colspan="3">Server</td></tr>
       <tr><td>ChatEndpoints</td><td><code>Endpoints/ChatEndpoints.cs</code></td><td>Maps <code>/api/chat</code>. Checks the cookie, the protocol version and the CSRF token.</td></tr>
       <tr><td>ChatService</td><td><code>Services/ChatService*.cs</code></td><td>Checks and accepts each write in memory. Keeps all messages and receipts there.</td></tr>
-      <tr><td>ChatPersistenceService</td><td><code>Services/ChatPersistenceService.cs</code></td><td>Optional. Copies each accepted write to SQLite after memory has it. A failed copy is logged and does not block the send.</td></tr>
+      <tr><td>ChatPersistenceService</td><td><code>Services/ChatPersistenceService.cs</code></td><td>Optional. Queues each accepted write and copies the queue to SQLite in order on one background task. The send does not wait for it. A failed copy is logged.</td></tr>
       <tr><td>ChatChangeTracker</td><td><code>Services/ChatChangeTracker.cs</code></td><td>Counts a version per conversation. Tells the fan-out about each change.</td></tr>
       <tr><td>ChatFanout</td><td><code>Services/ChatFanout.cs</code></td><td>Builds one patch per viewer and puts it in the queue of that viewer.</td></tr>
       <tr><td>Subscription</td><td><code>Services/ChatFanout.cs</code></td><td>One queue per connection. It holds up to 128 updates.</td></tr>
@@ -222,7 +222,7 @@ tr.group td { background: var(--surface-2); font-family: var(--display); font-we
   <p>The page does not send a message to the server. It writes the message to the outbox in IndexedDB. The sender takes the row from the outbox and sends it.</p>
   <figure>
     <div class="frame">{{send}}</div>
-    <figcaption><b>Code:</b> <span class="codeline">composer.js send() :107 · storage.js enqueue() :193 · sender.js deliver() · ChatEndpoints.cs:172 · ChatService.Text.cs:17-129 · SqliteChatStore.cs:25 · storage.js commitUpdate() :112</span></figcaption>
+    <figcaption><b>Code:</b> <span class="codeline">composer.js send() :107 · storage.js enqueue() :193 · sender.js deliver() · ChatEndpoints.cs:172 · ChatService.Text.cs:17-140 · ChatPersistenceService.cs PersistAcceptedMessage() · storage.js commitUpdate() :112</span></figcaption>
   </figure>
   <ul>
     <li>The browser makes the <code>operationId</code> with <code>crypto.randomUUID()</code>. The server uses it to accept each message only one time.</li>
@@ -420,7 +420,7 @@ const delay =
     <tbody>
       <tr class="group"><td colspan="3">Messages</td></tr>
       <tr><td><code>SemaphoreSlim(1,1)</code> per key</td><td><code>ChatService.Acceptance.cs</code></td><td>One lock per <code>operationId</code>. Two retries of one send run one after the other.</td></tr>
-      <tr><td><code>SemaphoreSlim(1,1)</code></td><td><code>readStateGate</code></td><td>One lock for all unread counts. The send holds it while it adds the message and the counts to memory and copies them to SQLite. Copies land in memory order.</td></tr>
+      <tr><td><code>SemaphoreSlim(1,1)</code></td><td><code>readStateGate</code></td><td>One lock for all unread counts. The send holds it while it adds the message and the counts to memory and queues their copy. The writer task gets the copies in memory order.</td></tr>
       <tr><td><code>lock</code> per conversation</td><td><code>ChatChangeTracker.ChannelLock</code></td><td>Guards the message list, the version counter and the order of the patches.</td></tr>
       <tr><td><code>event Action&lt;OfflineChange&gt;</code></td><td><code>ChatChangeTracker.Changed</code></td><td>Calls the fan-out immediately, on the same thread.</td></tr>
       <tr><td><code>Interlocked.Increment</code></td><td><code>ChatChangeTracker.Stamp</code></td><td>Gives each update a sequence number. The browser uses it to put updates in order.</td></tr>

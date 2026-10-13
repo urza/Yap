@@ -72,9 +72,11 @@ public partial class ChatService
                 AcceptedAt = DateTime.UtcNow
             };
             // Memory is the data layer: the receipt and the change become visible together here,
-            // and the database copy follows. The message lock keeps other mutations out, so only
-            // a room deletion can take the list away after the checks above. No receipt may
-            // acknowledge a change that reached no message; a repeated delete stays idempotent.
+            // and the database copy is queued under the same lock, so the writer applies it after
+            // the message's insert and before any later change. The message lock keeps other
+            // mutations out, so only a room deletion can take the list away after the checks
+            // above. No receipt may acknowledge a change that reached no message; a repeated
+            // delete stays idempotent.
             lock (GetChannelLock(channelId))
             {
                 var present = _channelMessages.TryGetValue(channelId, out var messages) && target != null;
@@ -91,8 +93,8 @@ public partial class ChatService
                     else
                         mutation.Apply(target!);
                 }
+                _persistence.PersistMutation(receipt, mutation);
             }
-            await _persistence.PersistMutationAsync(receipt, mutation);
             // Publish only after the accepted mutation is visible on the existing object.
             _changes.Touch(channelId, messageId);
             if (kind is "edit" or "delete")

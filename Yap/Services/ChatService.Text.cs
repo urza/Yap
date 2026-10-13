@@ -85,9 +85,9 @@ public partial class ChatService
     }
 
     // Memory is the data layer. Under readStateGate the message, its receipt and the recipients'
-    // unread counts become visible together; the database (when enabled) then gets a copy while
-    // the gate still holds, so copies land in memory order. A failed copy is logged and never
-    // turns an accepted message into a retry.
+    // unread counts become visible together. The database copy (when enabled) is queued inside
+    // the conversation lock, so the single writer gets it before any mutation of this message
+    // and in memory order. No request waits for it; a failed copy only logs.
     private async Task AcceptMessageAsync(Channel channel, ChatMessage message, TextSendReceipt receipt, bool countUnread = true)
     {
         List<Guid> recipients = countUnread ? UnreadRecipients(channel.Id, message.UserId) : [];
@@ -113,12 +113,11 @@ public partial class ChatService
                 IndexMessage(message, 1);
                 if (!countUnread)
                     messages.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
+                _persistence.PersistAcceptedMessage(message, receipt, states);
             }
             // The message is visible before its arrival checkpoint can be observed.
             foreach (var state in states)
                 _readStates[(state.UserId, channel.Id)] = state;
-            // Copied before publication, so a mutation that arrives through the stream finds its row.
-            await _persistence.PersistAcceptedMessageAsync(message, receipt, states);
         }
         finally { readStateGate.Release(); }
         if (channel.IsDirectMessage)
@@ -155,7 +154,7 @@ public partial class ChatService
             _channels[channel.Id] = channel;
             _channelMessages[channel.Id] = new();
             _channelTypingUsers[channel.Id] = new();
-            await _persistence.PersistChannelAsync(channel);
+            _persistence.PersistChannel(channel);
             _changes.Touch(channel.Id);
             OnChannelCreated?.Invoke(channel);
             return channel;

@@ -10,6 +10,7 @@ static class DeliveryChecks
     {
         var chat = services.GetRequiredService<ChatService>();
         var users = services.GetRequiredService<UserService>();
+        var persistence = services.GetRequiredService<ChatPersistenceService>();
         var other = (await users.CreateUserAsync("deliveryfixture"))!;
         var channel = await chat.OpenDirectMessageAsync(sender, other.Username);
         await using var db = services.GetService<IDbContextFactory<ChatDbContext>>() is { } factory ? await factory.CreateDbContextAsync() : null;
@@ -37,6 +38,7 @@ static class DeliveryChecks
                 "retry publishes once with unread despite a throwing subscriber");
             if (db != null)
             {
+                await persistence.FlushAsync();
                 var state = await db.ChannelReadStates.AsNoTracking().SingleAsync(s => s.UserId == other.Id && s.ChannelId == channel.Id);
                 Check(state.ReceivedCount == 1 && state.UnreadCount == 1, "the database copy carries recipient checkpoints");
                 // Memory is the data layer. A rejected copy rolls back as a whole and is logged,
@@ -44,6 +46,7 @@ static class DeliveryChecks
                 await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER reject_delivery_unread BEFORE UPDATE ON ChannelReadStates BEGIN SELECT RAISE(ABORT, 'synthetic unread failure'); END;");
                 var unsaved = Guid.NewGuid();
                 var receipt = await chat.SendTextAsync(sender, channel.Id, unsaved, "unsaved delivery");
+                await persistence.FlushAsync();
                 Check(arrivals == 2 && unread == 2 && chat.GetUnreadCount(other.Id, channel.Id) == 2
                     && chat.GetReceipt(sender.Id, unsaved)?.MessageId == receipt.MessageId
                     && !await db.Messages.AnyAsync(m => m.Id == receipt.MessageId)
@@ -53,6 +56,7 @@ static class DeliveryChecks
                 await db.Database.ExecuteSqlRawAsync("DROP TRIGGER reject_delivery_unread;");
                 await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER reject_legacy_delivery BEFORE INSERT ON Messages WHEN NEW.Content = 'legacy-delivery-fixture' BEGIN SELECT RAISE(ABORT, 'synthetic legacy failure'); END;");
                 await chat.SendMessageAsync(channel.Id, sender.Id, sender.Username, "legacy-delivery-fixture");
+                await persistence.FlushAsync();
                 Check(arrivals == 3 && unread == 3 && chat.GetUnreadCount(other.Id, channel.Id) == 3
                     && chat.GetMessages(channel.Id, 100).Any(m => m.Content == "legacy-delivery-fixture")
                     && !await db.Messages.AnyAsync(m => m.Content == "legacy-delivery-fixture"),
@@ -74,7 +78,7 @@ static class DeliveryChecks
             finally { chat.OnUnreadChanged -= brokenRead; }
 
             var admin = users.GetAllUsers().First(u => users.IsAdmin(u.Id));
-            var removed = (await chat.CreateRoomAsync(admin.Id, admin.Username, "deliveryrace", sinceJoined: false))!;
+            var removed = chat.CreateRoom(admin.Id, admin.Username, "deliveryrace", sinceJoined: false)!;
             var lostOperation = Guid.NewGuid();
             var rejected = false;
             try
@@ -82,7 +86,7 @@ static class DeliveryChecks
                 await chat.SendTextAsync(sender, removed.Id, lostOperation, "deleted during media resolution",
                     resolveMedia: async () =>
                     {
-                        await chat.DeleteRoomAsync(admin.Id, removed.Id);
+                        chat.DeleteRoom(admin.Id, removed.Id);
                         return (null, null, null);
                     });
             }

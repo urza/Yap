@@ -51,6 +51,8 @@ public static class PersistenceServiceExtensions
 
         // Always register ChatPersistenceService (it handles enabled/disabled internally)
         services.AddSingleton<ChatPersistenceService>();
+        // The same instance as a hosted service: a graceful stop drains its write queue.
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<ChatPersistenceService>());
         services.AddHostedService<ChatReceiptCleanup>();
 
         return services;

@@ -10,6 +10,7 @@ static class StoreChecks
     {
         var chat = services.GetRequiredService<ChatService>();
         var users = services.GetRequiredService<UserService>();
+        var persistence = services.GetRequiredService<ChatPersistenceService>();
         // Null in memory mode, where ChatService holds the only message state.
         await using var db = services.GetService<IDbContextFactory<ChatDbContext>>() is { } factory ? await factory.CreateDbContextAsync() : null;
         var channel = chat.GetLobbyId();
@@ -38,6 +39,7 @@ static class StoreChecks
             "reaction pills retain first-used order instead of sorting by codepoint");
         if (db != null)
         {
+            await persistence.FlushAsync();
             var stored = await db.Messages.AsNoTracking().Include(m => m.Reactions).SingleOrDefaultAsync(m => m.Id == target.Id);
             Check(stored?.Content == target.Content && stored.IsEdited && stored.Reactions.Count == 2, "the database copy follows the live mutation");
         }
@@ -58,13 +60,13 @@ static class StoreChecks
         // A room deleted while a mutation waits for its message lock must not leave a receipt
         // that acknowledges a change to nothing.
         var admin = users.GetAllUsers().First(u => users.IsAdmin(u.Id));
-        var doomed = (await chat.CreateRoomAsync(admin.Id, admin.Username, "doomedfixture", sinceJoined: false))!;
+        var doomed = chat.CreateRoom(admin.Id, admin.Username, "doomedfixture", sinceJoined: false)!;
         var doomedMessage = await chat.SendTextAsync(user, doomed.Id, Guid.NewGuid(), "about to vanish");
         var ghostOperation = Guid.NewGuid();
         var hold = await (Task<IDisposable>)lockMethod.Invoke(chat, ["message:" + doomedMessage.MessageId])!;
         var ghost = chat.MutateMessageAsync(user, doomed.Id, doomedMessage.MessageId, ghostOperation, "edit", "ghost", null, false);
         await Task.Delay(50);
-        await chat.DeleteRoomAsync(admin.Id, doomed.Id);
+        chat.DeleteRoom(admin.Id, doomed.Id);
         hold.Dispose();
         try
         {
@@ -144,7 +146,8 @@ static class StoreChecks
             db.TextSendReceipts.Add(stale);
             await db.SaveChangesAsync();
         }
-        await chat.PruneReceiptsAsync(DateTime.UtcNow - ChatReceiptCleanup.Retention);
+        chat.PruneReceipts(DateTime.UtcNow - ChatReceiptCleanup.Retention);
+        await persistence.FlushAsync();
         Check(chat.GetReceipt(user.Id, stale.OperationId) == null && chat.GetReceipt(user.Id, sent.OperationId) != null
             && (db == null || !await db.TextSendReceipts.AnyAsync(r => r.OperationId == stale.OperationId) && await db.TextSendReceipts.AnyAsync(r => r.OperationId == sent.OperationId)),
             "receipt cleanup removes expired entries from memory and the database copy and preserves the retry window");

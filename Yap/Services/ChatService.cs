@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using Yap.Models;
 using Yap.Services.Gifs;
 using Yap.Configuration;
@@ -243,7 +242,7 @@ public partial class ChatService
             _channels[lobby.Id] = lobby;
             _channelMessages[lobby.Id] = new List<ChatMessage>();
             _channelTypingUsers[lobby.Id] = new ConcurrentDictionary<string, DateTime>();
-            await _persistence.PersistChannelAsync(lobby);
+            _persistence.PersistChannel(lobby);
         }
     }
 
@@ -281,7 +280,7 @@ public partial class ChatService
     public Channel? GetChannel(Guid channelId) =>
         _channels.TryGetValue(channelId, out var channel) ? channel : null;
 
-    public async Task<Channel?> CreateRoomAsync(Guid adminUserId, string adminUsername, string roomName,
+    public Channel? CreateRoom(Guid adminUserId, string adminUsername, string roomName,
         string? description = null, ChannelPermission writePermission = ChannelPermission.Everyone,
         HistoryLimit historyLimit = HistoryLimit.OneMonth, bool sinceJoined = true)
     {
@@ -312,19 +311,14 @@ public partial class ChatService
         _channelMessages[channel.Id] = new List<ChatMessage>();
         _channelTypingUsers[channel.Id] = new ConcurrentDictionary<string, DateTime>();
 
-        // Persist to database
-        var sw = Stopwatch.StartNew();
-        await _persistence.PersistChannelAsync(channel);
-
-        _logger.LogDebug("CreateRoom '{RoomName}' by {User}: persist={ElapsedMs}ms", roomName, adminUsername, sw.ElapsedMilliseconds);
-
+        _persistence.PersistChannel(channel);
         _changes.Touch(channel.Id);
         OnChannelCreated?.Invoke(channel);
 
         return channel;
     }
 
-    public async Task<bool> DeleteRoomAsync(Guid adminUserId, Guid channelId)
+    public bool DeleteRoom(Guid adminUserId, Guid channelId)
     {
         if (!IsAdmin(adminUserId))
             return false;
@@ -343,12 +337,7 @@ public partial class ChatService
         _channelTypingUsers.TryRemove(channelId, out _);
         _notifications.ClearOverridesForChannel(channelId);
 
-        // Delete from database
-        var sw = Stopwatch.StartNew();
-        await _persistence.DeleteChannelAsync(channelId);
-
-        _logger.LogDebug("DeleteRoom '{RoomName}' channel={ChannelId}: persist={ElapsedMs}ms", channel.Name, channelId, sw.ElapsedMilliseconds);
-
+        _persistence.DeleteChannel(channelId);
         _changes.Touch(channelId);
         OnChannelDeleted?.Invoke(channelId);
 
@@ -359,7 +348,7 @@ public partial class ChatService
     /// Updates a channel's name, description and write permission. Admin only.
     /// Returns null on success, or an error message string on failure.
     /// </summary>
-    public async Task<string?> UpdateChannelAsync(Guid adminUserId, Guid channelId, string name, string? description, ChannelPermission writePermission, HistoryLimit historyLimit = HistoryLimit.Unlimited, bool sinceJoined = false)
+    public string? UpdateChannel(Guid adminUserId, Guid channelId, string name, string? description, ChannelPermission writePermission, HistoryLimit historyLimit = HistoryLimit.Unlimited, bool sinceJoined = false)
     {
         if (!IsAdmin(adminUserId))
             return "Not authorized.";
@@ -387,12 +376,7 @@ public partial class ChatService
         channel.HistoryLimit = historyLimit;
         channel.SinceJoined = sinceJoined;
 
-        var sw = Stopwatch.StartNew();
-        await _persistence.PersistChannelAsync(channel);
-
-        _logger.LogDebug("UpdateChannel '{ChannelName}' channel={ChannelId}: persist={ElapsedMs}ms",
-            channel.Name, channelId, sw.ElapsedMilliseconds);
-
+        _persistence.PersistChannel(channel);
         _changes.Touch(channel.Id);
         OnChannelUpdated?.Invoke(channel);
         return null;
@@ -401,7 +385,7 @@ public partial class ChatService
     /// <summary>
     /// Moves a channel up or down in the sort order by swapping with the adjacent room.
     /// </summary>
-    public async Task<bool> ReorderChannelAsync(Guid adminUserId, Guid channelId, bool moveUp)
+    public bool ReorderChannel(Guid adminUserId, Guid channelId, bool moveUp)
     {
         if (!IsAdmin(adminUserId))
             return false;
@@ -420,13 +404,8 @@ public partial class ChatService
         var adjacentChannel = rooms[swapIndex];
         (currentChannel.SortOrder, adjacentChannel.SortOrder) = (adjacentChannel.SortOrder, currentChannel.SortOrder);
 
-        var sw = Stopwatch.StartNew();
-        await _persistence.PersistChannelAsync(currentChannel);
-        await _persistence.PersistChannelAsync(adjacentChannel);
-
-        _logger.LogDebug("ReorderChannel '{ChannelName}' {Direction}: persist={ElapsedMs}ms",
-            currentChannel.Name, moveUp ? "up" : "down", sw.ElapsedMilliseconds);
-
+        _persistence.PersistChannel(currentChannel);
+        _persistence.PersistChannel(adjacentChannel);
         _changes.Touch(currentChannel.Id);
         OnChannelUpdated?.Invoke(currentChannel);
         return true;
@@ -448,8 +427,7 @@ public partial class ChatService
         _channelMessages[channel.Id] = new List<ChatMessage>();
         _channelTypingUsers[channel.Id] = new ConcurrentDictionary<string, DateTime>();
 
-        // Persist to database (fire and forget)
-        _ = _persistence.PersistChannelAsync(channel);
+        _persistence.PersistChannel(channel);
 
         return channel;
     }

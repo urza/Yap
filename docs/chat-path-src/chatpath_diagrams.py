@@ -39,12 +39,12 @@ def parts():
     # server arrows
     o.append(arrow(p, [(700, 114), (700, 138)], 'call', 'SendTextAsync()', 708, 130, 'start'))
     o.append(arrow(p, [(810, 172), (828, 172)], 'call'))
-    o.append(label(910, 222, ['copy: message, receipt', 'unread counts'], 10, 'middle', 'd-muted', lh=13))
+    o.append(label(910, 222, ['queue the copy: message,', 'receipt, unread counts'], 10, 'middle', 'd-muted', lh=13))
     o.append(arrow(p, [(700, 204), (700, 228)], 'call', 'Touch()', 708, 220, 'start'))
     o.append(arrow(p, [(700, 294), (700, 318)], 'call', 'event Changed', 708, 310, 'start'))
     o.append(arrow(p, [(700, 384), (700, 408)], 'call', 'Enqueue()', 708, 400, 'start'))
     o.append(arrow(p, [(700, 474), (700, 498)], 'call', 'Read()', 708, 490, 'start'))
-    return svg(p, 1000, 590, o, 'The browser writes to an IndexedDB outbox; the sender posts each row to ChatEndpoints; ChatService adds it to memory, copies it through ChatPersistenceService and calls Touch; ChatChangeTracker raises Changed; ChatFanout enqueues a patch per viewer; ChatHub reads the queue and streams it to the SignalR client; acceptSnapshot writes it to IndexedDB.')
+    return svg(p, 1000, 590, o, 'The browser writes to an IndexedDB outbox; the sender posts each row to ChatEndpoints; ChatService adds it to memory, queues a copy for ChatPersistenceService and calls Touch; ChatChangeTracker raises Changed; ChatFanout enqueues a patch per viewer; ChatHub reads the queue and streams it to the SignalR client; acceptSnapshot writes it to IndexedDB.')
 
 
 def connect():
@@ -69,7 +69,7 @@ def connect():
 
 def send():
     lanes = [('P', 'Page', 'composer.js, app.js'), ('D', 'IndexedDB', 'outbox store'), ('N', 'Sender', 'sender.js'),
-             ('H', 'HTTP API', 'ChatEndpoints'), ('C', 'ChatService', 'SendTextAsync'), ('T', 'Persistence', 'optional SQLite copy')]
+             ('H', 'HTTP API', 'ChatEndpoints'), ('C', 'ChatService', 'SendTextAsync'), ('T', 'Persistence', 'write queue, SQLite')]
     steps = [
         S('P', 'P', 'send(): clear the text box'),
         S('P', 'D', 'enqueue()', note='new row: operationId, queued'),
@@ -80,14 +80,14 @@ def send():
         S('H', 'C', 'SendTextAsync()'),
         S('C', 'C', 'lock the operation key, look for a receipt', note='receipt found: return it, stop here'),
         S('C', 'C', 'add the message and the receipt to memory', note='under the conversation lock'),
-        S('C', 'T', 'copy to SQLite, when enabled', note='message, receipt, unread counts'),
+        S('C', 'T', 'queue the copy, when enabled', note='one writer task copies to SQLite in order'),
         S('C', 'C', 'Touch(): tell the subscribers', note='the next section shows this'),
         S('H', 'N', '200 OK', 'reply', '{messageId, update}'),
         S('N', 'D', 'commitUpdate()', note='save the message, delete the row'),
         S('P', 'P', 'render(): the grey row goes, the message shows'),
     ]
     return sequence('snd', lanes, steps, bands=[(7, 10, 'server: the operation lock is held')],
-                    aria='Sending: the page writes an outbox row, the sender posts it, ChatService checks the receipt, adds the message and the receipt to memory, copies them to SQLite when enabled, calls Touch, and replies; the sender commits the reply, which deletes the row.')
+                    aria='Sending: the page writes an outbox row, the sender posts it, ChatService checks the receipt, adds the message and the receipt to memory, queues the SQLite copy when enabled, calls Touch, and replies; the sender commits the reply, which deletes the row.')
 
 
 def receive():
@@ -202,7 +202,7 @@ def presence():
 def locks():
     p = 'lck'
     o = []
-    cols = [['find the', 'receipt'], ['copy unread', 'counts'], ['add to the', 'memory list'], ['copy to', 'SQLite'], ['Touch and', 'fan-out'], ['build the', 'POST reply']]
+    cols = [['find the', 'receipt'], ['copy unread', 'counts'], ['add to the', 'memory list'], ['queue the', 'SQLite copy'], ['Touch and', 'fan-out'], ['build the', 'POST reply']]
     x0, cw = 270, 120
     for i, (a, b) in enumerate(cols):
         cx = x0 + i * cw + cw / 2

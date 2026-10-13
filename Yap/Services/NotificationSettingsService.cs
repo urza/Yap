@@ -116,10 +116,10 @@ public class NotificationSettingsService
     /// <summary>
     /// Sets one channel's override for one user.
     /// </summary>
-    public async Task SetChannelMutedAsync(Guid userId, Guid channelId, bool muted)
+    public void SetChannelMuted(Guid userId, Guid channelId, bool muted)
     {
         _overrides[(userId, channelId)] = muted;
-        await _persistence.PersistChannelNotificationSettingAsync(new ChannelNotificationSetting
+        _persistence.PersistChannelNotificationSetting(new ChannelNotificationSetting
         {
             UserId = userId,
             ChannelId = channelId,

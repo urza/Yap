@@ -7,15 +7,25 @@ using Yap.Models;
 namespace Yap.Services;
 
 /// <summary>
-/// Optional write-through of ChatService's memory to the database, plus the startup snapshot
-/// that refills that memory. ChatService accepts every change in memory first and calls here
-/// second; a failure here is logged and never undoes an acceptance.
-/// When disabled, all methods are no-ops.
+/// Optional copy of ChatService's memory in the database, plus the startup snapshot that
+/// refills that memory. ChatService accepts every change in memory and returns; the copy is
+/// queued here and written by one background task in the order it was queued. No request
+/// waits for the database. A failed copy is logged and never undoes an acceptance.
+/// When disabled, every write is a no-op and every read returns empty.
 /// </summary>
-public class ChatPersistenceService
+public class ChatPersistenceService : IHostedService
 {
     private readonly IDbContextFactory<ChatDbContext>? _dbFactory;
     private readonly ILogger<ChatPersistenceService> _logger;
+    // One writer, first in first out. SQLite takes one writer at a time anyway, and one queue
+    // keeps the copies in memory order: an insert queued under the conversation lock runs
+    // before any edit of the same message, and read states land as readStateGate ordered them.
+    private readonly System.Threading.Channels.Channel<Write> _queue =
+        System.Threading.Channels.Channel.CreateUnbounded<Write>(new System.Threading.Channels.UnboundedChannelOptions { SingleReader = true });
+    private readonly Task _writer = Task.CompletedTask;
+
+    // Work is null for a flush marker: it only reports that everything before it has run.
+    private readonly record struct Write(string What, Func<ChatDbContext, Task>? Work, TaskCompletionSource? Done = null);
 
     public bool IsEnabled { get; }
 
@@ -38,55 +48,90 @@ public class ChatPersistenceService
             else
             {
                 _logger.LogInformation("Chat persistence enabled with {Provider}", settings.Value.Provider);
+                _writer = Task.Run(DrainAsync);
             }
         }
     }
+
+    #region Write queue
+
+    // Every write goes through here. The work runs later on the writer task while memory keeps
+    // changing, so callers pass detached copies or objects that are never changed in place.
+    private void Enqueue(string what, Func<ChatDbContext, Task> work)
+    {
+        if (!IsEnabled) return;
+        if (!_queue.Writer.TryWrite(new Write(what, work)))
+            _logger.LogWarning("Database copy skipped after shutdown: {What}", what);
+    }
+
+    private async Task DrainAsync()
+    {
+        await foreach (var write in _queue.Reader.ReadAllAsync())
+        {
+            if (write.Work != null)
+            {
+                try
+                {
+                    await using var db = await _dbFactory!.CreateDbContextAsync();
+                    await write.Work(db);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Database copy failed: {What}", write.What);
+                }
+            }
+            write.Done?.TrySetResult();
+        }
+    }
+
+    /// <summary>
+    /// Completes when every copy queued before this call has been written or has failed.
+    /// For the contract harness, which reads the database right after a write.
+    /// </summary>
+    internal Task FlushAsync()
+    {
+        if (!IsEnabled) return Task.CompletedTask;
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        return _queue.Writer.TryWrite(new Write("flush", null, done)) ? done.Task : Task.CompletedTask;
+    }
+
+    Task IHostedService.StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    // Runs after the server has stopped taking requests. The queue gets to catch up, so a
+    // deploy does not lose the last accepted writes.
+    async Task IHostedService.StopAsync(CancellationToken cancellationToken)
+    {
+        _queue.Writer.TryComplete();
+        try { await _writer.WaitAsync(cancellationToken); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Shutdown ended before the database copy caught up"); }
+    }
+
+    #endregion
 
     #region Channel Operations
 
-    public async Task PersistChannelAsync(Channel channel)
+    public void PersistChannel(Channel channel)
     {
         if (!IsEnabled) return;
-
-        try
+        var copy = channel.Detached();
+        Enqueue($"channel {copy.Id}", async db =>
         {
-            await using var db = await _dbFactory!.CreateDbContextAsync();
-
-            var existing = await db.Channels.FindAsync(channel.Id);
+            var existing = await db.Channels.FindAsync(copy.Id);
             if (existing != null)
-            {
-                db.Entry(existing).CurrentValues.SetValues(channel);
-            }
+                db.Entry(existing).CurrentValues.SetValues(copy);
             else
-            {
-                db.Channels.Add(channel);
-            }
-
+                db.Channels.Add(copy);
             await db.SaveChangesAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to persist channel {ChannelId}", channel.Id);
-        }
+        });
     }
 
-    public async Task DeleteChannelAsync(Guid channelId)
+    public void DeleteChannel(Guid channelId) => Enqueue($"delete channel {channelId}", async db =>
     {
-        if (!IsEnabled) return;
-
-        try
-        {
-            await using var db = await _dbFactory!.CreateDbContextAsync();
-            // Notification overrides have no FK to Channel (see ChatDbContext), so nothing
-            // cascades them away — delete them here or a recycled id inherits stale mutes.
-            await db.ChannelNotificationSettings.Where(s => s.ChannelId == channelId).ExecuteDeleteAsync();
-            await db.Channels.Where(c => c.Id == channelId).ExecuteDeleteAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to delete channel {ChannelId}", channelId);
-        }
-    }
+        // Notification overrides have no FK to Channel (see ChatDbContext), so nothing
+        // cascades them away — delete them here or a recycled id inherits stale mutes.
+        await db.ChannelNotificationSettings.Where(s => s.ChannelId == channelId).ExecuteDeleteAsync();
+        await db.Channels.Where(c => c.Id == channelId).ExecuteDeleteAsync();
+    });
 
     #endregion
 
@@ -103,41 +148,34 @@ public class ChatPersistenceService
     };
 
     /// <summary>
-    /// Copies an accepted message, its receipt and the recipients' read states in one
-    /// transaction, so the database never holds a message without its receipt or counts.
+    /// Queues the copy of an accepted message, its receipt and the recipients' read states as
+    /// one transaction, so the database never holds a message without its receipt or counts.
+    /// Call it where the message becomes visible: the copy then precedes every later mutation.
     /// </summary>
-    public async Task PersistAcceptedMessageAsync(ChatMessage message, TextSendReceipt receipt, IReadOnlyList<ChannelReadState> recipients)
+    public void PersistAcceptedMessage(ChatMessage message, TextSendReceipt receipt, IReadOnlyList<ChannelReadState> recipients)
     {
         if (!IsEnabled) return;
-
-        try
+        // Taken now, not on the writer: an edit can change the live object before the copy runs.
+        var copy = DetachedMessage(message);
+        Enqueue($"message {copy.Id} (operation {receipt.OperationId})", async db =>
         {
-            await using var db = await _dbFactory!.CreateDbContextAsync();
             await using var transaction = await db.Database.BeginTransactionAsync();
-            db.Messages.Add(DetachedMessage(message));
+            db.Messages.Add(copy);
             db.TextSendReceipts.Add(receipt);
             foreach (var state in recipients)
                 await UpsertReadStateAsync(db, state);
             await db.SaveChangesAsync();
             await CapReceiptsAsync(db, receipt.UserId);
             await transaction.CommitAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to persist message {MessageId} (operation {OperationId})", message.Id, receipt.OperationId);
-        }
+        });
     }
 
     /// <summary>
-    /// Applies an accepted edit, delete or reaction to the stored row and saves its receipt.
+    /// Queues an accepted edit, delete or reaction for the stored row, with its receipt.
     /// </summary>
-    public async Task PersistMutationAsync(TextSendReceipt receipt, ChatMutation mutation)
-    {
-        if (!IsEnabled) return;
-
-        try
+    public void PersistMutation(TextSendReceipt receipt, ChatMutation mutation) =>
+        Enqueue($"{mutation.Kind} of message {receipt.MessageId} (operation {receipt.OperationId})", async db =>
         {
-            await using var db = await _dbFactory!.CreateDbContextAsync();
             await using var transaction = await db.Database.BeginTransactionAsync();
             var message = await db.Messages.Include(m => m.Reactions).SingleOrDefaultAsync(m => m.Id == receipt.MessageId && m.ChannelId == receipt.ChannelId);
             // A missing row means an earlier copy failed or the message is gone. The receipt is
@@ -151,55 +189,33 @@ public class ChatPersistenceService
             await db.SaveChangesAsync();
             await CapReceiptsAsync(db, receipt.UserId);
             await transaction.CommitAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to persist {Kind} of message {MessageId} (operation {OperationId})", mutation.Kind, receipt.MessageId, receipt.OperationId);
-        }
-    }
+        });
 
-    public async Task PersistReadStateAsync(ChannelReadState state)
-    {
-        if (!IsEnabled) return;
-
-        try
+    // The state instances ChatService publishes are never changed in place, so the queued
+    // reference still holds the values that were current when the write was queued.
+    public void PersistReadState(ChannelReadState state) =>
+        Enqueue($"read state for user {state.UserId} channel {state.ChannelId}", async db =>
         {
-            await using var db = await _dbFactory!.CreateDbContextAsync();
             await UpsertReadStateAsync(db, state);
             await db.SaveChangesAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to persist read state for user {UserId} channel {ChannelId}", state.UserId, state.ChannelId);
-        }
-    }
+        });
 
     /// <summary>
     /// Drops receipts older than the retention window, and beyond the per-account cap for
     /// accounts imported from releases that had only age-based retention.
     /// </summary>
-    public async Task PruneReceiptsAsync(DateTime before)
+    public void PruneReceipts(DateTime before) => Enqueue("prune receipts", async db =>
     {
-        if (!IsEnabled) return;
-
-        try
-        {
-            await using var db = await _dbFactory!.CreateDbContextAsync();
-            await db.TextSendReceipts.Where(r => r.AcceptedAt < before).ExecuteDeleteAsync();
-            await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM TextSendReceipts WHERE rowid IN (SELECT rowid FROM (SELECT rowid, ROW_NUMBER() OVER (PARTITION BY UserId ORDER BY rowid DESC) AS position FROM TextSendReceipts) WHERE position > {ChatReceiptCleanup.MaxReceiptsPerUser})");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to prune chat receipts");
-        }
-    }
+        await db.TextSendReceipts.Where(r => r.AcceptedAt < before).ExecuteDeleteAsync();
+        await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM TextSendReceipts WHERE rowid IN (SELECT rowid FROM (SELECT rowid, ROW_NUMBER() OVER (PARTITION BY UserId ORDER BY rowid DESC) AS position FROM TextSendReceipts) WHERE position > {ChatReceiptCleanup.MaxReceiptsPerUser})");
+    });
 
     // SQLite assigns increasing rowids at insertion; UTC can move backward between accepts.
     private static Task CapReceiptsAsync(ChatDbContext db, Guid userId) =>
         db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM TextSendReceipts WHERE UserId = {userId} AND OperationId IN (SELECT OperationId FROM TextSendReceipts WHERE UserId = {userId} ORDER BY rowid DESC LIMIT -1 OFFSET {ChatReceiptCleanup.MaxReceiptsPerUser})");
 
     // Writes the whole state, never a delta: memory is the truth, and a row that missed a write
-    // catches up on the next one. Callers hold readStateGate, so rows land in memory order.
+    // catches up on the next one. Callers queue under readStateGate, so rows land in memory order.
     private static async Task UpsertReadStateAsync(ChatDbContext db, ChannelReadState state)
     {
         var existing = await db.ChannelReadStates.FindAsync(state.UserId, state.ChannelId);
@@ -252,16 +268,11 @@ public class ChatPersistenceService
     #region Notification Settings Operations
 
     /// <summary>
-    /// Writes one user's mute override for one channel.
+    /// Queues one user's mute override for one channel.
     /// </summary>
-    public async Task PersistChannelNotificationSettingAsync(ChannelNotificationSetting setting)
-    {
-        if (!IsEnabled) return;
-
-        try
+    public void PersistChannelNotificationSetting(ChannelNotificationSetting setting) =>
+        Enqueue($"notification setting for user {setting.UserId} channel {setting.ChannelId}", async db =>
         {
-            await using var db = await _dbFactory!.CreateDbContextAsync();
-
             var existing = await db.ChannelNotificationSettings.FindAsync(setting.UserId, setting.ChannelId);
             if (existing != null)
             {
@@ -278,13 +289,7 @@ public class ChatPersistenceService
             }
 
             await db.SaveChangesAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to persist notification setting for user {UserId} channel {ChannelId}",
-                setting.UserId, setting.ChannelId);
-        }
-    }
+        });
 
     /// <summary>
     /// Loads every per-channel mute override. Called once at startup.
@@ -309,63 +314,40 @@ public class ChatPersistenceService
 
     #region Push Subscription Operations
 
-    public async Task SavePushSubscriptionAsync(PushSubscription subscription)
+    public void SavePushSubscription(PushSubscription subscription)
     {
         if (!IsEnabled) return;
-
-        try
+        var copy = new PushSubscription
         {
-            await using var db = await _dbFactory!.CreateDbContextAsync();
-
-            var existing = await db.PushSubscriptions.FindAsync(subscription.Endpoint);
+            Endpoint = subscription.Endpoint,
+            Username = subscription.Username,
+            P256dh = subscription.P256dh,
+            Auth = subscription.Auth,
+            CreatedAt = subscription.CreatedAt
+        };
+        Enqueue($"push subscription for {copy.Username}", async db =>
+        {
+            var existing = await db.PushSubscriptions.FindAsync(copy.Endpoint);
             if (existing != null)
             {
-                existing.Username = subscription.Username;
-                existing.P256dh = subscription.P256dh;
-                existing.Auth = subscription.Auth;
+                existing.Username = copy.Username;
+                existing.P256dh = copy.P256dh;
+                existing.Auth = copy.Auth;
             }
             else
             {
-                db.PushSubscriptions.Add(subscription);
+                db.PushSubscriptions.Add(copy);
             }
 
             await db.SaveChangesAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to save push subscription");
-        }
+        });
     }
 
-    public async Task RemovePushSubscriptionAsync(string endpoint)
-    {
-        if (!IsEnabled) return;
+    public void RemovePushSubscription(string endpoint) => Enqueue("remove push subscription", db =>
+        db.PushSubscriptions.Where(p => p.Endpoint == endpoint).ExecuteDeleteAsync());
 
-        try
-        {
-            await using var db = await _dbFactory!.CreateDbContextAsync();
-            await db.PushSubscriptions.Where(p => p.Endpoint == endpoint).ExecuteDeleteAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to remove push subscription");
-        }
-    }
-
-    public async Task RemovePushSubscriptionsByUsernameAsync(string username)
-    {
-        if (!IsEnabled) return;
-
-        try
-        {
-            await using var db = await _dbFactory!.CreateDbContextAsync();
-            await db.PushSubscriptions.Where(p => p.Username == username).ExecuteDeleteAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to remove push subscriptions for user {Username}", username);
-        }
-    }
+    public void RemovePushSubscriptionsByUsername(string username) => Enqueue($"remove push subscriptions for {username}", db =>
+        db.PushSubscriptions.Where(p => p.Username == username).ExecuteDeleteAsync());
 
     public async Task<List<PushSubscription>> GetAllPushSubscriptionsAsync()
     {

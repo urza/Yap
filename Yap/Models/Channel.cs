@@ -58,6 +58,19 @@ public class Channel
     public bool IsDirectMessage => Type == ChannelType.DirectMessage;
 
     /// <summary>
+    /// A scalar-only copy for a database write that runs later, on another thread, while
+    /// this instance may change. Navigation state stays with the live object.
+    /// </summary>
+    public Channel Detached()
+    {
+        var copy = (Channel)MemberwiseClone();
+        copy.Messages = new();
+        copy.ReadStates = new();
+        copy.Creator = copy.Participant1User = copy.Participant2User = null;
+        return copy;
+    }
+
+    /// <summary>
     /// Private constructor - use factory methods CreateRoom() or CreateDM()
     /// </summary>
     private Channel() { }

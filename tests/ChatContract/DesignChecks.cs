@@ -153,6 +153,7 @@ static class DesignChecks
             Check(chat.GetUnreadCount(viewer.Id, dm.Id) == 1, "unloaded or invalidated windows retain unread arrivals");
             await using var db = services.GetService<IDbContextFactory<ChatDbContext>>() is { } factory ? await factory.CreateDbContextAsync() : null;
             var checkpoint = chat.GetReadCheckpoint(viewer.Id, dm.Id);
+            await services.GetRequiredService<ChatPersistenceService>().FlushAsync();
             var state = db != null ? await db.ChannelReadStates.AsNoTracking().SingleAsync(s => s.UserId == viewer.Id && s.ChannelId == dm.Id)
                 : new ChannelReadState { UnreadCount = checkpoint.Unread, ReceivedCount = checkpoint.Received, ReadThrough = checkpoint.ReadThrough };
             Check(state.UnreadCount == 1 && state.ReceivedCount - state.ReadThrough == 1,

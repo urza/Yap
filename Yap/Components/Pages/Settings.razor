@@ -1527,10 +1527,12 @@
         await UserService.SetNewDmsMutedAsync(UserState.UserId.Value, newDmsMuted);
     }
 
-    private async Task ToggleChannelAsync(Guid channelId, bool currentlyMuted)
+    // Task-shaped for ItemToggle; the mute itself is a memory write and does not wait.
+    private Task ToggleChannelAsync(Guid channelId, bool currentlyMuted)
     {
-        if (!UserState.UserId.HasValue) return;
-        await NotificationSettings.SetChannelMutedAsync(UserState.UserId.Value, channelId, !currentlyMuted);
+        if (UserState.UserId.HasValue)
+            NotificationSettings.SetChannelMuted(UserState.UserId.Value, channelId, !currentlyMuted);
+        return Task.CompletedTask;
     }
 
     private bool IsIndividuallyMuted(Guid channelId, bool isDm)

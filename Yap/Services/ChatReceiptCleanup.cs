@@ -10,7 +10,7 @@ public sealed class ChatReceiptCleanup(ChatService chat, IWebHostEnvironment env
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(1));
         while (!stoppingToken.IsCancellationRequested)
         {
-            try { await chat.PruneReceiptsAsync(DateTime.UtcNow - Retention); }
+            try { chat.PruneReceipts(DateTime.UtcNow - Retention); }
             catch (Exception error) { logger.LogError(error, "Could not prune expired chat receipts"); }
             try { Yap.Endpoints.TusEndpoints.PruneReceipts(env, DateTime.UtcNow - Retention); }
             catch (Exception error) { logger.LogError(error, "Could not prune expired upload receipts"); }

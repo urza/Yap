@@ -17,6 +17,7 @@ static class PresenceChecks
     public static async Task Run(IServiceProvider services, HttpClient http, string csrf, User alice, User bob, User carol, Guid privateDm, Guid readOnlyRoom)
     {
         var chat = services.GetRequiredService<ChatService>();
+        var persistence = services.GetRequiredService<ChatPersistenceService>();
         var clock = (Microsoft.Extensions.Time.Testing.FakeTimeProvider)services.GetRequiredService<TimeProvider>();
         var live = services.GetRequiredService<PresenceService>();
         await live.Join("alice1", alice, live.Ticket(alice), UserStatus.Online, true, false, 0);
@@ -95,7 +96,7 @@ static class PresenceChecks
 
         var users = services.GetRequiredService<UserService>();
         var admin = users.GetAllUsers().First(u => u.IsAdmin);
-        var room = (await chat.CreateRoomAsync(admin.Id, admin.Username, "presence-room-fixture"))!;
+        var room = chat.CreateRoom(admin.Id, admin.Username, "presence-room-fixture")!;
         await users.SetRoomNotificationModeAsync(bob.Id, NotificationMode.AllowAll);
         await live.Join("room-alice", alice, live.Ticket(alice), UserStatus.Online, true, false, 0);
         await chat.SendMessageAsync(room.Id, admin.Id, admin.Username, "room while live");
@@ -126,9 +127,11 @@ static class PresenceChecks
         {
             // Memory is the data layer: a rejected copy is logged, the read still applies, and the
             // stale row catches up with the next write of that state (checked at the end).
+            await persistence.FlushAsync();
             await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER reject_read BEFORE UPDATE ON ChannelReadStates BEGIN SELECT RAISE(ABORT, 'test read failure'); END;");
             var staleRow = await db.ChannelReadStates.AsNoTracking().SingleAsync(s => s.UserId == alice.Id && s.ChannelId == dm.Id);
             await chat.MarkObservedReadAsync(alice.Id, dm.Id, latest);
+            await persistence.FlushAsync();
             var unchangedRow = await db.ChannelReadStates.AsNoTracking().SingleAsync(s => s.UserId == alice.Id && s.ChannelId == dm.Id);
             Check(chat.GetUnreadCount(alice.Id, dm.Id) == 0 && unchangedRow.ReadThrough == staleRow.ReadThrough && unchangedRow.ReadThrough < latest,
                 "a rejected read copy still applies in memory and leaves the row unchanged");
@@ -148,6 +151,7 @@ static class PresenceChecks
         Check((await Read(dm.Id, long.MaxValue)).StatusCode == HttpStatusCode.BadRequest, "future read checkpoint rejected");
         Check((await Read(dm.Id, latest)).IsSuccessStatusCode && chat.GetUnreadCount(alice.Id, dm.Id) == 1, "HTTP read replay retains unseen arrival");
         var checkpoint = chat.GetReadCheckpoint(alice.Id, dm.Id);
+        await persistence.FlushAsync();
         var persisted = db != null ? await db.ChannelReadStates.AsNoTracking().SingleAsync(s => s.UserId == alice.Id && s.ChannelId == dm.Id)
             : new ChannelReadState { ReceivedCount = checkpoint.Received, ReadThrough = checkpoint.ReadThrough, UnreadCount = checkpoint.Unread };
         Check(persisted.ReceivedCount - persisted.ReadThrough == 1 && persisted.UnreadCount == 1, "checkpoint and unread count persist together");
