@@ -14,7 +14,7 @@ using Yap.Hubs;
 using Yap.Services;
 using Yap.Services.Gifs;
 
-// Every ordinary contract runs against both acceptance backends by default.
+// Every ordinary contract runs with and without the database copy by default.
 foreach (var persistent in args.Contains("--sqlite") ? new[] { true } : args.Contains("--memory") ? new[] { false } : new[] { true, false })
     await Run(persistent);
 
@@ -88,7 +88,6 @@ static async Task Run(bool persistent)
             }
             var users = factory.Services.GetRequiredService<UserService>();
             var chat = factory.Services.GetRequiredService<ChatService>();
-            var store = factory.Services.GetRequiredService<IChatStore>();
             using var scope = factory.Services.CreateScope();
             var snapshots = scope.ServiceProvider.GetRequiredService<ChatProjection>();
             var admin = (await users.CreateUserAsync("adminfixture"))!;
@@ -268,15 +267,21 @@ static async Task Run(bool persistent)
                 : await db.Messages.AsNoTracking().SingleOrDefaultAsync(m => m.Id == messageId);
             if (db != null)
             {
+                // Memory is the data layer. A rejected database copy is logged; the send is still
+                // accepted, and the retry is answered from the receipt in memory.
                 await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER reject_fixture BEFORE INSERT ON Messages WHEN NEW.Content = 'reject-fixture' BEGIN SELECT RAISE(ABORT, 'test disk failure'); END;");
                 var failedOperation = Guid.NewGuid();
                 var beforeFailure = chat.GetMessages(dmId, 100).Count;
-                Check((await Send(dmId, failedOperation, "reject-fixture")).StatusCode == HttpStatusCode.ServiceUnavailable,
-                    "database write rejection is not acknowledged");
-                Check(chat.GetMessages(dmId, 100).Count == beforeFailure && !await db.TextSendReceipts.AnyAsync(r => r.OperationId == failedOperation),
-                    "failed transaction publishes neither message nor receipt");
+                var unsaved = await Send(dmId, failedOperation, "reject-fixture");
+                var unsavedId = (await unsaved.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("messageId").GetGuid();
+                Check(unsaved.IsSuccessStatusCode && chat.GetMessages(dmId, 100).Count == beforeFailure + 1
+                    && chat.GetReceipt(alice.Id, failedOperation)?.MessageId == unsavedId
+                    && !await db.Messages.AnyAsync(m => m.Id == unsavedId) && !await db.TextSendReceipts.AnyAsync(r => r.OperationId == failedOperation),
+                    "a rejected database copy does not block acceptance in memory");
                 await db.Database.ExecuteSqlRawAsync("DROP TRIGGER reject_fixture;");
-                Check((await Send(dmId, failedOperation, "reject-fixture")).IsSuccessStatusCode, "retry succeeds after database recovers");
+                var retried = await Send(dmId, failedOperation, "reject-fixture");
+                Check(retried.IsSuccessStatusCode && (await retried.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("messageId").GetGuid() == unsavedId
+                    && chat.GetMessages(dmId, 100).Count == beforeFailure + 1, "retry is answered from the memory receipt without a second message");
             }
             var mediaReceipt = await chat.SendTextAsync(alice, dmId, Guid.NewGuid(), "", images: ["/uploads/contract.png"]);
             Check((await Stored(dmId, mediaReceipt.MessageId))!.ImageUrls.Single() == "/uploads/contract.png", "durable media acceptance preserves attachment list");
@@ -318,13 +323,11 @@ static async Task Run(bool persistent)
             {
                 await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER reject_edit BEFORE UPDATE ON Messages WHEN NEW.Content = 'reject-edit' BEGIN SELECT RAISE(ABORT, 'test disk failure'); END;");
                 var failedEdit = Guid.NewGuid();
-                try
-                {
-                    await chat.MutateMessageAsync(alice, dmId, actionMessage.MessageId, failedEdit, "edit", "reject-edit", null, false);
-                    throw new Exception("edit rejection expected");
-                }
-                catch (DbUpdateException) { }
-                Check(chat.GetMessageById(dmId, actionMessage.MessageId)!.Content == "latest edit" && !await db.TextSendReceipts.AnyAsync(r => r.OperationId == failedEdit), "failed edit transaction publishes neither mutation nor receipt");
+                await chat.MutateMessageAsync(alice, dmId, actionMessage.MessageId, failedEdit, "edit", "reject-edit", null, false);
+                Check(chat.GetMessageById(dmId, actionMessage.MessageId)!.Content == "reject-edit"
+                    && (await db.Messages.AsNoTracking().SingleAsync(m => m.Id == actionMessage.MessageId)).Content == "latest edit"
+                    && chat.GetReceipt(alice.Id, failedEdit) != null && !await db.TextSendReceipts.AnyAsync(r => r.OperationId == failedEdit),
+                    "a rejected database copy of an edit leaves the live object edited and the row unchanged");
                 await db.Database.ExecuteSqlRawAsync("DROP TRIGGER reject_edit;");
             }
             await chat.MutateMessageAsync(alice, dmId, actionMessage.MessageId, Guid.NewGuid(), "delete", "", null, false);
@@ -391,10 +394,9 @@ static async Task Run(bool persistent)
             else
             {
                 var chat = restarted.Services.GetRequiredService<ChatService>();
-                var store = restarted.Services.GetRequiredService<IChatStore>();
                 Check(users.AuthenticateByToken(token) == null && chat.GetMessages(chat.GetLobbyId(), 100).Count == 0,
                     "memory restart drops accounts and messages instead of assigning old credentials to a new account");
-                Check(await store.GetTextReceiptAsync(aliceId, durableOperation) == null,
+                Check(chat.GetReceipt(aliceId, durableOperation) == null,
                     "memory restart has no retained receipts");
                 var fresh = (await users.CreateUserAsync("freshafterrestart"))!;
                 var receipt = await chat.SendTextAsync(fresh, chat.GetLobbyId(), durableOperation, "new process send");

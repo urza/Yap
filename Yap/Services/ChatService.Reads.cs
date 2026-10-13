@@ -22,7 +22,7 @@ public partial class ChatService
     // Capture BEFORE the message window: concurrent arrivals may be displayed, but never acknowledged unseen.
     public (int Unread, long Received, long ReadThrough) GetReadCheckpoint(Guid userId, Guid channelId)
     {
-        // States are replaced only after persistence; each published instance is immutable.
+        // Each published instance is immutable: a change replaces the whole state under the gate.
         var state = CopyReadState(userId, channelId);
         return (state.UnreadCount, state.ReceivedCount, state.ReadThrough);
     }
@@ -51,8 +51,9 @@ public partial class ChatService
             state.ReadThrough = target;
             state.UnreadCount = checked((int)(state.ReceivedCount - target));
             state.LastReadAt = DateTime.UtcNow;
-            await _store.PersistReadStateAsync(state);
+            // Memory first; the database copy follows while the gate still orders the writes.
             _readStates[(userId, channelId)] = state;
+            await _persistence.PersistReadStateAsync(state);
             if (channel.IsDirectMessage && previousCount > state.UnreadCount)
             {
                 UserSession? caller = null;

@@ -7,8 +7,9 @@ using Yap.Models;
 namespace Yap.Services;
 
 /// <summary>
-/// Handles optional persistence for channel configuration, preferences and startup snapshots.
-/// Message, mutation and checkpoint acceptance belongs to IChatStore.
+/// Optional write-through of ChatService's memory to the database, plus the startup snapshot
+/// that refills that memory. ChatService accepts every change in memory first and calls here
+/// second; a failure here is logged and never undoes an acceptance.
 /// When disabled, all methods are no-ops.
 /// </summary>
 public class ChatPersistenceService
@@ -43,7 +44,7 @@ public class ChatPersistenceService
 
     #region Channel Operations
 
-    public async Task PersistChannelAsync(Channel channel, bool throwOnFailure = false)
+    public async Task PersistChannelAsync(Channel channel)
     {
         if (!IsEnabled) return;
 
@@ -66,7 +67,6 @@ public class ChatPersistenceService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to persist channel {ChannelId}", channel.Id);
-            if (throwOnFailure) throw;
         }
     }
 
@@ -86,6 +86,132 @@ public class ChatPersistenceService
         {
             _logger.LogError(ex, "Failed to delete channel {ChannelId}", channelId);
         }
+    }
+
+    #endregion
+
+    #region Message Acceptance
+
+    // Copy persisted scalar/media fields once; navigation properties belong to the new context.
+    private static ChatMessage DetachedMessage(ChatMessage message) => new(
+        message.ChannelId, message.UserId, message.Username, message.Content, message.Timestamp,
+        message.ImageUrls.ToList(), message.ReplyToMessageId, message.VideoUrls.ToList(), message.GifAttachments.ToList())
+    {
+        Id = message.Id,
+        OperationId = message.OperationId,
+        IsEdited = message.IsEdited
+    };
+
+    /// <summary>
+    /// Copies an accepted message, its receipt and the recipients' read states in one
+    /// transaction, so the database never holds a message without its receipt or counts.
+    /// </summary>
+    public async Task PersistAcceptedMessageAsync(ChatMessage message, TextSendReceipt receipt, IReadOnlyList<ChannelReadState> recipients)
+    {
+        if (!IsEnabled) return;
+
+        try
+        {
+            await using var db = await _dbFactory!.CreateDbContextAsync();
+            await using var transaction = await db.Database.BeginTransactionAsync();
+            db.Messages.Add(DetachedMessage(message));
+            db.TextSendReceipts.Add(receipt);
+            foreach (var state in recipients)
+                await UpsertReadStateAsync(db, state);
+            await db.SaveChangesAsync();
+            await CapReceiptsAsync(db, receipt.UserId);
+            await transaction.CommitAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to persist message {MessageId} (operation {OperationId})", message.Id, receipt.OperationId);
+        }
+    }
+
+    /// <summary>
+    /// Applies an accepted edit, delete or reaction to the stored row and saves its receipt.
+    /// </summary>
+    public async Task PersistMutationAsync(TextSendReceipt receipt, ChatMutation mutation)
+    {
+        if (!IsEnabled) return;
+
+        try
+        {
+            await using var db = await _dbFactory!.CreateDbContextAsync();
+            await using var transaction = await db.Database.BeginTransactionAsync();
+            var message = await db.Messages.Include(m => m.Reactions).SingleOrDefaultAsync(m => m.Id == receipt.MessageId && m.ChannelId == receipt.ChannelId);
+            // A missing row means an earlier copy failed or the message is gone. The receipt is
+            // still saved, so a restart keeps answering the retry instead of repeating the change.
+            if (message != null)
+            {
+                if (mutation.Kind == "delete") db.Messages.Remove(message);
+                else mutation.Apply(message);
+            }
+            db.TextSendReceipts.Add(receipt);
+            await db.SaveChangesAsync();
+            await CapReceiptsAsync(db, receipt.UserId);
+            await transaction.CommitAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to persist {Kind} of message {MessageId} (operation {OperationId})", mutation.Kind, receipt.MessageId, receipt.OperationId);
+        }
+    }
+
+    public async Task PersistReadStateAsync(ChannelReadState state)
+    {
+        if (!IsEnabled) return;
+
+        try
+        {
+            await using var db = await _dbFactory!.CreateDbContextAsync();
+            await UpsertReadStateAsync(db, state);
+            await db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to persist read state for user {UserId} channel {ChannelId}", state.UserId, state.ChannelId);
+        }
+    }
+
+    /// <summary>
+    /// Drops receipts older than the retention window, and beyond the per-account cap for
+    /// accounts imported from releases that had only age-based retention.
+    /// </summary>
+    public async Task PruneReceiptsAsync(DateTime before)
+    {
+        if (!IsEnabled) return;
+
+        try
+        {
+            await using var db = await _dbFactory!.CreateDbContextAsync();
+            await db.TextSendReceipts.Where(r => r.AcceptedAt < before).ExecuteDeleteAsync();
+            await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM TextSendReceipts WHERE rowid IN (SELECT rowid FROM (SELECT rowid, ROW_NUMBER() OVER (PARTITION BY UserId ORDER BY rowid DESC) AS position FROM TextSendReceipts) WHERE position > {ChatReceiptCleanup.MaxReceiptsPerUser})");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to prune chat receipts");
+        }
+    }
+
+    // SQLite assigns increasing rowids at insertion; UTC can move backward between accepts.
+    private static Task CapReceiptsAsync(ChatDbContext db, Guid userId) =>
+        db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM TextSendReceipts WHERE UserId = {userId} AND OperationId IN (SELECT OperationId FROM TextSendReceipts WHERE UserId = {userId} ORDER BY rowid DESC LIMIT -1 OFFSET {ChatReceiptCleanup.MaxReceiptsPerUser})");
+
+    // Writes the whole state, never a delta: memory is the truth, and a row that missed a write
+    // catches up on the next one. Callers hold readStateGate, so rows land in memory order.
+    private static async Task UpsertReadStateAsync(ChatDbContext db, ChannelReadState state)
+    {
+        var existing = await db.ChannelReadStates.FindAsync(state.UserId, state.ChannelId);
+        if (existing == null)
+        {
+            existing = new ChannelReadState { UserId = state.UserId, ChannelId = state.ChannelId };
+            db.ChannelReadStates.Add(existing);
+        }
+        existing.LastReadAt = state.LastReadAt;
+        existing.UnreadCount = state.UnreadCount;
+        existing.ReceivedCount = state.ReceivedCount;
+        existing.ReadThrough = state.ReadThrough;
     }
 
     #endregion
@@ -286,6 +412,11 @@ public class ChatPersistenceService
                 .AsNoTracking()
                 .ToListAsync();
 
+            // Bounded by the per-account cap and the daily prune, so the whole table fits.
+            var receipts = await db.TextSendReceipts
+                .AsNoTracking()
+                .ToListAsync();
+
             var messagesByChannel = messages
                 .GroupBy(m => m.ChannelId)
                 .ToDictionary(
@@ -294,10 +425,10 @@ public class ChatPersistenceService
                 );
 
             _logger.LogInformation(
-                "Loaded {ChannelCount} channels, {MessageCount} messages, {ReadStateCount} read states from database",
-                channels.Count, messages.Count, readStates.Count);
+                "Loaded {ChannelCount} channels, {MessageCount} messages, {ReadStateCount} read states, {ReceiptCount} receipts from database",
+                channels.Count, messages.Count, readStates.Count, receipts.Count);
 
-            return new ChatSnapshot(channels, messagesByChannel, readStates);
+            return new ChatSnapshot(channels, messagesByChannel, readStates, receipts);
         }
         catch (Exception ex)
         {
@@ -315,5 +446,6 @@ public class ChatPersistenceService
 public record ChatSnapshot(
     List<Channel> Channels,
     Dictionary<Guid, List<ChatMessage>> MessagesByChannel,
-    List<ChannelReadState> ReadStates
+    List<ChannelReadState> ReadStates,
+    List<TextSendReceipt> Receipts
 );

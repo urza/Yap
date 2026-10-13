@@ -20,7 +20,7 @@ def parts():
     # server
     o.append(box(590, 50, 220, 64, 'ChatEndpoints', ['/api/chat/*', 'cookie · CSRF · protocol']))
     o.append(box(590, 140, 220, 64, 'ChatService', ['SendTextAsync', 'all messages in memory'], cls='d-lock'))
-    o.append(box(840, 140, 140, 64, 'IChatStore', ['SQLite or memory'], cls='d-store'))
+    o.append(box(830, 140, 160, 64, 'Persistence', ['ChatPersistenceService', 'optional SQLite copy'], cls='d-store'))
     o.append(box(590, 230, 220, 64, 'ChatChangeTracker', ['Touch · versions · sequence']))
     o.append(box(590, 320, 220, 64, 'ChatFanout', ['one patch per viewer']))
     o.append(box(590, 410, 220, 64, 'Subscription', ['one queue per connection', 'max 128 updates']))
@@ -38,13 +38,13 @@ def parts():
     o.append(arrow(p, [(590, 532), (412, 532)], 'stream', 'stream item', 500, 524))
     # server arrows
     o.append(arrow(p, [(700, 114), (700, 138)], 'call', 'SendTextAsync()', 708, 130, 'start'))
-    o.append(arrow(p, [(810, 172), (838, 172)], 'call'))
-    o.append(label(910, 222, ['message + receipt', '+ unread counts'], 10, 'middle', 'd-muted', lh=13))
+    o.append(arrow(p, [(810, 172), (828, 172)], 'call'))
+    o.append(label(910, 222, ['copy: message, receipt', 'unread counts'], 10, 'middle', 'd-muted', lh=13))
     o.append(arrow(p, [(700, 204), (700, 228)], 'call', 'Touch()', 708, 220, 'start'))
     o.append(arrow(p, [(700, 294), (700, 318)], 'call', 'event Changed', 708, 310, 'start'))
     o.append(arrow(p, [(700, 384), (700, 408)], 'call', 'Enqueue()', 708, 400, 'start'))
     o.append(arrow(p, [(700, 474), (700, 498)], 'call', 'Read()', 708, 490, 'start'))
-    return svg(p, 1000, 590, o, 'The browser writes to an IndexedDB outbox; the sender posts each row to ChatEndpoints; ChatService stores it through IChatStore and calls Touch; ChatChangeTracker raises Changed; ChatFanout enqueues a patch per viewer; ChatHub reads the queue and streams it to the SignalR client; acceptSnapshot writes it to IndexedDB.')
+    return svg(p, 1000, 590, o, 'The browser writes to an IndexedDB outbox; the sender posts each row to ChatEndpoints; ChatService adds it to memory, copies it through ChatPersistenceService and calls Touch; ChatChangeTracker raises Changed; ChatFanout enqueues a patch per viewer; ChatHub reads the queue and streams it to the SignalR client; acceptSnapshot writes it to IndexedDB.')
 
 
 def connect():
@@ -69,7 +69,7 @@ def connect():
 
 def send():
     lanes = [('P', 'Page', 'composer.js, app.js'), ('D', 'IndexedDB', 'outbox store'), ('N', 'Sender', 'sender.js'),
-             ('H', 'HTTP API', 'ChatEndpoints'), ('C', 'ChatService', 'SendTextAsync'), ('T', 'IChatStore', 'SQLite or memory')]
+             ('H', 'HTTP API', 'ChatEndpoints'), ('C', 'ChatService', 'SendTextAsync'), ('T', 'Persistence', 'optional SQLite copy')]
     steps = [
         S('P', 'P', 'send(): clear the text box'),
         S('P', 'D', 'enqueue()', note='new row: operationId, queued'),
@@ -79,15 +79,15 @@ def send():
         S('N', 'H', 'POST …/messages', 'http', '{operationId, content}'),
         S('H', 'C', 'SendTextAsync()'),
         S('C', 'C', 'lock the operation key, look for a receipt', note='receipt found: return it, stop here'),
-        S('C', 'T', 'save in one transaction', note='message, receipt, unread counts'),
-        S('C', 'C', 'add the message to the memory list', note='under the conversation lock'),
+        S('C', 'C', 'add the message and the receipt to memory', note='under the conversation lock'),
+        S('C', 'T', 'copy to SQLite, when enabled', note='message, receipt, unread counts'),
         S('C', 'C', 'Touch(): tell the subscribers', note='the next section shows this'),
         S('H', 'N', '200 OK', 'reply', '{messageId, update}'),
         S('N', 'D', 'commitUpdate()', note='save the message, delete the row'),
         S('P', 'P', 'render(): the grey row goes, the message shows'),
     ]
     return sequence('snd', lanes, steps, bands=[(7, 10, 'server: the operation lock is held')],
-                    aria='Sending: the page writes an outbox row, the sender posts it, ChatService checks the receipt, stores message and receipt in one transaction, adds the message to memory, calls Touch, and replies; the sender commits the reply, which deletes the row.')
+                    aria='Sending: the page writes an outbox row, the sender posts it, ChatService checks the receipt, adds the message and the receipt to memory, copies them to SQLite when enabled, calls Touch, and replies; the sender commits the reply, which deletes the row.')
 
 
 def receive():
@@ -202,7 +202,7 @@ def presence():
 def locks():
     p = 'lck'
     o = []
-    cols = [['find the', 'receipt'], ['copy unread', 'counts'], ['store', 'transaction'], ['add to the', 'memory list'], ['Touch and', 'fan-out'], ['build the', 'POST reply']]
+    cols = [['find the', 'receipt'], ['copy unread', 'counts'], ['add to the', 'memory list'], ['copy to', 'SQLite'], ['Touch and', 'fan-out'], ['build the', 'POST reply']]
     x0, cw = 270, 120
     for i, (a, b) in enumerate(cols):
         cx = x0 + i * cw + cw / 2
@@ -211,7 +211,7 @@ def locks():
     o.append(f'<line class="d-life" x1="{x0 + 6 * cw}" y1="54" x2="{x0 + 6 * cw}" y2="236"/>')
     rows = [('operation lock', 'SemaphoreSlim, per operationId', [(0, 5)]),
             ('readStateGate', 'SemaphoreSlim, one for all', [(1, 4)]),
-            ('conversation lock', 'Monitor, per channel', [(3, 4), (4, 5), (5, 6)]),
+            ('conversation lock', 'Monitor, per channel', [(2, 3), (4, 5), (5, 6)]),
             ('Subscription.gate', 'Monitor, per connection', [(4, 5)])]
     for r, (name, sub, spans) in enumerate(rows):
         y = 70 + r * 42
@@ -222,7 +222,7 @@ def locks():
             hy, hh = (y + 10, 12) if thin else (y + 4, 24)
             o.append(f'<rect class="d-bar" x="{x0 + a * cw + 4}" y="{hy}" width="{(b - a) * cw - 8}" height="{hh}" rx="3"/>')
     o.append(label(x0 + 4.5 * cw, 246, ['short, once per subscriber'], 10, 'middle', 'd-muted', bg=False))
-    return svg(p, 1000, 256, o, 'Locks held on the request thread during one send: the operation lock for steps 1 to 5, readStateGate for steps 2 to 4, the conversation lock three separate times in steps 4, 5 and 6, and each subscription gate briefly in step 5.')
+    return svg(p, 1000, 256, o, 'Locks held on the request thread during one send: the operation lock for steps 1 to 5, readStateGate for steps 2 to 4, the conversation lock three separate times in steps 3, 5 and 6, and each subscription gate briefly in step 5.')
 
 
 def queue():

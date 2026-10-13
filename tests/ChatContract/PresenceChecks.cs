@@ -124,14 +124,14 @@ static class PresenceChecks
         var latest = chat.GetReadCheckpoint(alice.Id, dm.Id).Received;
         if (db != null)
         {
+            // Memory is the data layer: a rejected copy is logged, the read still applies, and the
+            // stale row catches up with the next write of that state (checked at the end).
             await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER reject_read BEFORE UPDATE ON ChannelReadStates BEGIN SELECT RAISE(ABORT, 'test read failure'); END;");
-            rejected = false;
-            try
-            {
-                await chat.MarkObservedReadAsync(alice.Id, dm.Id, latest);
-            }
-            catch { rejected = true; }
-            Check(rejected && chat.GetUnreadCount(alice.Id, dm.Id) == 1, "failed read persistence is not acknowledged or applied in memory");
+            var staleRow = await db.ChannelReadStates.AsNoTracking().SingleAsync(s => s.UserId == alice.Id && s.ChannelId == dm.Id);
+            await chat.MarkObservedReadAsync(alice.Id, dm.Id, latest);
+            var unchangedRow = await db.ChannelReadStates.AsNoTracking().SingleAsync(s => s.UserId == alice.Id && s.ChannelId == dm.Id);
+            Check(chat.GetUnreadCount(alice.Id, dm.Id) == 0 && unchangedRow.ReadThrough == staleRow.ReadThrough && unchangedRow.ReadThrough < latest,
+                "a rejected read copy still applies in memory and leaves the row unchanged");
             await db.Database.ExecuteSqlRawAsync("DROP TRIGGER reject_read;");
         }
         await chat.MarkObservedReadAsync(alice.Id, dm.Id, latest);

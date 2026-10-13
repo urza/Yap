@@ -13,7 +13,6 @@ static class DeliveryChecks
         var other = (await users.CreateUserAsync("deliveryfixture"))!;
         var channel = await chat.OpenDirectMessageAsync(sender, other.Username);
         await using var db = services.GetService<IDbContextFactory<ChatDbContext>>() is { } factory ? await factory.CreateDbContextAsync() : null;
-        var store = services.GetRequiredService<IChatStore>();
         var operation = Guid.NewGuid();
         var arrivals = 0;
         var unread = 0;
@@ -31,21 +30,6 @@ static class DeliveryChecks
         }
         try
         {
-            if (db != null)
-            {
-                await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER reject_delivery_unread BEFORE UPDATE ON ChannelReadStates BEGIN SELECT RAISE(ABORT, 'synthetic unread failure'); END;");
-                var failed = false;
-                try
-                {
-                    await chat.SendTextAsync(sender, channel.Id, operation, "atomic delivery");
-                }
-                catch { failed = true; }
-                Check(failed && !await db.Messages.AnyAsync(m => m.OperationId == operation)
-                    && !await db.TextSendReceipts.AnyAsync(r => r.OperationId == operation)
-                    && chat.GetMessageById(channel.Id, operation) == null && arrivals == 0
-                    && chat.GetUnreadCount(other.Id, channel.Id) == 0, "unread failure rolls back message and receipt without publishing");
-                await db.Database.ExecuteSqlRawAsync("DROP TRIGGER reject_delivery_unread;");
-            }
             await chat.SendTextAsync(sender, channel.Id, operation, "atomic delivery");
             await chat.SendTextAsync(sender, channel.Id, operation, "atomic delivery");
             var checkpoint = chat.GetReadCheckpoint(other.Id, channel.Id);
@@ -54,18 +38,25 @@ static class DeliveryChecks
             if (db != null)
             {
                 var state = await db.ChannelReadStates.AsNoTracking().SingleAsync(s => s.UserId == other.Id && s.ChannelId == channel.Id);
-                Check(state.ReceivedCount == 1 && state.UnreadCount == 1, "SQLite acceptance stores recipient checkpoints");
+                Check(state.ReceivedCount == 1 && state.UnreadCount == 1, "the database copy carries recipient checkpoints");
+                // Memory is the data layer. A rejected copy rolls back as a whole and is logged,
+                // while the message, its receipt and the unread increment stay accepted in memory.
+                await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER reject_delivery_unread BEFORE UPDATE ON ChannelReadStates BEGIN SELECT RAISE(ABORT, 'synthetic unread failure'); END;");
+                var unsaved = Guid.NewGuid();
+                var receipt = await chat.SendTextAsync(sender, channel.Id, unsaved, "unsaved delivery");
+                Check(arrivals == 2 && unread == 2 && chat.GetUnreadCount(other.Id, channel.Id) == 2
+                    && chat.GetReceipt(sender.Id, unsaved)?.MessageId == receipt.MessageId
+                    && !await db.Messages.AnyAsync(m => m.Id == receipt.MessageId)
+                    && !await db.TextSendReceipts.AnyAsync(r => r.OperationId == unsaved)
+                    && (await db.ChannelReadStates.AsNoTracking().SingleAsync(s => s.UserId == other.Id && s.ChannelId == channel.Id)).ReceivedCount == 1,
+                    "a rejected copy rolls back message, receipt and counts together while memory keeps the acceptance");
+                await db.Database.ExecuteSqlRawAsync("DROP TRIGGER reject_delivery_unread;");
                 await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER reject_legacy_delivery BEFORE INSERT ON Messages WHEN NEW.Content = 'legacy-delivery-fixture' BEGIN SELECT RAISE(ABORT, 'synthetic legacy failure'); END;");
-                var failed = false;
-                try
-                {
-                    await chat.SendMessageAsync(channel.Id, sender.Id, sender.Username, "legacy-delivery-fixture");
-                }
-                catch (DbUpdateException) { failed = true; }
-                Check(failed && arrivals == 1 && unread == 1 && chat.GetUnreadCount(other.Id, channel.Id) == 1
-                    && !chat.GetMessages(channel.Id, 100).Any(m => m.Content == "legacy-delivery-fixture")
+                await chat.SendMessageAsync(channel.Id, sender.Id, sender.Username, "legacy-delivery-fixture");
+                Check(arrivals == 3 && unread == 3 && chat.GetUnreadCount(other.Id, channel.Id) == 3
+                    && chat.GetMessages(channel.Id, 100).Any(m => m.Content == "legacy-delivery-fixture")
                     && !await db.Messages.AnyAsync(m => m.Content == "legacy-delivery-fixture"),
-                    "rejected bot send publishes neither message nor unread and reports failure to its caller");
+                    "a bot send is accepted in memory even when its database copy is rejected");
                 await db.Database.ExecuteSqlRawAsync("DROP TRIGGER reject_legacy_delivery;");
             }
 
@@ -73,10 +64,11 @@ static class DeliveryChecks
             chat.OnUnreadChanged -= read;
             chat.OnUnreadChanged += brokenRead;
             chat.OnUnreadChanged += read;
+            var notified = unread;
             try
             {
-                await chat.MarkObservedReadAsync(other.Id, channel.Id, 1);
-                Check(unread == 2 && chat.GetUnreadCount(other.Id, channel.Id) == 0,
+                await chat.MarkObservedReadAsync(other.Id, channel.Id, null);
+                Check(unread == notified + 1 && chat.GetUnreadCount(other.Id, channel.Id) == 0,
                     "read acknowledgement isolates subscribers and still notifies later listeners");
             }
             finally { chat.OnUnreadChanged -= brokenRead; }
@@ -96,7 +88,7 @@ static class DeliveryChecks
             }
             catch (ChatSendException error) when (error.Status == 404) { rejected = true; }
             // Message IDs are server-generated, so look for any row in the deleted room.
-            Check(rejected && await store.GetTextReceiptAsync(sender.Id, lostOperation) == null
+            Check(rejected && chat.GetReceipt(sender.Id, lostOperation) == null
                 && (db == null || !await db.Messages.AnyAsync(m => m.ChannelId == removed.Id)),
                 "deletion between access check and acceptance returns 404 without a phantom receipt");
         }

@@ -37,11 +37,11 @@ public partial class ChatService
         using (await LockAcceptance($"operation:{user.Id}:{operationId}"))
         {
             // Old cached sends may have a different server ID; resolve the sender's own receipt.
-            var originalSend = await _store.GetTextReceiptAsync(user.Id, messageId);
+            var originalSend = GetReceipt(user.Id, messageId);
             if (originalSend?.ChannelId == channelId)
                 messageId = originalSend.MessageId;
             using var messageLock = await LockAcceptance("message:" + messageId);
-            var receipt = await _store.GetTextReceiptAsync(user.Id, operationId);
+            var receipt = GetReceipt(user.Id, operationId);
             if (receipt != null && (receipt.ChannelId != channelId || receipt.ContentHash != hash))
                 throw new ChatSendException(409, "operation_conflict", "Operation ID already used for another change.");
             if (receipt != null)
@@ -71,20 +71,28 @@ public partial class ChatService
                 ContentHash = hash,
                 AcceptedAt = DateTime.UtcNow
             };
-            await _store.PersistMutationAsync(receipt, mutation);
+            // Memory is the data layer: the receipt and the change become visible together here,
+            // and the database copy follows. The message lock keeps other mutations out, so only
+            // a room deletion can take the list away after the checks above. No receipt may
+            // acknowledge a change that reached no message; a repeated delete stays idempotent.
             lock (GetChannelLock(channelId))
             {
-                if (_channelMessages.TryGetValue(channelId, out var messages) && target != null)
+                var present = _channelMessages.TryGetValue(channelId, out var messages) && target != null;
+                if (!present && kind != "delete")
+                    throw new ChatSendException(404, "message_unavailable", "Message unavailable.");
+                AddReceipt(receipt);
+                if (present)
                 {
                     if (kind == "delete")
                     {
-                        messages.Remove(target);
-                        IndexMessage(target, -1);
+                        messages!.Remove(target!);
+                        IndexMessage(target!, -1);
                     }
                     else
-                        mutation.Apply(target);
+                        mutation.Apply(target!);
                 }
             }
+            await _persistence.PersistMutationAsync(receipt, mutation);
             // Publish only after the accepted mutation is visible on the existing object.
             _changes.Touch(channelId, messageId);
             if (kind is "edit" or "delete")

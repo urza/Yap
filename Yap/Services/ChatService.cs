@@ -9,15 +9,15 @@ namespace Yap.Services;
 /// <summary>
 /// Singleton service that holds all chat state and broadcasts changes via events.
 /// Components subscribe to events and call StateHasChanged() to update their UI.
-/// State is kept in-memory for fast access. When persistence is enabled, changes are
-/// written through to the database and loaded on startup.
+/// State is kept in-memory for fast access and is always written first. When persistence is
+/// enabled, each change is then copied to the database and loaded back on startup; the copy
+/// never gates acceptance (see ChatService.Text and ChatService.Receipts).
 /// </summary>
 public partial class ChatService
 {
     private readonly ConcurrentDictionary<string, UserSession> _users = new();
     private readonly PushNotificationService _pushService;
     private readonly ChatPersistenceService _persistence;
-    private readonly IChatStore _store;
     private readonly UserService _userService;
     private readonly LinkPreviewService _linkPreviewService;
     private readonly LinkPreviewSettingsService _linkPreviewSettings;
@@ -88,7 +88,7 @@ public partial class ChatService
 
     private readonly ChatLimits _limits;
 
-    public ChatService(PushNotificationService pushService, ChatPersistenceService persistence, IChatStore store, UserService userService,
+    public ChatService(PushNotificationService pushService, ChatPersistenceService persistence, UserService userService,
         LinkPreviewService linkPreviewService, LinkPreviewSettingsService linkPreviewSettings,
         MediaCacheService mediaCacheService, GifService gifService, NotificationAudit audit,
         NotificationSettingsService notifications, ILogger<ChatService> logger, ChatLimits limits, ChatChangeTracker changes, TimeProvider connectionClock, PresenceOptions presenceOptions)
@@ -99,7 +99,6 @@ public partial class ChatService
         _audit = audit;
         _notifications = notifications;
         _persistence = persistence;
-        _store = store;
         _userService = userService;
         _linkPreviewService = linkPreviewService;
         _linkPreviewSettings = linkPreviewSettings;
@@ -227,6 +226,7 @@ public partial class ChatService
         {
             _readStates[(readState.UserId, readState.ChannelId)] = readState;
         }
+        LoadReceipts(snapshot.Receipts);
 
         // Ensure lobby exists and update _lobbyId
         var existingLobby = _channels.Values.FirstOrDefault(c => c.Type == ChannelType.Room && c.IsDefault);
@@ -345,7 +345,6 @@ public partial class ChatService
 
         // Delete from database
         var sw = Stopwatch.StartNew();
-        await _store.DeleteChannelMessagesAsync(channelId);
         await _persistence.DeleteChannelAsync(channelId);
 
         _logger.LogDebug("DeleteRoom '{RoomName}' channel={ChannelId}: persist={ElapsedMs}ms", channel.Name, channelId, sw.ElapsedMilliseconds);
@@ -1327,8 +1326,9 @@ public partial class ChatService
         foreach (Action<T> handler in handlers.GetInvocationList()) RunNotification(() => handler(value));
     }
 
-    private async Task<List<Guid>> IncrementUnreadCountsAsync(Guid channelId, Guid senderUserId,
-        Func<IReadOnlyList<Guid>, Task> accept)
+    // Who gets an unread increment for a message from this sender. Pure: AcceptMessageAsync
+    // applies the increments under readStateGate.
+    private List<Guid> UnreadRecipients(Guid channelId, Guid senderUserId)
     {
         if (!_channels.TryGetValue(channelId, out var channel))
         {
@@ -1372,31 +1372,6 @@ public partial class ChatService
             && now - session.LastReportAt <= ForegroundReportWindow
             && GetUserStatus(session.Username) != UserStatus.Away).Select(session => session.UserId).ToHashSet();
         userIdsToIncrement.RemoveAll(id => foregroundReaders.Contains(id) && GetUnreadCount(id, channelId) == 0);
-
-        if (userIdsToIncrement.Count == 0)
-        {
-            await accept(userIdsToIncrement);
-            return userIdsToIncrement;
-        }
-
-        await readStateGate.WaitAsync();
-        try
-        {
-            var updated = userIdsToIncrement.Select(id =>
-            {
-                var state = CopyReadState(id, channelId);
-                state.ReceivedCount++;
-                state.UnreadCount++;
-                return state;
-            }).ToArray();
-            await accept(userIdsToIncrement);
-            foreach (var state in updated) _readStates[(state.UserId, channelId)] = state;
-            if (channel.IsDirectMessage)
-                foreach (var state in updated)
-                    RunNotification(() => _audit.RecordUnreadChange(_userService.GetById(state.UserId)?.Username ?? "?", DescribeChannel(channel), "+1",
-                        state.UnreadCount, $"msg from {_userService.GetById(senderUserId)?.Username}", "—"));
-        }
-        finally { readStateGate.Release(); }
 
         return userIdsToIncrement;
     }

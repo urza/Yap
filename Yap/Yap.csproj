@@ -9,6 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="ChatContract" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="Data\RequestLogs\" />
     <Folder Include="wwwroot\uploads\" />
   </ItemGroup>

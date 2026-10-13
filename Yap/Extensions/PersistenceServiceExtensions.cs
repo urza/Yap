@@ -11,7 +11,7 @@ public static class PersistenceServiceExtensions
     /// <summary>
     /// Adds chat persistence services based on configuration.
     /// When enabled, registers DbContext and ChatPersistenceService.
-    /// When disabled, accepts chat operations in process memory.
+    /// ChatService keeps the chat in memory either way; the database is an optional copy.
     /// </summary>
     public static IServiceCollection AddChatPersistence(
         this IServiceCollection services,
@@ -51,8 +51,6 @@ public static class PersistenceServiceExtensions
 
         // Always register ChatPersistenceService (it handles enabled/disabled internally)
         services.AddSingleton<ChatPersistenceService>();
-        if (settings.Enabled) services.AddSingleton<IChatStore, SqliteChatStore>();
-        else services.AddSingleton<IChatStore, MemoryChatStore>();
         services.AddHostedService<ChatReceiptCleanup>();
 
         return services;

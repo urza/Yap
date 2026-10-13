@@ -9,7 +9,7 @@ static class StoreChecks
     public static async Task Run(IServiceProvider services, User user)
     {
         var chat = services.GetRequiredService<ChatService>();
-        var store = services.GetRequiredService<IChatStore>();
+        var users = services.GetRequiredService<UserService>();
         // Null in memory mode, where ChatService holds the only message state.
         await using var db = services.GetService<IDbContextFactory<ChatDbContext>>() is { } factory ? await factory.CreateDbContextAsync() : null;
         var channel = chat.GetLobbyId();
@@ -18,7 +18,7 @@ static class StoreChecks
         await chat.MutateMessageAsync(user, channel, target.Id, Guid.NewGuid(), "edit", "same object", null, false);
         Check(ReferenceEquals(target, chat.GetMessageById(channel, target.Id)) && target.Content == "same object",
             "accepted mutation updates the existing live object without reloading a storage row");
-        var other = (await services.GetRequiredService<UserService>().CreateUserAsync("collisionfixture"))!;
+        var other = (await users.CreateUserAsync("collisionfixture"))!;
         var collision = await chat.SendTextAsync(other, channel, sent.OperationId, "collision");
         Check(sent.MessageId != sent.OperationId && collision.MessageId != sent.MessageId,
             "accounts can reuse an operation ID without choosing or colliding message primary keys");
@@ -38,13 +38,13 @@ static class StoreChecks
             "reaction pills retain first-used order instead of sorting by codepoint");
         if (db != null)
         {
-            var stored = await db.Messages.AsNoTracking().SingleOrDefaultAsync(m => m.Id == target.Id);
-            Check(stored?.Content == target.Content && stored.IsEdited, "storage and live mutation agree");
+            var stored = await db.Messages.AsNoTracking().Include(m => m.Reactions).SingleOrDefaultAsync(m => m.Id == target.Id);
+            Check(stored?.Content == target.Content && stored.IsEdited && stored.Reactions.Count == 2, "the database copy follows the live mutation");
         }
         await chat.SendMessageAsync(channel, user.Id, user.Username, "server acceptance");
         var serverMessage = chat.GetMessages(channel, 100).Single(m => m.Content == "server acceptance");
         await chat.MutateMessageAsync(user, channel, serverMessage.Id, Guid.NewGuid(), "reaction", null, "👍", true);
-        Check(serverMessage.Reactions.Count == 1 && await store.GetTextReceiptAsync(user.Id, serverMessage.OperationId!.Value) != null,
+        Check(serverMessage.Reactions.Count == 1 && chat.GetReceipt(user.Id, serverMessage.OperationId!.Value) != null,
             "server messages use receipt acceptance and support ordinary mutations");
         var media = await chat.SendTextAsync(user, channel, Guid.NewGuid(), "", images: ["/uploads/fixture.png"]);
         try
@@ -52,31 +52,32 @@ static class StoreChecks
             await chat.MutateMessageAsync(user, channel, media.MessageId, Guid.NewGuid(), "edit", "forbidden", null, false);
             throw new Exception("Media edit should fail");
         }
-        catch (ChatSendException error) { Check(error.Code == "media_message", "media edit policy is enforced before either backend"); }
+        catch (ChatSendException error) { Check(error.Code == "media_message", "media edit policy is enforced before acceptance"); }
 
-        // A room deletion can remove the target after ChatService checked it. Neither backend
-        // may then store a receipt that acknowledges a change to nothing.
-        var ghost = new TextSendReceipt
-        {
-            UserId = user.Id,
-            OperationId = Guid.NewGuid(),
-            ChannelId = channel,
-            MessageId = Guid.NewGuid(),
-            ContentHash = "missing target fixture",
-            AcceptedAt = DateTime.UtcNow
-        };
+        var lockMethod = typeof(ChatService).GetMethod("LockAcceptance", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        // A room deleted while a mutation waits for its message lock must not leave a receipt
+        // that acknowledges a change to nothing.
+        var admin = users.GetAllUsers().First(u => users.IsAdmin(u.Id));
+        var doomed = (await chat.CreateRoomAsync(admin.Id, admin.Username, "doomedfixture", sinceJoined: false))!;
+        var doomedMessage = await chat.SendTextAsync(user, doomed.Id, Guid.NewGuid(), "about to vanish");
+        var ghostOperation = Guid.NewGuid();
+        var hold = await (Task<IDisposable>)lockMethod.Invoke(chat, ["message:" + doomedMessage.MessageId])!;
+        var ghost = chat.MutateMessageAsync(user, doomed.Id, doomedMessage.MessageId, ghostOperation, "edit", "ghost", null, false);
+        await Task.Delay(50);
+        await chat.DeleteRoomAsync(admin.Id, doomed.Id);
+        hold.Dispose();
         try
         {
-            await store.PersistMutationAsync(ghost, new ChatMutation("edit", "ghost", null, false, user.Id, user.Username));
-            throw new Exception("Mutation of a missing message should fail");
+            await ghost;
+            throw new Exception("Mutation in a deleted room should fail");
         }
         catch (ChatSendException error)
         {
-            Check(error.Code == "message_unavailable" && await store.GetTextReceiptAsync(user.Id, ghost.OperationId) == null,
-                "both backends refuse a mutation receipt for a message they do not hold");
+            Check(error.Status == 404 && chat.GetReceipt(user.Id, ghostOperation) == null,
+                "a mutation that reaches no message gets no receipt");
         }
 
-        // Competing messages must not reuse one mutation receipt, even in the memory store.
+        // Competing messages must not reuse one mutation receipt.
         var operation = Guid.NewGuid();
         var results = await Task.WhenAll(new[] { target.Id, serverMessage.Id }.Select(async id =>
         {
@@ -92,7 +93,6 @@ static class StoreChecks
 
         // Both aliases must wait on the resolved message lock. Otherwise an edit through
         // an outgoing operation ID can race a delete addressed by the accepted server ID.
-        var lockMethod = typeof(ChatService).GetMethod("LockAcceptance", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
         var lease = await (Task<IDisposable>)lockMethod.Invoke(chat, ["message:" + target.Id])!;
         var aliased = chat.MutateMessageAsync(user, channel, sent.OperationId, Guid.NewGuid(), "edit", "aliased edit", null, false);
         try
@@ -104,7 +104,7 @@ static class StoreChecks
         await aliased;
         Check(target.Content == "aliased edit", "pending-operation alias edits the accepted message");
 
-        var capped = (await services.GetRequiredService<UserService>().CreateUserAsync("receiptcapfixture"))!;
+        var capped = (await users.CreateUserAsync("receiptcapfixture"))!;
         var capReceipts = new List<TextSendReceipt>();
         for (var i = 0; i < ChatReceiptCleanup.MaxReceiptsPerUser + 2; i++)
         {
@@ -119,32 +119,37 @@ static class StoreChecks
                 AcceptedAt = DateTime.UtcNow.AddHours(i == ChatReceiptCleanup.MaxReceiptsPerUser + 1 ? -2 : -1).AddMilliseconds(i)
             };
             capReceipts.Add(cappedReceipt);
-            await store.PersistMutationAsync(cappedReceipt, new ChatMutation("delete", null, null, false, capped.Id, capped.Username));
+            chat.AddReceipt(cappedReceipt);
         }
-        Check(await store.GetTextReceiptAsync(capped.Id, capReceipts[0].OperationId) == null
-            && await store.GetTextReceiptAsync(capped.Id, capReceipts[1].OperationId) == null
-            && await store.GetTextReceiptAsync(capped.Id, capReceipts[2].OperationId) != null
-            && await store.GetTextReceiptAsync(capped.Id, capReceipts[^1].OperationId) != null
-            && await store.GetTextReceiptAsync(user.Id, sent.OperationId) != null,
+        Check(chat.GetReceipt(capped.Id, capReceipts[0].OperationId) == null
+            && chat.GetReceipt(capped.Id, capReceipts[1].OperationId) == null
+            && chat.GetReceipt(capped.Id, capReceipts[2].OperationId) != null
+            && chat.GetReceipt(capped.Id, capReceipts[^1].OperationId) != null
+            && chat.GetReceipt(user.Id, sent.OperationId) != null,
             "receipt cap follows acceptance order across backward clock steps and isolates accounts");
 
-        var old = new ChatMessage(channel, user.Id, user.Username, "expired receipt", DateTime.UtcNow);
-        var receipt = new TextSendReceipt
+        var kept = await chat.SendTextAsync(user, channel, Guid.NewGuid(), "kept after receipt expiry");
+        var stale = new TextSendReceipt
         {
             UserId = user.Id,
             OperationId = Guid.NewGuid(),
-            MessageId = old.Id,
+            MessageId = kept.MessageId,
             ChannelId = channel,
             ContentHash = "expiry fixture",
             AcceptedAt = DateTime.UtcNow.AddDays(-2)
         };
-        await store.PersistTextAcceptanceAsync(old, receipt);
-        await store.PruneReceiptsAsync(DateTime.UtcNow - ChatReceiptCleanup.Retention);
-        Check(await store.GetTextReceiptAsync(user.Id, receipt.OperationId) == null
-            && await store.GetTextReceiptAsync(user.Id, sent.OperationId) != null,
-            "receipt cleanup removes expired entries and preserves the retry window in both backends");
+        chat.AddReceipt(stale);
         if (db != null)
-            Check(await db.Messages.AnyAsync(m => m.Id == old.Id), "receipt expiry never deletes accepted messages");
+        {
+            db.TextSendReceipts.Add(stale);
+            await db.SaveChangesAsync();
+        }
+        await chat.PruneReceiptsAsync(DateTime.UtcNow - ChatReceiptCleanup.Retention);
+        Check(chat.GetReceipt(user.Id, stale.OperationId) == null && chat.GetReceipt(user.Id, sent.OperationId) != null
+            && (db == null || !await db.TextSendReceipts.AnyAsync(r => r.OperationId == stale.OperationId) && await db.TextSendReceipts.AnyAsync(r => r.OperationId == sent.OperationId)),
+            "receipt cleanup removes expired entries from memory and the database copy and preserves the retry window");
+        Check(chat.GetMessageById(channel, kept.MessageId) != null && (db == null || await db.Messages.AnyAsync(m => m.Id == kept.MessageId)),
+            "receipt expiry never deletes accepted messages");
         var env = services.GetRequiredService<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>();
         var folder = Path.Combine(env.ContentRootPath, "Data", "upload-receipts", user.Id.ToString("N"));
         Directory.CreateDirectory(folder);

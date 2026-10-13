@@ -51,7 +51,7 @@ public partial class ChatService
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(receiptPayload)));
         using (await LockAcceptance($"operation:{user.Id}:{operationId}"))
         {
-            var previous = await _store.GetTextReceiptAsync(user.Id, operationId);
+            var previous = GetReceipt(user.Id, operationId);
             if (previous != null)
             {
                 if (previous.ChannelId != channelId || previous.ContentHash != hash)
@@ -84,35 +84,47 @@ public partial class ChatService
         }
     }
 
+    // Memory is the data layer. Under readStateGate the message, its receipt and the recipients'
+    // unread counts become visible together; the database (when enabled) then gets a copy while
+    // the gate still holds, so copies land in memory order. A failed copy is logged and never
+    // turns an accepted message into a retry.
     private async Task AcceptMessageAsync(Channel channel, ChatMessage message, TextSendReceipt receipt, bool countUnread = true)
     {
-        async Task Store(IReadOnlyList<Guid> recipients)
+        List<Guid> recipients = countUnread ? UnreadRecipients(channel.Id, message.UserId) : [];
+        ChannelReadState[] states;
+        await readStateGate.WaitAsync();
+        try
         {
-            try
+            states = recipients.Select(id =>
             {
-                await _store.PersistTextAcceptanceAsync(message, receipt, recipients);
-            }
-            catch (Microsoft.EntityFrameworkCore.DbUpdateException error) when (error.InnerException is Microsoft.Data.Sqlite.SqliteException { SqliteExtendedErrorCode: 1555 or 2067 })
-            {
-                // Competing same-account retries share a gate. A remaining PK collision
-                // is conflicting intent, not a temporary error to retry forever.
-                throw new ChatSendException(409, "operation_conflict", "This send ID was already used.");
-            }
-            // The message must be visible before its arrival checkpoint can be observed.
+                var state = CopyReadState(id, channel.Id);
+                state.ReceivedCount++;
+                state.UnreadCount++;
+                return state;
+            }).ToArray();
             lock (GetChannelLock(channel.Id))
-                if (_channelMessages.TryGetValue(channel.Id, out var messages))
-                {
-                    messages.Add(message);
-                    IndexMessage(message, 1);
-                    if (!countUnread)
-                        messages.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
-                }
+            {
+                // A room deletion can take the list away between the access check and here.
+                // No receipt may acknowledge a message that reached no list.
+                if (!_channelMessages.TryGetValue(channel.Id, out var messages))
+                    throw new ChatSendException(404, "conversation_unavailable", "This conversation is no longer available.");
+                AddReceipt(receipt);
+                messages.Add(message);
+                IndexMessage(message, 1);
+                if (!countUnread)
+                    messages.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
+            }
+            // The message is visible before its arrival checkpoint can be observed.
+            foreach (var state in states)
+                _readStates[(state.UserId, channel.Id)] = state;
+            // Copied before publication, so a mutation that arrives through the stream finds its row.
+            await _persistence.PersistAcceptedMessageAsync(message, receipt, states);
         }
-        List<Guid> recipients = [];
-        if (countUnread)
-            recipients = await IncrementUnreadCountsAsync(channel.Id, message.UserId, Store);
-        else
-            await Store([]);
+        finally { readStateGate.Release(); }
+        if (channel.IsDirectMessage)
+            foreach (var state in states)
+                RunNotification(() => _audit.RecordUnreadChange(_userService.GetById(state.UserId)?.Username ?? "?", DescribeChannel(channel), "+1",
+                    state.UnreadCount, $"msg from {message.Username}", "—"));
         // Acceptance is authoritative. Notification failures cannot turn it into a retry.
         try
         {
@@ -137,17 +149,15 @@ public partial class ChatService
         using (await LockAcceptance($"dm:{pair[0]}:{pair[1]}"))
         {
             var existing = GetDMChannels(user.Username).FirstOrDefault(c => c.IsDMBetween(user.Id, other.Id));
-            var channel = existing ?? Channel.CreateDM(user.Id, user.Username, other.Id, other.Username);
-            // Await persistence before advertising a new conversation or allowing its first send.
-            await _persistence.PersistChannelAsync(channel, throwOnFailure: true);
-            if (existing == null)
-            {
-                _channels[channel.Id] = channel;
-                _channelMessages[channel.Id] = new();
-                _channelTypingUsers[channel.Id] = new();
-                _changes.Touch(channel.Id);
-                OnChannelCreated?.Invoke(channel);
-            }
+            if (existing != null)
+                return existing;
+            var channel = Channel.CreateDM(user.Id, user.Username, other.Id, other.Username);
+            _channels[channel.Id] = channel;
+            _channelMessages[channel.Id] = new();
+            _channelTypingUsers[channel.Id] = new();
+            await _persistence.PersistChannelAsync(channel);
+            _changes.Touch(channel.Id);
+            OnChannelCreated?.Invoke(channel);
             return channel;
         }
     }

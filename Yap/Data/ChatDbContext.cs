@@ -108,7 +108,7 @@ public class ChatDbContext : DbContext
             entity.Property(r => r.ContentHash).HasMaxLength(64);
             // The age prune filters on AcceptedAt.
             entity.HasIndex(r => r.AcceptedAt);
-            // The count cap orders a user's receipts by rowid (SqliteChatStore). A one-column
+            // The count cap orders a user's receipts by rowid (ChatPersistenceService). A one-column
             // index stores (UserId, rowid) in order, so it serves that scan without a sort. Do
             // not add columns: a wider key orders entries by those columns, not by rowid.
             entity.HasIndex(r => r.UserId);
