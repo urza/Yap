@@ -82,7 +82,7 @@ Restart, reference-only and diagnostic scripts remain directly runnable with Nod
 npm run format
 npm run format:check
 dotnet format whitespace Yap.slnx --no-restore --include Yap/Endpoints/Chat*.cs Yap/Hubs/*.cs Yap/Contracts/*.cs Yap/Services/Chat*.cs Yap/Services/Presence*.cs
-dotnet format whitespace tests/OfflineContract/OfflineContract.csproj --no-restore --include tests/OfflineContract/*.cs
+dotnet format whitespace tests/ChatContract/ChatContract.csproj --no-restore --include tests/ChatContract/*.cs
 ```
 
 Use `--verify-no-changes` for the C# check-only form. The contract harness is outside the solution and needs its separate command. First-party client code/tests use pinned Prettier; generated/vendor/emoji assets are excluded. Format a focused diff and run the affected regressions; no additional frontend framework or test-fixture architecture is needed.

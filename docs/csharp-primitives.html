@@ -1410,7 +1410,7 @@ builder.Services.AddHostedService(sp =&gt; sp.GetRequiredService&lt;DiagnosticsC
     <li><b>Dead ChatService surface</b> left by the rewrite, with no caller: <code>SetPageVisibility</code>, <code>TrySetAutoAwayIfAllIdleAsync</code>, the public <code>TrySetAutoAwayAfterDisconnectAsync</code>, <code>TryRestoreFromAutoAway</code>, the public <code>SetSessionConnected</code>, <code>ClearReadStatesForUser</code>.</li>
   </ul>
   <div class="note">
-    <b>Tests that exercise these primitives.</b> <code>tests/OfflineContract</code> is a console harness over <code>WebApplicationFactory&lt;ChatHub&gt;</code> with a <code>FakeTimeProvider</code>. It runs every check twice, in SQLite mode and memory mode, and covers fan-out overflow, change publication, presence timers, read checkpoints, store atomicity and receipts. <code>tests/FanoutLoad</code> opens both hub streams for 10, 30 and 50 synthetic clients and measures CPU per message and p95 delivery. Neither project is in <code>Yap.slnx</code>.
+    <b>Tests that exercise these primitives.</b> <code>tests/ChatContract</code> is a console harness over <code>WebApplicationFactory&lt;ChatHub&gt;</code> with a <code>FakeTimeProvider</code>. It runs every check twice, in SQLite mode and memory mode, and covers fan-out overflow, change publication, presence timers, read checkpoints, store atomicity and receipts. <code>tests/FanoutLoad</code> opens both hub streams for 10, 30 and 50 synthetic clients and measures CPU per message and p95 delivery. Neither project is in <code>Yap.slnx</code>.
   </div>
 </section>
 
