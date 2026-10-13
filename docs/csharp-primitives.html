@@ -1,0 +1,1671 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Yap C# Primitives</title>
+<meta name="description" content="Which .NET concurrency and communication primitives the Yap chat server uses after the offline-chat rewrite, where each one sits, and why it is there.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&display=swap">
+<style>
+/* Layout: a fixed chapter rail on the left, one reading column on the right.
+   Diagrams and tables may run wider than the prose measure; prose stays near 70ch. */
+:root {
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --surface-2: #eaeef2;
+  --fg: #1a1f28;
+  --muted: #5b6474;
+  --line: #d6dce4;
+  --line-strong: #aeb7c4;
+  --accent: #0e6d8a;          /* flow: channels, streams, hub */
+  --accent-ink: #ffffff;
+  --sync: #b24f23;            /* coordination: lock, semaphore, interlocked */
+  --store: #5b4fcf;           /* concurrent collections */
+  --time: #2c7a4b;            /* timers, hosted services, cancellation */
+  --signal: #a06c08;          /* events and delegates */
+  --legacy: #7a7f88;          /* Blazor-era remnants */
+  --code-bg: #f8f9fb;
+  --code-comment: #6b7280;
+  --code-kw: #0e6d8a;
+  --code-str: #9a3b11;
+  --code-num: #5b4fcf;
+  --code-type: #2c7a4b;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", "Consolas", "SFMono-Regular", Menlo, monospace;
+  --rail: 236px;
+  --measure: 70ch;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1216; --surface: #161a20; --surface-2: #1d222a;
+    --fg: #e4e8ee; --muted: #98a2b3; --line: #2a313b; --line-strong: #3d4653;
+    --accent: #5cb8d3; --accent-ink: #0f1216;
+    --sync: #e58a5e; --store: #a89dff; --time: #6fc48f; --signal: #e3b24a; --legacy: #8b929c;
+    --code-bg: #12161c; --code-comment: #7d8795; --code-kw: #5cb8d3; --code-str: #e8a07a;
+    --code-num: #a89dff; --code-type: #6fc48f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1216; --surface: #161a20; --surface-2: #1d222a;
+  --fg: #e4e8ee; --muted: #98a2b3; --line: #2a313b; --line-strong: #3d4653;
+  --accent: #5cb8d3; --accent-ink: #0f1216;
+  --sync: #e58a5e; --store: #a89dff; --time: #6fc48f; --signal: #e3b24a; --legacy: #8b929c;
+  --code-bg: #12161c; --code-comment: #7d8795; --code-kw: #5cb8d3; --code-str: #e8a07a;
+  --code-num: #a89dff; --code-type: #6fc48f;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font-family: var(--body); font-size: 16px; line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3, h4 { font-family: var(--display); text-wrap: balance; line-height: 1.15; margin: 0; }
+h1 { font-size: clamp(2.2rem, 5vw, 3.6rem); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 600; }
+h3 { font-size: 1.25rem; font-weight: 600; }
+h4 { font-size: 1.05rem; font-weight: 600; }
+p, ul, ol { margin: 0; }
+code, pre, kbd { font-family: var(--mono); }
+code { font-size: 0.9em; background: var(--surface-2); padding: 0.05em 0.35em; border-radius: 3px; }
+/* Long identifiers in prose must wrap on phones; table cells keep nowrap and scroll in their wrapper. */
+p code, li code, dd code, h4 code, .note code, .lede code, figcaption code { overflow-wrap: anywhere; }
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* Shell */
+.shell { display: grid; grid-template-columns: var(--rail) minmax(0, 1fr); min-height: 100vh; }
+.rail {
+  position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; height: 100vh;
+  overflow-y: auto; padding: 28px 18px 28px 24px; border-right: 1px solid var(--line);
+  background: var(--surface); display: flex; flex-direction: column; gap: 18px;
+}
+.rail .brand { font-family: var(--display); font-weight: 700; font-size: 1.1rem; letter-spacing: 0.02em; }
+.rail .brand small { display: block; font-family: var(--body); font-weight: 400; font-size: 0.78rem; color: var(--muted); letter-spacing: 0; }
+.rail nav { display: flex; flex-direction: column; gap: 2px; }
+.rail nav a {
+  display: block; padding: 5px 10px; border-radius: 4px; color: var(--muted); text-decoration: none;
+  font-size: 0.86rem; line-height: 1.3; border-left: 2px solid transparent;
+}
+.rail nav a.sub { padding-left: 22px; font-size: 0.8rem; }
+.rail nav a:hover { color: var(--fg); background: var(--surface-2); }
+.rail nav a.active { color: var(--fg); border-left-color: var(--accent); background: var(--surface-2); }
+.rail .legend { margin-top: auto; font-size: 0.76rem; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
+.rail .legend span { display: inline-flex; align-items: center; gap: 8px; }
+.rail .legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+main { padding: 48px clamp(16px, 5vw, 72px) 96px; min-width: 0; }
+.chapter { max-width: 1040px; margin: 0 auto 88px; display: flex; flex-direction: column; gap: 22px; scroll-margin-top: 24px; }
+.chapter > p, .chapter > ul, .chapter > ol, .prose { max-width: var(--measure); }
+.chapter ul, .chapter ol { padding-left: 1.25em; display: flex; flex-direction: column; gap: 6px; }
+.eyebrow { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.lede { font-size: 1.12rem; line-height: 1.5; color: var(--fg); }
+.thesis { border-left: 3px solid var(--accent); padding: 4px 0 4px 16px; font-size: 1.05rem; max-width: var(--measure); }
+
+/* Hero */
+.hero { max-width: 1040px; margin: 0 auto 72px; display: grid; gap: 22px; }
+.hero .meta { display: flex; flex-wrap: wrap; gap: 10px 22px; font-family: var(--mono); font-size: 0.78rem; color: var(--muted); }
+.hero .meta b { color: var(--fg); font-weight: 500; }
+
+/* Family chips */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 1px 9px 1px 7px; border-radius: 999px;
+  font-family: var(--mono); font-size: 0.74rem; font-weight: 500; white-space: nowrap;
+  border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); color: var(--c); background: color-mix(in srgb, var(--c) 9%, transparent);
+}
+.chip::before { content: ""; width: 7px; height: 7px; border-radius: 2px; background: var(--c); }
+.chip.flow { --c: var(--accent); } .chip.sync { --c: var(--sync); } .chip.store { --c: var(--store); }
+.chip.time { --c: var(--time); } .chip.signal { --c: var(--signal); } .chip.legacy { --c: var(--legacy); }
+
+/* Cards and grids */
+.grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.card h4 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.card p { font-size: 0.93rem; color: var(--fg); }
+.card .where { font-family: var(--mono); font-size: 0.76rem; color: var(--muted); word-break: break-word; }
+
+/* Tables */
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { font-family: var(--display); font-weight: 600; font-size: 0.9rem; background: var(--surface-2); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+td code { white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr.hidden-row { display: none; }
+
+/* Filter bar */
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.filters button { all: unset; cursor: pointer; }
+.filters button .chip { opacity: 0.55; }
+.filters button[aria-pressed="true"] .chip { opacity: 1; box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 30%, transparent); }
+.filters .count { font-family: var(--mono); font-size: 0.76rem; color: var(--muted); margin-left: auto; }
+
+/* Code excerpts */
+figure.code { margin: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--code-bg); overflow: hidden; }
+figure.code figcaption {
+  display: flex; gap: 12px; flex-wrap: wrap; align-items: baseline; padding: 8px 14px; border-bottom: 1px solid var(--line);
+  font-family: var(--mono); font-size: 0.76rem; color: var(--muted); background: var(--surface);
+}
+figure.code figcaption .path { color: var(--fg); }
+figure.code figcaption .why { font-family: var(--body); font-size: 0.84rem; flex-basis: 100%; }
+figure.code pre { margin: 0; padding: 14px 16px; overflow-x: auto; font-size: 0.82rem; line-height: 1.5; tab-size: 4; }
+.hl-c { color: var(--code-comment); font-style: italic; }
+.hl-k { color: var(--code-kw); font-weight: 500; }
+.hl-s { color: var(--code-str); }
+.hl-n { color: var(--code-num); }
+.hl-t { color: var(--code-type); }
+.hl-mark { background: color-mix(in srgb, var(--signal) 18%, transparent); border-radius: 2px; }
+
+/* Diagrams */
+figure.diagram { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+figure.diagram .frame { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
+figure.diagram svg { display: block; max-width: 100%; height: auto; font-family: var(--mono); font-size: 12px; min-width: 560px; margin: 0 auto; }
+figure.diagram figcaption { font-size: 0.88rem; color: var(--muted); max-width: var(--measure); }
+.svg-box { fill: var(--surface-2); stroke: var(--line-strong); }
+.svg-box-accent { fill: color-mix(in srgb, var(--accent) 14%, var(--surface)); stroke: var(--accent); }
+.svg-box-sync { fill: color-mix(in srgb, var(--sync) 14%, var(--surface)); stroke: var(--sync); }
+.svg-box-store { fill: color-mix(in srgb, var(--store) 14%, var(--surface)); stroke: var(--store); }
+.svg-box-time { fill: color-mix(in srgb, var(--time) 14%, var(--surface)); stroke: var(--time); }
+.svg-box-signal { fill: color-mix(in srgb, var(--signal) 14%, var(--surface)); stroke: var(--signal); }
+.svg-box-legacy { fill: color-mix(in srgb, var(--legacy) 10%, var(--surface)); stroke: var(--legacy); stroke-dasharray: 4 3; }
+.svg-text { fill: var(--fg); }
+.svg-muted { fill: var(--muted); }
+.svg-line { stroke: var(--fg); fill: none; }
+.svg-line-muted { stroke: var(--muted); fill: none; }
+.svg-line-accent { stroke: var(--accent); fill: none; }
+.svg-line-signal { stroke: var(--signal); fill: none; }
+.svg-line-sync { stroke: var(--sync); fill: none; }
+.svg-lane { stroke: var(--line); fill: none; stroke-dasharray: 2 4; }
+
+/* Callouts */
+.note { border: 1px solid var(--line); border-left: 3px solid var(--signal); background: var(--surface); padding: 12px 16px; border-radius: 4px; font-size: 0.93rem; max-width: var(--measure); display: flex; flex-direction: column; gap: 6px; }
+.note.sharp { border-left-color: var(--sync); }
+.note.flow { border-left-color: var(--accent); }
+.note b { font-weight: 600; }
+
+/* Definition rows */
+.defs { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 18px; font-size: 0.93rem; max-width: 860px; }
+.defs dt { font-family: var(--mono); font-size: 0.82rem; color: var(--accent); padding-top: 2px; }
+.defs dd { margin: 0; }
+
+/* Steps */
+.steps { counter-reset: step; display: flex; flex-direction: column; gap: 14px; max-width: 900px; padding: 0; list-style: none; }
+.steps li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start; }
+.steps li::before { counter-increment: step; content: counter(step); font-family: var(--display); font-weight: 700; font-size: 1.1rem; color: var(--accent); border: 1px solid var(--line-strong); border-radius: 50%; width: 30px; height: 30px; display: grid; place-items: center; }
+.steps .hop { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.steps .hop .path { font-family: var(--mono); font-size: 0.76rem; color: var(--muted); }
+
+details { border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+details summary { cursor: pointer; padding: 10px 14px; font-weight: 500; font-size: 0.93rem; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+details summary::after { content: "+"; font-family: var(--mono); color: var(--muted); }
+details[open] summary::after { content: "–"; }
+details > :not(summary) { border-top: 1px solid var(--line); }
+details figure.code { border: 0; border-radius: 0; }
+
+.chapter-head { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; border-top: 1px solid var(--line-strong); }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; align-items: start; }
+
+@media (max-width: 860px) {
+  .shell { grid-template-columns: 1fr; }
+  .rail { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 18px 16px; }
+  .rail nav { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+  .rail nav a { border-left: 0; border: 1px solid var(--line); padding: 4px 10px; }
+  .rail nav a.sub { display: none; }
+  .rail nav a.active { border-color: var(--accent); }
+  .rail .legend { display: none; }
+  main { padding: 28px 16px 72px; }
+  .defs { grid-template-columns: 1fr; gap: 2px 0; }
+  .defs dd { margin-bottom: 8px; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+<aside class="rail">
+  <div class="brand">Yap C# Primitives<small>Server internals after the offline-chat rewrite</small></div>
+  <nav aria-label="Chapters">
+    <a href="#map">1 · The shape</a>
+    <a href="#inventory">2 · Inventory</a>
+    <a href="#trace">3 · One message, hop by hop</a>
+    <a href="#flow">4 · Flow: channels and streams</a>
+    <a href="#flow-sub" class="sub">The per-connection queue</a>
+    <a href="#flow-presence" class="sub">The presence mailbox</a>
+    <a href="#signal">5 · Signalling: old and new events</a>
+    <a href="#sync">6 · Coordination: locks and gates</a>
+    <a href="#store">7 · Collections</a>
+    <a href="#time">8 · Time, lifetime, subprocesses</a>
+    <a href="#di">9 · DI lifetimes and the Blazor remnant</a>
+    <a href="#protocol">10 · Catch-up and versions</a>
+    <a href="#edges">11 · Sharp edges</a>
+    <a href="#vocab">12 · Vocabulary</a>
+  </nav>
+  <div class="legend">
+    <span><i style="background:var(--accent)"></i>flow: channels, streams, hub</span>
+    <span><i style="background:var(--signal)"></i>signal: events, delegates</span>
+    <span><i style="background:var(--sync)"></i>sync: locks, semaphores</span>
+    <span><i style="background:var(--store)"></i>store: concurrent collections</span>
+    <span><i style="background:var(--time)"></i>time: timers, hosted services</span>
+    <span><i style="background:var(--legacy)"></i>legacy: Blazor-era</span>
+  </div>
+</aside>
+
+<main>
+
+<header class="hero" id="top">
+  <div class="eyebrow">Yap · ASP.NET Core 10 · read at commit af1e437e · 2026-10-13</div>
+  <h1>The C# primitives that carry a chat message</h1>
+  <p class="lede">A text message enters Yap as an HTTP POST and leaves as an item on a SignalR stream. On the way it crosses a keyed <code>SemaphoreSlim</code>, one global async mutex, a SQLite transaction, a per-conversation <code>lock</code>, a synchronous <code>event</code>, a bounded queue with a one-slot <code>Channel&lt;bool&gt;</code> doorbell and an <code>IAsyncEnumerable</code>.</p>
+  <div class="meta">
+    <span><b>Scope</b> the server, about 20k lines of C# without migrations</span>
+    <span><b>Line numbers</b> refer to the commit above and will drift</span>
+    <span><b>Method</b> every claim comes from the source. Items not confirmed at runtime say unverified</span>
+    <span><b>Excerpts</b> drop namespace prefixes and reflow a few lines</span>
+  </div>
+  <div class="thesis">Every write is an HTTP request. The hub never accepts a message. The server pushes only through two server-to-client streams. Nothing in the fan-out owns a thread: projection runs on the sender's request thread inside the conversation lock, and the only background loop in the live path is a 100 ms presence ticker.</div>
+</header>
+
+<!-- ============================================================ 1. MAP -->
+<section class="chapter" id="map">
+  <div class="chapter-head">
+    <div class="eyebrow">Chapter 1</div>
+    <h2>The shape after the rewrite</h2>
+  </div>
+  <p>The rewrite replaced the Blazor Server chat page with a JS PWA in <code>wwwroot/chat-client</code>. The server kept <code>ChatService</code> as the domain core and added one folder, <code>Offline/</code>, of HTTP and SignalR adapters. The old event bus still exists but now serves only the Blazor pages that remain (Login, Settings, Admin) and the system bot. The new push path is a separate chain: change signal, fan-out, per-connection queue, hub stream.</p>
+
+  <figure class="diagram">
+    <div class="frame">
+    <svg viewBox="0 0 1040 620" role="img" aria-label="System map: HTTP writes flow left to right through OfflineEndpoints, ChatService and IChatStore; pushes flow back through OfflineChangeSignal, OfflineFanout, a per-connection Subscription queue and the OfflineHub stream; presence enters through hub methods into OfflineLiveService; the Blazor remnant still calls ChatService directly.">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+      </defs>
+      <rect class="svg-box-accent" x="20" y="40" width="130" height="560" rx="4"/>
+      <text class="svg-text" x="85" y="70" text-anchor="middle" font-weight="600">Browser</text>
+      <text class="svg-muted" x="85" y="88" text-anchor="middle" font-size="10">JS PWA</text>
+      <text class="svg-muted" x="85" y="102" text-anchor="middle" font-size="10">SignalR 10</text>
+      <text class="svg-muted" x="85" y="116" text-anchor="middle" font-size="10">IndexedDB outbox</text>
+      <rect class="svg-box" x="250" y="60" width="200" height="56" rx="4"/>
+      <text class="svg-text" x="350" y="83" text-anchor="middle" font-weight="600">OfflineEndpoints</text>
+      <text class="svg-muted" x="350" y="101" text-anchor="middle" font-size="11">/api/chat/* · HTTP only</text>
+      <rect class="svg-box-sync" x="540" y="60" width="200" height="170" rx="4"/>
+      <text class="svg-text" x="640" y="84" text-anchor="middle" font-weight="600">ChatService</text>
+      <text class="svg-muted" x="640" y="102" text-anchor="middle" font-size="11">singleton domain core</text>
+      <text class="svg-text" x="640" y="130" text-anchor="middle" font-size="11">keyed SemaphoreSlim gates</text>
+      <text class="svg-text" x="640" y="148" text-anchor="middle" font-size="11">readStateGate (global)</text>
+      <text class="svg-text" x="640" y="166" text-anchor="middle" font-size="11">message lists per channel</text>
+      <text class="svg-text" x="640" y="184" text-anchor="middle" font-size="11">under the conversation lock</text>
+      <text class="svg-text" x="640" y="202" text-anchor="middle" font-size="11">presence: _connectionGate</text>
+      <rect class="svg-box-store" x="820" y="60" width="200" height="56" rx="4"/>
+      <text class="svg-text" x="920" y="83" text-anchor="middle" font-weight="600">IChatStore</text>
+      <text class="svg-muted" x="920" y="101" text-anchor="middle" font-size="10">receipt + message + unread</text>
+      <rect class="svg-box-store" x="820" y="140" width="95" height="40" rx="4"/>
+      <text class="svg-text" x="867" y="164" text-anchor="middle" font-size="11">SQLite</text>
+      <rect class="svg-box-store" x="925" y="140" width="95" height="40" rx="4"/>
+      <text class="svg-text" x="972" y="164" text-anchor="middle" font-size="11">Memory</text>
+      <line class="svg-line-muted" x1="867" y1="116" x2="867" y2="140" marker-end="url(#arr)"/>
+      <line class="svg-line-muted" x1="972" y1="116" x2="972" y2="140" marker-end="url(#arr)"/>
+      <rect class="svg-box-legacy" x="820" y="200" width="200" height="70" rx="4"/>
+      <text class="svg-text" x="920" y="222" text-anchor="middle" font-weight="600">Blazor remnant</text>
+      <text class="svg-muted" x="920" y="240" text-anchor="middle" font-size="11">Login · Settings · Admin</text>
+      <text class="svg-muted" x="920" y="256" text-anchor="middle" font-size="11">circuits, 15 old events</text>
+      <rect class="svg-box-signal" x="540" y="270" width="200" height="56" rx="4"/>
+      <text class="svg-text" x="640" y="293" text-anchor="middle" font-weight="600">OfflineChangeSignal</text>
+      <text class="svg-muted" x="640" y="311" text-anchor="middle" font-size="10">version++ · Stamp() · Changed</text>
+      <rect class="svg-box-signal" x="250" y="270" width="200" height="56" rx="4"/>
+      <text class="svg-text" x="350" y="293" text-anchor="middle" font-weight="600">OfflineFanout</text>
+      <text class="svg-muted" x="350" y="311" text-anchor="middle" font-size="10">project once · per-viewer auth</text>
+      <rect class="svg-box-accent" x="250" y="360" width="200" height="66" rx="4"/>
+      <text class="svg-text" x="350" y="382" text-anchor="middle" font-weight="600">Subscription</text>
+      <text class="svg-muted" x="350" y="400" text-anchor="middle" font-size="10">per connection · cap 128</text>
+      <text class="svg-muted" x="350" y="416" text-anchor="middle" font-size="10">Channel&lt;bool&gt;(1) doorbell</text>
+      <rect class="svg-box-accent" x="250" y="460" width="200" height="56" rx="4"/>
+      <text class="svg-text" x="350" y="483" text-anchor="middle" font-weight="600">WatchChanges</text>
+      <text class="svg-muted" x="350" y="501" text-anchor="middle" font-size="10">IAsyncEnumerable&lt;ChatUpdate&gt;</text>
+      <rect class="svg-box-accent" x="250" y="540" width="200" height="56" rx="4"/>
+      <text class="svg-text" x="350" y="563" text-anchor="middle" font-weight="600">Hub activity</text>
+      <text class="svg-muted" x="350" y="581" text-anchor="middle" font-size="10">Report · Typing · WatchActivity</text>
+      <rect class="svg-box-time" x="540" y="540" width="200" height="56" rx="4"/>
+      <text class="svg-text" x="640" y="563" text-anchor="middle" font-weight="600">OfflineLiveService</text>
+      <text class="svg-muted" x="640" y="581" text-anchor="middle" font-size="10">async gate · 100 ms ticker</text>
+      <line class="svg-line" x1="150" y1="78" x2="250" y2="78" marker-end="url(#arr)"/>
+      <text class="svg-muted" x="200" y="70" text-anchor="middle" font-size="10">POST</text>
+      <line class="svg-line" x1="250" y1="100" x2="150" y2="100" marker-end="url(#arr)"/>
+      <text class="svg-muted" x="200" y="118" text-anchor="middle" font-size="10">200 + update</text>
+      <line class="svg-line" x1="450" y1="88" x2="540" y2="88" marker-end="url(#arr)"/>
+      <text class="svg-muted" x="495" y="80" text-anchor="middle" font-size="10">SendTextAsync</text>
+      <line class="svg-line" x1="740" y1="88" x2="820" y2="88" marker-end="url(#arr)"/>
+      <text class="svg-muted" x="780" y="80" text-anchor="middle" font-size="10">one tx</text>
+      <line class="svg-line-signal" x1="640" y1="230" x2="640" y2="270" marker-end="url(#arr)"/>
+      <text class="svg-muted" x="650" y="246" font-size="10">Touch(channelId)</text>
+      <text class="svg-muted" x="650" y="259" font-size="10">inside the lock</text>
+      <line class="svg-line-signal" x1="540" y1="298" x2="450" y2="298" marker-end="url(#arr)"/>
+      <text class="svg-muted" x="495" y="290" text-anchor="middle" font-size="10">Changed</text>
+      <text class="svg-muted" x="495" y="314" text-anchor="middle" font-size="10">lock held</text>
+      <line class="svg-line-accent" x1="350" y1="326" x2="350" y2="360" marker-end="url(#arr)"/>
+      <text class="svg-muted" x="342" y="347" text-anchor="end" font-size="10">Enqueue · lock(gate)</text>
+      <line class="svg-line-accent" x1="350" y1="426" x2="350" y2="460" marker-end="url(#arr)"/>
+      <text class="svg-muted" x="342" y="447" text-anchor="end" font-size="10">Read · drain, merge</text>
+      <line class="svg-line-accent" x1="250" y1="488" x2="150" y2="488" marker-end="url(#arr)"/>
+      <text class="svg-muted" x="200" y="480" text-anchor="middle" font-size="10">stream</text>
+      <line class="svg-line" x1="150" y1="558" x2="250" y2="558" marker-end="url(#arr)"/>
+      <line class="svg-line-accent" x1="250" y1="578" x2="150" y2="578" marker-end="url(#arr)"/>
+      <text class="svg-muted" x="200" y="550" text-anchor="middle" font-size="10">send</text>
+      <text class="svg-muted" x="200" y="594" text-anchor="middle" font-size="10">stream</text>
+      <line class="svg-line" x1="450" y1="568" x2="540" y2="568" marker-end="url(#arr)"/>
+      <path class="svg-line" d="M740,568 H790 V205 H740" marker-end="url(#arr)"/>
+      <text class="svg-muted" x="804" y="400" text-anchor="middle" font-size="10" transform="rotate(-90 804 400)">presence · typing · status</text>
+      <path class="svg-line-muted" d="M820,222 H740" marker-end="url(#arr)" stroke-dasharray="4 3"/>
+    </svg>
+    </div>
+    <figcaption>Writes go right, pushes come back left. The amber part is the only link between the domain core and the live clients: a synchronous event raised inside the conversation lock. The dashed box is what the rewrite left behind.</figcaption>
+  </figure>
+
+  <div class="grid">
+    <div class="card">
+      <h4><span class="chip flow">flow</span>What the hub does and does not do</h4>
+      <p>Two server-to-client streams: <code>WatchChanges</code> (deltas) and <code>WatchActivity</code> (presence and typing). Three client-to-server calls: <code>Report</code>, <code>Typing</code>, <code>SetStatus</code>. There is no <code>Clients.*.SendAsync</code>, no <code>IHubContext</code>, no Groups, no <code>OnConnectedAsync</code>, no hub options. SignalR runs on defaults with the JSON protocol.</p>
+      <div class="where">Offline/OfflineHub.cs · Program.cs:199</div>
+    </div>
+    <div class="card">
+      <h4><span class="chip store">store</span>Two stores, one acceptance path</h4>
+      <p><code>IChatStore</code> has six members. <code>SqliteChatStore</code> rents a pooled <code>DbContext</code> per call and commits message, receipt and unread counts in one transaction. <code>MemoryChatStore</code> does the same under one <code>lock</code>. The code above the store is identical in both modes, so no-database mode runs the same acceptance rules as SQLite mode.</p>
+      <div class="where">Services/IChatStore.cs:5-15 · SqliteChatStore.cs:25-37 · MemoryChatStore.cs:17-30</div>
+    </div>
+    <div class="card">
+      <h4><span class="chip legacy">legacy</span>What the rewrite kept</h4>
+      <p>Login, Settings and Admin are still Blazor Server pages with circuits. They keep <code>ChatCircuitHandler</code>, <code>CircuitTracker</code> and the <code>ChatService</code> events alive. Those events are now a side channel: the JS client never sees them.</p>
+      <div class="where">Program.cs:211-215 · Components/Layout/ChatLayout.razor</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ 2. INVENTORY -->
+<section class="chapter" id="inventory">
+  <div class="chapter-head">
+    <div class="eyebrow">Chapter 2</div>
+    <h2>Inventory</h2>
+  </div>
+  <p>The table lists every concurrency and communication primitive in the server, in six families. Click a family to filter the rows. Each row is a declaration site.</p>
+  <div class="filters" aria-label="Filter by family">
+    <button type="button" data-family="flow" aria-pressed="false"><span class="chip flow">flow</span></button>
+    <button type="button" data-family="signal" aria-pressed="false"><span class="chip signal">signal</span></button>
+    <button type="button" data-family="sync" aria-pressed="false"><span class="chip sync">sync</span></button>
+    <button type="button" data-family="store" aria-pressed="false"><span class="chip store">store</span></button>
+    <button type="button" data-family="time" aria-pressed="false"><span class="chip time">time</span></button>
+    <button type="button" data-family="legacy" aria-pressed="false"><span class="chip legacy">legacy</span></button>
+    <span class="count"></span>
+  </div>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Primitive</th><th>Family</th><th>Where</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr data-family="flow"><td><code>Channel&lt;bool&gt;</code> bounded(1), FullMode Wait</td><td><span class="chip flow">flow</span></td><td><code>Offline/OfflineFanout.cs:315</code></td><td>Wake-up doorbell per subscription. <code>TryWrite</code> on a full channel returns false, so repeated signals coalesce into one.</td></tr>
+      <tr data-family="flow"><td><code>Channel&lt;LiveView&gt;</code> bounded(1), DropOldest</td><td><span class="chip flow">flow</span></td><td><code>Offline/OfflineLiveService.cs:141</code></td><td>Latest-value mailbox per activity stream. A newer presence view replaces an unread older one.</td></tr>
+      <tr data-family="flow"><td><code>IAsyncEnumerable&lt;ChatUpdate&gt; WatchChanges</code></td><td><span class="chip flow">flow</span></td><td><code>Offline/OfflineHub.cs:135</code></td><td>The delta stream. One per connection, enforced with a flag in <code>Context.Items</code>.</td></tr>
+      <tr data-family="flow"><td><code>IAsyncEnumerable&lt;object&gt; WatchActivity</code></td><td><span class="chip flow">flow</span></td><td><code>Offline/OfflineHub.cs:100</code></td><td>Presence and typing deltas. Joins the session inside the stream call, so no extra round trip before messages flow.</td></tr>
+      <tr data-family="flow"><td><code>IAsyncEnumerable&lt;LiveView&gt; Watch</code></td><td><span class="chip flow">flow</span></td><td><code>Offline/OfflineLiveService.cs:139</code></td><td>Inner stream: yields the first view, then <code>ReadAllAsync</code> over the mailbox.</td></tr>
+      <tr data-family="flow"><td>SignalR <code>Hub</code> with defaults, JSON protocol</td><td><span class="chip flow">flow</span></td><td><code>Offline/OfflineHub.cs:14</code> · <code>Program.cs:199</code></td><td>Transient per invocation. Re-authenticates from the cookie on every call and every streamed batch.</td></tr>
+      <tr data-family="flow"><td><code>Task.WhenAny(read, Task.Delay)</code></td><td><span class="chip flow">flow</span></td><td><code>Offline/OfflineHub.cs:163</code></td><td>Idle revalidation race: every 10 s the stream re-checks the cookie and runs a digest even when nothing arrived.</td></tr>
+      <tr data-family="flow"><td>Token bucket on <code>Stopwatch.GetTimestamp</code></td><td><span class="chip flow">flow</span></td><td><code>Offline/OfflineHub.cs:38-50</code></td><td>12-call burst, 4/s sustained, per connection and per method. State lives in <code>Context.Items</code> because the hub instance is transient.</td></tr>
+      <tr data-family="signal"><td><code>event Action&lt;OfflineChange&gt; Changed</code></td><td><span class="chip signal">signal</span></td><td><code>Services/OfflineChangeSignal.cs:24</code></td><td>The one publication point. Raised synchronously inside the conversation lock. Sole subscriber: <code>OfflineFanout</code>.</td></tr>
+      <tr data-family="signal"><td><code>Interlocked.Increment</code> sequence</td><td><span class="chip signal">signal</span></td><td><code>Services/OfflineChangeSignal.cs:20</code></td><td>Global monotonic stamp on every packet. Orders HTTP acknowledgements against stream items.</td></tr>
+      <tr data-family="signal"><td>15 × <code>event Action…</code> on ChatService</td><td><span class="chip signal">signal</span></td><td><code>Services/ChatService.cs:48-76</code></td><td>Blazor-era bus. Six have no subscriber left. The rest serve Blazor pages, the bot and tests.</td></tr>
+      <tr data-family="signal"><td><code>OnSessionKicked</code></td><td><span class="chip signal">signal</span></td><td><code>Services/ChatService.cs:70</code> → <code>OfflineHub.cs:149</code></td><td>The one legacy event the hub subscribes to. Aborts the connection whose session was kicked.</td></tr>
+      <tr data-family="signal"><td><code>Action&lt;…&gt;?</code> callback properties</td><td><span class="chip signal">signal</span></td><td><code>LinkPreviewService.cs:35</code> · <code>MediaCacheService.cs:49</code></td><td>Single-subscriber completion callbacks, assigned once by ChatService, invoked from <code>Task.Run</code> bodies.</td></tr>
+      <tr data-family="signal"><td>Capture-then-publish notification list</td><td><span class="chip signal">signal</span></td><td><code>Services/ChatService.Connections.cs:19-32</code></td><td>Presence mutations collect <code>Action</code>s under the gate and run them after it is released.</td></tr>
+      <tr data-family="sync"><td>Per-conversation lock object</td><td><span class="chip sync">sync</span></td><td><code>Services/OfflineChangeSignal.cs:15,23</code></td><td><code>ConcurrentDictionary&lt;Guid, object&gt;</code> of Monitor targets. Guards the message list, the version counters and projection order. ChatService borrows it via <code>GetChannelLock</code>.</td></tr>
+      <tr data-family="sync"><td><code>lock (gate)</code> in Subscription</td><td><span class="chip sync">sync</span></td><td><code>Offline/OfflineFanout.cs:313</code></td><td>Guards the pending queue and the overflow flag. Never held while taking a conversation lock.</td></tr>
+      <tr data-family="sync"><td><code>lock (_connectionGate)</code></td><td><span class="chip sync">sync</span></td><td><code>Services/ChatService.Connections.cs:7</code></td><td>All presence transitions and their timer callbacks. Guards six plain collections at once.</td></tr>
+      <tr data-family="sync"><td><code>lock (acceptanceLocks)</code></td><td><span class="chip sync">sync</span></td><td><code>Services/ChatService.Acceptance.cs:12</code></td><td>Registry of keyed semaphores with reference counts. The lock makes create, decrement, remove and dispose atomic.</td></tr>
+      <tr data-family="sync"><td><code>lock (Context.Items)</code></td><td><span class="chip sync">sync</span></td><td><code>Offline/OfflineHub.cs:41,138</code></td><td>Per-connection state (token buckets, one-stream flag) shared by concurrent hub invocations on one connection.</td></tr>
+      <tr data-family="sync"><td><code>lock (message.Reactions)</code></td><td><span class="chip sync">sync</span></td><td><code>ChatService.cs:1340</code> · <code>OfflineSnapshotService.cs:116</code></td><td>Guards reaction grouping on read. The writer relies on the conversation lock instead. See chapter 11.</td></tr>
+      <tr data-family="sync"><td>Keyed, ref-counted <code>SemaphoreSlim(1,1)</code></td><td><span class="chip sync">sync</span></td><td><code>Services/ChatService.Acceptance.cs:5-38</code></td><td>Async mutex per operation id, per message id, per DM pair. Disposed when the last user releases.</td></tr>
+      <tr data-family="sync"><td><code>SemaphoreSlim readStateGate</code></td><td><span class="chip sync">sync</span></td><td><code>Services/ChatService.Reads.cs:7</code></td><td>Global async mutex over unread read-modify-write plus its persistence. Held across the SQLite transaction on send.</td></tr>
+      <tr data-family="sync"><td><code>SemaphoreSlim gate</code> (live service)</td><td><span class="chip sync">sync</span></td><td><code>Offline/OfflineLiveService.cs:24</code></td><td>Global async mutex for Join, Report, Typing, Leave, Close. A semaphore because the sections await ChatService.</td></tr>
+      <tr data-family="sync"><td><code>SemaphoreSlim(2)</code> limiters</td><td><span class="chip sync">sync</span></td><td><code>MediaCacheService.cs:27,30</code> · <code>GifFfmpegHelper.cs:14</code></td><td>Cap concurrent yt-dlp downloads, ffmpeg describes and GIF transcodes at two each.</td></tr>
+      <tr data-family="sync"><td><code>SemaphoreSlim(1,1)</code> file mutex</td><td><span class="chip sync">sync</span></td><td><code>JsonPushSubscriptionPersistence.cs:9</code></td><td>Serialises read-modify-write of the push subscription JSON file.</td></tr>
+      <tr data-family="sync"><td><code>Interlocked</code> counters</td><td><span class="chip sync">sync</span></td><td><code>CircuitTracker.cs:36</code> · <code>AdminEndpoints.cs:40,45</code></td><td>Totals under <code>Parallel.ForEachAsync</code> and circuit creation counts.</td></tr>
+      <tr data-family="store"><td>9 × <code>ConcurrentDictionary</code> in ChatService</td><td><span class="chip store">store</span></td><td><code>Services/ChatService.cs:16-84</code></td><td>Sessions, channels, message lists, GIF and author indexes, typing, read states, statuses. Lock-free reads. Compound writes take a gate.</td></tr>
+      <tr data-family="store"><td>3 routing indexes</td><td><span class="chip store">store</span></td><td><code>Offline/OfflineFanout.cs:17-19</code></td><td><code>connections</code>, <code>accounts</code>, <code>channels</code>: nested dictionaries used as concurrent sets. Route a change to the right queues.</td></tr>
+      <tr data-family="store"><td><code>ConcurrentDictionary&lt;Guid,long&gt; Channels</code> per subscription</td><td><span class="chip store">store</span></td><td><code>Offline/OfflineFanout.cs:312,386</code></td><td>Last revision sent per channel. Raised with a lock-free <code>TryUpdate</code> loop that never resurrects a removed key.</td></tr>
+      <tr data-family="store"><td>Immutable records replaced with <code>with</code></td><td><span class="chip store">store</span></td><td><code>ChatService.cs:86</code> · <code>OfflineLiveService.cs:29</code></td><td><code>UserSession</code> and <code>Session</code> are never mutated. A writer stores a new instance, so readers never see a torn record.</td></tr>
+      <tr data-family="store"><td><code>ConcurrentDictionary&lt;Guid, byte&gt;</code> dirty sets</td><td><span class="chip store">store</span></td><td><code>UserService.cs:31</code> · <code>GifService.cs:43</code></td><td>Concurrent set of ids to flush. The flush removes ids before reading values, so a concurrent write re-flags.</td></tr>
+      <tr data-family="store"><td><code>ConcurrentQueue</code> write-behind</td><td><span class="chip store">store</span></td><td><code>UserActionLogService.cs:20</code> · <code>MediaUploadLogService.cs:20</code> · <code>RequestLoggingMiddleware.cs</code></td><td>Hot path enqueues, a hosted service drains on a timer. Unbounded between flushes.</td></tr>
+      <tr data-family="store"><td><code>ConcurrentQueue</code> soft ring buffer</td><td><span class="chip store">store</span></td><td><code>NotificationAudit.cs:61-65</code> · <code>CircuitTracker.cs:58</code></td><td>Enqueue then <code>TryDequeue</code> while over cap. The bound is approximate under contention.</td></tr>
+      <tr data-family="store"><td><code>LinkedList</code> + <code>lock</code> exact ring</td><td><span class="chip store">store</span></td><td><code>DiagnosticsCollectorService.cs:17,67-72</code></td><td>20,160 snapshots, seven days at 30 s. The lock makes the bound exact.</td></tr>
+      <tr data-family="store"><td><code>Queue&lt;DateTime&gt;</code> + <code>lock</code> sliding window</td><td><span class="chip store">store</span></td><td><code>AccessLinkService.cs:263-283</code></td><td>Global brake on failed invite-code lookups. One guess is a guess at every account.</td></tr>
+      <tr data-family="store"><td><code>Dictionary&lt;string, HashSet&lt;Guid&gt;&gt;</code> + <code>lock</code></td><td><span class="chip store">store</span></td><td><code>LinkPreviewService.cs:122-132</code></td><td>Single flight with a waiter list: later callers add their message id, one fetch notifies all.</td></tr>
+      <tr data-family="store"><td><code>ConcurrentDictionary.TryAdd</code> in-flight dedup</td><td><span class="chip store">store</span></td><td><code>MediaCacheService.cs:192</code> · <code>GifService.cs:734,986</code></td><td>Single flight where the second caller is dropped. Completion arrives through a callback.</td></tr>
+      <tr data-family="store"><td><code>ConcurrentDictionary.TryRemove</code> consume-once</td><td><span class="chip store">store</span></td><td><code>RegistrationGateService.cs:107,117</code> · <code>TusEndpoints.cs:339</code></td><td>Approval and upload receipts are consumed atomically on first read.</td></tr>
+      <tr data-family="store"><td><code>GetOrAdd</code> memo caches</td><td><span class="chip store">store</span></td><td><code>OfflineSnapshotService.cs:58</code> · <code>EmojiService.Rendering.cs:50</code> · <code>LocaleResolver.cs:102</code></td><td>Pure factories, so a duplicate factory run under contention only costs CPU.</td></tr>
+      <tr data-family="time"><td><code>BackgroundService</code> + <code>PeriodicTimer</code> 100 ms</td><td><span class="chip time">time</span></td><td><code>Offline/OfflineLiveService.cs:233</code></td><td><code>OfflinePresenceTicker</code>: builds people and typing once per tick, writes changed views into mailboxes.</td></tr>
+      <tr data-family="time"><td><code>BackgroundService</code> + <code>PeriodicTimer</code> 1 min</td><td><span class="chip time">time</span></td><td><code>Services/ChatReceiptCleanup.cs</code></td><td>Prunes send receipts older than one day and expired upload receipts. The 4096-per-user cap is enforced on acceptance, not here.</td></tr>
+      <tr data-family="time"><td><code>BackgroundService</code> + <code>PeriodicTimer</code> 15 s / 30 s</td><td><span class="chip time">time</span></td><td><code>UserActionLogService.cs:65</code> · <code>MediaUploadLogService.cs:162</code> · <code>DiagnosticsCollectorService.cs:35</code></td><td>Drain the write-behind queues, or capture a diagnostics snapshot.</td></tr>
+      <tr data-family="time"><td><code>IHostedService</code> + <code>System.Threading.Timer</code> 10 s</td><td><span class="chip time">time</span></td><td><code>Middleware/RequestLoggingMiddleware.cs:169-215</code></td><td><code>RequestLogWriter</code> appends CSV request logs. Older style. Chapter 11 covers its unguarded callback.</td></tr>
+      <tr data-family="time"><td>Detached <code>PeriodicTimer</code> loops 10 s</td><td><span class="chip time">time</span></td><td><code>UserService.cs:970</code> · <code>GifService.cs:1252</code></td><td>Started by init code. The host does not own them. Final flush hooked on <code>IHostApplicationLifetime.ApplicationStopping</code>.</td></tr>
+      <tr data-family="time"><td><code>ITimer</code> from <code>TimeProvider</code></td><td><span class="chip time">time</span></td><td><code>Services/ChatService.Connections.cs:63-74,112-131</code></td><td>Disconnect grace (30 s) and retention (4 h) timers. Injected clock makes the contract tests deterministic.</td></tr>
+      <tr data-family="time"><td><code>ITimeLimitedDataProtector</code> 2 min</td><td><span class="chip time">time</span></td><td><code>Offline/OfflineLiveService.cs:23,31</code></td><td>Live-session ticket handed out by bootstrap, consumed by <code>Join</code>.</td></tr>
+      <tr data-family="time"><td><code>CancellationTokenSource(timeout)</code> + <code>Kill</code></td><td><span class="chip time">time</span></td><td><code>MediaCacheService.cs:733</code> · <code>GifFfmpegHelper.cs:188</code> · <code>VideoService.cs</code></td><td>Subprocess recipe: start both pipe reads, <code>WaitForExitAsync(token)</code>, kill the tree on timeout.</td></tr>
+      <tr data-family="time"><td><code>Task.Run</code> fire-and-forget</td><td><span class="chip time">time</span></td><td><code>MediaCacheService.cs:195</code> · <code>LinkPreviewService.cs:133</code> · <code>TusEndpoints.cs:295</code></td><td>Downloads, fetches, thumbnails. Each body has its own try/catch. Results come back by callback or <code>Touch</code>.</td></tr>
+      <tr data-family="legacy"><td><code>CircuitHandler</code> (scoped)</td><td><span class="chip legacy">legacy</span></td><td><code>Services/ChatCircuitHandler.cs</code> · <code>Program.cs:214</code></td><td>Feeds Blazor circuit presence into ChatService and telemetry into <code>CircuitTracker</code>.</td></tr>
+      <tr data-family="legacy"><td><code>CircuitTracker</code></td><td><span class="chip legacy">legacy</span></td><td><code>Services/CircuitTracker.cs</code></td><td>Diagnostics only. Lock-free read-modify-write with a comment that explains why that is acceptable.</td></tr>
+      <tr data-family="legacy"><td><code>async void</code> handlers + <code>InvokeAsync</code></td><td><span class="chip legacy">legacy</span></td><td><code>Components/ChatSidebar.razor</code> · <code>ChatHeader.razor</code> · <code>SystemBotService.cs</code></td><td>The old subscriber pattern. Still correct for the pages that remain.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="note flow">
+    <b>Look-alikes.</b> <code>Channel.CreateRoom</code> and <code>Channel.CreateDM</code> in ChatService are factories on the domain model <code>Yap.Models.Channel</code>, not <code>System.Threading.Channels</code>. And there is no <code>TaskCompletionSource</code>, no <code>Lazy&lt;T&gt;</code>, no <code>ReaderWriterLockSlim</code>, no <code>IMemoryCache</code> and no <code>ConfigureAwait</code> anywhere in the tree.
+  </div>
+</section>
+<!-- ============================================================ 3. TRACE -->
+<section class="chapter" id="trace">
+  <div class="chapter-head">
+    <div class="eyebrow">Chapter 3</div>
+    <h2>One message, hop by hop</h2>
+  </div>
+  <p>In SQLite mode, one text message takes fourteen hops from the request filter to a subscriber's browser. Two threads do the work: the sender's request thread and one stream task per subscriber.</p>
+
+  <figure class="diagram">
+    <div class="frame">
+    <svg viewBox="0 0 1020 330" role="img" aria-label="Timeline of a send: on the request thread the operation gate spans from the replay check to fan-out; readStateGate spans the store commit and the list publish; the conversation lock is taken twice, once for the list append and once for Touch and fan-out; a doorbell wakes a separate stream task that drains, merges and yields to SignalR.">
+      <defs>
+        <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+      </defs>
+      <text class="svg-muted" x="20" y="52" font-size="11" font-weight="600">request thread (the sender's POST)</text>
+      <!-- brackets -->
+      <g class="svg-line-sync" stroke-width="1.5">
+        <path d="M135,76 V72 H860 V76"/>
+        <path d="M265,92 V88 H630 V92"/>
+        <path d="M510,108 V104 H630 V108"/>
+        <path d="M640,108 V104 H860 V108"/>
+        <path d="M870,108 V104 H1000 V108"/>
+      </g>
+      <text class="svg-muted" x="497" y="68" text-anchor="middle" font-size="10">operation gate held (keyed SemaphoreSlim)</text>
+      <text class="svg-muted" x="447" y="84" text-anchor="middle" font-size="10">readStateGate held</text>
+      <text class="svg-muted" x="570" y="100" text-anchor="middle" font-size="10">conv. lock</text>
+      <text class="svg-muted" x="750" y="100" text-anchor="middle" font-size="10">conversation lock</text>
+      <text class="svg-muted" x="935" y="100" text-anchor="middle" font-size="10">conv. lock</text>
+      <!-- lane 1 baseline -->
+      <line class="svg-lane" x1="20" y1="143" x2="1000" y2="143"/>
+      <!-- lane 1 boxes -->
+      <rect class="svg-box" x="20" y="120" width="105" height="46" rx="3"/>
+      <text class="svg-text" x="72" y="139" text-anchor="middle" font-size="11">filters</text>
+      <text class="svg-muted" x="72" y="155" text-anchor="middle" font-size="10">401 426 409 csrf</text>
+      <rect class="svg-box-sync" x="135" y="120" width="120" height="46" rx="3"/>
+      <text class="svg-text" x="195" y="139" text-anchor="middle" font-size="11">replay check</text>
+      <text class="svg-muted" x="195" y="155" text-anchor="middle" font-size="10">receipt by operationId</text>
+      <rect class="svg-box-sync" x="265" y="120" width="105" height="46" rx="3"/>
+      <text class="svg-text" x="317" y="139" text-anchor="middle" font-size="11">unread copies</text>
+      <text class="svg-muted" x="317" y="155" text-anchor="middle" font-size="10">per recipient</text>
+      <rect class="svg-box-store" x="380" y="120" width="120" height="46" rx="3"/>
+      <text class="svg-text" x="440" y="139" text-anchor="middle" font-size="11">store commit</text>
+      <text class="svg-muted" x="440" y="155" text-anchor="middle" font-size="10">one SQLite tx</text>
+      <rect class="svg-box-sync" x="510" y="120" width="120" height="46" rx="3"/>
+      <text class="svg-text" x="570" y="139" text-anchor="middle" font-size="11">list.Add + index</text>
+      <text class="svg-muted" x="570" y="155" text-anchor="middle" font-size="10">memory is now truth</text>
+      <rect class="svg-box-signal" x="640" y="120" width="220" height="46" rx="3"/>
+      <text class="svg-text" x="750" y="139" text-anchor="middle" font-size="11">Touch → Changed → project</text>
+      <text class="svg-muted" x="750" y="155" text-anchor="middle" font-size="10">Enqueue × every subscriber</text>
+      <rect class="svg-box-accent" x="870" y="120" width="130" height="46" rx="3"/>
+      <text class="svg-text" x="935" y="139" text-anchor="middle" font-size="11">Capture → 200</text>
+      <text class="svg-muted" x="935" y="155" text-anchor="middle" font-size="10">{messageId, update}</text>
+      <!-- doorbell -->
+      <line class="svg-line-accent" x1="750" y1="166" x2="700" y2="250" stroke-dasharray="4 3" marker-end="url(#arr2)"/>
+      <text class="svg-muted" x="690" y="214" text-anchor="end" font-size="10">Channel&lt;bool&gt;.TryWrite</text>
+      <!-- lane 2 -->
+      <text class="svg-muted" x="770" y="240" font-size="11" font-weight="600">stream task, one per subscriber</text>
+      <line class="svg-lane" x1="640" y1="273" x2="1000" y2="273"/>
+      <rect class="svg-box-accent" x="640" y="250" width="120" height="46" rx="3"/>
+      <text class="svg-text" x="700" y="269" text-anchor="middle" font-size="11">ReadAsync wakes</text>
+      <text class="svg-muted" x="700" y="285" text-anchor="middle" font-size="10">thread pool</text>
+      <rect class="svg-box-accent" x="770" y="250" width="110" height="46" rx="3"/>
+      <text class="svg-text" x="825" y="269" text-anchor="middle" font-size="11">drain + merge</text>
+      <text class="svg-muted" x="825" y="285" text-anchor="middle" font-size="10">lock(gate), then free</text>
+      <rect class="svg-box-accent" x="890" y="250" width="110" height="46" rx="3"/>
+      <text class="svg-text" x="945" y="269" text-anchor="middle" font-size="11">yield</text>
+      <text class="svg-muted" x="945" y="285" text-anchor="middle" font-size="10">SignalR StreamItem</text>
+      <!-- time -->
+      <line class="svg-line-muted" x1="20" y1="318" x2="1000" y2="318" marker-end="url(#arr2)"/>
+      <text class="svg-muted" x="20" y="312" font-size="10">time</text>
+    </svg>
+    </div>
+    <figcaption>The sender's thread does the projection work for every subscriber while it holds the conversation lock. The subscriber's stream task only drains and ships. The acknowledgement is captured after the lock is released, so its sequence stamp is higher than the stream item's.</figcaption>
+  </figure>
+
+  <ol class="steps">
+    <li><div class="hop"><div><span class="chip flow">flow</span> <b>Group filter.</b> Cookie or 401. Protocol header or 426. <code>X-Yap-Chat-User</code> matches the cookie or 409. Cross-site or 403. Then an antiforgery token bound to the cookie's account, so a tab that switched accounts fails here.</div><div class="path">Offline/OfflineEndpoints.cs:57-122 · route POST /api/chat/conversations/{id}/messages at :172</div></div></li>
+    <li><div class="hop"><div><b>Validate and hash.</b> <code>SendTextAsync</code> rejects <code>Guid.Empty</code>, enforces <code>MaxTextLength</code>, then computes a SHA-256 of a canonical payload. The comment says field names, order and raw-text case are persistent protocol data, so a retry after an upgrade still matches its saved receipt.</div><div class="path">Services/ChatService.Text.cs:20-51</div></div></li>
+    <li><div class="hop"><div><span class="chip sync">sync</span> <b>Operation gate and replay check.</b> <code>using (await LockAcceptance($"operation:{user.Id}:{operationId}"))</code>. A stored receipt returns at once, even after a delete. Same id with different content is a 409.</div><div class="path">Services/ChatService.Text.cs:52-60 · Acceptance.cs:9-33</div></div></li>
+    <li><div class="hop"><div><b>Authorize, then resolve media.</b> Uploads and GIF selections are resolved only for a new acceptance, so a deleted file cannot make an already accepted operation fail its replay.</div><div class="path">Services/ChatService.Text.cs:61-71</div></div></li>
+    <li><div class="hop"><div><b>Recipients, outside any gate.</b> DM: the other participant. Room: connected sessions plus users who unmuted the room, minus foreground readers who are already caught up.</div><div class="path">Services/ChatService.cs:1399-1432</div></div></li>
+    <li><div class="hop"><div><span class="chip sync">sync</span> <b>readStateGate.</b> Copies of each recipient's read state are incremented, then <code>accept()</code> runs. The global gate is held across the whole store call, so a concurrent mark-read cannot overwrite the increment with a stale counter.</div><div class="path">Services/ChatService.cs:1440-1450 · Reads.cs:7</div></div></li>
+    <li><div class="hop"><div><span class="chip store">store</span> <b>One transaction.</b> Detached message copy, receipt, <code>INSERT OR IGNORE</code> plus <code>UPDATE … json_each</code> for the unread rows, receipt cap in rowid order, commit. SQLite error 1555 or 2067 maps to 409: competing retries share a gate, so a remaining PK collision is conflicting intent, not a transient error.</div><div class="path">Services/SqliteChatStore.cs:25-37,76-83 · Text.cs:95-100</div></div></li>
+    <li><div class="hop"><div><span class="chip sync">sync</span> <b>Publish to memory under the conversation lock.</b> <code>messages.Add</code> and <code>IndexMessage</code>. "The message must be visible before its arrival checkpoint can be observed." Then the read-state copies are published and the gate is released.</div><div class="path">Services/ChatService.Text.cs:101-109 · ChatService.cs:1451-1457</div></div></li>
+    <li><div class="hop"><div><span class="chip signal">signal</span> <b>Post-commit notification.</b> Wrapped in try/catch: "Acceptance is authoritative. Notification failures cannot turn it into a retry." <code>Touch(channelId, messageId, history: false)</code> bumps the content version but not the history version, so cached history pages stay valid.</div><div class="path">Services/ChatService.Text.cs:116-128 · ChatService.cs:973</div></div></li>
+    <li><div class="hop"><div><span class="chip flow">flow</span> <b>Fan-out, still on the request thread, inside the lock.</b> <code>Touch</code> raises <code>Changed</code>. The fan-out re-reads the message from memory (a stale event must never project an old object over a newer edit), projects it once, then per subscriber: authorize, <code>ForViewer</code>, build a delta with <code>BaseRevision</code> and <code>Revision</code>, <code>Enqueue</code>. Enqueue takes <code>lock(gate)</code>, appends, rings the doorbell.</div><div class="path">Services/OfflineChangeSignal.cs:26-37 · Offline/OfflineFanout.cs:113-169, 321-337</div></div></li>
+    <li><div class="hop"><div><span class="chip signal">signal</span> <b>After the lock.</b> The legacy <code>OnMessageReceived</code> (the bot listens), one Unread <code>Touch</code> per recipient, link-preview and media queueing, push notifications as discarded tasks.</div><div class="path">Services/ChatService.cs:974-992, 1037-1039</div></div></li>
+    <li><div class="hop"><div><span class="chip flow">flow</span> <b>HTTP 200 with compact authority.</b> The endpoint captures the conversation under its lock with a fresh stamp and returns <code>{operationId, messageId, update}</code>. The sender receives its own message twice: in this acknowledgement and on its stream. The client reconciles by sequence.</div><div class="path">Offline/OfflineEndpoints.cs:184-189 · OfflineSnapshotService.cs:162-171</div></div></li>
+    <li><div class="hop"><div><span class="chip flow">flow</span> <b>The stream task.</b> <code>ReadAsync</code> completes on a pool thread (synchronous continuations are off by default). Drain under the gate, merge per conversation, raise the last-sent revisions, re-check the cookie, <code>yield return</code>. SignalR serializes a StreamItem frame.</div><div class="path">Offline/OfflineFanout.cs:339-390 · OfflineHub.cs:170-172</div></div></li>
+    <li><div class="hop"><div><b>The browser.</b> <code>hubConnection.stream('WatchChanges', known, …).subscribe(next)</code>. <code>commitUpdate</code> deletes the outbox row in the same IndexedDB transaction that stores the server copy, whichever of the acknowledgement or the stream item lands first.</div><div class="path">wwwroot/chat-client/app.js:1017-1035 · storage.js:144-148</div></div></li>
+  </ol>
+
+  <div class="note">
+    <b>Threads and contexts.</b> ASP.NET Core has no <code>SynchronizationContext</code>, so every await continues on the pool. No endpoint and no acceptance method takes a <code>CancellationToken</code>: an aborted request does not cancel a send in progress, which keeps the receipt complete for the retry. No comment says this is deliberate, but it is consistent with the "acceptance is authoritative" rule.
+  </div>
+</section>
+
+<!-- ============================================================ 4. FLOW -->
+<section class="chapter" id="flow">
+  <div class="chapter-head">
+    <div class="eyebrow">Chapter 4</div>
+    <h2>Flow: channels and streams</h2>
+  </div>
+  <p>Only two places in the server create a <code>System.Threading.Channels</code> channel, and both channels hold one item. Neither carries the payload. One is a doorbell for a locked queue, the other is a latest-value mailbox. The payload itself travels on <code>IAsyncEnumerable</code> yields that SignalR turns into stream frames.</p>
+
+  <h3 id="flow-sub">The per-connection queue</h3>
+  <figure class="code">
+    <figcaption><span class="path">Offline/OfflineFanout.cs:307-351</span><span>Subscription: the queue, the doorbell and the overflow rule</span><span class="why">A bounded, lock-guarded <code>Queue&lt;T&gt;</code> plus a one-slot <code>Channel&lt;bool&gt;</code>. The channel never holds data, it only says "something is pending".</span></figcaption>
+<pre><code class="cs">/// &lt;summary&gt;A bounded queue. Overflow drops records and recovers through authorized invalidations.&lt;/summary&gt;
+public sealed class Subscription(OfflineFanout owner, User user, int capacity) : IDisposable
+{
+    internal Guid Id { get; } = Guid.NewGuid();
+    internal User User { get; } = user;
+    internal ConcurrentDictionary&lt;Guid, long&gt; Channels { get; } = new();
+    private readonly object gate = new();
+«    private readonly Queue&lt;ChatUpdate&gt; pending = new();»
+«    private readonly Channel&lt;bool&gt; ready = System.Threading.Channels.Channel.CreateBounded&lt;bool&gt;(1);»
+    private bool overflow, disposed;
+    public long Overflows { get; private set; }
+    internal void Enqueue(ChatUpdate update)
+    {
+        lock (gate)
+        {
+            if (disposed)
+                return;
+«            if (!overflow &amp;&amp; pending.Count &gt;= capacity)»
+            {
+                pending.Clear();
+                overflow = true;
+                Overflows++;
+            }
+            if (!overflow)
+                pending.Enqueue(update);
+«            ready.Writer.TryWrite(true);»
+        }
+    }
+    public Task Digest() =&gt; owner.Digest(this);
+    public async Task&lt;ChatUpdate[]&gt; Read(CancellationToken cancellationToken)
+    {
+«        await ready.Reader.ReadAsync(cancellationToken);»
+        ChatUpdate[] batch;
+        bool recover;
+        lock (gate)
+        {
+            batch = pending.ToArray();
+            pending.Clear();
+«            ready.Reader.TryRead(out _);»
+            recover = overflow;
+            overflow = false;
+        }</code></pre>
+  </figure>
+
+  <div class="pair">
+    <div class="card">
+      <h4>Why not a <code>Channel&lt;ChatUpdate&gt;</code>?</h4>
+      <p>Three operations need to be atomic and a channel offers none of them. Overflow must clear the queue and set a flag together. <code>Read</code> must drain everything and reset the flag together. And the merge step needs the whole batch at once, because entries for one conversation collapse into a single patch. A <code>Queue&lt;T&gt;</code> under a <code>lock</code> gives all three in a few lines. The code comment does not state this reason. It is my reading of the shape.</p>
+    </div>
+    <div class="card">
+      <h4>Why a one-slot <code>Channel&lt;bool&gt;</code> as the doorbell?</h4>
+      <p>It is the cheapest awaitable signal in the BCL. <code>TryWrite</code> on a full Wait-mode channel returns false without blocking, so a hundred enqueues produce one wake-up. <code>TryRead</code> under the gate after the drain discards a stale wake-up. The default <code>AllowSynchronousContinuations = false</code> means the reader's continuation never runs on the publisher's thread, which still holds two locks at that moment.</p>
+    </div>
+  </div>
+
+  <figure class="diagram">
+    <div class="frame">
+    <svg viewBox="0 0 980 250" role="img" aria-label="Subscription internals: publishers enqueue under lock(gate) into a 128-entry queue and ring a one-slot Channel of bool; Read awaits the doorbell, drains the queue, then either merges per conversation or, after an overflow, rebuilds a Reset packet from every allowed channel.">
+      <defs>
+        <marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+      </defs>
+      <text class="svg-muted" x="20" y="60" font-size="11">publishers</text>
+      <text class="svg-muted" x="20" y="76" font-size="11">(request threads,</text>
+      <text class="svg-muted" x="20" y="92" font-size="11">inside conversation locks)</text>
+      <line class="svg-line-signal" x1="205" y1="60" x2="250" y2="92" marker-end="url(#arr3)"/>
+      <line class="svg-line-signal" x1="205" y1="92" x2="250" y2="98" marker-end="url(#arr3)"/>
+      <line class="svg-line-signal" x1="205" y1="124" x2="250" y2="104" marker-end="url(#arr3)"/>
+      <!-- gate box -->
+      <rect class="svg-box-sync" x="252" y="40" width="260" height="120" rx="4"/>
+      <text class="svg-text" x="382" y="62" text-anchor="middle" font-weight="600">lock (gate)</text>
+      <rect class="svg-box-store" x="268" y="74" width="228" height="34" rx="3"/>
+      <text class="svg-text" x="382" y="95" text-anchor="middle" font-size="11">Queue&lt;ChatUpdate&gt; · cap 128</text>
+      <rect class="svg-box" x="268" y="116" width="100" height="30" rx="3"/>
+      <text class="svg-text" x="318" y="135" text-anchor="middle" font-size="11">overflow flag</text>
+      <rect class="svg-box-accent" x="376" y="116" width="120" height="30" rx="3"/>
+      <text class="svg-text" x="436" y="135" text-anchor="middle" font-size="11">Channel&lt;bool&gt;(1)</text>
+      <!-- read -->
+      <line class="svg-line-accent" x1="512" y1="131" x2="580" y2="131" marker-end="url(#arr3)"/>
+      <text class="svg-muted" x="546" y="124" text-anchor="middle" font-size="10">ReadAsync</text>
+      <rect class="svg-box-accent" x="582" y="40" width="150" height="120" rx="4"/>
+      <text class="svg-text" x="657" y="62" text-anchor="middle" font-weight="600">Read()</text>
+      <text class="svg-muted" x="657" y="84" text-anchor="middle" font-size="11">drain under gate</text>
+      <text class="svg-muted" x="657" y="100" text-anchor="middle" font-size="11">TryRead stale signal</text>
+      <text class="svg-muted" x="657" y="116" text-anchor="middle" font-size="11">release gate</text>
+      <text class="svg-muted" x="657" y="140" text-anchor="middle" font-size="11">overflow?</text>
+      <!-- outcomes -->
+      <line class="svg-line" x1="732" y1="80" x2="800" y2="60" marker-end="url(#arr3)"/>
+      <rect class="svg-box" x="802" y="40" width="160" height="44" rx="3"/>
+      <text class="svg-text" x="882" y="58" text-anchor="middle" font-size="11">no overflow: merge</text>
+      <text class="svg-muted" x="882" y="74" text-anchor="middle" font-size="10">per conversation, yield</text>
+      <line class="svg-line-sync" x1="732" y1="130" x2="800" y2="150" marker-end="url(#arr3)"/>
+      <rect class="svg-box-sync" x="802" y="130" width="160" height="60" rx="3"/>
+      <text class="svg-text" x="882" y="148" text-anchor="middle" font-size="11">yes: Reset packet</text>
+      <text class="svg-muted" x="882" y="164" text-anchor="middle" font-size="10">header + every allowed</text>
+      <text class="svg-muted" x="882" y="178" text-anchor="middle" font-size="10">channel, invalidated</text>
+      <text class="svg-muted" x="490" y="220" text-anchor="middle" font-size="10">lock order: conversation lock → gate. Read releases the gate before it takes any conversation lock.</text>
+    </svg>
+    </div>
+    <figcaption>At 128 pending entries the queue is cleared and flagged. The next read does not try to replay what was lost. It sends a Reset with the complete allowed set, and the client refetches the windows whose revision differs.</figcaption>
+  </figure>
+
+  <figure class="code">
+    <figcaption><span class="path">Offline/OfflineFanout.cs:352-379</span><span>Recovery and the merge rule</span><span class="why">The two comments explain the two invariants: never nest the locks the other way, and never let one conversation's patch borrow another's sequence stamp.</span></figcaption>
+<pre><code class="cs">        if (recover)
+        {
+«            // Do not hold the queue lock while taking channel locks: publishers take them»
+«            // in the other order. New changes keep accumulating during this recovery.»
+            var resetSequence = owner.changes.Stamp();
+            var updates = new List&lt;ChatUpdate&gt;();
+            foreach (var channel in owner.snapshots.Channels(User))
+            {
+                lock (owner.chat.GetChannelLock(channel.Id))
+                {
+                    var metadata = owner.snapshots.Metadata(User, channel.Id);
+                    if (metadata != null)
+                        updates.Add(new(ChatProtocol.Number, User.Id, owner.changes.Epoch, owner.changes.Stamp(), null,
+                        [new(channel.Id, metadata, [], [], null, null, OfflineSync.Revision(metadata), true)], [], []));
+                }
+            }
+            // Reset supplies the complete allowed set, including removals lost at overflow.
+            var reset = new ChatUpdate(ChatProtocol.Number, User.Id, owner.changes.Epoch, resetSequence, owner.snapshots.Header(User),
+                updates.SelectMany(u =&gt; u.Conversations).ToArray(), [], [], Reset: true);
+            return Sent([reset, .. updates]);
+        }
+«        // Different conversations must keep different sequence stamps. Stamping an old»
+«        // room record with a later DM sequence can overwrite a newer HTTP acknowledgement.»
+        // A channel's publishers serialize enqueue under its lock, so coalescing only that
+        // channel preserves its revision chain and latest record authority.
+        return Sent(batch.GroupBy(u =&gt; u.State != null ? "header" :
+                (u.Conversations.FirstOrDefault()?.Id ?? u.RemovedConversations.FirstOrDefault()).ToString())
+            .Select(group =&gt; Merge(group.ToArray())).OrderBy(u =&gt; u.Sequence).ToArray());</code></pre>
+  </figure>
+
+  <h3>The hub stream that drives it</h3>
+  <figure class="code">
+    <figcaption><span class="path">Offline/OfflineHub.cs:135-176</span><span>WatchChanges: one stream per connection, revalidated every ten seconds</span><span class="why">A <code>Task.WhenAny</code> between the pending read and a delay gives an idle stream a heartbeat without a second loop. The <code>using</code> on the subscription is what tears the queue down when the client goes away.</span></figcaption>
+<pre><code class="cs">public async IAsyncEnumerable&lt;ChatUpdate&gt; WatchChanges(Dictionary&lt;Guid, string&gt; known, string? knownState,
+    [EnumeratorCancellation] CancellationToken cancellationToken)
+{
+    lock (Context.Items)
+    {
+        if (Context.Items.ContainsKey("changes-stream"))
+            throw new HubException("Change stream already active");
+        Context.Items["changes-stream"] = true;
+    }
+    void Kicked(string sessionId)
+    {
+        if (sessionId == "chat:" + Context.ConnectionId)
+            Context.Abort();
+    }
+«    chat.OnSessionKicked += Kicked;»
+    try
+    {
+«        using var subscription = fanout.Subscribe(CurrentUser(), known);»
+        var nextDigest = DateTime.UtcNow.AddSeconds(10);
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            if (DateTime.UtcNow &gt;= nextDigest)
+            {
+                await subscription.Digest();
+                nextDigest = DateTime.UtcNow.AddSeconds(10);
+            }
+            var read = subscription.Read(cancellationToken);
+            // Revalidate idle sessions too; a revoked cookie must not leave a private stream alive.
+«            while (await Task.WhenAny(read, Task.Delay(TimeSpan.FromMilliseconds(Math.Max(1, (nextDigest - DateTime.UtcNow).TotalMilliseconds)), cancellationToken)) != read)»
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                CurrentUser();
+                await subscription.Digest();
+                nextDigest = DateTime.UtcNow.AddSeconds(10);
+            }
+            CurrentUser();
+            foreach (var update in await read)
+«                yield return update;»
+        }
+    }
+    finally { chat.OnSessionKicked -= Kicked; lock (Context.Items) Context.Items.Remove("changes-stream"); }
+}</code></pre>
+  </figure>
+  <ul>
+    <li><b>Identity.</b> <code>CurrentUser()</code> re-authenticates from the cookie on the connection's <code>HttpContext</code> on every batch and every hub call. The code never uses <code>Context.User</code>, <code>UserIdentifier</code> or Groups. The subscription is keyed by its own Guid. Presence is keyed by <code>"chat:" + ConnectionId</code>.</li>
+    <li><b>Teardown.</b> SignalR cancels the token when the client drops. <code>ReadAsync</code> or <code>Task.Delay</code> throws, <code>using</code> disposes the subscription (clear queue, <code>TryComplete</code> the doorbell, remove from the three indexes), the finally block unsubscribes the kick handler.</li>
+    <li><b>Slow client.</b> SignalR awaits each item write. While a write waits, the loop does not call <code>Read</code>, the queue fills to 128, then overflows into a Reset. Memory per slow connection is bounded by construction.</li>
+    <li><b>Hub lifetime.</b> The <code>Hub</code> instance is transient per invocation. Per-connection state lives in <code>Context.Items</code>, which is why the token bucket and the one-stream flag lock that dictionary rather than a field.</li>
+  </ul>
+
+  <h3 id="flow-presence">The presence mailbox</h3>
+  <p>Presence and typing do not ride the change stream. They are polled from <code>ChatService</code> by a 100 ms ticker, projected once per tick, and pushed through a second one-slot channel per connection. The channel is <code>DropOldest</code>, so it always holds the newest view and never blocks the ticker.</p>
+
+  <figure class="diagram">
+    <div class="frame">
+    <svg viewBox="0 0 960 230" role="img" aria-label="Presence pipeline: hub calls Report and Typing pass through a global SemaphoreSlim into OfflineLiveService sessions and ChatService; every 100 ms the ticker builds people and typing once and TryWrites a view into each listener's one-slot DropOldest channel; Watch reads it, ActivityViews diffs it, WatchActivity yields the changed fields.">
+      <defs>
+        <marker id="arr4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+      </defs>
+      <!-- inbound row -->
+      <rect class="svg-box" x="20" y="30" width="130" height="44" rx="3"/>
+      <text class="svg-text" x="85" y="48" text-anchor="middle" font-size="11">hub Report / Typing</text>
+      <text class="svg-muted" x="85" y="64" text-anchor="middle" font-size="10">send, no reply</text>
+      <line class="svg-line" x1="150" y1="52" x2="210" y2="52" marker-end="url(#arr4)"/>
+      <text class="svg-muted" x="180" y="44" text-anchor="middle" font-size="10">gate</text>
+      <rect class="svg-box-sync" x="212" y="30" width="170" height="44" rx="3"/>
+      <text class="svg-text" x="297" y="48" text-anchor="middle" font-size="11">OfflineLiveService</text>
+      <text class="svg-muted" x="297" y="64" text-anchor="middle" font-size="10">sessions: immutable records</text>
+      <line class="svg-line" x1="382" y1="52" x2="442" y2="52" marker-end="url(#arr4)"/>
+      <rect class="svg-box-sync" x="444" y="30" width="170" height="44" rx="3"/>
+      <text class="svg-text" x="529" y="48" text-anchor="middle" font-size="11">ChatService presence</text>
+      <text class="svg-muted" x="529" y="64" text-anchor="middle" font-size="10">statuses, typing, sessions</text>
+      <!-- ticker row -->
+      <rect class="svg-box-time" x="20" y="130" width="130" height="44" rx="3"/>
+      <text class="svg-text" x="85" y="148" text-anchor="middle" font-size="11">PresenceTicker</text>
+      <text class="svg-muted" x="85" y="164" text-anchor="middle" font-size="10">PeriodicTimer 100 ms</text>
+      <line class="svg-line" x1="150" y1="152" x2="210" y2="152" marker-end="url(#arr4)"/>
+      <text class="svg-muted" x="180" y="144" text-anchor="middle" font-size="10">Tick()</text>
+      <rect class="svg-box-time" x="212" y="118" width="170" height="68" rx="3"/>
+      <text class="svg-text" x="297" y="138" text-anchor="middle" font-size="11">build once per tick</text>
+      <text class="svg-muted" x="297" y="154" text-anchor="middle" font-size="10">people[] (swap if changed)</text>
+      <text class="svg-muted" x="297" y="170" text-anchor="middle" font-size="10">typing per viewed channel</text>
+      <line class="svg-line-muted" x1="262" y1="74" x2="262" y2="118" marker-end="url(#arr4)" stroke-dasharray="3 3"/>
+      <path class="svg-line-muted" d="M529,74 V96 H340 V118" marker-end="url(#arr4)" stroke-dasharray="3 3"/>
+      <text class="svg-muted" x="436" y="90" text-anchor="middle" font-size="10">Tick reads</text>
+      <line class="svg-line-accent" x1="382" y1="152" x2="442" y2="152" marker-end="url(#arr4)"/>
+      <text class="svg-muted" x="412" y="144" text-anchor="middle" font-size="10">TryWrite</text>
+      <rect class="svg-box-accent" x="444" y="118" width="170" height="68" rx="3"/>
+      <text class="svg-text" x="529" y="138" text-anchor="middle" font-size="11">per listener</text>
+      <text class="svg-muted" x="529" y="154" text-anchor="middle" font-size="10">Channel&lt;LiveView&gt;(1)</text>
+      <text class="svg-muted" x="529" y="170" text-anchor="middle" font-size="10">DropOldest · latest wins</text>
+      <line class="svg-line-accent" x1="614" y1="152" x2="674" y2="152" marker-end="url(#arr4)"/>
+      <text class="svg-muted" x="644" y="110" text-anchor="middle" font-size="10">ReadAllAsync</text>
+      <rect class="svg-box-accent" x="676" y="118" width="130" height="68" rx="3"/>
+      <text class="svg-text" x="741" y="138" text-anchor="middle" font-size="11">ActivityViews</text>
+      <text class="svg-muted" x="741" y="154" text-anchor="middle" font-size="10">diff vs previous</text>
+      <text class="svg-muted" x="741" y="170" text-anchor="middle" font-size="10">state in the consumer</text>
+      <line class="svg-line-accent" x1="806" y1="152" x2="866" y2="152" marker-end="url(#arr4)"/>
+      <rect class="svg-box" x="868" y="130" width="72" height="44" rx="3"/>
+      <text class="svg-text" x="904" y="148" text-anchor="middle" font-size="11">browser</text>
+      <text class="svg-muted" x="904" y="164" text-anchor="middle" font-size="10">deltas</text>
+      <text class="svg-muted" x="480" y="215" text-anchor="middle" font-size="10">A dropped intermediate view is harmless: the diff state lives in the consumer, so the next view still yields a correct delta.</text>
+    </svg>
+    </div>
+    <figcaption>Inbound presence goes through one global async mutex. Outbound presence is polled. That is why <code>OnTypingUsersChanged</code> and <code>OnUserStatusChanged</code> have no hub subscriber.</figcaption>
+  </figure>
+
+  <figure class="code">
+    <figcaption><span class="path">Offline/OfflineLiveService.cs:139-151, 233-249</span><span>Watch and the ticker</span><span class="why">The mailbox is created inside the iterator and removed in its finally block, so its lifetime is exactly the stream's lifetime.</span></figcaption>
+<pre><code class="cs">public async IAsyncEnumerable&lt;LiveView&gt; Watch(string connection, User user, [EnumeratorCancellation] CancellationToken cancellationToken)
+{
+«    var queue = Channel.CreateBounded&lt;LiveView&gt;(new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropOldest });»
+    if (!listeners.TryAdd(connection, queue))
+        throw new InvalidOperationException("Activity stream already active");
+    try
+    {
+        yield return BuildView(connection, user);
+        await foreach (var view in queue.Reader.ReadAllAsync(cancellationToken))
+            yield return view;
+    }
+    finally { listeners.TryRemove(connection, out _); lastViews.TryRemove(connection, out _); }
+}
+
+/// Publishes changed presence/typing projections. Disconnect timing belongs to ChatService.
+public sealed class OfflinePresenceTicker(OfflineLiveService live, ILogger&lt;OfflinePresenceTicker&gt; logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+«        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(100));»
+        try
+        {
+            while (await timer.WaitForNextTickAsync(stoppingToken))
+                try { live.Tick(); }
+                catch (Exception error) { logger.LogError(error, "Presence publication failed"); }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
+    }
+}</code></pre>
+  </figure>
+  <ul>
+    <li><b>Cheap change test.</b> <code>Tick</code> replaces the <code>people</code> array only when its content changed, so the per-listener dedupe can use <code>ReferenceEquals(previous.View.Users, view.Users)</code> instead of comparing arrays.</li>
+    <li><b>Typing keepalive.</b> While someone types, the same view is re-sent once per second even if nothing changed, so the client's typing timeout can be a plain timer.</li>
+    <li><b>Rate.</b> At most ten views per second per connection, by construction of the ticker. The ticker runs with or without listeners.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ 5. SIGNAL -->
+<section class="chapter" id="signal">
+  <div class="chapter-head">
+    <div class="eyebrow">Chapter 5</div>
+    <h2>Signalling: the old bus and the new one</h2>
+  </div>
+  <p><code>ChatService</code> declares fifteen <code>Action</code> events. Before the rewrite, Blazor components re-rendered on them. The rewrite did not remove that bus. It added a second, narrower one: a single <code>event Action&lt;OfflineChange&gt;</code> with one subscriber. Every committed write calls <code>Touch</code> on it. The old events are raised a line later and reach only Blazor pages, the bot and the tests.</p>
+
+  <figure class="code">
+    <figcaption><span class="path">Services/OfflineChangeSignal.cs</span><span>The whole publication point, less the usings</span><span class="why">The per-conversation lock lives in this class. ChatService borrows it through <code>GetChannelLock</code>. The global sequence is an <code>Interlocked</code> counter. The epoch is a fresh Guid per process because every counter lives in memory.</span></figcaption>
+<pre><code class="cs">public sealed class OfflineChangeSignal(ILogger&lt;OfflineChangeSignal&gt; logger)
+{
+«    private readonly ConcurrentDictionary&lt;Guid, object&gt; gates = new();»
+    private readonly ConcurrentDictionary&lt;Guid, long&gt; contentVersions = new();
+    private readonly ConcurrentDictionary&lt;Guid, long&gt; historyVersions = new();
+    private long sequence;
+    public string Epoch { get; } = Guid.NewGuid().ToString("N");
+«    public long Stamp() =&gt; Interlocked.Increment(ref sequence);»
+    public long HistoryVersion(Guid id) =&gt; historyVersions.GetValueOrDefault(id);
+    public long ContentVersion(Guid id) =&gt; contentVersions.GetValueOrDefault(id);
+«    internal object ChannelLock(Guid id) =&gt; gates.GetOrAdd(id, _ =&gt; new());»
+«    public event Action&lt;OfflineChange&gt;? Changed;»
+
+    public void Touch(Guid channelId, Guid? messageId = null, bool history = true)
+    {
+        // Capture, counters and projection share this conversation's lock, never a global gate.
+        lock (ChannelLock(channelId))
+        {
+            var before = ContentVersion(channelId);
+            contentVersions[channelId] = before + 1;
+            if (history)
+                historyVersions.AddOrUpdate(channelId, 1, (_, value) =&gt; value + 1);
+            Publish(new(OfflineChangeKind.Content, channelId, messageId, Before: before, After: before + 1, Sequence: Stamp()));
+        }
+    }
+
+    // Account/global changes do not advance message revisions or expose private channel IDs.
+    public void Touch(OfflineChangeKind kind, Guid id = default, Guid? relatedId = null, string? url = null)
+        =&gt; Publish(new(kind, id, relatedId, url, Sequence: Stamp()));
+
+    private void Publish(OfflineChange change)
+    {
+        if (Changed == null)
+            return;
+«        foreach (Action&lt;OfflineChange&gt; subscriber in Changed.GetInvocationList())»
+            try
+            {
+                subscriber(change);
+            }
+            catch (Exception error) { logger.LogError(error, "Chat change publication failed for {Kind} {Id}", change.Kind, change.Id); }
+    }
+}</code></pre>
+  </figure>
+
+  <div class="grid">
+    <div class="card">
+      <h4>Two overloads, two meanings</h4>
+      <p>The channel overload bumps versions and must run under the conversation lock so the version it reports matches the memory state the fan-out will project. The kind overload (Unread, Profile, People, Media, Gif, Favorites, Settings, Preferences) only stamps a sequence. It must not advance a conversation revision or leak a private channel id.</p>
+    </div>
+    <div class="card">
+      <h4>The <code>history</code> flag</h4>
+      <p>An arrival passes <code>history: false</code>, so cached older pages on the client stay valid. An edit, delete or reaction uses the default <code>true</code> and invalidates them. The README states the rule: history versions invalidate older cached pages on mutations while allowing ordinary arrivals to preserve them.</p>
+    </div>
+    <div class="card">
+      <h4>Synchronous on purpose</h4>
+      <p>Publish runs each subscriber inline with its own try/catch. There is no queue here and no backpressure. The queue is one hop later, per connection. The cost of that choice is that the sender's thread does the projection. The benefit is that projection sees exactly the state the version bump describes.</p>
+    </div>
+  </div>
+
+  <h3>Status of the old bus</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Event</th><th>Raised at</th><th>Subscribers today</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td><code>OnMessageReceived</code></td><td>ChatService.cs:974 · Text.cs:125</td><td>SystemBotService.cs:154</td><td><span class="chip signal">live, bot only</span></td></tr>
+      <tr><td><code>OnUserChanged</code></td><td>Connections.cs:73 (debounced)</td><td>SystemBotService.cs:152</td><td><span class="chip signal">live, bot only</span></td></tr>
+      <tr><td><code>OnSessionKicked</code></td><td>ChatService.cs:936</td><td>ChatLayout.razor:65 · OfflineHub.cs:149</td><td><span class="chip signal">live, both clients</span></td></tr>
+      <tr><td><code>OnUsersListChanged</code></td><td>Connections.cs:37</td><td>ChatSidebar, ChatHeader, Settings</td><td><span class="chip legacy">Blazor pages</span></td></tr>
+      <tr><td><code>OnChannelCreated / Updated / Deleted</code></td><td>ChatService.cs:338, 414, 448, 370</td><td>ChatSidebar.razor:174-176</td><td><span class="chip legacy">Blazor pages</span></td></tr>
+      <tr><td><code>OnUserStatusChanged</code></td><td>ChatService.cs:605, 645</td><td>ChatHeader, ChatSidebar</td><td><span class="chip legacy">Blazor pages</span></td></tr>
+      <tr><td><code>OnUnreadChanged</code></td><td>ChatService.cs:1474-1476</td><td>ChatHeader, ChatSidebar</td><td><span class="chip legacy">Blazor pages</span></td></tr>
+      <tr><td><code>OnMessageUpdated / Deleted</code>, <code>OnReactionChanged</code></td><td>Actions.cs:97-104</td><td>none</td><td><span class="chip legacy">dead</span></td></tr>
+      <tr><td><code>OnTypingUsersChanged</code></td><td>ChatService.cs:971, 1554, 1565</td><td>none (the ticker polls)</td><td><span class="chip legacy">dead</span></td></tr>
+      <tr><td><code>OnLinkPreviewReady</code>, <code>OnMediaCacheReady</code></td><td>ChatService.cs:122, 145</td><td>none (the services call <code>Touch(Media)</code> themselves)</td><td><span class="chip legacy">dead</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>The Blazor subscribers are live only while a Settings or ChannelSettings page is open, because <code>ChatSidebar</code> and <code>ChatHeader</code> render inside <code>ChatLayout</code>. The class doc on <code>ChatService</code> still describes the old design ("components subscribe to events and call StateHasChanged").</p>
+
+  <figure class="code">
+    <figcaption><span class="path">Services/ChatService.Connections.cs:19-38</span><span>Capture under the gate, publish after it</span><span class="why">Presence callbacks can be expensive or re-enter ChatService, so they are collected as closures inside the lock and run outside it. Both buses are fed from the same list.</span></figcaption>
+<pre><code class="cs">// Only state mutation runs under the gate. Projection and bot/UI callbacks can be
+// expensive (or re-enter ChatService), so publish the captured notifications afterward.
+private void ChangeConnections(Action&lt;List&lt;Action&gt;&gt; change)
+{
+    var notifications = new List&lt;Action&gt;();
+    lock (_connectionGate)
+        change(notifications);
+«    foreach (var notify in notifications)»
+        try
+        {
+            notify();
+        }
+        catch (Exception error) { _logger.LogError(error, "Presence notification failed"); }
+}
+
+private void PeopleChanged(List&lt;Action&gt; notifications) =&gt; notifications.Add(() =&gt;
+{
+«    _changes.Touch(OfflineChangeKind.People);»
+    OnUsersListChanged?.Invoke();
+});</code></pre>
+  </figure>
+  <div class="note">
+    <b>Two raise styles coexist.</b> <code>NotifySubscribers</code> walks <code>GetInvocationList()</code> and wraps each handler, so one faulty listener cannot suppress the others. Channel events, typing and the preview events use a direct <code>?.Invoke</code>, where the first throwing handler skips the rest. The services around the core (<code>UserService.OnProfileChanged</code>, GIF events, the brake) also use direct invokes.
+  </div>
+</section>
+
+<!-- ============================================================ 6. SYNC -->
+<section class="chapter" id="sync">
+  <div class="chapter-head">
+    <div class="eyebrow">Chapter 6</div>
+    <h2>Coordination: locks and gates</h2>
+  </div>
+  <p>The codebase uses a <code>lock</code> where the critical section is synchronous and short, and a <code>SemaphoreSlim(1,1)</code> where it must await. C# forbids an await inside a <code>lock</code>, so the compiler enforces the split. The one place that needs a mutex per key builds it by hand with a reference count.</p>
+
+  <figure class="code">
+    <figcaption><span class="path">Services/ChatService.Acceptance.cs:5-38</span><span>A keyed, reference-counted async mutex</span><span class="why">Only retries of the same operation, or mutations of the same message, or creation of the same DM pair, should wait on each other. A global gate would serialise every send. The count includes waiters so an idle entry can be removed without splitting a lock in two.</span></figcaption>
+<pre><code class="cs">private readonly Dictionary&lt;string, (SemaphoreSlim Gate, int Users)&gt; acceptanceLocks = new();
+
+// Only retries/actions for this message (or creation of this DM pair) share a gate.
+// Reference counts include waiters, so removing an idle entry cannot split its lock.
+private async Task&lt;IDisposable&gt; LockAcceptance(string key)
+{
+    SemaphoreSlim gate;
+    lock (acceptanceLocks)
+    {
+        var entry = acceptanceLocks.GetValueOrDefault(key);
+«        gate = entry.Gate ?? new SemaphoreSlim(1, 1);»
+        acceptanceLocks[key] = (gate, entry.Users + 1);
+    }
+«    await gate.WaitAsync();»
+    return new AcceptanceLease(() =&gt;
+    {
+        lock (acceptanceLocks)
+        {
+            gate.Release();
+            var users = acceptanceLocks[key].Users - 1;
+            if (users == 0)
+            {
+                acceptanceLocks.Remove(key);
+«                gate.Dispose();»
+            }
+            else
+                acceptanceLocks[key] = (gate, users);
+        }
+    });
+}
+private sealed class AcceptanceLease(Action release) : IDisposable
+{
+    public void Dispose() =&gt; release();
+}</code></pre>
+  </figure>
+  <p>Keys in use: <code>operation:{userId}:{operationId}</code> for sends and mutations, <code>message:{messageId}</code> nested inside it for mutations, and <code>dm:{min}:{max}</code> for DM creation. Callers write <code>using (await LockAcceptance(…))</code>, so release is a disposal and therefore effectively a finally block.</p>
+
+  <h3>The gate hierarchy</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Gate</th><th>Kind</th><th>Protects</th><th>Taken by</th></tr></thead>
+    <tbody>
+      <tr><td>operation gate</td><td>SemaphoreSlim(1,1), keyed</td><td>Retries of one client operation</td><td>SendTextAsync, MutateMessageAsync</td></tr>
+      <tr><td>message gate</td><td>SemaphoreSlim(1,1), keyed</td><td>All mutations of one message, any user</td><td>MutateMessageAsync, nested in the operation gate</td></tr>
+      <tr><td><code>readStateGate</code></td><td>SemaphoreSlim(1,1), global</td><td>Unread read-modify-write and its persistence</td><td>IncrementUnreadCountsAsync, MarkObservedReadAsync</td></tr>
+      <tr><td>conversation lock</td><td>Monitor, per channel</td><td>Message list and indexes, version counters, projection order</td><td>ChatService, OfflineChangeSignal, Fanout, Snapshot capture</td></tr>
+      <tr><td><code>Subscription.gate</code></td><td>Monitor, per connection</td><td>Pending queue and overflow flag</td><td>Enqueue, Read, Dispose</td></tr>
+      <tr><td><code>_connectionGate</code></td><td>Monitor, global</td><td>Sessions, statuses, auto-away, disconnect and presence timers</td><td>ChangeConnections and the two timer callbacks</td></tr>
+      <tr><td>live <code>gate</code></td><td>SemaphoreSlim(1,1), global</td><td>Session records in OfflineLiveService while they await ChatService</td><td>Join, Report, Typing, Leave, Close (not SetStatus, not Tick)</td></tr>
+      <tr><td><code>Context.Items</code></td><td>Monitor, per connection</td><td>Token buckets, one-stream flag</td><td>Permit, WatchChanges</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>The nesting order is the operation gate, then the message gate (mutations only), then <code>readStateGate</code>, then the conversation lock, then <code>Subscription.gate</code>. The fan-out never takes them in reverse, and a comment says so at the line where it would be tempting. I found no nesting between <code>_connectionGate</code> and a conversation lock.</p>
+
+  <figure class="code">
+    <figcaption><span class="path">Services/ChatService.cs:1434-1457</span><span>readStateGate held across the store call</span><span class="why">Mark-read writes the full in-memory state over the DB row. The send path increments the row in SQL and then publishes copies to memory. Both must run in one critical section or a mark-read could overwrite an increment with stale counters. The gate is global, so sends with recipients commit one at a time. SQLite has a single writer anyway.</span></figcaption>
+<pre><code class="cs">if (userIdsToIncrement.Count == 0)
+{
+    await accept(userIdsToIncrement);
+    return userIdsToIncrement;
+}
+
+«await readStateGate.WaitAsync();»
+try
+{
+    var updated = userIdsToIncrement.Select(id =&gt;
+    {
+        var state = CopyReadState(id, channelId);
+        state.ReceivedCount++;
+        state.UnreadCount++;
+        return state;
+    }).ToArray();
+«    await accept(userIdsToIncrement);»
+    foreach (var state in updated) _readStates[(state.UserId, channelId)] = state;
+    if (channel.IsDirectMessage)
+        foreach (var state in updated)
+            RunNotification(() =&gt; _audit.RecordUnreadChange(_userService.GetById(state.UserId)?.Username ?? "?", DescribeChannel(channel), "+1",
+                state.UnreadCount, $"msg from {_userService.GetById(senderUserId)?.Username}", "—"));
+}
+finally { readStateGate.Release(); }</code></pre>
+  </figure>
+
+  <figure class="code">
+    <figcaption><span class="path">Offline/OfflineHub.cs:36-50</span><span>A token bucket in Context.Items</span><span class="why">Hub instances are transient, so the only per-connection place to keep state is the connection's item bag. Streaming methods run concurrently with invocations on one connection, hence the lock on that bag.</span></figcaption>
+<pre><code class="cs">// A small burst allows normal navigation/status changes; a sustained caller is limited
+// to four changes/second. State lives with the connection, not a transient Hub instance.
+private bool Permit(string operation)
+{
+    EnsureProtocol();
+«    lock (Context.Items)»
+    {
+        var key = "rate:" + operation;
+        var now = System.Diagnostics.Stopwatch.GetTimestamp();
+        var previous = Context.Items.TryGetValue(key, out var value) ? ((long At, double Tokens))value! : (now, 12d);
+        var tokens = Math.Min(12, previous.Item2 + (now - previous.Item1) * 4d / System.Diagnostics.Stopwatch.Frequency);
+        Context.Items[key] = (now, tokens &gt;= 1 ? tokens - 1 : tokens);
+        return tokens &gt;= 1;
+    }
+}</code></pre>
+  </figure>
+  <p>A rejected <code>Report</code>, <code>SetStatus</code> or <code>Typing</code> returns <code>Task.CompletedTask</code>. The client sees success and nothing happens. <code>Join</code> is not limited.</p>
+
+  <div class="note sharp">
+    <b>Lock-free where it is safe to be wrong.</b> <code>CircuitTracker</code> updates its records with a read-modify-write and no lock, and documents why: all frequent writers for one circuit run on that circuit's own dispatcher, and a dropped telemetry sample is harmless. That is a deliberate trade, written at the line where someone would otherwise add a lock.
+  </div>
+</section>
+<!-- ============================================================ 7. STORE -->
+<section class="chapter" id="store">
+  <div class="chapter-head">
+    <div class="eyebrow">Chapter 7</div>
+    <h2>Collections</h2>
+  </div>
+  <p><code>ConcurrentDictionary</code> is the default map everywhere a singleton is read from many contexts. It buys lock-free reads. It does not buy compound atomicity, so every multi-step write still takes a gate, and the inner values are mostly plain <code>List</code> and <code>Dictionary</code> instances guarded by the conversation lock. The reason is written where the GIF and author indexes are declared.</p>
+
+  <h3>The nine dictionaries in ChatService</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Field</th><th>Key → value</th><th>Compound-write guard</th></tr></thead>
+    <tbody>
+      <tr><td><code>_users</code> :16</td><td>session id → <code>UserSession</code> (immutable record)</td><td><code>_connectionGate</code>; reads are unlocked</td></tr>
+      <tr><td><code>_channels</code> :32</td><td>channel id → <code>Channel</code> (mutable)</td><td>none; <code>UpdateChannelAsync</code> mutates in place</td></tr>
+      <tr><td><code>_channelMessages</code> :33</td><td>channel id → <code>List&lt;ChatMessage&gt;</code></td><td>conversation lock around the list</td></tr>
+      <tr><td><code>_channelGifReferences</code> :37</td><td>channel id → <code>Dictionary&lt;GifEntryId, count&gt;</code></td><td>conversation lock, same as the messages they describe</td></tr>
+      <tr><td><code>_channelAuthors</code> :38</td><td>channel id → <code>Dictionary&lt;UserId, count&gt;</code></td><td>conversation lock</td></tr>
+      <tr><td><code>_channelTypingUsers</code> :39</td><td>channel id → <code>ConcurrentDictionary&lt;username, startedUtc&gt;</code></td><td>none needed; expiry is lazy on read</td></tr>
+      <tr><td><code>_readStates</code> :43</td><td>(userId, channelId) → <code>ChannelReadState</code></td><td><code>readStateGate</code>; instances replaced, never mutated</td></tr>
+      <tr><td><code>_userStatuses</code> :79</td><td>username (ignore case) → <code>UserStatus</code></td><td><code>_connectionGate</code></td></tr>
+      <tr><td><code>_statusBeforeAutoAway</code> :84</td><td>username → status to restore</td><td><code>_connectionGate</code>; presence in the map means "was auto-awayed"</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <figure class="code">
+    <figcaption><span class="path">Services/ChatService.cs:34-38, 1193-1204</span><span>Indexes that avoid history scans, maintained under the lock that owns the list</span><span class="why">A profile or GIF change must invalidate the windows that embed it. Scanning every channel's history on the save thread was the alternative. The counts move with the messages under the same lock, so a key disappears exactly when its last message does.</span></figcaption>
+<pre><code class="cs">// Distinct GIF references and authors per channel avoid history scans when a profile or
+// GIF changes. Counts are updated under the same channel lock as the messages they
+// describe (IndexMessage), so a delete removes a key exactly when its last message goes.
+private readonly ConcurrentDictionary&lt;Guid, Dictionary&lt;Guid, int&gt;&gt; _channelGifReferences = new();
+private readonly ConcurrentDictionary&lt;Guid, Dictionary&lt;Guid, int&gt;&gt; _channelAuthors = new();
+
+private static void Count(ConcurrentDictionary&lt;Guid, Dictionary&lt;Guid, int&gt;&gt; index, Guid channelId, IEnumerable&lt;Guid&gt; keys, int delta)
+{
+    Dictionary&lt;Guid, int&gt;? counts = null;
+    foreach (var key in keys)
+    {
+        counts ??= index.GetOrAdd(channelId, _ =&gt; new());
+        var count = counts.GetValueOrDefault(key) + delta;
+        if (count &gt; 0) counts[key] = count;
+        else counts.Remove(key);
+    }
+«    if (counts?.Count == 0) index.TryRemove(channelId, out _);»
+}</code></pre>
+  </figure>
+
+  <div class="pair">
+    <figure class="code">
+      <figcaption><span class="path">Offline/OfflineFanout.cs:381-390</span><span>Lock-free monotonic max</span><span class="why">The last-sent revision per channel only ever goes up. A CAS loop on <code>TryUpdate</code> does that without a lock, and because it starts from <code>TryGetValue</code> it never adds back a key that another thread removed meanwhile.</span></figcaption>
+<pre><code class="cs">private ChatUpdate[] Sent(ChatUpdate[] updates)
+{
+    foreach (var patch in updates.SelectMany(u =&gt; u.Conversations))
+        if ((patch.Invalidate || patch.BaseRevision != null || patch.Window != null) &amp;&amp; long.TryParse(patch.Revision, out var revision))
+            // Do not recreate a channel removed while this batch was being read.
+«            while (Channels.TryGetValue(patch.Id, out var previous) &amp;&amp; previous &lt; revision)»
+«                if (Channels.TryUpdate(patch.Id, revision, previous))»
+                    break;
+    return updates;
+}</code></pre>
+    </figure>
+    <figure class="code">
+      <figcaption><span class="path">Services/ChatService.cs:86-96</span><span>Immutable session records</span><span class="why">Writers store <code>session with { … }</code> under the gate. Readers on other threads see either the old record or the new one, never a half-written one. The live service uses the same idiom for its <code>Session</code> record.</span></figcaption>
+<pre><code class="cs">// Presence extras live in init-only props so the original positional construction stays untouched
+// (same idiom as CircuitTracker.CircuitInfo).
+public record UserSession(Guid UserId, string Username, string SessionId, bool? IsMobile = null,
+    bool PageVisible = true, DateTime LastActivity = default, string? ClientIp = null)
+{
+    public bool Connected { get; init; } = true;
+    public string? CircuitId { get; init; }
+    public string? ViewingChannel { get; init; }
+    public Guid? ReadingChannelId { get; init; }
+    public DateTime CreatedAt { get; init; }
+    public DateTime LastReportAt { get; init; }
+}</code></pre>
+    </figure>
+  </div>
+
+  <h3>Three ring buffers, three bounds</h3>
+  <div class="grid">
+    <div class="card">
+      <h4><span class="chip store">store</span>Soft bound: <code>ConcurrentQueue</code></h4>
+      <p>Enqueue, then <code>TryDequeue</code> while <code>Count &gt; Cap</code>. Two concurrent appends can leave the count briefly above or below the cap. Fine for an audit trail that answers "why didn't my phone buzz?".</p>
+      <div class="where">Services/NotificationAudit.cs:61-65 (cap 200) · CircuitTracker.cs:58 (cap 50)</div>
+    </div>
+    <div class="card">
+      <h4><span class="chip store">store</span>Exact bound: <code>LinkedList</code> + <code>lock</code></h4>
+      <p>Append and trim under one lock. Reads copy the whole list under the same lock. Used for seven days of 30-second diagnostics snapshots.</p>
+      <div class="where">Services/DiagnosticsCollectorService.cs:17, 67-72, 83-100 (20,160 entries)</div>
+    </div>
+    <div class="card">
+      <h4><span class="chip store">store</span>Sliding window: <code>Queue&lt;DateTime&gt;</code> + <code>lock</code></h4>
+      <p>Each failure is enqueued, stale entries dequeued from the head, and the brake trips on the count. The event fires after the lock is released. An invite code has no username in front of it, so one guess is a guess at every account.</p>
+      <div class="where">Services/AccessLinkService.cs:263-283</div>
+    </div>
+  </div>
+
+  <h3>Two shapes of single flight</h3>
+  <div class="pair">
+    <div class="card">
+      <h4>Drop the second caller</h4>
+      <p><code>_inFlight.TryAdd(url, 0)</code> fails for the second caller, who returns at once. The first caller's <code>Task.Run</code> publishes through a callback and <code>TryRemove</code>s the key in its finally block. Nobody waits. The result arrives as a <code>Touch(Media)</code>.</p>
+      <div class="where">Services/MediaCacheService.cs:191-221 · GifService.cs:734-757</div>
+    </div>
+    <div class="card">
+      <h4>Collect the waiters</h4>
+      <p>A <code>Dictionary&lt;string, HashSet&lt;Guid&gt;&gt;</code> under a lock. A second caller adds its message id to the set. One fetch runs, then notifies every waiting message with its own delta. "Never hold the fetch lock while publishing."</p>
+      <div class="where">Services/LinkPreviewService.cs:122-172</div>
+    </div>
+  </div>
+  <p>The usual third shape, <code>GetOrAdd(key, Lazy&lt;Task&lt;T&gt;&gt;)</code>, does not appear. Nothing in the tree needs the result of an in-flight computation returned to the second caller.</p>
+</section>
+
+<!-- ============================================================ 8. TIME -->
+<section class="chapter" id="time">
+  <div class="chapter-head">
+    <div class="eyebrow">Chapter 8</div>
+    <h2>Time, lifetime and subprocesses</h2>
+  </div>
+  <p>Eight loops tick in the process. Six are owned by the host as hosted services. Two are started by initialisation code and hook <code>ApplicationStopping</code> for their final flush. The domain core itself owns no loop. Its timers are one-shot <code>ITimer</code>s from an injected <code>TimeProvider</code>, which is what lets the contract tests run presence scenarios against a <code>FakeTimeProvider</code>.</p>
+
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Loop</th><th class="num">Period</th><th>Shape</th><th>Each tick</th><th>Shutdown</th></tr></thead>
+    <tbody>
+      <tr><td><code>OfflinePresenceTicker</code></td><td class="num">100 ms</td><td>BackgroundService + PeriodicTimer</td><td>Build people and typing once, write changed views to mailboxes</td><td>Cancelled tick, filtered OCE, exit</td></tr>
+      <tr><td><code>ChatReceiptCleanup</code></td><td class="num">1 min</td><td>BackgroundService + PeriodicTimer</td><td>Prune send receipts older than 1 day and upload receipts; first run immediate</td><td>Cancelled tick, exit</td></tr>
+      <tr><td><code>UserActionLogService</code></td><td class="num">15 s</td><td>BackgroundService + PeriodicTimer, also a singleton</td><td>Drain <code>ConcurrentQueue</code>, one <code>SaveChangesAsync</code></td><td>Catch OCE, one final flush without a token</td></tr>
+      <tr><td><code>MediaUploadLogService</code></td><td class="num">15 s</td><td>same</td><td>same</td><td>same</td></tr>
+      <tr><td><code>DiagnosticsCollectorService</code></td><td class="num">30 s</td><td>same</td><td>Snapshot ChatService and CircuitTracker stats into the exact ring</td><td>Buffer is lost by design</td></tr>
+      <tr><td><code>RequestLogWriter</code></td><td class="num">10 s</td><td>IHostedService + <code>System.Threading.Timer</code></td><td>Drain the request queue, append CSV per UTC day under a lock</td><td><code>StopAsync</code> stops the timer and flushes synchronously</td></tr>
+      <tr><td><code>UserService</code> dirty flush</td><td class="num">10 s</td><td>Detached loop, started by <code>LoadUsersAsync</code></td><td>Snapshot and clear the dirty set, one <code>ExecuteUpdateAsync</code> per user</td><td><code>ApplicationStopping</code> runs a sync-over-async final flush; the CTS is never cancelled</td></tr>
+      <tr><td><code>GifService</code> dirty flush</td><td class="num">10 s</td><td>Detached loop, started by <code>InitializeAsync</code></td><td>Same for use counts, last-used and tags</td><td>Same</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="pair">
+    <figure class="code">
+      <figcaption><span class="path">Services/UserService.cs:980-1000</span><span>Dirty set, then flush</span><span class="why">Hot paths flag an id in a <code>ConcurrentDictionary&lt;Guid, byte&gt;</code> and return. The flush removes the ids before it reads the entity, so a write that lands mid-flush re-flags and goes out next tick. Nothing is lost, only delayed.</span></figcaption>
+<pre><code class="cs">private async Task EmojiFlushLoopAsync(CancellationToken ct)
+{
+    using var timer = new PeriodicTimer(EmojiFlushInterval);
+    try
+    {
+        while (await timer.WaitForNextTickAsync(ct))
+        {
+            await FlushDirtyEmojiDataAsync();
+        }
+    }
+    catch (OperationCanceledException) { }
+}
+
+private async Task FlushDirtyEmojiDataAsync()
+{
+    if (_dirtyEmojiUsers.IsEmpty || !_persistenceEnabled) return;
+
+    // Snapshot and clear dirty set
+«    var dirtyIds = _dirtyEmojiUsers.Keys.ToList();»
+«    foreach (var id in dirtyIds)»
+«        _dirtyEmojiUsers.TryRemove(id, out _);»</code></pre>
+    </figure>
+    <figure class="code">
+      <figcaption><span class="path">Services/ChatReceiptCleanup.cs</span><span>The smallest hosted loop, complete</span><span class="why">Retry deduplication is bounded by age and by a per-account count. The age bound lives here. The count bound is enforced on every acceptance in the store, in rowid order because UTC can move backward between accepts.</span></figcaption>
+<pre><code class="cs">// Retry deduplication is bounded by age and per-account count; deletion does not bypass retention.
+public sealed class ChatReceiptCleanup(IChatStore store, IWebHostEnvironment env, ILogger&lt;ChatReceiptCleanup&gt; logger) : BackgroundService
+{
+    public const int MaxReceiptsPerUser = 4096;
+    public static readonly TimeSpan Retention = TimeSpan.FromDays(1);
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(1));
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try { await store.PruneReceiptsAsync(DateTime.UtcNow - Retention); }
+            catch (Exception error) { logger.LogError(error, "Could not prune expired chat receipts"); }
+            try { Yap.Endpoints.TusEndpoints.PruneReceipts(env, DateTime.UtcNow - Retention); }
+            catch (Exception error) { logger.LogError(error, "Could not prune expired upload receipts"); }
+            if (!await timer.WaitForNextTickAsync(stoppingToken)) break;
+        }
+    }
+}</code></pre>
+    </figure>
+  </div>
+
+  <h3>One-shot timers with an injected clock</h3>
+  <figure class="code">
+    <figcaption><span class="path">Services/ChatService.Connections.cs:51-75</span><span>Debounced join and leave announcements</span><span class="why">A quick reload must cancel a pending leave. A short first visit must not announce a join then a leave. The callback compares its captured record by reference, so a callback that was already queued when its record was replaced does nothing.</span></figcaption>
+<pre><code class="cs">private void SchedulePresenceChange(string username, bool joined)
+{
+    if (_presenceChanges.TryGetValue(username, out var previous) &amp;&amp; previous.Joined == joined)
+        return;
+    if (_presenceChanges.Remove(username, out previous))
+        previous.Timer?.Dispose();
+    // A quick reload cancels the pending leave. A short first visit never announces
+    // a join followed by a leave. The session list itself always changes immediately.
+    if (_announcedUsers.Contains(username) == joined)
+        return;
+    var pending = new PresenceChange(joined);
+    _presenceChanges[username] = pending;
+«    pending.Timer = _connectionClock.CreateTimer(_ =&gt; ChangeConnections(notifications =&gt;»
+    {
+«        if (!_presenceChanges.TryGetValue(username, out var current) || !ReferenceEquals(current, pending))»
+            return;
+        _presenceChanges.Remove(username);
+        pending.Timer?.Dispose();
+        if (joined)
+            _announcedUsers.Add(username);
+        else
+            _announcedUsers.Remove(username);
+        notifications.Add(() =&gt; OnUserChanged?.Invoke(username, joined));
+    }), null, _presenceOptions.DisconnectGrace, Timeout.InfiniteTimeSpan);
+}</code></pre>
+  </figure>
+  <p>The disconnect lifecycle uses the same idiom twice over: a one-shot timer after the 30 s grace runs the auto-away check and then re-arms itself with <code>Change(remaining, Infinite)</code> for the rest of the 4 h retention, when it removes the session. Every <code>CreateTimer</code> call sits inside a <code>_connectionGate</code> section and every callback takes the gate first, so <code>pending.Timer!</code> is always assigned before a callback can read it.</p>
+
+  <h3>Subprocesses: yt-dlp, ffmpeg, ffprobe</h3>
+  <figure class="code">
+    <figcaption><span class="path">Services/Gifs/GifFfmpegHelper.cs:171-202</span><span>The runner recipe, in its most complete form</span><span class="why">Both pipe reads start before the wait, otherwise a chatty child blocks on a full OS pipe and looks like a hang. The timeout is a linked CTS so a caller's cancellation and a timeout are told apart in the catch.</span></figcaption>
+<pre><code class="cs">private async Task&lt;(int ExitCode, string Stdout, string Stderr)&gt; RunProcessAsync(
+    string fileName, string args, int timeoutMs, CancellationToken ct)
+{
+    var psi = new ProcessStartInfo(fileName, args)
+    {
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        UseShellExecute = false,
+        CreateNoWindow = true
+    };
+
+    using var process = Process.Start(psi);
+    if (process == null) return (-1, "", "Failed to start process");
+
+«    var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);»
+«    var stderrTask = process.StandardError.ReadToEndAsync(ct);»
+
+«    using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);»
+    timeoutCts.CancelAfter(timeoutMs);
+    try
+    {
+        await process.WaitForExitAsync(timeoutCts.Token);
+        return (process.ExitCode, await stdoutTask, await stderrTask);
+    }
+    catch (OperationCanceledException)
+    {
+«        try { process.Kill(entireProcessTree: true); } catch { }»
+        if (ct.IsCancellationRequested) throw;
+        _logger.LogWarning("{Cmd} timed out after {TimeoutMs}ms", fileName, timeoutMs);
+        return (-1, "", "Timeout");
+    }
+}</code></pre>
+  </figure>
+  <div class="grid">
+    <div class="card">
+      <h4>Concurrency limits</h4>
+      <p>Three <code>SemaphoreSlim(2)</code>: yt-dlp downloads, ffmpeg describes, GIF transcodes. One download slot covers the whole pipeline (probe, download, re-encode, poster), so a slot can be held for up to ten minutes. Upload video compression and admin thumbnail regeneration have no process-wide limit.</p>
+      <div class="where">MediaCacheService.cs:27-34 · GifFfmpegHelper.cs:14</div>
+    </div>
+    <div class="card">
+      <h4>Timeouts</h4>
+      <p>yt-dlp metadata 15 s, download 5 min, re-encode 5 min, GIF probe 10 s, transcode 120 s, tool detection 3 s (blocking, in constructors). Two probes do not follow the recipe: <code>ProbeVideoDimensionsAsync</code> does not kill on timeout and <code>IsH264Async</code> has no timeout at all.</p>
+      <div class="where">MediaCacheService.cs:42-43, 552, 768 · GifFfmpegHelper.cs:16-17</div>
+    </div>
+    <div class="card">
+      <h4>Arguments</h4>
+      <p>Every runner builds a string for <code>ProcessStartInfo(fileName, args)</code>. <code>ArgumentList</code> is never used. URLs are protected by a <code>--</code> separator and by a URL regex that excludes quotes. The Spotify search path interpolates a page title into a quoted argument without <code>--</code>. Chapter 11 has the details.</p>
+      <div class="where">MediaCacheService.cs:277, 286, 407, 450</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ 9. DI -->
+<section class="chapter" id="di">
+  <div class="chapter-head">
+    <div class="eyebrow">Chapter 9</div>
+    <h2>DI lifetimes and the Blazor remnant</h2>
+  </div>
+  <p>Almost everything is a singleton. The scoped set is exactly the Blazor-era per-circuit state. There is no <code>AddTransient</code> in the tree. SignalR creates a hub instance per invocation. Every constructor argument of <code>ChatService</code> and of the hub is a singleton, so no captive dependency exists.</p>
+
+  <div class="pair">
+    <div class="card">
+      <h4><span class="chip time">time</span>Singleton core, in registration order</h4>
+      <p><code>PresenceOptions</code>, <code>TimeProvider.System</code>, push persistence (DB or JSON by config), link previews, media cache, GIF stack, geo, emoji, image, video, push, <code>CircuitTracker</code>, <code>NotificationAudit</code>, <code>UserService</code>, link tokens, access links, notification settings, <code>ChatService</code>, then the six Offline services, bot, registration gate, chat config, request log queue, the three forwarded log services, <code>ChatRootPolicy</code>, cookie renewal. Persistence always adds <code>ChatPersistenceService</code> and an <code>IChatStore</code> (SQLite or memory). It adds the pooled <code>IDbContextFactory</code> only when enabled.</p>
+      <div class="where">Program.cs:87-250 · Extensions/PersistenceServiceExtensions.cs:37-56</div>
+    </div>
+    <div class="card">
+      <h4><span class="chip legacy">legacy</span>Scoped, one per circuit or request</h4>
+      <p><code>EmojiService</code>, <code>UserStateService</code>, <code>ChatNavigationState</code>, <code>CircuitHandler → ChatCircuitHandler</code>, <code>CircuitIdentity</code>. Two of them are also Blazor persistent services. <code>UserStateService</code> outlived the rewrite as the request-scoped auth bag that <code>AuthMiddleware</code>, the admin gate and the chat shell endpoint read.</p>
+      <div class="where">Program.cs:113-114, 211-215</div>
+    </div>
+  </div>
+
+  <figure class="code">
+    <figcaption><span class="path">Program.cs:225-234</span><span>Singleton and hosted, same instance</span><span class="why">The object that endpoints inject must be the object the host runs, or <code>Log()</code> would enqueue into a queue nobody drains. The forwarding lambda does that. <code>RequestLogWriter</code> splits the same idea across two types instead: a singleton queue and a hosted consumer.</span></figcaption>
+<pre><code class="cs">builder.Services.AddSingleton&lt;UserActionLogService&gt;();
+«builder.Services.AddHostedService(sp =&gt; sp.GetRequiredService&lt;UserActionLogService&gt;());»
+
+builder.Services.AddSingleton&lt;MediaUploadLogService&gt;();
+builder.Services.AddHostedService(sp =&gt; sp.GetRequiredService&lt;MediaUploadLogService&gt;());
+
+builder.Services.AddSingleton&lt;DiagnosticsCollectorService&gt;();
+builder.Services.AddHostedService(sp =&gt; sp.GetRequiredService&lt;DiagnosticsCollectorService&gt;());</code></pre>
+  </figure>
+
+  <h3>Startup sequence before <code>app.Run()</code></h3>
+  <ol>
+    <li><code>InitializePersistenceAsync</code>: migrations, <code>NotificationSettingsService.InitializeAsync</code>, <code>ChatService.InitializeAsync</code> (loads every channel, message and read state with <code>AsNoTracking</code>, rebuilds the indexes without a lock, which the index comment allows).</li>
+    <li><code>UserService.LoadUsersAsync</code>, which also starts its detached flush loop. The comment says this must run before <code>ChatService.InitializeAsync</code>. It runs after. See chapter 11.</li>
+    <li><code>AccessLinkService.LoadAsync</code>, <code>GifService.InitializeAsync</code> (second detached loop plus backfill tasks), <code>PushSubscriptionStore.InitializeAsync</code>, <code>SystemBotService.InitializeAsync</code> (subscribes to the old bus).</li>
+    <li><code>_ = app.Services.GetRequiredService&lt;OfflineFanout&gt;();</code> with the comment "Start shared revision/profile subscriptions before the first bootstrap or hub connection." Without this the Profile, Gif, Media and Settings cascades would not run until the first hub connection resolved the fan-out.</li>
+  </ol>
+
+  <h3>What the Blazor remnant still does</h3>
+  <ul>
+    <li><b>Three kinds of session in one table.</b> <code>ChatService._users</code> holds hub sessions (<code>"chat:" + ConnectionId</code>, no circuit id, 4 h hub retention), retained Blazor page sessions (a Guid, with a circuit id, 4 h circuit retention) and the bot's permanent session. Status is stored per user, so a user with a Settings tab and a chat tab counts as one online user.</li>
+    <li><b><code>ChatCircuitHandler</code></b> runs for every Blazor circuit, re-adds the session on reconnect, and deliberately does not treat a reconnect as "page visible" or inbound traffic as activity. The probe heartbeat is the single source of presence truth for both transports.</li>
+    <li><b>Dead ChatService surface</b> left by the rewrite, with no caller: <code>SetPageVisibility</code>, <code>TrySetAutoAwayIfAllIdleAsync</code>, the public <code>TrySetAutoAwayAfterDisconnectAsync</code>, <code>TryRestoreFromAutoAway</code>, the public <code>SetSessionConnected</code>, <code>ClearReadStatesForUser</code>.</li>
+  </ul>
+  <div class="note">
+    <b>Tests that exercise these primitives.</b> <code>tests/OfflineContract</code> is a console harness over <code>WebApplicationFactory&lt;OfflineHub&gt;</code> with a <code>FakeTimeProvider</code>. It runs every check twice, in SQLite mode and memory mode, and covers fan-out overflow, change publication, presence timers, read checkpoints, store atomicity and receipts. <code>tests/FanoutLoad</code> opens both hub streams for 10, 30 and 50 synthetic clients and measures CPU per message and p95 delivery. Neither project is in <code>Yap.slnx</code>.
+  </div>
+</section>
+
+<!-- ============================================================ 10. PROTOCOL -->
+<section class="chapter" id="protocol">
+  <div class="chapter-head">
+    <div class="eyebrow">Chapter 10</div>
+    <h2>Catch-up and versions</h2>
+  </div>
+  <p>Everything that orders the wire is an in-memory counter. That is why the protocol carries an epoch: after a restart every counter is zero again, and the client must not compare revisions across epochs. There is no content hashing and no second message database. Every snapshot is rebuilt from <code>ChatService</code> memory under the conversation lock.</p>
+
+  <dl class="defs">
+    <dt>Epoch</dt><dd>A new Guid per process (<code>OfflineChangeSignal.Epoch</code>). A mismatch marks every cached window stale on the client.</dd>
+    <dt>Sequence</dt><dd>One <code>Interlocked</code> counter for the whole process, stamped on every packet. The client orders HTTP acknowledgements against stream items with it. The ack is captured after the lock, so its stamp is higher than the stream item for the same message.</dd>
+    <dt>ContentVersion</dt><dd>Per channel, bumped by every arrival and mutation. Sent as the string <code>revision</code>. A delta carries <code>baseRevision = before</code> and <code>revision = after</code>. The client applies it only on top of <code>baseRevision</code>, otherwise it marks the window unloaded and refetches.</dd>
+    <dt>HistoryVersion</dt><dd>Per channel, bumped by mutations only. A change invalidates the client's cached older pages. An arrival does not.</dd>
+    <dt>Invalidate</dt><dd>A metadata-only patch that tells the client to refetch the window with <code>GET /api/chat/windows/{id}</code>.</dd>
+    <dt>Reset</dt><dd>A packet that replaces the complete allowed set. Sent by bootstrap and by overflow recovery.</dd>
+  </dl>
+
+  <h3>Three repair paths</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>When</th><th>What runs</th><th>Under which lock</th><th>What the client gets</th></tr></thead>
+    <tbody>
+      <tr><td>On subscribe</td><td><code>OfflineFanout.Refresh</code>: compare the client's known revisions with the current ones, join the channel index</td><td>Per channel, the conversation lock, so a message that arrives during the join cannot be missed</td><td>Header, removed conversations, one metadata patch per channel with <code>invalidate = known != revision</code></td></tr>
+      <tr><td>Every 10 s, and on idle</td><td><code>OfflineFanout.Digest</code>: clear expired server mutes, drop channels no longer allowed, join channels gained since subscribe, compare last-sent revision with <code>ContentVersion</code></td><td>The conversation lock, per allowed channel</td><td>Removed conversations, and invalidating metadata only where the counter moved</td></tr>
+      <tr><td>On overflow</td><td><code>Subscription.Read</code> rebuilds metadata for every allowed channel</td><td>Each channel in turn; never while holding the queue gate</td><td>A Reset with the full allowed set, then the same patches again as separate updates</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <figure class="code">
+    <figcaption><span class="path">Offline/OfflineFanout.cs:41-65</span><span>Refresh: the join and the comparison share the lock</span><span class="why">If the index join and the metadata capture were not under the same lock, a message accepted between them would be neither in the snapshot nor in the queue. Under the lock, its version bump makes the revision differ and the client refetches.</span></figcaption>
+<pre><code class="cs">private void Refresh(Subscription subscription, IReadOnlyDictionary&lt;Guid, string&gt;? known = null)
+{
+    var allowed = snapshots.Channels(subscription.User).Select(c =&gt; c.Id).ToHashSet();
+    foreach (var id in subscription.Channels.Keys.Union(known?.Keys ?? []).Except(allowed).ToArray())
+    {
+        subscription.Channels.TryRemove(id, out _);
+        if (channels.TryGetValue(id, out var members))
+            members.TryRemove(subscription.Id, out _);
+        subscription.Enqueue(new(ChatProtocol.Number, subscription.User.Id, changes.Epoch, changes.Stamp(), null, [], [id], []));
+    }
+    foreach (var id in allowed)
+    {
+«        lock (chat.GetChannelLock(id))»
+        {
+            if (subscription.Channels.TryAdd(id, long.TryParse(known?.GetValueOrDefault(id), out var knownRevision) ? knownRevision : -1))
+«                channels.GetOrAdd(id, _ =&gt; new())[subscription.Id] = subscription;»
+            var metadata = snapshots.Metadata(subscription.User, id);
+            if (metadata == null)
+                continue;
+            var revision = OfflineSync.Revision(metadata);
+            subscription.Enqueue(new(ChatProtocol.Number, subscription.User.Id, changes.Epoch, changes.Stamp(), null,
+«                [new(id, metadata, [], [], null, null, revision, known?.GetValueOrDefault(id) != revision)], [], []));»
+        }
+    }
+}</code></pre>
+  </figure>
+
+  <div class="grid">
+    <div class="card">
+      <h4>Bootstrap skips unchanged bodies</h4>
+      <p><code>GET /api/chat/bootstrap</code> takes the client's epoch, revision and known user. When all three match the selected conversation, the response carries metadata only. Otherwise it captures the full window under the lock. Other conversations always come as metadata with <code>invalidate</code>, and the client fills them in the background one at a time.</p>
+      <div class="where">Offline/OfflineSync.cs:25-40 · OfflineEndpoints.cs:160-169</div>
+    </div>
+    <div class="card">
+      <h4>Idempotent writes have a window</h4>
+      <p>A receipt is keyed by (user, operationId) and bound to a content hash. It lives one day or until the user's 4096th newer receipt. There is no unique index on <code>Messages.OperationId</code>, so a retry after that window creates a duplicate.</p>
+      <div class="where">Models/TextSendReceipt.cs · ChatReceiptCleanup.cs:6-7 · Data/ChatDbContext.cs:107</div>
+    </div>
+    <div class="card">
+      <h4>Limits travel with the header</h4>
+      <p><code>ChatLimits</code> reads configuration on every access and clamps each value. Text 4000 chars, 16 operations or 48 KiB per batch, 64 KiB POST, history page 50 of max 500, 100 reads per batch, typing timeout 3 s. The recent window is <code>min(RecentLimit, 20000 / channels)</code>.</p>
+      <div class="where">Offline/ChatLimits.cs · OfflineSnapshotService.cs:224</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ 11. EDGES -->
+<section class="chapter" id="edges">
+  <div class="chapter-head">
+    <div class="eyebrow">Chapter 11</div>
+    <h2>Sharp edges</h2>
+  </div>
+  <p>I read each item below from the source and reproduced none at runtime. An item marked unverified describes a code path whose effect I did not confirm.</p>
+  <div class="grid">
+    <div class="card">
+      <h4><span class="chip sync">sync</span>Fan-out runs on the sender's thread, inside the lock</h4>
+      <p>For each message the fan-out calls <code>Metadata</code> and <code>ForViewer</code> once per subscribed connection while holding the conversation lock. Lock hold time and the sender's HTTP latency grow with the subscriber count. A Settings change touches every channel, so it costs channels times connections.</p>
+      <div class="where">Offline/OfflineFanout.cs:106-108, 152-176</div>
+    </div>
+    <div class="card">
+      <h4><span class="chip sync">sync</span>Disk I/O can happen inside the lock</h4>
+      <p><code>snapshots.Message</code> reads link previews and cached media. On a memory-cache miss both fall back to <code>File.Exists</code> and a file read. On the arrival path that runs under the conversation lock. Size of the stall: unverified.</p>
+      <div class="where">OfflineSnapshotService.cs:138 · LinkPreviewService.cs:88-97 · MediaCacheService.cs:130-145</div>
+    </div>
+    <div class="card">
+      <h4><span class="chip sync">sync</span>One global mutex for every send with recipients</h4>
+      <p><code>readStateGate</code> is held across the whole SQLite acceptance transaction, so sends in different channels commit one at a time, and every mark-read waits on the same gate. SQLite's single writer bounds concurrency anyway. The gate makes the serialisation explicit at the C# level.</p>
+      <div class="where">Services/ChatService.cs:1440-1457</div>
+    </div>
+    <div class="card">
+      <h4><span class="chip sync">sync</span>One global mutex for all presence writes</h4>
+      <p>Join, Report, Typing, Leave and Close of every connection of every user queue on <code>OfflineLiveService.gate</code>, and several <code>ChatService</code> awaits run inside it. <code>WaitAsync()</code> takes no token and no timeout.</p>
+      <div class="where">Offline/OfflineLiveService.cs:24, 37-123</div>
+    </div>
+    <div class="card">
+      <h4><span class="chip store">store</span><code>lock (message.Reactions)</code> does not exclude the writer</h4>
+      <p><code>ChatMutation.Apply</code> adds and removes reactions under the conversation lock only. Fan-out and capture also hold that lock, so they are safe. The history endpoint and the single-message GET project outside it, so a reaction toggle during a history read can enumerate a list that is being modified. Unverified at runtime.</p>
+      <div class="where">ChatMutation.cs:18-20 · OfflineSnapshotService.cs:116 · OfflineEndpoints.cs:277, 289</div>
+    </div>
+    <div class="card">
+      <h4><span class="chip signal">signal</span>The bot's DM path skips the acceptance design</h4>
+      <p><code>GetOrCreateDMChannel</code> does an unlocked check-then-add outside the <code>dm:</code> gate, persists fire-and-forget, and does not <code>Touch</code> the new channel. The first message then finds no subscribers in the channel index. Hub clients learn of the DM at the next 10 s digest. Derived from the code paths, not tested.</p>
+      <div class="where">Services/ChatService.cs:455-472</div>
+    </div>
+    <div class="card">
+      <h4><span class="chip time">time</span>Startup order contradicts its comment</h4>
+      <p><code>ChatService.InitializeAsync</code> runs inside <code>InitializePersistenceAsync</code>, before <code>UserService.LoadUsersAsync</code>, so the orphaned-DM scan runs against an empty user map. Effect: warning logs only, no state change.</p>
+      <div class="where">Program.cs:254-257 · PersistenceServiceExtensions.cs:92-100 · ChatService.cs:220-239</div>
+    </div>
+    <div class="card">
+      <h4><span class="chip flow">flow</span>Digest has no token and no guard</h4>
+      <p><code>subscription.Digest()</code> takes no <code>CancellationToken</code> and the hub loop does not catch its exceptions. A failure in <code>ClearExpiredServerMuteAsync</code> ends the stream, and the client reconnects with a full bootstrap. The <code>Task.Delay</code> in the <code>WhenAny</code> is never cancelled when the read wins, so one timer up to 10 s stays pending per delivered batch.</p>
+      <div class="where">Offline/OfflineHub.cs:156-169 · OfflineFanout.cs:261</div>
+    </div>
+    <div class="card">
+      <h4><span class="chip time">time</span>A timer callback with no try/catch</h4>
+      <p><code>RequestLogWriter.Flush</code> runs on a <code>System.Threading.Timer</code> and appends to a CSV with no exception handling. An <code>IOException</code> there is an unhandled exception on a pool thread, which terminates the process. A file locked by another program on Windows would trigger it.</p>
+      <div class="where">Middleware/RequestLoggingMiddleware.cs:217-264</div>
+    </div>
+    <div class="card">
+      <h4><span class="chip time">time</span>Detached loops that nobody cancels</h4>
+      <p>The two dirty-flush loops create a <code>CancellationTokenSource</code> that is never cancelled or disposed. Their final flush runs sync-over-async inside <code>ApplicationStopping</code>, which is safe without a <code>SynchronizationContext</code> but can overlap with a tick. Worst case is a duplicate idempotent UPDATE.</p>
+      <div class="where">UserService.cs:45, 976 · GifService.cs:101, 1255</div>
+    </div>
+    <div class="card">
+      <h4><span class="chip store">store</span>Indexes that never shrink</h4>
+      <p>The per-channel lock objects and version counters keep entries for deleted channels. The inner dictionaries of the <code>accounts</code> and <code>channels</code> routing indexes stay after their last subscription leaves. Growth stops at the number of users and channels.</p>
+      <div class="where">OfflineChangeSignal.cs:15-17 · OfflineFanout.cs:17-19, 290-298</div>
+    </div>
+    <div class="card">
+      <h4><span class="chip sync">sync</span>Argument string, not <code>ArgumentList</code></h4>
+      <p>The Spotify path interpolates an HTML-decoded page title into a double-quoted yt-dlp argument without a <code>--</code> separator. A title with a quote would end the argument early. The path only runs for open.spotify.com pages. Exploitability is unverified. <code>ProcessStartInfo.ArgumentList</code> removes the class of problem.</p>
+      <div class="where">Services/MediaCacheService.cs:401-407</div>
+    </div>
+    <div class="card">
+      <h4><span class="chip store">store</span>In-flight entry that may never clear</h4>
+      <p>In <code>LinkPreviewService</code> the disk-write block catches only <code>IOException</code> and <code>UnauthorizedAccessException</code>. Any other exception between the fetch and the waiter notification leaves the URL in <code>_inFlight</code>. Later callers only add waiters and no fetch runs again. Unverified.</p>
+      <div class="where">Services/LinkPreviewService.cs:142-167</div>
+    </div>
+    <div class="card">
+      <h4><span class="chip legacy">legacy</span>Dead surface on the wire</h4>
+      <p><code>WatchChanges</code> ignores <code>knownState</code>. The client sends <code>stateRevision</code>, which the server never sets. <code>Subscription.Overflows</code> is never read. <code>OfflineLiveService.View</code> has no caller. Six <code>ChatService</code> events have no subscriber.</p>
+      <div class="where">OfflineHub.cs:135 · OfflineSync.cs:12, 39 · OfflineFanout.cs:317</div>
+    </div>
+    <div class="card">
+      <h4><span class="chip flow">flow</span>Overflow counts before the merge</h4>
+      <p>The 128 cap counts raw entries. 129 updates for one conversation trigger a full Reset even though they would merge into one patch. The Reset packet also repeats its patches as separate updates afterwards.</p>
+      <div class="where">Offline/OfflineFanout.cs:327, 368-371</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ 12. VOCAB -->
+<section class="chapter" id="vocab">
+  <div class="chapter-head">
+    <div class="eyebrow">Chapter 12</div>
+    <h2>Vocabulary</h2>
+  </div>
+  <dl class="defs">
+    <dt>operationId</dt><dd>Client-generated Guid per send or mutation. The idempotency key. Bound to a content hash in the receipt.</dd>
+    <dt>receipt</dt><dd><code>TextSendReceipt</code>: (user, operationId) → message id, channel, hash. Independent of messages and channels so a delete never makes an accepted operation reusable.</dd>
+    <dt>acceptance</dt><dd>The point where a write is stored and becomes authoritative. "Store first, publish memory second." Notification failures after it are logged, never retried.</dd>
+    <dt>conversation lock</dt><dd>The per-channel Monitor object from <code>OfflineChangeSignal.ChannelLock</code>. Guards the list, the counters and projection order.</dd>
+    <dt>Touch</dt><dd>The one publication call. The channel overload bumps versions under the lock. The kind overload only stamps.</dd>
+    <dt>projection</dt><dd>Turning a live <code>ChatMessage</code> into a <code>ReaderMessage</code> DTO. Done once per event, then adjusted per viewer by <code>ForViewer</code>.</dd>
+    <dt>window</dt><dd>The recent-message slice of one conversation that the client caches. Replaced whole when invalidated.</dd>
+    <dt>digest</dt><dd>The 10 s pass on every change stream that repairs dropped revisions and revalidates the cookie.</dd>
+    <dt>ticket</dt><dd>A two-minute <code>ITimeLimitedDataProtector</code> token from bootstrap, consumed by <code>Join</code>. Ties a hub connection to the account that bootstrapped.</dd>
+    <dt>session key</dt><dd><code>"chat:" + ConnectionId</code> for hub sessions. The same literal appears in three places. A kick or a close matches on it.</dd>
+    <dt>foreground reader</dt><dd>A visible session that reported within 35 s, whose user is not Away, and whose unread count for the channel is zero. Exempt from the unread increment.</dd>
+    <dt>compact authority</dt><dd>The <code>update</code> field on every write response: current metadata plus the one message, captured under the lock, so the client can reconcile without waiting for the stream.</dd>
+  </dl>
+</section>
+
+</main>
+</div>
+<script>
+(function () {
+  // Tiny C# highlighter. The page must render from disk without a network, so no CDN library.
+  // It handles comments, strings, numbers, keywords and PascalCase identifiers; good enough for excerpts.
+  var keywords = /\b(abstract|as|async|await|base|bool|break|byte|case|catch|char|checked|class|const|continue|decimal|default|delegate|do|double|else|enum|event|explicit|extern|false|finally|fixed|float|for|foreach|get|goto|if|implicit|in|init|int|interface|internal|is|lock|long|nameof|namespace|new|null|object|operator|out|override|params|partial|private|protected|public|readonly|record|ref|required|return|sbyte|sealed|set|short|sizeof|stackalloc|static|string|struct|switch|this|throw|true|try|typeof|uint|ulong|unchecked|unsafe|ushort|using|var|virtual|void|volatile|when|where|while|with|yield)\b/g;
+  function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  function highlight(src) {
+    var out = "", i = 0, n = src.length;
+    while (i < n) {
+      var rest = src.slice(i), m;
+      if ((m = /^\/\/[^\n]*/.exec(rest))) { out += '<span class="hl-c">' + esc(m[0]) + '</span>'; i += m[0].length; continue; }
+      if ((m = /^\/\*[\s\S]*?\*\//.exec(rest))) { out += '<span class="hl-c">' + esc(m[0]) + '</span>'; i += m[0].length; continue; }
+      if ((m = /^\$?@?"(?:\\.|""|[^"\\])*"/.exec(rest))) { out += '<span class="hl-s">' + esc(m[0]) + '</span>'; i += m[0].length; continue; }
+      if ((m = /^'(?:\\.|[^'\\])'/.exec(rest))) { out += '<span class="hl-s">' + esc(m[0]) + '</span>'; i += m[0].length; continue; }
+      if ((m = /^\d[\d_]*(?:\.\d+)?[fFdDmMlLuU]*\b/.exec(rest))) { out += '<span class="hl-n">' + m[0] + '</span>'; i += m[0].length; continue; }
+      if ((m = /^[A-Za-z_][A-Za-z0-9_]*/.exec(rest))) {
+        var w = m[0];
+        if (keywords.test(w)) { keywords.lastIndex = 0; out += '<span class="hl-k">' + w + '</span>'; }
+        else if (/^[A-Z]/.test(w)) { out += '<span class="hl-t">' + w + '</span>'; }
+        else out += w;
+        keywords.lastIndex = 0; i += w.length; continue;
+      }
+      out += esc(rest[0]); i += 1;
+    }
+    return out;
+  }
+  document.querySelectorAll('pre code.cs').forEach(function (el) {
+    // Lines wrapped in «» are rendered with a highlight mark so the eye lands on the primitive.
+    var html = highlight(el.textContent);
+    html = html.replace(/«([\s\S]*?)»/g, '<span class="hl-mark">$1</span>');
+    el.innerHTML = html;
+  });
+
+  // Scroll-spy for the chapter rail.
+  var links = Array.prototype.slice.call(document.querySelectorAll('.rail nav a[href^="#"]'));
+  var targets = links.map(function (a) { return document.getElementById(a.getAttribute('href').slice(1)); }).filter(Boolean);
+  function setActive(id) { links.forEach(function (a) { a.classList.toggle('active', a.getAttribute('href') === '#' + id); }); }
+  if ('IntersectionObserver' in window) {
+    var visible = new Map();
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { visible.set(e.target.id, e.isIntersecting ? e.boundingClientRect.top : null); });
+      var best = null;
+      visible.forEach(function (top, id) { if (top !== null && (best === null || top < best.top)) best = { id: id, top: top }; });
+      if (best) setActive(best.id);
+    }, { rootMargin: '-10% 0px -70% 0px', threshold: 0 });
+    targets.forEach(function (t) { io.observe(t); });
+  }
+
+  // Inventory filter: family chips toggle rows. Nothing selected means everything is shown.
+  var bar = document.querySelector('.filters');
+  if (bar) {
+    var rows = Array.prototype.slice.call(document.querySelectorAll('#inventory tbody tr'));
+    var count = bar.querySelector('.count');
+    function apply() {
+      var on = Array.prototype.slice.call(bar.querySelectorAll('button[aria-pressed="true"]')).map(function (b) { return b.dataset.family; });
+      var shown = 0;
+      rows.forEach(function (r) { var show = on.length === 0 || on.indexOf(r.dataset.family) >= 0; r.classList.toggle('hidden-row', !show); if (show) shown++; });
+      if (count) count.textContent = shown + ' of ' + rows.length + ' sites';
+    }
+    bar.querySelectorAll('button').forEach(function (b) {
+      b.addEventListener('click', function () { b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true'); apply(); });
+    });
+    apply();
+  }
+})();
+</script>
+</body>
+</html>
