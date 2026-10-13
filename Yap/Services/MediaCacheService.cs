@@ -48,10 +48,10 @@ public partial class MediaCacheService
     /// </summary>
     public Action<Guid, string, MediaCacheEntry>? OnMediaCached { get; set; }
 
-    private readonly OfflineChangeSignal _changes;
+    private readonly ChatChangeTracker _changes;
 
     public MediaCacheService(ILogger<MediaCacheService> logger, IWebHostEnvironment env, LinkPreviewSettingsService settings,
-        LinkPreviewService linkPreviewService, IHttpClientFactory httpClientFactory, VideoService videoService, OfflineChangeSignal changes)
+        LinkPreviewService linkPreviewService, IHttpClientFactory httpClientFactory, VideoService videoService, ChatChangeTracker changes)
     {
         _logger = logger;
         _changes = changes;
@@ -201,7 +201,7 @@ public partial class MediaCacheService
                 if (result != null)
                 {
                     _cache[url] = result;
-                    _changes.Touch(OfflineChangeKind.Media, url: url);
+                    _changes.Touch(ChatChangeKind.Media, url: url);
                     OnMediaCached?.Invoke(messageId, url, result);
                 }
                 else
@@ -690,7 +690,7 @@ public partial class MediaCacheService
                 if (_cache.TryGetValue(url, out var existing))
                 {
                     _cache[url] = existing with { Width = w, Height = h, PosterUrl = poster, Title = title ?? existing.Title };
-                    _changes.Touch(OfflineChangeKind.Media, url: url);
+                    _changes.Touch(ChatChangeKind.Media, url: url);
                 }
             }
             catch (Exception ex)

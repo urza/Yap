@@ -1,28 +1,25 @@
 using System.Collections.Concurrent;
 using Microsoft.AspNetCore.DataProtection;
+using Yap.Configuration;
+using Yap.Contracts;
 using Yap.Models;
-using Yap.Services;
 
-namespace Yap.Offline;
-
-/// <summary>
-/// A username and its current effective presence status for the live user list.
-/// </summary>
-public record LivePerson(string Username, string Status);
-/// <summary>
-/// Transient presence and selected-conversation typing state for one connected client.
-/// </summary>
-public record LiveView(string Status, string ChosenStatus, int OnlineCount, LivePerson[] Users, Guid? ChannelId, string[] Typing);
+namespace Yap.Services;
 
 /// <summary>
-/// Coordinates connection-owned presence, visibility and typing through the shared chat service;
-/// this transient state is never replayed from offline storage.
+/// Per-connection presence, visibility, viewed conversation and typing for the chat hub. Each hub
+/// connection becomes a ChatService session "chat:{connectionId}"; the user-level rules (auto-away,
+/// disconnect grace) stay in ChatService.Connections. This state is never replayed from storage.
 /// </summary>
-public sealed class OfflineLiveService(ChatService chat, IDataProtectionProvider protection, UserService users, ChatLimits limits)
+public sealed class PresenceService(ChatService chat, IDataProtectionProvider protection, UserService users, ChatLimits limits)
 {
     private readonly ITimeLimitedDataProtector tickets = protection.CreateProtector("Yap.Chat.Live.v1").ToTimeLimitedDataProtector();
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly ConcurrentDictionary<string, Session> sessions = new();
+    private readonly ConcurrentDictionary<string, System.Threading.Channels.Channel<PresenceView>> listeners = new();
+    private readonly ConcurrentDictionary<string, (PresenceView View, DateTime At)> lastViews = new();
+    private readonly ConcurrentDictionary<string, (DateTime At, bool Visible, double Idle, Guid? Channel)> reports = new();
+    private PresencePerson[] people = [];
     /// <summary>
     /// Tracks one connected transport's owner, selected conversation and typing expiry.
     /// </summary>
@@ -122,13 +119,8 @@ public sealed class OfflineLiveService(ChatService chat, IDataProtectionProvider
         }
         finally { gate.Release(); }
     }
-    private LivePerson[] people = [];
-    private readonly ConcurrentDictionary<string, System.Threading.Channels.Channel<LiveView>> listeners = new();
-    private readonly ConcurrentDictionary<string, (LiveView View, DateTime At)> lastViews = new();
-    private readonly ConcurrentDictionary<string, (DateTime At, bool Visible, double Idle, Guid? Channel)> reports = new();
 
-    public LiveView View(string connection, User user) => BuildView(connection, user);
-    private LiveView BuildView(string connection, User user, Dictionary<Guid, string[]>? typingByChannel = null)
+    private PresenceView BuildView(string connection, User user, Dictionary<Guid, string[]>? typingByChannel = null)
     {
         var session = Require(connection, user);
         var status = chat.GetUserStatus(user.Username) ?? UserStatus.Online;
@@ -136,9 +128,9 @@ public sealed class OfflineLiveService(ChatService chat, IDataProtectionProvider
             ? (typingByChannel?.GetValueOrDefault(channel) ?? chat.GetTypingUsers(channel).Order().ToArray()).Where(name => name != user.Username).ToArray() : [];
         return new(status.ToString().ToLowerInvariant(), (chat.GetStatusBeforeAutoAway(user.Username) ?? status).ToString().ToLowerInvariant(), people.Length, people, session.Channel, typing);
     }
-    public async IAsyncEnumerable<LiveView> Watch(string connection, User user, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<PresenceView> Watch(string connection, User user, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var queue = System.Threading.Channels.Channel.CreateBounded<LiveView>(new System.Threading.Channels.BoundedChannelOptions(1) { FullMode = System.Threading.Channels.BoundedChannelFullMode.DropOldest });
+        var queue = System.Threading.Channels.Channel.CreateBounded<PresenceView>(new System.Threading.Channels.BoundedChannelOptions(1) { FullMode = System.Threading.Channels.BoundedChannelFullMode.DropOldest });
         if (!listeners.TryAdd(connection, queue))
             throw new InvalidOperationException("Activity stream already active");
         try
@@ -152,7 +144,7 @@ public sealed class OfflineLiveService(ChatService chat, IDataProtectionProvider
     public void Tick()
     {
         // One shared people projection and one typing lookup per viewed channel per tick.
-        var currentPeople = chat.GetAllUsersWithStatus().OrderBy(p => p.Username).Select(p => new LivePerson(p.Username, p.Status.ToString().ToLowerInvariant())).ToArray();
+        var currentPeople = chat.GetAllUsersWithStatus().OrderBy(p => p.Username).Select(p => new PresencePerson(p.Username, p.Status.ToString().ToLowerInvariant())).ToArray();
         if (!people.SequenceEqual(currentPeople))
             people = currentPeople;
         var typing = sessions.Values.Where(s => s.Channel.HasValue)
@@ -224,26 +216,5 @@ public sealed class OfflineLiveService(ChatService chat, IDataProtectionProvider
     {
         foreach (var other in sessions.Values.Where(s => s.UserId == userId && s.Channel != null && s.TypingUntil > DateTime.UtcNow))
             _ = chat.StartTypingAsync(other.Channel!.Value, other.Username);
-    }
-}
-
-/// <summary>
-/// Publishes changed presence/typing projections. Disconnect timing belongs to ChatService.
-/// </summary>
-public sealed class OfflinePresenceTicker(OfflineLiveService live, ILogger<OfflinePresenceTicker> logger) : BackgroundService
-{
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(100));
-        try
-        {
-            while (await timer.WaitForNextTickAsync(stoppingToken))
-                try
-                {
-                    live.Tick();
-                }
-                catch (Exception error) { logger.LogError(error, "Presence publication failed"); }
-        }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
     }
 }

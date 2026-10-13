@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Yap.Data;
 using Yap.Models;
-using Yap.Offline;
 using Yap.Services;
 
 static class PresenceChecks
@@ -19,7 +18,7 @@ static class PresenceChecks
     {
         var chat = services.GetRequiredService<ChatService>();
         var clock = (Microsoft.Extensions.Time.Testing.FakeTimeProvider)services.GetRequiredService<TimeProvider>();
-        var live = services.GetRequiredService<OfflineLiveService>();
+        var live = services.GetRequiredService<PresenceService>();
         await live.Join("alice1", alice, live.Ticket(alice), UserStatus.Online, true, false, 0);
         await live.Join("alice2", alice, live.Ticket(alice), UserStatus.Invisible, false, true, 0);
         Check(chat.GetUserStatus(alice.Username) == UserStatus.Online && chat.IsPageVisible(alice.Username), "another tab joins without overriding chosen status");

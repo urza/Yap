@@ -7,6 +7,7 @@ using tusdotnet.Stores;
 using Yap.Middleware;
 using Yap.Services;
 using Yap.Services.Gifs;
+using Yap.Configuration;
 
 namespace Yap.Endpoints;
 
@@ -53,7 +54,7 @@ public static class TusEndpoints
                         ? m.GetString(System.Text.Encoding.UTF8) : null;
 
                     var kind = Meta("kind");
-                    if (kind != "gif-pack" && !eventContext.HttpContext.RequestServices.GetRequiredService<Yap.Offline.ChatLimits>()
+                    if (kind != "gif-pack" && !eventContext.HttpContext.RequestServices.GetRequiredService<ChatLimits>()
                         .AllowedExtensions.Contains(Path.GetExtension(Meta("filename") ?? ""), StringComparer.OrdinalIgnoreCase))
                     {
                         eventContext.FailRequest("This file extension is not allowed.");
@@ -116,7 +117,7 @@ public static class TusEndpoints
                     var extension = Path.GetExtension(originalFileName).ToLowerInvariant();
                     var kind = metadata.TryGetValue("kind", out var kindMeta)
                         ? kindMeta.GetString(System.Text.Encoding.UTF8) : null;
-                    if (kind != "gif-pack" && !eventContext.HttpContext.RequestServices.GetRequiredService<Yap.Offline.ChatLimits>()
+                    if (kind != "gif-pack" && !eventContext.HttpContext.RequestServices.GetRequiredService<ChatLimits>()
                         .AllowedExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
                         throw new InvalidOperationException("This file extension is not allowed.");
                     // Library uploads (GifLibraryManager) carry a destination; chat uploads don't.

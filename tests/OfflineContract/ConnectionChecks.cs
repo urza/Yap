@@ -8,7 +8,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using Yap.Models;
-using Yap.Offline;
 using Yap.Services;
 
 static class ConnectionChecks
@@ -23,7 +22,7 @@ static class ConnectionChecks
     public static async Task Run(IServiceProvider services, HttpClient http, string csrf, User alice, User bob)
     {
         var chat = services.GetRequiredService<ChatService>();
-        var live = services.GetRequiredService<OfflineLiveService>();
+        var live = services.GetRequiredService<PresenceService>();
         var clock = (FakeTimeProvider)services.GetRequiredService<TimeProvider>();
         var policy = services.GetRequiredService<PresenceOptions>();
         Check(services.GetRequiredService<IOptions<CircuitOptions>>().Value.DisconnectedCircuitRetentionPeriod == policy.CircuitRetention,

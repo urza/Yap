@@ -71,7 +71,7 @@ public partial class GifService
     public IGifSourceProvider Provider => _provider;
     public bool IsConfigured => _provider.IsConfigured;
 
-    private readonly OfflineChangeSignal _changes;
+    private readonly ChatChangeTracker _changes;
 
     public GifService(IServiceProvider serviceProvider,
         IHttpClientFactory httpClientFactory,
@@ -79,7 +79,7 @@ public partial class GifService
         IGifSourceProvider provider,
         GifFfmpegHelper ffmpeg,
         UserService userService,
-        ILogger<GifService> logger, OfflineChangeSignal changes)
+        ILogger<GifService> logger, ChatChangeTracker changes)
     {
         _httpClientFactory = httpClientFactory;
         _env = env;
@@ -548,7 +548,7 @@ public partial class GifService
         // Consume the source file.
         TryDelete(sourceFilePath);
 
-        _changes.Touch(OfflineChangeKind.Gif, entry.Id);
+        _changes.Touch(ChatChangeKind.Gif, entry.Id);
         OnGifLibraryChanged?.Invoke(entry);
         return new GifAttachment(entry.Id, entry.Width, entry.Height);
     }
@@ -586,7 +586,7 @@ public partial class GifService
                 }
 
                 fixedCount++;
-                _changes.Touch(OfflineChangeKind.Gif, entry.Id);
+                _changes.Touch(ChatChangeKind.Gif, entry.Id);
                 OnGifEntryUpdated?.Invoke(entry.Id);
             }
             catch (Exception ex)
@@ -621,7 +621,7 @@ public partial class GifService
                         .ExecuteUpdateAsync(s => s.SetProperty(g => g.PreviewUrl, entry.PreviewUrl));
                 }
                 made++;
-                _changes.Touch(OfflineChangeKind.Gif, entry.Id);
+                _changes.Touch(ChatChangeKind.Gif, entry.Id);
                 OnGifEntryUpdated?.Invoke(entry.Id);
             }
             catch (Exception ex)
@@ -716,7 +716,7 @@ public partial class GifService
 
         if (insert || delete || moveFolder)
         {
-            _changes.Touch(OfflineChangeKind.Favorites, userId);
+            _changes.Touch(ChatChangeKind.Favorites, userId);
             OnFavoritesChanged?.Invoke(userId);
         }
         return favorite;
@@ -924,7 +924,7 @@ public partial class GifService
 
         await PersistNewEntryAsync(entry);
         IndexEntry(entry);
-        _changes.Touch(OfflineChangeKind.Gif, entry.Id);
+        _changes.Touch(ChatChangeKind.Gif, entry.Id);
         OnGifLibraryChanged?.Invoke(entry);
         return entry;
     }
@@ -1048,7 +1048,7 @@ public partial class GifService
 
         entry.TranscodeStatus |= GifTranscodeStatus.DoneGif;
         await PersistFormatsAsync(entry);
-        _changes.Touch(OfflineChangeKind.Gif, entry.Id);
+        _changes.Touch(ChatChangeKind.Gif, entry.Id);
         OnGifEntryUpdated?.Invoke(entry.Id);
     }
 

@@ -34,9 +34,9 @@ public partial class LinkPreviewService
     /// </summary>
     public Action<Guid, string, LinkPreview>? OnPreviewFetched { get; set; }
 
-    private readonly OfflineChangeSignal _changes;
+    private readonly ChatChangeTracker _changes;
 
-    public LinkPreviewService(IHttpClientFactory httpClientFactory, ILogger<LinkPreviewService> logger, IWebHostEnvironment env, OfflineChangeSignal changes)
+    public LinkPreviewService(IHttpClientFactory httpClientFactory, ILogger<LinkPreviewService> logger, IWebHostEnvironment env, ChatChangeTracker changes)
     {
         _httpClientFactory = httpClientFactory;
         _logger = logger;
@@ -167,7 +167,7 @@ public partial class LinkPreviewService
             }
             // Every waiting message needs its own targeted delta, including duplicate URLs
             // in different conversations. Never hold the fetch lock while publishing.
-            _changes.Touch(OfflineChangeKind.Media, url: url);
+            _changes.Touch(ChatChangeKind.Media, url: url);
             foreach (var id in messages)
                 OnPreviewFetched?.Invoke(id, url, preview);
         });

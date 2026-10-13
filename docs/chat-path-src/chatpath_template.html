@@ -123,7 +123,7 @@ tr.group td { background: var(--surface-2); font-family: var(--display); font-we
   <h3>Two connections</h3>
   <ul class="rules">
     <li><b>HTTP requests</b> to <code>/api/chat</code>. The browser uses them to send messages and to get conversations.</li>
-    <li><b>One SignalR connection</b> to <code>/hubs/chat</code>. SignalR is the ASP.NET Core library that keeps a connection open between the browser and the server. The server class for this connection is the <b>hub</b>, <code>OfflineHub</code>. The hub sends changes to the browser as <b>streams</b>. A stream is a series of items that the server sends one by one on the open connection.</li>
+    <li><b>One SignalR connection</b> to <code>/hubs/chat</code>. SignalR is the ASP.NET Core library that keeps a connection open between the browser and the server. The server class for this connection is the <b>hub</b>, <code>ChatHub</code>. The hub sends changes to the browser as <b>streams</b>. A stream is a series of items that the server sends one by one on the open connection.</li>
   </ul>
   <h3>Main rules</h3>
   <ul class="rules">
@@ -142,8 +142,8 @@ tr.group td { background: var(--surface-2); font-family: var(--display); font-we
     <dt>revision</dt><dd>A version number of a conversation. It increases by one at each change. The browser compares revisions to find a missed patch.</dd>
     <dt>window</dt><dd>The recent messages of one conversation that the browser keeps. It holds up to 100 messages.</dd>
     <dt>epoch</dt><dd>A new id each time the server starts. The revisions start again after a restart, so the browser does not compare them with old revisions.</dd>
-    <dt>fan-out</dt><dd><code>OfflineFanout</code>. It sends one change to each connection that can read the conversation.</dd>
-    <dt>DTO</dt><dd>The message object that the server sends to the browser, type <code>ReaderMessage</code>. It does not include passwords or database fields.</dd>
+    <dt>fan-out</dt><dd><code>ChatFanout</code>. It sends one change to each connection that can read the conversation.</dd>
+    <dt>DTO</dt><dd>The message object that the server sends to the browser, type <code>MessageView</code>. It does not include passwords or database fields.</dd>
   </dl>
   <ol class="toc">
     <li><a href="#parts">1. The parts</a></li>
@@ -172,7 +172,7 @@ tr.group td { background: var(--surface-2); font-family: var(--display); font-we
   <p>A write goes down the left side and across to the server. The server sends the change back up through the right side and across the stream. The browser writes every server reply and every stream item to IndexedDB, then renders from it.</p>
   <figure>
     <div class="frame">{{parts}}</div>
-    <figcaption><b>Code:</b> <span class="codeline">sender.js deliver() · OfflineEndpoints.cs:172 · ChatService.Text.cs:17 · OfflineChangeSignal.cs:26 · OfflineFanout.cs:113 · OfflineFanout.cs:321 · OfflineHub.cs:135 · app.js acceptSnapshot()</span><br>The bootstrap request and the window requests use the same HTTP path. Their replies also go through <code>acceptSnapshot</code>.</figcaption>
+    <figcaption><b>Code:</b> <span class="codeline">sender.js deliver() · ChatEndpoints.cs:172 · ChatService.Text.cs:17 · ChatChangeTracker.cs:26 · ChatFanout.cs:113 · ChatFanout.cs:321 · ChatHub.cs:135 · app.js acceptSnapshot()</span><br>The bootstrap request and the window requests use the same HTTP path. Their replies also go through <code>acceptSnapshot</code>.</figcaption>
   </figure>
   <div class="tablewrap">
   <table>
@@ -187,14 +187,14 @@ tr.group td { background: var(--surface-2); font-family: var(--display); font-we
       <tr><td>windows</td><td><code>windows.js</code></td><td>Fetches the messages of conversations that are not loaded.</td></tr>
       <tr><td>SignalR client</td><td><code>vendor/signalr-10.0.0.min.js</code></td><td>Connects to <code>/hubs/chat</code> and opens the two streams.</td></tr>
       <tr class="group"><td colspan="3">Server</td></tr>
-      <tr><td>OfflineEndpoints</td><td><code>Offline/OfflineEndpoints.cs</code></td><td>Maps <code>/api/chat</code>. Checks the cookie, the protocol version and the CSRF token.</td></tr>
+      <tr><td>ChatEndpoints</td><td><code>Endpoints/ChatEndpoints.cs</code></td><td>Maps <code>/api/chat</code>. Checks the cookie, the protocol version and the CSRF token.</td></tr>
       <tr><td>ChatService</td><td><code>Services/ChatService*.cs</code></td><td>Checks and accepts each write. Keeps all messages in memory.</td></tr>
       <tr><td>IChatStore</td><td><code>SqliteChatStore.cs</code>, <code>MemoryChatStore.cs</code></td><td>Saves a message, its receipt and the unread counts in one transaction.</td></tr>
-      <tr><td>OfflineChangeSignal</td><td><code>Services/OfflineChangeSignal.cs</code></td><td>Counts a version per conversation. Tells the fan-out about each change.</td></tr>
-      <tr><td>OfflineFanout</td><td><code>Offline/OfflineFanout.cs</code></td><td>Builds one patch per viewer and puts it in the queue of that viewer.</td></tr>
-      <tr><td>Subscription</td><td><code>Offline/OfflineFanout.cs</code></td><td>One queue per connection. It holds up to 128 updates.</td></tr>
-      <tr><td>OfflineHub</td><td><code>Offline/OfflineHub.cs</code></td><td>Serves <code>/hubs/chat</code>. Sends the queue to the browser as a stream.</td></tr>
-      <tr><td>OfflineSync</td><td><code>Offline/OfflineSync.cs</code>, <code>OfflineSnapshotService.cs</code></td><td>Builds the bootstrap and window replies from the messages in memory.</td></tr>
+      <tr><td>ChatChangeTracker</td><td><code>Services/ChatChangeTracker.cs</code></td><td>Counts a version per conversation. Tells the fan-out about each change.</td></tr>
+      <tr><td>ChatFanout</td><td><code>Services/ChatFanout.cs</code></td><td>Builds one patch per viewer and puts it in the queue of that viewer.</td></tr>
+      <tr><td>Subscription</td><td><code>Services/ChatFanout.cs</code></td><td>One queue per connection. It holds up to 128 updates.</td></tr>
+      <tr><td>ChatHub</td><td><code>Hubs/ChatHub.cs</code></td><td>Serves <code>/hubs/chat</code>. Sends the queue to the browser as a stream.</td></tr>
+      <tr><td>ChatProjection</td><td><code>Services/ChatProjection.cs</code></td><td>Builds the client views (<code>Contracts/</code>) and the bootstrap and window replies from the messages in memory.</td></tr>
     </tbody>
   </table>
   </div>
@@ -206,7 +206,7 @@ tr.group td { background: var(--surface-2); font-family: var(--display); font-we
   <p>The page shows the cached chat first. Then it asks the server for the current state and opens the two streams.</p>
   <figure>
     <div class="frame">{{connect}}</div>
-    <figcaption><b>Code:</b> <span class="codeline">app.js boot() · bootstrapChat() :930 · connectChat() :949 · windows.js fill() · live.js attach() · OfflineSync.Bootstrap() :25 · OfflineFanout.Subscribe() :31</span></figcaption>
+    <figcaption><b>Code:</b> <span class="codeline">app.js boot() · bootstrapChat() :930 · connectChat() :949 · windows.js fill() · live.js attach() · ChatProjection.Bootstrap() :220 · ChatFanout.Subscribe() :43</span></figcaption>
   </figure>
   <ul>
     <li>Bootstrap returns all conversations. Only the open conversation comes with its messages.</li>
@@ -222,7 +222,7 @@ tr.group td { background: var(--surface-2); font-family: var(--display); font-we
   <p>The page does not send a message to the server. It writes the message to the outbox in IndexedDB. The sender takes the row from the outbox and sends it.</p>
   <figure>
     <div class="frame">{{send}}</div>
-    <figcaption><b>Code:</b> <span class="codeline">composer.js send() :107 · storage.js enqueue() :193 · sender.js deliver() · OfflineEndpoints.cs:172 · ChatService.Text.cs:17-129 · SqliteChatStore.cs:25 · storage.js commitUpdate() :112</span></figcaption>
+    <figcaption><b>Code:</b> <span class="codeline">composer.js send() :107 · storage.js enqueue() :193 · sender.js deliver() · ChatEndpoints.cs:172 · ChatService.Text.cs:17-129 · SqliteChatStore.cs:25 · storage.js commitUpdate() :112</span></figcaption>
   </figure>
   <ul>
     <li>The browser makes the <code>operationId</code> with <code>crypto.randomUUID()</code>. The server uses it to accept each message only one time.</li>
@@ -278,7 +278,7 @@ for (const c of update.conversations)
   <p>Step 11 of the send calls <code>Touch</code>. From there, the server puts a patch in the queue of each connection that can read the conversation. This includes the other tabs of the sender.</p>
   <figure>
     <div class="frame">{{receive}}</div>
-    <figcaption><b>Code:</b> <span class="codeline">ChatService.cs:973 · OfflineChangeSignal.Touch() :26 · OfflineFanout.Changed() :113-170 · Subscription.Enqueue() :321 · Subscription.Read() :339 · OfflineHub.WatchChanges() :135 · app.js acceptSnapshot() :867</span></figcaption>
+    <figcaption><b>Code:</b> <span class="codeline">ChatService.cs:973 · ChatChangeTracker.Touch() :26 · ChatFanout.Changed() :125-170 · Subscription.Enqueue() :321 · Subscription.Read() :339 · ChatHub.WatchChanges() :136 · app.js acceptSnapshot() :867</span></figcaption>
   </figure>
   <ul>
     <li>The fan-out runs on the request thread of the sender. It does not have its own thread.</li>
@@ -286,7 +286,7 @@ for (const c of update.conversations)
     <li>The queue separates the two threads. The request thread does not wait for a slow browser.</li>
   </ul>
   <div class="code">
-    <div class="head"><span>One patch per subscriber, built inside the conversation lock</span><span class="path">Yap/Offline/OfflineFanout.cs:146-170, shortened</span></div>
+    <div class="head"><span>One patch per subscriber, built inside the conversation lock</span><span class="path">Yap/Services/ChatFanout.cs:146-170, shortened</span></div>
 <pre><code class="cs">if (!channels.TryGetValue(id, out var members) || members.IsEmpty)
     return;
 var message = chat.GetMessageById(id, messageId.Value);
@@ -351,15 +351,15 @@ const delay =
   <p>The browser does not use the automatic reconnect of SignalR. It makes a new bootstrap request and a new hub connection.</p>
   <figure>
     <div class="frame">{{reconnect}}</div>
-    <figcaption><b>Code:</b> <span class="codeline">app.js scheduleReconnect() :925 · connectChat() :949 · OfflineFanout.Subscribe() :31 · Refresh() :41-65 · sync.js mergeUpdate() :73-82</span></figcaption>
+    <figcaption><b>Code:</b> <span class="codeline">app.js scheduleReconnect() :925 · connectChat() :949 · ChatFanout.Subscribe() :43 · Refresh() :41-65 · sync.js mergeUpdate() :73-82</span></figcaption>
   </figure>
   <p>The server sends repair data in four cases. In each case the browser fetches only the conversations whose revision changed.</p>
   <div class="tablewrap">
   <table>
     <thead><tr><th>When</th><th>Server code</th><th>What the browser gets</th></tr></thead>
     <tbody>
-      <tr><td>A new <code>WatchChanges</code> stream starts</td><td><code>OfflineFanout.Refresh</code></td><td>One patch per conversation. <code>invalidate</code> is true where the revision is different.</td></tr>
-      <tr><td>Every 10 s on each stream</td><td><code>OfflineFanout.Digest</code></td><td>A patch only where a revision changed and the patch did not arrive.</td></tr>
+      <tr><td>A new <code>WatchChanges</code> stream starts</td><td><code>ChatFanout.Refresh</code></td><td>One patch per conversation. <code>invalidate</code> is true where the revision is different.</td></tr>
+      <tr><td>Every 10 s on each stream</td><td><code>ChatFanout.Digest</code></td><td>A patch only where a revision changed and the patch did not arrive.</td></tr>
       <tr><td>The queue of a connection has 128 updates</td><td><code>Subscription.Read</code></td><td>One <code>reset</code> packet with all conversations.</td></tr>
       <tr><td>The server restarts</td><td>a new <code>serverEpoch</code></td><td>All cached windows become stale. The browser can show them but fetches them again.</td></tr>
     </tbody>
@@ -373,7 +373,7 @@ const delay =
   <p>Presence and typing do not use the outbox or the change stream. The browser sends them as hub calls. The server collects them and sends a view every 100 ms when the view changes.</p>
   <figure>
     <div class="frame">{{presence}}</div>
-    <figcaption><b>Code:</b> <span class="codeline">live.js report() · input() · setInterval 500 ms · OfflineHub.Report/Typing :29-35 · OfflineLiveService.Report :69 · Typing :103 · Tick() :152 · Watch() :139 · OfflineHub.WatchActivity :100</span></figcaption>
+    <figcaption><b>Code:</b> <span class="codeline">live.js report() · input() · setInterval 500 ms · ChatHub.Report/Typing :29-35 · PresenceService.Report :69 · Typing :103 · Tick() :152 · Watch() :139 · ChatHub.WatchActivity :100</span></figcaption>
   </figure>
   <ul>
     <li><code>send</code> does not wait for a reply. <code>SetStatus</code> uses <code>invoke</code> and waits.</li>
@@ -388,14 +388,14 @@ const delay =
   <p>The request thread of the sender does all the work from step 7 to step 12 of the send. This diagram shows which locks it holds at each step.</p>
   <figure>
     <div class="frame">{{locks}}</div>
-    <figcaption><b>Code:</b> <span class="codeline">ChatService.Acceptance.cs:9-33 · ChatService.cs:1440-1457 · ChatService.Text.cs:101-109 · OfflineChangeSignal.cs:29 · OfflineFanout.cs:323 · OfflineSnapshotService.cs:164</span><br>Steps 1 to 5 run inside <code>SendTextAsync</code>. Step 6 runs in the endpoint after <code>SendTextAsync</code> returns.</figcaption>
+    <figcaption><b>Code:</b> <span class="codeline">ChatService.Acceptance.cs:9-33 · ChatService.cs:1440-1457 · ChatService.Text.cs:101-109 · ChatChangeTracker.cs:29 · ChatFanout.cs:323 · ChatProjection.cs:164</span><br>Steps 1 to 5 run inside <code>SendTextAsync</code>. Step 6 runs in the endpoint after <code>SendTextAsync</code> returns.</figcaption>
   </figure>
   <figure>
     <div class="frame">{{queue}}</div>
-    <figcaption><b>Code:</b> <span class="codeline">OfflineFanout.cs:307-379</span><br>The queue holds the data. The one-item channel holds nothing. It only wakes the stream task. Many <code>Enqueue</code> calls give one wake-up.</figcaption>
+    <figcaption><b>Code:</b> <span class="codeline">ChatFanout.cs:307-379</span><br>The queue holds the data. The one-item channel holds nothing. It only wakes the stream task. Many <code>Enqueue</code> calls give one wake-up.</figcaption>
   </figure>
   <div class="code">
-    <div class="head"><span>Enqueue: the queue limit and the wake-up</span><span class="path">Yap/Offline/OfflineFanout.cs:321-337</span></div>
+    <div class="head"><span>Enqueue: the queue limit and the wake-up</span><span class="path">Yap/Services/ChatFanout.cs:321-337</span></div>
 <pre><code class="cs">internal void Enqueue(ChatUpdate update)
 {
     lock (gate)
@@ -421,18 +421,18 @@ const delay =
       <tr class="group"><td colspan="3">Messages</td></tr>
       <tr><td><code>SemaphoreSlim(1,1)</code> per key</td><td><code>ChatService.Acceptance.cs</code></td><td>One lock per <code>operationId</code>. Two retries of one send run one after the other.</td></tr>
       <tr><td><code>SemaphoreSlim(1,1)</code></td><td><code>readStateGate</code></td><td>One lock for all unread counts. The send holds it during the store transaction.</td></tr>
-      <tr><td><code>lock</code> per conversation</td><td><code>OfflineChangeSignal.ChannelLock</code></td><td>Guards the message list, the version counter and the order of the patches.</td></tr>
-      <tr><td><code>event Action&lt;OfflineChange&gt;</code></td><td><code>OfflineChangeSignal.Changed</code></td><td>Calls the fan-out immediately, on the same thread.</td></tr>
-      <tr><td><code>Interlocked.Increment</code></td><td><code>OfflineChangeSignal.Stamp</code></td><td>Gives each update a sequence number. The browser uses it to put updates in order.</td></tr>
-      <tr><td><code>ConcurrentDictionary</code></td><td><code>OfflineFanout</code> indexes</td><td>Finds the queues for a conversation or a user without a global lock.</td></tr>
+      <tr><td><code>lock</code> per conversation</td><td><code>ChatChangeTracker.ChannelLock</code></td><td>Guards the message list, the version counter and the order of the patches.</td></tr>
+      <tr><td><code>event Action&lt;OfflineChange&gt;</code></td><td><code>ChatChangeTracker.Changed</code></td><td>Calls the fan-out immediately, on the same thread.</td></tr>
+      <tr><td><code>Interlocked.Increment</code></td><td><code>ChatChangeTracker.Stamp</code></td><td>Gives each update a sequence number. The browser uses it to put updates in order.</td></tr>
+      <tr><td><code>ConcurrentDictionary</code></td><td><code>ChatFanout</code> indexes</td><td>Finds the queues for a conversation or a user without a global lock.</td></tr>
       <tr><td><code>Queue&lt;T&gt;</code> and <code>lock</code></td><td><code>Subscription.pending</code></td><td>Holds up to 128 updates per connection.</td></tr>
       <tr><td><code>Channel&lt;bool&gt;</code>, capacity 1</td><td><code>Subscription.ready</code></td><td>Wakes the stream task.</td></tr>
-      <tr><td><code>IAsyncEnumerable&lt;ChatUpdate&gt;</code></td><td><code>OfflineHub.WatchChanges</code></td><td>Sends each update to the browser as a stream item.</td></tr>
+      <tr><td><code>IAsyncEnumerable&lt;ChatUpdate&gt;</code></td><td><code>ChatHub.WatchChanges</code></td><td>Sends each update to the browser as a stream item.</td></tr>
       <tr class="group"><td colspan="3">Presence and typing</td></tr>
-      <tr><td><code>SemaphoreSlim(1,1)</code></td><td><code>OfflineLiveService.gate</code></td><td>Runs the presence and typing calls one at a time, for all users.</td></tr>
-      <tr><td><code>PeriodicTimer</code>, 100 ms</td><td><code>OfflinePresenceTicker</code></td><td>Calls <code>Tick()</code> ten times per second.</td></tr>
-      <tr><td><code>Channel&lt;LiveView&gt;</code>, capacity 1, DropOldest</td><td><code>OfflineLiveService.Watch</code></td><td>Keeps only the newest view per connection.</td></tr>
-      <tr><td><code>IAsyncEnumerable&lt;object&gt;</code></td><td><code>OfflineHub.WatchActivity</code></td><td>Sends the changed fields of the view.</td></tr>
+      <tr><td><code>SemaphoreSlim(1,1)</code></td><td><code>PresenceService.gate</code></td><td>Runs the presence and typing calls one at a time, for all users.</td></tr>
+      <tr><td><code>PeriodicTimer</code>, 100 ms</td><td><code>PresenceTicker</code></td><td>Calls <code>Tick()</code> ten times per second.</td></tr>
+      <tr><td><code>Channel&lt;PresenceView&gt;</code>, capacity 1, DropOldest</td><td><code>PresenceService.Watch</code></td><td>Keeps only the newest view per connection.</td></tr>
+      <tr><td><code>IAsyncEnumerable&lt;object&gt;</code></td><td><code>ChatHub.WatchActivity</code></td><td>Sends the changed fields of the view.</td></tr>
     </tbody>
   </table>
   </div>
@@ -468,17 +468,17 @@ const delay =
       <tr><td>Message length</td><td class="num">4000 characters</td><td><code>ChatLimits.MaxTextLength</code></td></tr>
       <tr><td>Rows in one batch POST</td><td class="num">16</td><td><code>ChatLimits.MaxOperationsPerBatch</code></td></tr>
       <tr><td>Size of one batch</td><td class="num">48 KiB</td><td><code>ChatLimits.MaxBatchBytes</code></td></tr>
-      <tr><td>Messages in a cached window</td><td class="num">100, less when there are more than 200 conversations</td><td><code>OfflineSnapshotService.cs:63, 224</code></td></tr>
-      <tr><td>Updates in one connection queue</td><td class="num">128</td><td><code>OfflineFanout.Subscribe</code></td></tr>
-      <tr><td>Repair check on each stream</td><td class="num">10 s</td><td><code>OfflineHub.WatchChanges</code></td></tr>
+      <tr><td>Messages in a cached window</td><td class="num">100, less when there are more than 200 conversations</td><td><code>ChatProjection.cs:63, 224</code></td></tr>
+      <tr><td>Updates in one connection queue</td><td class="num">128</td><td><code>ChatFanout.Subscribe</code></td></tr>
+      <tr><td>Repair check on each stream</td><td class="num">10 s</td><td><code>ChatHub.WatchChanges</code></td></tr>
       <tr><td>Wait before reconnect</td><td class="num">2.5 to 3.5 s</td><td><code>app.js scheduleReconnect</code></td></tr>
       <tr><td>Send retry wait</td><td class="num">3 s, doubled each time, max 60 s</td><td><code>sender.js reject</code></td></tr>
       <tr><td>Automatic send tries</td><td class="num">8</td><td><code>sender.js reject</code></td></tr>
       <tr><td>Receipt life</td><td class="num">1 day, newest 4096 per user</td><td><code>ChatReceiptCleanup</code></td></tr>
-      <tr><td>Live ticket life</td><td class="num">2 min</td><td><code>OfflineLiveService.cs:31</code></td></tr>
+      <tr><td>Live ticket life</td><td class="num">2 min</td><td><code>PresenceService.cs:31</code></td></tr>
       <tr><td>Presence report</td><td class="num">10 s, 60 s when hidden</td><td><code>live.js</code></td></tr>
       <tr><td>Typing resend, typing timeout</td><td class="num">1.5 s, 3 s</td><td><code>live.js</code>, <code>ChatLimits.TypingTimeoutMs</code></td></tr>
-      <tr><td>Presence tick</td><td class="num">100 ms</td><td><code>OfflinePresenceTicker</code></td></tr>
+      <tr><td>Presence tick</td><td class="num">100 ms</td><td><code>PresenceTicker</code></td></tr>
       <tr><td>HTTP timeout</td><td class="num">10 s GET, 15 s POST</td><td><code>api.js</code></td></tr>
     </tbody>
   </table>

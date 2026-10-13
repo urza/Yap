@@ -1,17 +1,18 @@
 using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.SignalR;
+using Yap.Contracts;
 using Yap.Middleware;
-using Yap.Services;
 using Yap.Models;
+using Yap.Services;
 using System.Text.Json;
 
-namespace Yap.Offline;
+namespace Yap.Hubs;
 
 /// <summary>
 /// Connects authenticated browsers to incremental authority streams and transient presence/typing
 /// operations over SignalR.
 /// </summary>
-public sealed class OfflineHub(UserService users, OfflineSnapshotService snapshots, OfflineLiveService live, ChatConfigService branding, OfflineFanout fanout, ChatService chat) : Hub
+public sealed class ChatHub(UserService users, ChatProjection projection, PresenceService presence, ChatConfigService branding, ChatFanout fanout, ChatService chat) : Hub
 {
     private User CurrentUser()
     {
@@ -25,14 +26,14 @@ public sealed class OfflineHub(UserService users, OfflineSnapshotService snapsho
             throw new HubException("UPDATE_REQUIRED");
     }
     public Task Join(string ticket, UserStatus chosen, bool visible, bool mobile, double idleSeconds)
-        => live.Join(Context.ConnectionId, CurrentUser(), ticket, chosen, visible, mobile, idleSeconds, Context.GetHttpContext()?.Items["ClientIp"] as string);
+        => presence.Join(Context.ConnectionId, CurrentUser(), ticket, chosen, visible, mobile, idleSeconds, Context.GetHttpContext()?.Items["ClientIp"] as string);
     public Task Report(bool visible, double idleSeconds, Guid? channelId)
-        => Permit("report") ? live.Report(Context.ConnectionId, CurrentUser(), visible, idleSeconds, channelId,
+        => Permit("report") ? presence.Report(Context.ConnectionId, CurrentUser(), visible, idleSeconds, channelId,
             // Older, unversioned hub clients report a selection before its window loads.
             // Keep their observed-read accounting until the new shell opts into this URL.
             validatedView: Context.GetHttpContext()?.Request.Query["protocol"].ToString() == ChatProtocol.Version) : Task.CompletedTask;
-    public Task SetStatus(UserStatus status) => !Permit("status") ? Task.CompletedTask : live.SetStatus(Context.ConnectionId, CurrentUser(), status);
-    public Task Typing(Guid channelId, bool active) => !Permit("typing") ? Task.CompletedTask : live.Typing(Context.ConnectionId, CurrentUser(), channelId, active);
+    public Task SetStatus(UserStatus status) => !Permit("status") ? Task.CompletedTask : presence.SetStatus(Context.ConnectionId, CurrentUser(), status);
+    public Task Typing(Guid channelId, bool active) => !Permit("typing") ? Task.CompletedTask : presence.Typing(Context.ConnectionId, CurrentUser(), channelId, active);
     // A small burst allows normal navigation/status changes; a sustained caller is limited
     // to four changes/second. State lives with the connection, not a transient Hub instance.
     private bool Permit(string operation)
@@ -51,7 +52,7 @@ public sealed class OfflineHub(UserService users, OfflineSnapshotService snapsho
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        await live.Leave(Context.ConnectionId);
+        await presence.Leave(Context.ConnectionId);
         await base.OnDisconnectedAsync(exception);
     }
 
@@ -61,7 +62,7 @@ public sealed class OfflineHub(UserService users, OfflineSnapshotService snapsho
         int count = -1;
         var lastTyping = DateTime.MinValue;
         var user = CurrentUser();
-        await foreach (var view in live.Watch(Context.ConnectionId, user, cancellationToken))
+        await foreach (var view in presence.Watch(Context.ConnectionId, user, cancellationToken))
         {
             CurrentUser();
             var signature = JsonSerializer.Serialize(view);
@@ -71,7 +72,7 @@ public sealed class OfflineHub(UserService users, OfflineSnapshotService snapsho
                 if (typingSignature != previousTyping)
                 {
                     previousTyping = typingSignature;
-                    typingText = view.Typing.Length == 0 ? "" : snapshots.IsDirectMessage(view.ChannelId)
+                    typingText = view.Typing.Length == 0 ? "" : projection.IsDirectMessage(view.ChannelId)
                         ? string.Join(", ", view.Typing) + " is typing..." : branding.GetRandomTypingIndicator(view.Typing.ToList(), user.Username);
                 }
                 if (count != view.OnlineCount)

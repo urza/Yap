@@ -1,6 +1,7 @@
 using Yap.Helpers;
 using Yap.Models;
 using Yap.Services;
+using Yap.Endpoints;
 
 namespace Yap.Middleware;
 
@@ -40,12 +41,12 @@ public class AuthMiddleware
                 userState.DateFormat = user.DateFormat;
                 userState.Status = UserStatus.Online;
 
-                // Sliding renewal belongs only to OfflineEndpoints.Session (bootstrap/session),
+                // Sliding renewal belongs only to ChatEndpoints.Session (bootstrap/session),
                 // throttled by AuthCookieRenewal. Shell HTML must never carry Set-Cookie.
                 // Retained Blazor pages still record their own network and login origin here.
                 if (HttpMethods.IsGet(context.Request.Method)
                     && !context.Request.Path.StartsWithSegments("/auth")
-                    && !Yap.Offline.ChatRoutes.IsShell(context)
+                    && !ChatRoutes.IsShell(context)
                     && context.Request.Headers.Accept.ToString().Contains("text/html"))
                 {
                     // Also refresh smart-login's IP memory here: long-lived cookie sessions

@@ -26,12 +26,12 @@ public class NotificationSettingsService
     // (userId, channelId) -> muted. Only channels the user explicitly flipped appear here.
     private readonly ConcurrentDictionary<(Guid UserId, Guid ChannelId), bool> _overrides = new();
 
-    private readonly OfflineChangeSignal _changes;
+    private readonly ChatChangeTracker _changes;
 
     public NotificationSettingsService(
         UserService userService,
         ChatPersistenceService persistence,
-        ILogger<NotificationSettingsService> logger, OfflineChangeSignal changes)
+        ILogger<NotificationSettingsService> logger, ChatChangeTracker changes)
     {
         _userService = userService;
         _persistence = persistence;
@@ -125,7 +125,7 @@ public class NotificationSettingsService
             ChannelId = channelId,
             Muted = muted
         });
-        _changes.Touch(OfflineChangeKind.Unread, userId, channelId);
+        _changes.Touch(ChatChangeKind.Unread, userId, channelId);
         OnChanged?.Invoke(userId, channelId);
     }
 

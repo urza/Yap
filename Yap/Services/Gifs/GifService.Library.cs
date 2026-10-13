@@ -80,7 +80,7 @@ public partial class GifService
             }
         }
 
-        _changes.Touch(Yap.Services.OfflineChangeKind.Gif, entry.Id);
+        _changes.Touch(Yap.Services.ChatChangeKind.Gif, entry.Id);
         OnGifLibraryChanged?.Invoke(entry);
         return true;
     }
@@ -230,10 +230,10 @@ public partial class GifService
 
         foreach (var uid in affectedUsers)
         {
-            _changes.Touch(Yap.Services.OfflineChangeKind.Favorites, uid);
+            _changes.Touch(Yap.Services.ChatChangeKind.Favorites, uid);
             OnFavoritesChanged?.Invoke(uid);
         }
-        _changes.Touch(Yap.Services.OfflineChangeKind.Gif, entry.Id);
+        _changes.Touch(Yap.Services.ChatChangeKind.Gif, entry.Id);
         OnGifLibraryChanged?.Invoke(entry);
 
         _logger.LogInformation("GIF {Id} {Mode}-deleted by {Actor} (refs: {Refs})",

@@ -5,7 +5,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Hosting;
 using Yap.Models;
-using Yap.Offline;
 using Yap.Services;
 
 static class MaintenanceChecks
@@ -30,11 +29,11 @@ static class MaintenanceChecks
             ["AwayAfterMs"] = "15000",
             ["AllowedExtensions:0"] = ".png"
         };
-        var original = changes.Keys.ToDictionary(key => key, key => config["OfflineChat:" + key]);
+        var original = changes.Keys.ToDictionary(key => key, key => config["ChatSettings:" + key]);
         try
         {
             foreach (var (key, value) in changes)
-                config["OfflineChat:" + key] = value;
+                config["ChatSettings:" + key] = value;
             var data = await http.GetFromJsonAsync<JsonElement>("/api/chat/bootstrap");
             var header = data.GetProperty("update").GetProperty("state");
             Check(header.GetProperty("maxTextLength").GetInt32() == 123 && header.GetProperty("maxOperationsPerBatch").GetInt32() == 2
@@ -60,7 +59,7 @@ static class MaintenanceChecks
             }
             catch (ChatSendException error) when (error.Code == "invalid_message") { Check(true, "server enforces the advertised text limit"); }
         }
-        finally { foreach (var (key, value) in original) config["OfflineChat:" + key] = value; }
+        finally { foreach (var (key, value) in original) config["ChatSettings:" + key] = value; }
 
         var env = services.GetRequiredService<IWebHostEnvironment>();
         var directory = Path.Combine(env.WebRootPath, "chat-client");

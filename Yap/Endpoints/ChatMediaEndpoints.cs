@@ -1,39 +1,26 @@
 using System.Text.RegularExpressions;
-using Yap.Endpoints;
+using Yap.Configuration;
 using Yap.Middleware;
 using Yap.Models;
 using Yap.Services;
 using Yap.Services.Gifs;
 
-namespace Yap.Offline;
+namespace Yap.Endpoints;
 
 /// <summary>
-/// Adapts emoji, GIF and completed-upload services for the chat API and resolves account-owned
-/// media for message acceptance.
+/// The /api/chat routes that feed the composer: emoji catalog and recents, GIF library, search and
+/// selection, completed-upload lookup. Also resolves account-owned media for message acceptance.
 /// </summary>
-public static class OfflineContent
+public static class ChatMediaEndpoints
 {
     // Klipy cursors are page numbers, so lookup must use the same page size as browsing.
     private const int ProviderPageSize = 30;
 
-    // Every route is registered on OfflineEndpoints' authenticated/antiforgery-filtered group.
+    // Every route is registered on ChatEndpoints' authenticated/antiforgery-filtered group.
     private static User CurrentUser(HttpContext http) => http.RequestServices
         .GetRequiredService<UserService>()
         .AuthenticateByToken(http.Request.Cookies[AuthMiddleware.CookieName]!)!;
-    public static object Gif(GifEntry e, GifService gifs, Guid user, string? uploader = null) => new
-    {
-        e.Id,
-        e.Width,
-        e.Height,
-        url = e.GifUrl ?? e.RemoteGifUrl ?? e.Mp4Url ?? e.WebmUrl ?? e.RemoteMp4Url ?? e.RemoteWebmUrl,
-        preview = e.PreviewUrl ?? e.GifUrl ?? e.RemoteGifUrl ?? e.WebmUrl ?? e.Mp4Url ?? e.RemoteMp4Url,
-        uploader,
-        e.ServerFolder,
-        title = string.Join(" ", gifs.GetTags(e)),
-        favorite = gifs.IsFavorite(user, e.Id),
-        e.UploadedByUserId
-    };
-    public static void Map(RouteGroupBuilder api)
+    public static void MapChatMediaEndpoints(this RouteGroupBuilder api)
     {
         api.MapGet("/catalog", GetCatalog);
         api.MapPost("/emoji/recent", (HttpContext http, RecentRequest request, UserService users) =>
@@ -105,10 +92,11 @@ public static class OfflineContent
         HttpContext http,
         GifService gifs,
         UserService users,
-        ChatConfigService config)
+        ChatConfigService config,
+        ChatProjection projection)
     {
         var user = CurrentUser(http);
-        object Item(GifEntry entry) => Gif(entry, gifs, user.Id, users.GetById(entry.UploadedByUserId ?? Guid.Empty)?.Username);
+        object Item(GifEntry entry) => projection.Gif(entry, user.Id, users.GetById(entry.UploadedByUserId ?? Guid.Empty)?.Username);
         return Results.Ok(new
         {
             recent = gifs.GetRecents(user.Username).Select(Item),
@@ -128,6 +116,7 @@ public static class OfflineContent
         HttpContext http,
         GifService gifs,
         UserService users,
+        ChatProjection projection,
         string? mode,
         string? q,
         string? cursor,
@@ -160,7 +149,7 @@ public static class OfflineContent
         }
         return Results.Ok(new
         {
-            items = local.Select(e => Gif(e, gifs, user.Id, users.GetById(e.UploadedByUserId ?? Guid.Empty)?.Username)),
+            items = local.Select(e => projection.Gif(e, user.Id, users.GetById(e.UploadedByUserId ?? Guid.Empty)?.Username)),
             remote,
             configured = gifs.IsConfigured,
             provider = gifs.Provider.DisplayName,
@@ -194,17 +183,17 @@ public static class OfflineContent
     /// <summary>
     /// The client's recent emoji selections to persist for the authenticated account.
     /// </summary>
-    public record RecentRequest(string[] Values);
+    private record RecentRequest(string[] Values);
     /// <summary>
     /// The desired favorite membership of a GIF, so the request does not depend on toggling prior
     /// state.
     /// </summary>
-    public record FavoriteRequest(Guid Id, bool Active);
+    private record FavoriteRequest(Guid Id, bool Active);
     /// <summary>
     /// Identifies a GIF within a provider result page so the server can re-fetch trusted media
     /// metadata.
     /// </summary>
-    public record ProviderRequest(string SourceId, string? Query, string? Cursor);
+    private record ProviderRequest(string SourceId, string? Query, string? Cursor);
     public static async Task<(List<string>? Images, List<string>? Videos, List<GifAttachment>? Gifs)> ResolveMedia(HttpContext http, User user, string[]? uploads, Guid? gifId)
     {
         if ((uploads?.Length ?? 0) > http.RequestServices.GetRequiredService<ChatLimits>().MaxFilesPerMessage)

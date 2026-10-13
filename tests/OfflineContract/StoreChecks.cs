@@ -25,7 +25,7 @@ static class StoreChecks
         Check((await chat.SendTextAsync(other, channel, sent.OperationId, "collision")).MessageId == collision.MessageId,
             "same-account retry keeps the server-generated message ID");
         using var scope = services.CreateScope();
-        var snapshots = scope.ServiceProvider.GetRequiredService<Yap.Offline.OfflineSnapshotService>();
+        var snapshots = scope.ServiceProvider.GetRequiredService<Yap.Services.ChatProjection>();
         var projected = snapshots.Message(target);
         Check(projected.OperationId == null && snapshots.Message(target, other.Id).OperationId == null
             && snapshots.Message(target, user.Id).OperationId == sent.OperationId

@@ -1,31 +1,43 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
+using Yap.Contracts;
 using Yap.Models;
-using Yap.Services;
 
-namespace Yap.Offline;
+namespace Yap.Services;
 
 /// <summary>Projects each message event once and routes it only to authorized connection queues.</summary>
-public sealed class OfflineFanout : IDisposable
+public sealed class ChatFanout : IHostedService, IDisposable
 {
-    private readonly ILogger<OfflineFanout> logger;
+    private readonly ILogger<ChatFanout> logger;
     private readonly ChatService chat;
     private readonly UserService users;
-    private readonly OfflineSnapshotService snapshots;
-    private readonly OfflineChangeSignal changes;
+    private readonly ChatProjection projection;
+    private readonly ChatChangeTracker changes;
     private readonly NotificationSettingsService notifications;
     private readonly ConcurrentDictionary<Guid, Subscription> connections = new();
     private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<Guid, Subscription>> accounts = new();
     private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<Guid, Subscription>> channels = new();
-    public OfflineFanout(ChatService chat, UserService users, OfflineSnapshotService snapshots, OfflineChangeSignal changes, NotificationSettingsService notifications, ILogger<OfflineFanout> logger)
+    public ChatFanout(ChatService chat, UserService users, ChatProjection projection, ChatChangeTracker changes, NotificationSettingsService notifications, ILogger<ChatFanout> logger)
     {
         this.logger = logger;
         this.chat = chat;
         this.users = users;
-        this.snapshots = snapshots;
+        this.projection = projection;
         this.changes = changes;
         this.notifications = notifications;
+    }
+
+    // The handler attaches at host start, not in the constructor: nothing can be subscribed
+    // before the server listens, and Program.cs no longer has to resolve this singleton early.
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
         changes.Changed += Changed;
+        return Task.CompletedTask;
+    }
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        changes.Changed -= Changed;
+        return Task.CompletedTask;
     }
 
     public Subscription Subscribe(User user, IReadOnlyDictionary<Guid, string> known, int capacity = 128)
@@ -33,14 +45,14 @@ public sealed class OfflineFanout : IDisposable
         var subscription = new Subscription(this, user, capacity);
         connections[subscription.Id] = subscription;
         accounts.GetOrAdd(user.Id, _ => new())[subscription.Id] = subscription;
-        subscription.Enqueue(new(ChatProtocol.Number, user.Id, changes.Epoch, changes.Stamp(), snapshots.Header(user), [], [], []));
+        subscription.Enqueue(new(ChatProtocol.Number, user.Id, changes.Epoch, changes.Stamp(), projection.Header(user), [], [], []));
         Refresh(subscription, known);
         return subscription;
     }
 
     private void Refresh(Subscription subscription, IReadOnlyDictionary<Guid, string>? known = null)
     {
-        var allowed = snapshots.Channels(subscription.User).Select(c => c.Id).ToHashSet();
+        var allowed = projection.Channels(subscription.User).Select(c => c.Id).ToHashSet();
         foreach (var id in subscription.Channels.Keys.Union(known?.Keys ?? []).Except(allowed).ToArray())
         {
             subscription.Channels.TryRemove(id, out _);
@@ -54,46 +66,46 @@ public sealed class OfflineFanout : IDisposable
             {
                 if (subscription.Channels.TryAdd(id, long.TryParse(known?.GetValueOrDefault(id), out var knownRevision) ? knownRevision : -1))
                     channels.GetOrAdd(id, _ => new())[subscription.Id] = subscription;
-                var metadata = snapshots.Metadata(subscription.User, id);
+                var metadata = projection.Metadata(subscription.User, id);
                 if (metadata == null)
                     continue;
-                var revision = OfflineSync.Revision(metadata);
+                var revision = ChatProjection.Revision(metadata);
                 subscription.Enqueue(new(ChatProtocol.Number, subscription.User.Id, changes.Epoch, changes.Stamp(), null,
                     [new(id, metadata, [], [], null, null, revision, known?.GetValueOrDefault(id) != revision)], [], []));
             }
         }
     }
 
-    private void Changed(OfflineChange change)
+    private void Changed(ChatChange change)
     {
         switch (change.Kind)
         {
-            case OfflineChangeKind.Content:
+            case ChatChangeKind.Content:
                 Changed(change.Id, change.RelatedId, change.Before, change.After, change.Sequence);
                 break;
-            case OfflineChangeKind.Unread:
+            case ChatChangeKind.Unread:
                 Unread(change.Id, change.RelatedId!.Value);
                 break;
-            case OfflineChangeKind.Profile:
+            case ChatChangeKind.Profile:
                 Profile(change.Id, true);
                 break;
-            case OfflineChangeKind.Preferences:
+            case ChatChangeKind.Preferences:
                 Profile(change.Id, false);
                 break;
-            case OfflineChangeKind.People:
+            case ChatChangeKind.People:
                 People();
                 break;
-            case OfflineChangeKind.Favorites:
+            case ChatChangeKind.Favorites:
                 Favorites(change.Id);
                 break;
-            case OfflineChangeKind.Gif:
+            case ChatChangeKind.Gif:
                 // The GIF reference index names the channels that embed this entry. Only
                 // those histories are scanned for the message IDs to touch.
                 foreach (var channelId in chat.ChannelsWithGif(change.Id))
                     foreach (var message in chat.GetMessages(channelId, int.MaxValue).Where(m => m.GifAttachments.Any(g => g.GifEntryId == change.Id)))
                         changes.Touch(channelId, message.Id);
                 break;
-            case OfflineChangeKind.Media:
+            case ChatChangeKind.Media:
                 // No index maps URLs in message text to channels, so this still scans all
                 // history. It runs after a background media download or preview fetch,
                 // not on a user's save.
@@ -103,7 +115,7 @@ public sealed class OfflineFanout : IDisposable
                     foreach (var message in chat.GetMessages(channel.Id, int.MaxValue).Where(m => LinkPreviewService.ExtractUrls(m.Content).Contains(change.Url)))
                         changes.Touch(channel.Id, message.Id);
                 break;
-            case OfflineChangeKind.Settings:
+            case ChatChangeKind.Settings:
                 foreach (var channel in chat.GetRooms().Concat(chat.GetAllDMChannels()))
                     changes.Touch(channel.Id);
                 break;
@@ -120,7 +132,7 @@ public sealed class OfflineFanout : IDisposable
             {
                 try
                 {
-                    var metadata = snapshots.Metadata(subscription.User, id);
+                    var metadata = projection.Metadata(subscription.User, id);
                     if (metadata == null)
                     {
                         if (!subscription.Channels.TryRemove(id, out _))
@@ -134,7 +146,7 @@ public sealed class OfflineFanout : IDisposable
                         subscription.Channels.TryAdd(id, -1);
                         channels.GetOrAdd(id, _ => new())[subscription.Id] = subscription;
                         subscription.Enqueue(new(ChatProtocol.Number, subscription.User.Id, changes.Epoch, sequence, null,
-                            [new(id, metadata, [], [], null, null, OfflineSync.Revision(metadata), true)], [], []));
+                            [new(id, metadata, [], [], null, null, ChatProjection.Revision(metadata), true)], [], []));
                     }
 
                 }
@@ -148,17 +160,17 @@ public sealed class OfflineFanout : IDisposable
         if (!channels.TryGetValue(id, out var members) || members.IsEmpty)
             return;
         var message = chat.GetMessageById(id, messageId.Value);
-        var projected = message == null ? null : snapshots.Message(message);
+        var projected = message == null ? null : projection.Message(message);
         foreach (var subscription in members.Values)
         {
             try
             {
                 var user = subscription.User;
-                var metadata = snapshots.Metadata(user, id);
+                var metadata = projection.Metadata(user, id);
                 if (metadata == null)
                     continue;
                 var visible = message != null && chat.CanReadMessage(user, message);
-                var value = visible ? snapshots.ForViewer(projected!, message!, user) : null;
+                var value = visible ? projection.ForViewer(projected!, message!, user) : null;
                 // Deleted restricted history has no readable timestamp left. Invalidate without
                 // exposing its id; the authorized window endpoint decides what can remain.
                 var invalidate = !visible && metadata.HistoryLimited;
@@ -184,10 +196,10 @@ public sealed class OfflineFanout : IDisposable
         {
             foreach (var subscription in members.Values.Where(s => s.Channels.ContainsKey(channelId)))
             {
-                var metadata = snapshots.Metadata(subscription.User, channelId);
+                var metadata = projection.Metadata(subscription.User, channelId);
                 if (metadata != null)
                     subscription.Enqueue(new(ChatProtocol.Number, userId, changes.Epoch, changes.Stamp(), null,
-                        [new(channelId, metadata, [], [], null, null, OfflineSync.Revision(metadata))], [], []));
+                        [new(channelId, metadata, [], [], null, null, ChatProjection.Revision(metadata))], [], []));
             }
         }
     }
@@ -203,15 +215,15 @@ public sealed class OfflineFanout : IDisposable
         {
             lock (chat.GetChannelLock(id))
             {
-                var metadata = snapshots.Metadata(user, id);
+                var metadata = projection.Metadata(user, id);
                 if (metadata == null)
                     continue;
-                var messages = chat.GetMessagesPaginated(id, snapshots.RecentLimit, isAdmin: users.IsAdmin(userId), userId: userId)
-                    .Messages.Where(m => m.GifAttachments.Count > 0).Select(m => snapshots.Message(m, userId)).ToArray();
+                var messages = chat.GetMessagesPaginated(id, projection.RecentLimit, isAdmin: users.IsAdmin(userId), userId: userId)
+                    .Messages.Where(m => m.GifAttachments.Count > 0).Select(m => projection.Message(m, userId)).ToArray();
                 if (messages.Length == 0)
                     continue;
                 var update = new ChatUpdate(ChatProtocol.Number, userId, changes.Epoch, changes.Stamp(), null,
-                    [new(id, metadata, messages, [], null, null, OfflineSync.Revision(metadata))],
+                    [new(id, metadata, messages, [], null, null, ChatProjection.Revision(metadata))],
                     [], messages.Select(m => m.Author).DistinctBy(a => a.Id).ToArray());
                 foreach (var subscription in account.Values.Where(s => s.Channels.ContainsKey(id)))
                     subscription.Enqueue(update);
@@ -221,7 +233,7 @@ public sealed class OfflineFanout : IDisposable
 
     private void Profile(Guid userId, bool publicProfile)
     {
-        snapshots.InvalidateUser(userId);
+        projection.InvalidateUser(userId);
         if (publicProfile)
         {
             People();
@@ -239,7 +251,7 @@ public sealed class OfflineFanout : IDisposable
             var user = users.GetById(userId);
             if (user == null)
                 return;
-            var header = snapshots.Header(user);
+            var header = projection.Header(user);
             foreach (var subscription in account.Values)
                 subscription.Enqueue(new(ChatProtocol.Number, userId, changes.Epoch, changes.Stamp(), header, [], [], []));
             foreach (var id in account.Values.SelectMany(s => s.Channels.Keys).Distinct())
@@ -251,7 +263,7 @@ public sealed class OfflineFanout : IDisposable
         // Once per account, irrespective of the number of tabs. Never called by message/unread events.
         foreach (var group in connections.Values.GroupBy(s => s.User.Id))
         {
-            var header = snapshots.Header(group.First().User);
+            var header = projection.Header(group.First().User);
             var sequence = changes.Stamp();
             foreach (var subscription in group)
                 subscription.Enqueue(new(ChatProtocol.Number, group.Key, changes.Epoch, sequence, header, [], [], []));
@@ -261,7 +273,7 @@ public sealed class OfflineFanout : IDisposable
     private async Task Digest(Subscription subscription)
     {
         await notifications.ClearExpiredServerMuteAsync(subscription.User);
-        var allowed = snapshots.Channels(subscription.User).Select(c => c.Id).ToHashSet();
+        var allowed = projection.Channels(subscription.User).Select(c => c.Id).ToHashSet();
         foreach (var id in subscription.Channels.Keys.Except(allowed))
         {
             subscription.Channels.TryRemove(id, out _);
@@ -279,10 +291,10 @@ public sealed class OfflineFanout : IDisposable
                 // channels. Reconnect/overflow still supply authoritative invalidations.
                 if (subscription.Channels[id] == changes.ContentVersion(id))
                     continue;
-                var metadata = snapshots.Metadata(subscription.User, id);
+                var metadata = projection.Metadata(subscription.User, id);
                 if (metadata != null)
                     subscription.Enqueue(new(ChatProtocol.Number, subscription.User.Id, changes.Epoch, changes.Stamp(), null,
-                        [new(id, metadata, [], [], null, null, OfflineSync.Revision(metadata), true)], [], []));
+                        [new(id, metadata, [], [], null, null, ChatProjection.Revision(metadata), true)], [], []));
             }
         }
     }
@@ -305,7 +317,7 @@ public sealed class OfflineFanout : IDisposable
     }
 
     /// <summary>A bounded queue. Overflow drops records and recovers through authorized invalidations.</summary>
-    public sealed class Subscription(OfflineFanout owner, User user, int capacity) : IDisposable
+    public sealed class Subscription(ChatFanout owner, User user, int capacity) : IDisposable
     {
         internal Guid Id { get; } = Guid.NewGuid();
         internal User User { get; } = user;
@@ -355,18 +367,18 @@ public sealed class OfflineFanout : IDisposable
                 // in the other order. New changes keep accumulating during this recovery.
                 var resetSequence = owner.changes.Stamp();
                 var updates = new List<ChatUpdate>();
-                foreach (var channel in owner.snapshots.Channels(User))
+                foreach (var channel in owner.projection.Channels(User))
                 {
                     lock (owner.chat.GetChannelLock(channel.Id))
                     {
-                        var metadata = owner.snapshots.Metadata(User, channel.Id);
+                        var metadata = owner.projection.Metadata(User, channel.Id);
                         if (metadata != null)
                             updates.Add(new(ChatProtocol.Number, User.Id, owner.changes.Epoch, owner.changes.Stamp(), null,
-                            [new(channel.Id, metadata, [], [], null, null, OfflineSync.Revision(metadata), true)], [], []));
+                            [new(channel.Id, metadata, [], [], null, null, ChatProjection.Revision(metadata), true)], [], []));
                     }
                 }
                 // Reset supplies the complete allowed set, including removals lost at overflow.
-                var reset = new ChatUpdate(ChatProtocol.Number, User.Id, owner.changes.Epoch, resetSequence, owner.snapshots.Header(User),
+                var reset = new ChatUpdate(ChatProtocol.Number, User.Id, owner.changes.Epoch, resetSequence, owner.projection.Header(User),
                     updates.SelectMany(u => u.Conversations).ToArray(), [], [], Reset: true);
                 return Sent([reset, .. updates]);
             }
@@ -393,8 +405,8 @@ public sealed class OfflineFanout : IDisposable
         {
             var patches = new Dictionary<Guid, ConversationUpdate>();
             var removed = new HashSet<Guid>();
-            var authors = new Dictionary<Guid, ReaderUser>();
-            ReaderSnapshot? header = null;
+            var authors = new Dictionary<Guid, UserView>();
+            SnapshotView? header = null;
             foreach (var item in batch.OrderBy(u => u.Sequence))
             {
                 header = item.State ?? header;

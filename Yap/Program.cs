@@ -1,4 +1,6 @@
-using Yap.Offline;
+using Yap.Configuration;
+using Yap.Contracts;
+using Yap.Hubs;
 using System.Net;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Components.Server;
@@ -196,15 +198,20 @@ builder.Services.AddSingleton<LinkTokenService>(); // PWA start_url login link t
 builder.Services.AddSingleton<AccessLinkService>(); // invite / login links (/invite/{code})
 builder.Services.AddSingleton<NotificationSettingsService>();  // per-channel mute rules (read by ChatService)
 builder.Services.AddSingleton<ChatService>();
+
+// JS chat client transport: /api/chat (Endpoints/ChatEndpoints) and /hubs/chat (Hubs/ChatHub)
 builder.Services.AddSignalR();
 builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-TOKEN");
-builder.Services.AddSingleton<OfflineSnapshotService>();
-builder.Services.AddSingleton<OfflineSync>();
-builder.Services.AddSingleton<ChatLimits>();
-builder.Services.AddSingleton<OfflineChangeSignal>();
-builder.Services.AddSingleton<OfflineFanout>();
-builder.Services.AddSingleton<OfflineLiveService>();
-builder.Services.AddHostedService<OfflinePresenceTicker>();
+builder.Services.AddSingleton<ChatLimits>();          // clamped limits from configuration
+builder.Services.AddSingleton<ChatChangeTracker>();   // epoch, sequence, per-channel versions, Changed event
+builder.Services.AddSingleton<ChatProjection>();      // domain state -> client views and ChatUpdate packets
+builder.Services.AddSingleton<ChatFanout>();          // one projection per change, one queue per hub connection
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ChatFanout>()); // attaches to the tracker at host start
+builder.Services.AddSingleton<PresenceService>();     // per-connection presence and typing
+builder.Services.AddHostedService<PresenceTicker>();  // 100 ms presence publication
+builder.Services.AddSingleton<ChatShellManifest>();   // hashed shell asset inventory for the service worker
+builder.Services.AddSingleton<Microsoft.AspNetCore.Routing.MatcherPolicy, ChatRootPolicy>(); // GET / is the shell for signed-in visitors
+
 builder.Services.AddSingleton<SystemBotService>();
 builder.Services.AddSingleton<RegistrationGateService>();
 builder.Services.AddSingleton<ChatConfigService>();
@@ -246,7 +253,6 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.Services.AddSingleton<Microsoft.AspNetCore.Routing.MatcherPolicy, ChatRootPolicy>();
 builder.Services.AddSingleton<AuthCookieRenewal>();
 var app = builder.Build();
 
@@ -267,9 +273,6 @@ await app.Services.GetRequiredService<PushSubscriptionStore>().InitializeAsync()
 
 // Initialize system bot (must be after UserService + ChatService)
 await app.Services.GetRequiredService<SystemBotService>().InitializeAsync();
-
-// Start shared revision/profile subscriptions before the first bootstrap or hub connection.
-_ = app.Services.GetRequiredService<OfflineFanout>();
 
 // Clean up old action logs (keep last 100 per user, delete older than 6 months)
 await app.Services.GetRequiredService<UserActionLogService>().CleanupAsync();
@@ -471,6 +474,7 @@ app.MapPwaEndpoints();
 app.MapAdminEndpoints();
 app.MapDiagnosticsEndpoints();
 app.MapGifLibraryEndpoints();
-app.MapOfflineChat();
+app.MapChatEndpoints();
+app.MapChatShell();
 
 app.Run();

@@ -33,7 +33,7 @@ public partial class ChatService : IDisposable
 
     private void PeopleChanged(List<Action> notifications) => notifications.Add(() =>
     {
-        _changes.Touch(OfflineChangeKind.People);
+        _changes.Touch(ChatChangeKind.People);
         OnUsersListChanged?.Invoke();
     });
 

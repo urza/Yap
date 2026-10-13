@@ -1,56 +1,26 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Antiforgery;
-using Yap.Middleware;
+using Yap.Configuration;
+using Yap.Contracts;
 using Yap.Helpers;
+using Yap.Hubs;
+using Yap.Middleware;
 using Yap.Services;
 
-namespace Yap.Offline;
+namespace Yap.Endpoints;
 
 /// <summary>
-/// Maps the browser chat shell and authenticated HTTP API, applying account-bound write protection
-/// before delegating to shared services.
+/// Maps the chat client's HTTP API and its hub. The group filter authenticates the cookie, gates the
+/// protocol version and applies account-bound antiforgery to writes before any handler runs, so the
+/// handlers delegate straight to ChatService and ChatProjection.
 /// </summary>
-public static class OfflineEndpoints
+public static class ChatEndpoints
 {
-    public static void MapOfflineChat(this WebApplication app)
+    public static void MapChatEndpoints(this IEndpointRouteBuilder app)
     {
-        // Compute once from the complete deployed package, never from personalized HTML.
-        var manifest = new ChatShellManifest(app.Environment);
-        app.MapGet("/chat-client/manifest.json", (HttpContext http) =>
-        {
-            http.Response.Headers.CacheControl = "no-store";
-            return Results.Ok(manifest);
-        });
-        // Fail a broken release before accepting requests, rather than on every chat load.
-        var shellHtml = File.ReadAllText(Path.Combine(app.Environment.WebRootPath, "chat-client", "index.html"));
-        var appearanceToken = new System.Text.RegularExpressions.Regex(@"\bdata-appearance(?=\s|>)");
-        if (appearanceToken.Matches(shellHtml).Count != 1)
-            throw new InvalidOperationException("Chat shell must contain exactly one data-appearance placeholder.");
-        MapApi(app.MapGroup("/api/chat"));
-        app.MapHub<OfflineHub>("/hubs/chat");
-        foreach (var path in new[] { "/", "/chat", "/lobby", "/room/{id:guid}", "/dm/{username}" })
-        {
-            var endpoint = app.MapGet(path, (HttpContext http, UserStateService user) => ServeShell(http, user, shellHtml, appearanceToken));
-            if (path == "/")
-                endpoint.WithOrder(-1).WithMetadata(new ChatRootPolicy());
-        }
+        MapApi(app.MapGroup(ChatRoutes.Api));
+        app.MapHub<ChatHub>(ChatRoutes.Hub);
     }
-
-    // Only the neutral file is worker-cacheable. Online HTML carries current account
-    // preferences before CSS; the blocking script mirrors them for cached navigation.
-    private static async Task ServeShell(HttpContext http, UserStateService user, string html, System.Text.RegularExpressions.Regex appearanceToken)
-    {
-        var theme = System.Net.WebUtility.HtmlEncode(user.Theme ?? "discord-dark");
-        var size = user.FontSize is >= Yap.Models.User.MinFontSize and <= Yap.Models.User.MaxFontSize
-            ? $"font-size: {user.FontSize}px" : "";
-        html = appearanceToken.Replace(html, _ =>
-            $"data-theme=\"{theme}\" style=\"{size}\" data-appearance-user=\"{user.UserId}\"");
-        http.Response.ContentType = "text/html; charset=utf-8";
-        http.Response.Headers.CacheControl = "no-store";
-        await http.Response.WriteAsync(html);
-    }
-
-    public sealed record LeavePresence(string ConnectionId);
 
     private static void MapApi(RouteGroupBuilder api)
     {
@@ -120,9 +90,9 @@ public static class OfflineEndpoints
                 }, statusCode: 503);
             }
         });
-        OfflineContent.Map(api);
+        api.MapChatMediaEndpoints();
         api.MapPost("/pwa/installed", async (HttpContext http, UserService users) => { await users.MarkPwaInstalledAsync(users.AuthenticateByToken(http.Request.Cookies[AuthMiddleware.CookieName]!)!.Id); return Results.Ok(new { }); });
-        api.MapPost("/preferences/detect", async (DetectedLocale request, HttpContext http, UserService users, OfflineSync sync) =>
+        api.MapPost("/preferences/detect", async (DetectedLocale request, HttpContext http, UserService users, ChatProjection projection) =>
         {
             if (string.IsNullOrWhiteSpace(request.TimeZone) || string.IsNullOrWhiteSpace(request.Locale)
                 || request.TimeZone.Length > 100 || request.Locale.Length > 100
@@ -147,30 +117,30 @@ public static class OfflineEndpoints
             if (user.TimeZone == null || user.Locale == null || user.DateFormat == null)
                 await users.UpdateLocaleAsync(user.Id, user.TimeZone ?? request.TimeZone,
                     locale, user.DateFormat ?? $"{LocaleResolver.GuessDateOrderFromLocale(locale)}-{clock}");
-            return Results.Ok(sync.Bootstrap(user, request.Path, request.ChannelId));
+            return Results.Ok(projection.Bootstrap(user, request.Path, request.ChannelId));
         });
-        api.MapPost("/presence/leave", async (LeavePresence request, HttpContext http, UserService users, OfflineLiveService live) =>
+        api.MapPost("/presence/leave", async (LeavePresence request, HttpContext http, UserService users, PresenceService presence) =>
         {
             if (string.IsNullOrWhiteSpace(request.ConnectionId) || request.ConnectionId.Length > 128)
                 return Results.BadRequest();
-            await live.Close(request.ConnectionId, users.AuthenticateByToken(http.Request.Cookies[AuthMiddleware.CookieName]!)!);
+            await presence.Close(request.ConnectionId, users.AuthenticateByToken(http.Request.Cookies[AuthMiddleware.CookieName]!)!);
             return Results.NoContent();
         });
         api.MapGet("/session", (HttpContext http) => Results.Ok(Session(http)));
-        api.MapGet("/bootstrap", (HttpContext http, string? path, Guid? channelId, string? epoch, string? revision, Guid? knownUser, UserService users, OfflineSnapshotService snapshots, OfflineSync sync) =>
+        api.MapGet("/bootstrap", (HttpContext http, string? path, Guid? channelId, string? epoch, string? revision, Guid? knownUser, UserService users, ChatProjection projection) =>
         {
             var user = users.AuthenticateByToken(http.Request.Cookies[AuthMiddleware.CookieName]!)!;
             var session = Session(http);
             return Results.Ok(new
             {
                 session,
-                update = sync.Bootstrap(user, path, channelId, epoch, revision, knownUser)
+                update = projection.Bootstrap(user, path, channelId, epoch, revision, knownUser)
             });
         });
-        api.MapGet("/windows/{id:guid}", (Guid id, HttpContext http, UserService users, OfflineSync sync) =>
-            Results.Ok(sync.Conversation(users.AuthenticateByToken(http.Request.Cookies[AuthMiddleware.CookieName]!)!, id, full: true)));
+        api.MapGet("/windows/{id:guid}", (Guid id, HttpContext http, UserService users, ChatProjection projection) =>
+            Results.Ok(projection.Update(users.AuthenticateByToken(http.Request.Cookies[AuthMiddleware.CookieName]!)!, id, full: true)));
         api.MapPost("/conversations/{id:guid}/messages", async (Guid id, SendTextRequest request, HttpContext http,
-            UserService users, ChatService chat, OfflineSnapshotService snapshots, OfflineSync sync) =>
+            UserService users, ChatService chat, ChatProjection projection) =>
         {
             var user = users.AuthenticateByToken(http.Request.Cookies[AuthMiddleware.CookieName]!)!;
             var hasMedia = request.UploadIds?.Length > 0 || request.GifEntryId != null;
@@ -180,16 +150,16 @@ public static class OfflineEndpoints
                     request.UploadIds,
                     request.GifEntryId
                 }) : null,
-                resolveMedia: hasMedia ? () => OfflineContent.ResolveMedia(http, user, request.UploadIds, request.GifEntryId) : null);
+                resolveMedia: hasMedia ? () => ChatMediaEndpoints.ResolveMedia(http, user, request.UploadIds, request.GifEntryId) : null);
             return Results.Ok(new
             {
                 receipt.OperationId,
                 receipt.MessageId,
-                update = sync.Conversation(user, id, receipt.MessageId)
+                update = projection.Update(user, id, receipt.MessageId)
             });
         });
         api.MapPost("/conversations/{id:guid}/messages/{messageId:guid}/actions", async (Guid id, Guid messageId,
-            MutationRequest request, HttpContext http, UserService users, ChatService chat, OfflineSnapshotService snapshots, OfflineSync sync) =>
+            MutationRequest request, HttpContext http, UserService users, ChatService chat, ChatProjection projection) =>
         {
             var user = users.AuthenticateByToken(http.Request.Cookies[AuthMiddleware.CookieName]!)!;
             var receipt = await chat.MutateMessageAsync(user, id, messageId, request.OperationId, request.Kind, request.Content, request.Emoji, request.Active);
@@ -197,23 +167,23 @@ public static class OfflineEndpoints
             {
                 receipt.OperationId,
                 receipt.MessageId,
-                update = sync.Conversation(user, id, receipt.MessageId)
+                update = projection.Update(user, id, receipt.MessageId)
             });
         });
         api.MapPost("/conversations/{id:guid}/read", async (Guid id, ReadRequest request, HttpContext http,
-            UserService users, ChatService chat, OfflineSnapshotService snapshots, OfflineSync sync) =>
+            UserService users, ChatService chat, ChatProjection projection) =>
         {
             var user = users.AuthenticateByToken(http.Request.Cookies[AuthMiddleware.CookieName]!)!;
             await chat.MarkObservedReadAsync(user.Id, id, request.Through, source: request.Source);
             return Results.Ok(new
             {
                 through = request.Through,
-                update = sync.Conversation(user, id)
+                update = projection.Update(user, id)
             });
         });
         // Already-queued text/actions can share one request, without delaying the first
         // operation to assemble a batch. Each operation retains its own durable receipt.
-        api.MapPost("/operations", async (QueuedOperation[] operations, HttpContext http, UserService users, ChatService chat, OfflineSync sync) =>
+        api.MapPost("/operations", async (QueuedOperation[] operations, HttpContext http, UserService users, ChatService chat, ChatProjection projection) =>
         {
             if (operations.Length < 1 || operations.Length > http.RequestServices.GetRequiredService<ChatLimits>().MaxOperationsPerBatch)
                 return Results.BadRequest();
@@ -227,7 +197,7 @@ public static class OfflineEndpoints
                         ? await chat.SendTextAsync(user, operation.ChannelId, operation.OperationId, operation.Content, operation.ReplyToMessageId)
                         : await chat.MutateMessageAsync(user, operation.ChannelId, operation.MessageId ?? Guid.Empty,
                             operation.OperationId, operation.Kind, operation.Content, operation.Emoji, operation.Active);
-                    results.Add(new(receipt.OperationId, sync.Conversation(user, operation.ChannelId, receipt.MessageId)));
+                    results.Add(new(receipt.OperationId, projection.Update(user, operation.ChannelId, receipt.MessageId)));
                 }
                 catch (ChatSendException error)
                 {
@@ -239,7 +209,7 @@ public static class OfflineEndpoints
                 results
             });
         });
-        api.MapPost("/reads", async (ReadCheckpoint[] checkpoints, HttpContext http, UserService users, ChatService chat, OfflineSync sync) =>
+        api.MapPost("/reads", async (ReadCheckpoint[] checkpoints, HttpContext http, UserService users, ChatService chat, ChatProjection projection) =>
         {
             if (checkpoints.Length > http.RequestServices.GetRequiredService<ChatLimits>().ReadBatch)
                 return Results.BadRequest();
@@ -249,7 +219,7 @@ public static class OfflineEndpoints
             {
                 if (chat.GetChannel(checkpoint.ChannelId)?.CanAccess(user.Id) == true)
                     await chat.MarkObservedReadAsync(user.Id, checkpoint.ChannelId, checkpoint.Through, source: checkpoint.Source);
-                updates.Add(sync.Conversation(user, checkpoint.ChannelId));
+                updates.Add(projection.Update(user, checkpoint.ChannelId));
             }
             return Results.Ok(new
             {
@@ -257,17 +227,17 @@ public static class OfflineEndpoints
             });
         });
         api.MapPost("/dm/{username}", async (string username, HttpContext http, UserService users,
-            ChatService chat, OfflineSnapshotService snapshots, OfflineSync sync) =>
+            ChatService chat, ChatProjection projection) =>
         {
             var user = users.AuthenticateByToken(http.Request.Cookies[AuthMiddleware.CookieName]!)!;
             var channel = await chat.OpenDirectMessageAsync(user, username);
             return Results.Ok(new
             {
                 channelId = channel.Id,
-                update = sync.Conversation(user, channel.Id, full: true)
+                update = projection.Update(user, channel.Id, full: true)
             });
         });
-        api.MapGet("/conversations/{id:guid}/history", (Guid id, DateTime? before, int? limit, HttpContext http, UserService users, ChatService chat, OfflineSnapshotService snapshots) =>
+        api.MapGet("/conversations/{id:guid}/history", (Guid id, DateTime? before, int? limit, HttpContext http, UserService users, ChatService chat, ChatProjection projection) =>
         {
             var user = users.AuthenticateByToken(http.Request.Cookies[AuthMiddleware.CookieName]!)!;
             var channel = chat.GetChannel(id);
@@ -275,7 +245,7 @@ public static class OfflineEndpoints
                 return Results.NotFound();
             var limits = http.RequestServices.GetRequiredService<ChatLimits>();
             var page = chat.GetMessagesPaginated(id, Math.Clamp(limit ?? limits.HistoryPageSize, 1, limits.HistoryMaxMessages), before, users.IsAdmin(user.Id), user.Id);
-            var messages = page.Messages.Select(m => snapshots.Message(m, user.Id)).ToArray();
+            var messages = page.Messages.Select(m => projection.Message(m, user.Id)).ToArray();
             return Results.Ok(new
             {
                 messages,
@@ -283,22 +253,22 @@ public static class OfflineEndpoints
                 page.HasMore
             });
         });
-        api.MapGet("/conversations/{id:guid}/messages/{messageId:guid}", (Guid id, Guid messageId, HttpContext http, UserService users, ChatService chat, OfflineSnapshotService snapshots) =>
+        api.MapGet("/conversations/{id:guid}/messages/{messageId:guid}", (Guid id, Guid messageId, HttpContext http, UserService users, ChatService chat, ChatProjection projection) =>
         {
             var user = users.AuthenticateByToken(http.Request.Cookies[AuthMiddleware.CookieName]!)!;
             var message = chat.GetMessageById(id, messageId);
             if (message == null || !chat.CanReadMessage(user, message))
                 return Results.NotFound();
-            var projected = snapshots.Message(message, user.Id);
+            var projected = projection.Message(message, user.Id);
             return Results.Ok(new
             {
                 message = projected,
                 authors = new[] { projected.Author }
             });
         });
-        api.MapGet("/conversations/{id:guid}", (Guid id, HttpContext http, UserService users, OfflineSnapshotService snapshots) =>
+        api.MapGet("/conversations/{id:guid}", (Guid id, HttpContext http, UserService users, ChatProjection projection) =>
         {
-            var conversation = snapshots.Conversation(users.AuthenticateByToken(http.Request.Cookies[AuthMiddleware.CookieName]!)!, id);
+            var conversation = projection.Conversation(users.AuthenticateByToken(http.Request.Cookies[AuthMiddleware.CookieName]!)!, id);
             return conversation == null ? Results.NotFound() : Results.Ok(new
             {
                 conversation,
@@ -319,33 +289,34 @@ public static class OfflineEndpoints
         {
             needsLocaleDetection = user.TimeZone == null || user.Locale == null || user.DateFormat == null,
             userId = user.Id,
-            liveTicket = services.GetRequiredService<OfflineLiveService>().Ticket(user),
+            liveTicket = services.GetRequiredService<PresenceService>().Ticket(user),
             hasWayBack = users.HasPassword(user.Username) || services.GetRequiredService<AccessLinkService>().HasActiveLink(user.Id),
             csrfToken = services.GetRequiredService<IAntiforgery>().GetAndStoreTokens(http).RequestToken
         };
     }
 
+    // Request bodies. Property names are the wire contract; the types stay private to this map.
+    private sealed record LeavePresence(string ConnectionId);
     /// <summary>A bounded batch member; media uploads retain their separate resumable path.</summary>
-    public record QueuedOperation(Guid OperationId, Guid ChannelId, string? Content, string? Kind = null,
+    private record QueuedOperation(Guid OperationId, Guid ChannelId, string? Content, string? Kind = null,
         Guid? MessageId = null, Guid? ReplyToMessageId = null, string? Emoji = null, bool Active = false);
     /// <summary>Independent acceptance or rejection of one batch member.</summary>
-    public record OperationResult(Guid OperationId, ChatUpdate? Update, int? Status = null, string? Code = null, string? Error = null);
-
+    private record OperationResult(Guid OperationId, ChatUpdate? Update, int? Status = null, string? Code = null, string? Error = null);
+    private record DetectedLocale(string TimeZone, string Locale, string? Path, string? HourCycle = null, Guid? ChannelId = null);
     /// <summary>
     /// The highest arrival checkpoint observed by the client, leaving newer unseen arrivals unread.
     /// </summary>
-    public record DetectedLocale(string TimeZone, string Locale, string? Path, string? HourCycle = null, Guid? ChannelId = null);
-    public record ReadRequest(long Through, string Source = "observed");
+    private record ReadRequest(long Through, string Source = "observed");
     /// <summary>An observed checkpoint in a batched background read acknowledgement.</summary>
-    public record ReadCheckpoint(Guid ChannelId, long Through, string Source = "observed");
+    private record ReadCheckpoint(Guid ChannelId, long Through, string Source = "observed");
     /// <summary>
     /// A new message's stable retry identity, text, reply target and optional uploaded or selected
     /// media references.
     /// </summary>
-    public record SendTextRequest(Guid OperationId, string? Content, Guid? ReplyToMessageId = null, string[]? UploadIds = null, Guid? GifEntryId = null);
+    private record SendTextRequest(Guid OperationId, string? Content, Guid? ReplyToMessageId = null, string[]? UploadIds = null, Guid? GifEntryId = null);
     /// <summary>
     /// A message action and stable retry identity; reaction actions carry desired membership rather
     /// than a replayable toggle.
     /// </summary>
-    public record MutationRequest(Guid OperationId, string Kind, string? Content, string? Emoji, bool Active);
+    private record MutationRequest(Guid OperationId, string Kind, string? Content, string? Emoji, bool Active);
 }

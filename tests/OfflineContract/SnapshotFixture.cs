@@ -1,12 +1,13 @@
 using Yap.Models;
-using Yap.Offline;
+using Yap.Contracts;
+using Yap.Services;
 
 static class SnapshotFixture
 {
     // A test inspection view, not an additional server/client wire protocol.
-    public static ReaderSnapshot FullView(this OfflineSnapshotService snapshots, User user)
+    public static SnapshotView FullView(this ChatProjection snapshots, User user)
     {
-        var conversations = snapshots.Channels(user).Select(c => snapshots.Conversation(user, c.Id)).OfType<ReaderConversation>().ToArray();
+        var conversations = snapshots.Channels(user).Select(c => snapshots.Conversation(user, c.Id)).OfType<ConversationView>().ToArray();
         return snapshots.Header(user) with
         {
             Sequence = snapshots.Stamp(),

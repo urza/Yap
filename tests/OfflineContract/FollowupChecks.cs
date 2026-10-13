@@ -8,7 +8,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Yap.Data;
 using Yap.Middleware;
 using Yap.Models;
-using Yap.Offline;
 using Yap.Services;
 
 static class FollowupChecks
@@ -74,15 +73,15 @@ static class FollowupChecks
             else
                 await File.WriteAllTextAsync(shellPath, previous);
         }
-        var changes = services.GetRequiredService<OfflineChangeSignal>();
+        var changes = services.GetRequiredService<ChatChangeTracker>();
         var received = 0;
-        Action<OfflineChange> broken = _ => throw new InvalidOperationException("synthetic change listener failure");
-        Action<OfflineChange> observer = _ => received++;
+        Action<ChatChange> broken = _ => throw new InvalidOperationException("synthetic change listener failure");
+        Action<ChatChange> observer = _ => received++;
         changes.Changed += broken;
         changes.Changed += observer;
         try
         {
-            changes.Touch(OfflineChangeKind.Preferences, user.Id);
+            changes.Touch(ChatChangeKind.Preferences, user.Id);
             Check(received == 1, "throwing change subscriber cannot suppress subsequent listeners");
         }
         finally { changes.Changed -= broken; changes.Changed -= observer; }

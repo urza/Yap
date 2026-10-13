@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using Yap.Models;
 using Yap.Services.Gifs;
+using Yap.Configuration;
 
 namespace Yap.Services;
 
@@ -37,7 +38,7 @@ public partial class ChatService
     private readonly ConcurrentDictionary<Guid, Dictionary<Guid, int>> _channelGifReferences = new();
     private readonly ConcurrentDictionary<Guid, Dictionary<Guid, int>> _channelAuthors = new();
     private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<string, DateTime>> _channelTypingUsers = new();
-    private readonly OfflineChangeSignal _changes;
+    private readonly ChatChangeTracker _changes;
 
     // Unread tracking: (UserId, ChannelId) -> ChannelReadState
     private readonly ConcurrentDictionary<(Guid UserId, Guid ChannelId), ChannelReadState> _readStates = new();
@@ -95,12 +96,12 @@ public partial class ChatService
         public DateTime LastReportAt { get; init; }   // last client-state heartbeat — stale means frozen/disconnected/legacy client
     }
 
-    private readonly Yap.Offline.ChatLimits _limits;
+    private readonly ChatLimits _limits;
 
     public ChatService(PushNotificationService pushService, ChatPersistenceService persistence, IChatStore store, UserService userService,
         LinkPreviewService linkPreviewService, LinkPreviewSettingsService linkPreviewSettings,
         MediaCacheService mediaCacheService, GifService gifService, NotificationAudit audit,
-        NotificationSettingsService notifications, ILogger<ChatService> logger, Yap.Offline.ChatLimits limits, OfflineChangeSignal changes, TimeProvider connectionClock, PresenceOptions presenceOptions)
+        NotificationSettingsService notifications, ILogger<ChatService> logger, ChatLimits limits, ChatChangeTracker changes, TimeProvider connectionClock, PresenceOptions presenceOptions)
     {
         _changes = changes;
         _limits = limits;
@@ -1470,7 +1471,7 @@ public partial class ChatService
     {
         foreach (var userId in userIds)
         {
-            _changes.Touch(OfflineChangeKind.Unread, userId, channelId);
+            _changes.Touch(ChatChangeKind.Unread, userId, channelId);
             if (OnUnreadChanged is { } handlers)
                 foreach (Action<Guid, Guid> handler in handlers.GetInvocationList())
                     RunNotification(() => handler(userId, channelId));

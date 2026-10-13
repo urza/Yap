@@ -11,8 +11,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Yap.Data;
 using Yap.Middleware;
 using Yap.Models;
-using Yap.Offline;
+using Yap.Endpoints;
+using Yap.Hubs;
 using Yap.Services;
+using Yap.Contracts;
 
 static class DesignChecks
 {
@@ -87,7 +89,7 @@ static class DesignChecks
             Check((int)(await http.SendAsync(mismatch)).StatusCode == 426, "hub negotiation rejects mismatched protocol header with 426");
             using var query = new HttpRequestMessage(HttpMethod.Post, "/hubs/chat/negotiate?negotiateVersion=1&protocol=2");
             Check((int)(await http.SendAsync(query)).StatusCode == 426, "hub transports reject mismatched browser protocol query with 426");
-            var hub = ActivatorUtilities.CreateInstance<OfflineHub>(services);
+            var hub = ActivatorUtilities.CreateInstance<ChatHub>(services);
             var caller = new Caller();
             caller.Http.Request.QueryString = new QueryString("?protocol=2");
             hub.Context = caller;
@@ -115,7 +117,7 @@ static class DesignChecks
         var viewer = (await users.CreateUserAsync("designviewer"))!;
         var sender = (await users.CreateUserAsync("designsender"))!;
         var chat = services.GetRequiredService<ChatService>();
-        var live = services.GetRequiredService<OfflineLiveService>();
+        var live = services.GetRequiredService<PresenceService>();
         var dm = chat.GetOrCreateDMChannel(viewer.Id, viewer.Username, sender.Id, sender.Username);
         await live.Join("design-viewer", viewer, live.Ticket(viewer), UserStatus.Online, true, false, 0);
         await live.Report("design-viewer", viewer, true, 0, dm.Id);

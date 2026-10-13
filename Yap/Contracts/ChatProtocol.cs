@@ -1,4 +1,4 @@
-namespace Yap.Offline;
+namespace Yap.Contracts;
 
 public static class ChatProtocol
 {

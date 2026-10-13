@@ -2,17 +2,17 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Yap.Models;
-using Yap.Offline;
+using Yap.Contracts;
 using Yap.Services;
 
 static class MediaChecks
 {
-    public static void Run(IServiceProvider services, string root, User user, OfflineSnapshotService snapshots)
+    public static void Run(IServiceProvider services, string root, User user, ChatProjection snapshots)
     {
         var previews = services.GetRequiredService<LinkPreviewService>();
         var folder = Path.Combine(root, "Data", "media-cache");
         Directory.CreateDirectory(folder);
-        ReaderMessage View(string content) => snapshots.Message(new ChatMessage(Guid.NewGuid(), user.Id, user.Username, content, DateTime.UtcNow), user.Id);
+        MessageView View(string content) => snapshots.Message(new ChatMessage(Guid.NewGuid(), user.Id, user.Username, content, DateTime.UtcNow), user.Id);
         void Check(bool value, string label)
         {
             if (!value)

@@ -46,7 +46,7 @@ Suite discovery reads `tests/browser/*.cjs`; the default selection remains the o
 | **Default:** `sync-protocol`, `communication`, `review-recovery`, `review-composer`, `text-sending`, `history-interface`, `rich-content`, `message-actions`, `phone-send-tap`, `phone-edit-actions`, `phone-action-bars`, `new-messages-indicator`, `composer-rules`, `shell-rules`, `text-links`, `mailbox-rules`, `pwa-integration`, `local-http` | Protocol ordering, cached credentials, blocked catalog/window independence, one-POST writes, durable sends, upload cancellation/timeouts and independent-conversation progress, history and reply races, offline media/actions, phone taps on Send, Edit and message rows, the New messages pill, the composer, shell and link rules restored from the old page, the mailbox count, PWA and worker failure. Use the isolated origin; create their own synthetic accounts. |
 | `low-review` | Persisted jittered retry backoff and terminal attempt budget, manual retry identity, IndexedDB reopen, and unsent-work discard warnings in chat and retained pages. Uses the isolated origin. |
 | `design-decisions` | Conditional root routing, hub protocol rejection with retained draft, retained-page cookie renewal and existing-install guidance. Uses the isolated origin. |
-| `maintenance` | Requires a disposable instance with `OfflineChat:MaxTextLength=37`; checks configured compose/edit limits and HTTP 426 recovery with retained drafts. |
+| `maintenance` | Requires a disposable instance with `ChatSettings:MaxTextLength=37`; checks configured compose/edit limits and HTTP 426 recovery with retained drafts. |
 | `locale` | Browser timezone/locale detection with US and Czech contexts, Settings saves preserving locale, clock formatting, saved reload and first-send independence from stalled detection. Uses the isolated origin. |
 | `memory-mode` | Requires `YAP_TEST_PACKAGE` (complete publish output). Owns a disposable memory-only server on 8097. Checks sends/actions, reconnect replay, restart invalidating the login with locked cached work, and a new account receiving none of the old queue. |
 | `restart-cache` | Requires `YAP_TEST_PACKAGE` (complete publish output). Copies it into a private fixture, owns port 8055, restarts the real server, blocks recovery, checks offline navigation with an updating indicator and later deletion reconciliation. |
@@ -81,7 +81,7 @@ Restart, reference-only and diagnostic scripts remain directly runnable with Nod
 ```sh
 npm run format
 npm run format:check
-dotnet format whitespace Yap.slnx --no-restore --include Yap/Offline/*.cs Yap/Services/ChatService.*.cs
+dotnet format whitespace Yap.slnx --no-restore --include Yap/Endpoints/Chat*.cs Yap/Hubs/*.cs Yap/Contracts/*.cs Yap/Services/Chat*.cs Yap/Services/Presence*.cs
 dotnet format whitespace tests/OfflineContract/OfflineContract.csproj --no-restore --include tests/OfflineContract/*.cs
 ```
 

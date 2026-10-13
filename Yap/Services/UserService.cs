@@ -31,9 +31,9 @@ public class UserService
     private readonly ConcurrentDictionary<Guid, byte> _dirtyEmojiUsers = new();
     private CancellationTokenSource? _flushCts;
 
-    private readonly OfflineChangeSignal _changes;
+    private readonly ChatChangeTracker _changes;
 
-    public UserService(IServiceProvider serviceProvider, ILogger<UserService> logger, OfflineChangeSignal changes)
+    public UserService(IServiceProvider serviceProvider, ILogger<UserService> logger, ChatChangeTracker changes)
     {
         _logger = logger;
         _changes = changes;
@@ -329,7 +329,7 @@ public class UserService
                     user.IsAdmin = false;
             }
         }
-        _changes.Touch(OfflineChangeKind.Profile, userId);
+        _changes.Touch(ChatChangeKind.Profile, userId);
     }
 
     /// <summary>
@@ -371,7 +371,7 @@ public class UserService
                 _logger.LogError(ex, "Failed to delete user {UserId}", userId);
             }
         }
-        _changes.Touch(OfflineChangeKind.Profile, userId);
+        _changes.Touch(ChatChangeKind.Profile, userId);
     }
 
     /// <summary>
@@ -387,7 +387,7 @@ public class UserService
         user.ProfilePictureUrl = profilePictureUrl;
         user.Bio = bio;
         user.Country = country;
-        _changes.Touch(OfflineChangeKind.Profile, userId);
+        _changes.Touch(ChatChangeKind.Profile, userId);
         OnProfileChanged?.Invoke(userId, true);
 
         // Persist to database
@@ -423,7 +423,7 @@ public class UserService
         var expiry = muted ? until : null;
         user.NotifServerMuted = muted;
         user.NotifServerMuteUntil = expiry;
-        _changes.Touch(OfflineChangeKind.Preferences, userId);
+        _changes.Touch(ChatChangeKind.Preferences, userId);
         OnProfileChanged?.Invoke(userId, false);
 
         if (_persistenceEnabled)
@@ -453,7 +453,7 @@ public class UserService
             return;
 
         user.NotifDmMode = mode;
-        _changes.Touch(OfflineChangeKind.Preferences, userId);
+        _changes.Touch(ChatChangeKind.Preferences, userId);
         OnProfileChanged?.Invoke(userId, false);
 
         if (_persistenceEnabled)
@@ -481,7 +481,7 @@ public class UserService
             return;
 
         user.NotifRoomMode = mode;
-        _changes.Touch(OfflineChangeKind.Preferences, userId);
+        _changes.Touch(ChatChangeKind.Preferences, userId);
         OnProfileChanged?.Invoke(userId, false);
 
         if (_persistenceEnabled)
@@ -509,7 +509,7 @@ public class UserService
             return;
 
         user.NotifNewDmsMuted = muted;
-        _changes.Touch(OfflineChangeKind.Preferences, userId);
+        _changes.Touch(ChatChangeKind.Preferences, userId);
         OnProfileChanged?.Invoke(userId, false);
 
         if (_persistenceEnabled)
@@ -561,7 +561,7 @@ public class UserService
             return;
 
         user.Theme = themeId;
-        _changes.Touch(OfflineChangeKind.Preferences, userId);
+        _changes.Touch(ChatChangeKind.Preferences, userId);
         OnProfileChanged?.Invoke(userId, false);
 
         if (_persistenceEnabled)
@@ -594,7 +594,7 @@ public class UserService
             fontSize = null;
 
         user.FontSize = fontSize;
-        _changes.Touch(OfflineChangeKind.Preferences, userId);
+        _changes.Touch(ChatChangeKind.Preferences, userId);
         OnProfileChanged?.Invoke(userId, false);
 
         if (_persistenceEnabled)
@@ -628,7 +628,7 @@ public class UserService
         user.Locale = locale;
         if (dateFormat != null)
             user.DateFormat = dateFormat;
-        _changes.Touch(OfflineChangeKind.Preferences, userId);
+        _changes.Touch(ChatChangeKind.Preferences, userId);
         OnProfileChanged?.Invoke(userId, false);
 
         if (_persistenceEnabled)

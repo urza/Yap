@@ -1,10 +1,11 @@
-using Yap.Offline;
+using Yap.Endpoints;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Yap.Models;
 using Yap.Services;
+using Yap.Contracts;
 
 static class OriginChecks
 {

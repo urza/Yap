@@ -23,7 +23,7 @@ if (
         );
         const bootstrap = await (await context.request.get(origin + '/api/chat/bootstrap')).json();
         const header = bootstrap.update.state;
-        assert.equal(header.maxTextLength, 37, 'Start fixture with OfflineChat:MaxTextLength=37');
+        assert.equal(header.maxTextLength, 37, 'Start fixture with ChatSettings:MaxTextLength=37');
         assert.equal(await page.locator('#draft').getAttribute('maxlength'), '37');
         await page.locator('#draft').fill('Configured editor limit');
         await page.locator('#send').click();

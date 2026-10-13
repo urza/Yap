@@ -18,13 +18,13 @@ def parts():
     o.append(box(230, 330, 180, 64, 'acceptSnapshot', ['storage.commitUpdate', 'sync.mergeUpdate']))
     o.append(box(230, 500, 180, 64, 'SignalR client', ['signalr 10.0.0', 'two streams']))
     # server
-    o.append(box(590, 50, 220, 64, 'OfflineEndpoints', ['/api/chat/*', 'cookie · CSRF · protocol']))
+    o.append(box(590, 50, 220, 64, 'ChatEndpoints', ['/api/chat/*', 'cookie · CSRF · protocol']))
     o.append(box(590, 140, 220, 64, 'ChatService', ['SendTextAsync', 'all messages in memory'], cls='d-lock'))
     o.append(box(840, 140, 140, 64, 'IChatStore', ['SQLite or memory'], cls='d-store'))
-    o.append(box(590, 230, 220, 64, 'OfflineChangeSignal', ['Touch · versions · sequence']))
-    o.append(box(590, 320, 220, 64, 'OfflineFanout', ['one patch per viewer']))
+    o.append(box(590, 230, 220, 64, 'ChatChangeTracker', ['Touch · versions · sequence']))
+    o.append(box(590, 320, 220, 64, 'ChatFanout', ['one patch per viewer']))
     o.append(box(590, 410, 220, 64, 'Subscription', ['one queue per connection', 'max 128 updates']))
-    o.append(box(590, 500, 220, 64, 'OfflineHub', ['/hubs/chat · WatchChanges']))
+    o.append(box(590, 500, 220, 64, 'ChatHub', ['/hubs/chat · WatchChanges']))
     # browser arrows
     o.append(arrow(p, [(70, 114), (70, 188)], 'call', 'enqueue()', 78, 155, 'start'))
     o.append(arrow(p, [(160, 190), (160, 116)], 'call', 'read', 168, 155, 'start'))
@@ -44,11 +44,11 @@ def parts():
     o.append(arrow(p, [(700, 294), (700, 318)], 'call', 'event Changed', 708, 310, 'start'))
     o.append(arrow(p, [(700, 384), (700, 408)], 'call', 'Enqueue()', 708, 400, 'start'))
     o.append(arrow(p, [(700, 474), (700, 498)], 'call', 'Read()', 708, 490, 'start'))
-    return svg(p, 1000, 590, o, 'The browser writes to an IndexedDB outbox; the sender posts each row to OfflineEndpoints; ChatService stores it through IChatStore and calls Touch; OfflineChangeSignal raises Changed; OfflineFanout enqueues a patch per viewer; OfflineHub reads the queue and streams it to the SignalR client; acceptSnapshot writes it to IndexedDB.')
+    return svg(p, 1000, 590, o, 'The browser writes to an IndexedDB outbox; the sender posts each row to ChatEndpoints; ChatService stores it through IChatStore and calls Touch; ChatChangeTracker raises Changed; ChatFanout enqueues a patch per viewer; ChatHub reads the queue and streams it to the SignalR client; acceptSnapshot writes it to IndexedDB.')
 
 
 def connect():
-    lanes = [('P', 'Page', 'app.js'), ('D', 'IndexedDB', 'storage.js'), ('H', 'HTTP API', 'OfflineEndpoints'), ('U', 'OfflineHub', '/hubs/chat')]
+    lanes = [('P', 'Page', 'app.js'), ('D', 'IndexedDB', 'storage.js'), ('H', 'HTTP API', 'ChatEndpoints'), ('U', 'ChatHub', '/hubs/chat')]
     steps = [
         S('P', 'D', 'readState()'),
         S('P', 'P', 'render the cached chat', note='works with no network'),
@@ -69,7 +69,7 @@ def connect():
 
 def send():
     lanes = [('P', 'Page', 'composer.js, app.js'), ('D', 'IndexedDB', 'outbox store'), ('N', 'Sender', 'sender.js'),
-             ('H', 'HTTP API', 'OfflineEndpoints'), ('C', 'ChatService', 'SendTextAsync'), ('T', 'IChatStore', 'SQLite or memory')]
+             ('H', 'HTTP API', 'ChatEndpoints'), ('C', 'ChatService', 'SendTextAsync'), ('T', 'IChatStore', 'SQLite or memory')]
     steps = [
         S('P', 'P', 'send(): clear the text box'),
         S('P', 'D', 'enqueue()', note='new row: operationId, queued'),
@@ -91,8 +91,8 @@ def send():
 
 
 def receive():
-    lanes = [('C', 'ChatService', 'PublishMessageAsync'), ('G', 'OfflineChangeSignal', 'Touch'), ('F', 'OfflineFanout', 'Changed'),
-             ('Q', 'Subscription', 'one per connection'), ('U', 'OfflineHub', 'WatchChanges'), ('B', 'Browser', 'app.js, sync.js')]
+    lanes = [('C', 'ChatService', 'PublishMessageAsync'), ('G', 'ChatChangeTracker', 'Touch'), ('F', 'ChatFanout', 'Changed'),
+             ('Q', 'Subscription', 'one per connection'), ('U', 'ChatHub', 'WatchChanges'), ('B', 'Browser', 'app.js, sync.js')]
     steps = [
         S('C', 'G', 'Touch(channelId, messageId)'),
         S('G', 'G', 'lock the conversation', note='version N becomes N + 1, take sequence S'),
@@ -161,7 +161,7 @@ def outbox_states():
 
 
 def reconnect():
-    lanes = [('B', 'Browser', 'app.js'), ('H', 'HTTP API', 'OfflineEndpoints'), ('U', 'OfflineHub', 'WatchChanges'), ('F', 'OfflineFanout', 'Subscribe')]
+    lanes = [('B', 'Browser', 'app.js'), ('H', 'HTTP API', 'ChatEndpoints'), ('U', 'ChatHub', 'WatchChanges'), ('F', 'ChatFanout', 'Subscribe')]
     steps = [
         S('B', 'B', 'the stream fails or the connection closes', note='status: Disconnected · cached chat'),
         S('B', 'B', 'scheduleReconnect(): wait 2.5 to 3.5 s'),
@@ -180,7 +180,7 @@ def reconnect():
 
 
 def presence():
-    lanes = [('B', 'Browser', 'live.js'), ('U', 'OfflineHub', 'hub methods'), ('L', 'OfflineLiveService', 'sessions, views'), ('C', 'ChatService', 'presence, typing')]
+    lanes = [('B', 'Browser', 'live.js'), ('U', 'ChatHub', 'hub methods'), ('L', 'PresenceService', 'sessions, views'), ('C', 'ChatService', 'presence, typing')]
     steps = [
         S('B', 'U', 'send Report(visible, idle, channelId)', 'hub', 'every 10 s, every 60 s when hidden'),
         S('U', 'L', 'Report()', note='waits for the global gate'),
@@ -188,10 +188,10 @@ def presence():
         S('B', 'U', 'send Typing(channelId, true)', 'hub', 'on the first key, then every 1.5 s'),
         S('U', 'L', 'Typing()'),
         S('L', 'C', 'StartTypingAsync()'),
-        S('L', 'L', 'Tick(), every 100 ms', note='called by OfflinePresenceTicker'),
+        S('L', 'L', 'Tick(), every 100 ms', note='called by PresenceTicker'),
         S('L', 'C', 'GetAllUsersWithStatus(), GetTypingUsers()'),
         S('L', 'L', 'build one view per connection', note='skip it if nothing changed'),
-        S('L', 'U', 'TryWrite(view)', note='Channel<LiveView>(1) keeps the newest'),
+        S('L', 'U', 'TryWrite(view)', note='Channel<PresenceView>(1) keeps the newest'),
         S('U', 'U', 'keep only the changed fields'),
         S('U', 'B', 'WatchActivity item', 'stream'),
     ]
@@ -228,7 +228,7 @@ def locks():
 def queue():
     p = 'que'
     o = []
-    o.append(box(20, 50, 150, 64, 'OfflineFanout', ['request thread']))
+    o.append(box(20, 50, 150, 64, 'ChatFanout', ['request thread']))
     o.append('<rect class="d-lockarea" x="250" y="20" width="300" height="150" rx="6"/>')
     o.append(label(400, 40, ['lock (gate)'], 11, 'middle', 'd-text', bg=False))
     o.append(box(266, 52, 268, 44, 'Queue<ChatUpdate> pending', None, cls='d-store', size=11))

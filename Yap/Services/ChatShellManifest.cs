@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Yap.Offline;
+namespace Yap.Services;
 
 /// <summary>One startup inventory of anonymous shell files, shared by installation and fetch policy.</summary>
 public sealed class ChatShellManifest

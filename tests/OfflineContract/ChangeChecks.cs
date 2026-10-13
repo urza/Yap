@@ -4,7 +4,6 @@ using System.Text;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Yap.Models;
-using Yap.Offline;
 using Yap.Services;
 using Yap.Services.Gifs;
 
@@ -15,8 +14,8 @@ static class ChangeChecks
         // Behavior checks below exercise real publications; an event-name allowlist
         // cannot prove that a producer reaches browser clients.
         var chat = services.GetRequiredService<ChatService>();
-        var fanout = services.GetRequiredService<OfflineFanout>();
-        var changes = services.GetRequiredService<OfflineChangeSignal>();
+        var fanout = services.GetRequiredService<ChatFanout>();
+        var changes = services.GetRequiredService<ChatChangeTracker>();
         var channel = chat.GetOrCreateDMChannel(alice.Id, alice.Username, bob.Id, bob.Username);
         using var subscription = fanout.Subscribe(alice, new Dictionary<Guid, string>());
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
@@ -64,7 +63,7 @@ static class ChangeChecks
             "GIF uploader profile invalidates conversations where the uploader never posted or participated");
         using (var scope = services.CreateScope())
         {
-            var projection = scope.ServiceProvider.GetRequiredService<OfflineSnapshotService>()
+            var projection = scope.ServiceProvider.GetRequiredService<ChatProjection>()
                 .Message(chat.GetMessageById(channel.Id, attributed.MessageId)!, alice.Id);
             Check(System.Text.Json.JsonSerializer.Serialize(projection.Gifs).Contains("Updated uploader"),
                 "refilled GIF attribution uses the uploader's current display name");
@@ -122,7 +121,7 @@ static class ChangeChecks
         var before = changes.ContentVersion(channel.Id);
         changes.Touch(channel.Id, reply.MessageId);
         await subscription.Read(timeout.Token); // stand in for a dropped client packet
-        var slots = (System.Collections.Concurrent.ConcurrentDictionary<Guid, long>)typeof(OfflineFanout.Subscription)
+        var slots = (System.Collections.Concurrent.ConcurrentDictionary<Guid, long>)typeof(ChatFanout.Subscription)
             .GetProperty("Channels", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(subscription)!;
         slots[channel.Id] = before; // Simulate a publication that never reached this subscriber.
         await subscription.Digest();
@@ -165,9 +164,9 @@ static class ChangeChecks
         var removed = await chat.SendTextAsync(author, emptiedDm.Id, Guid.NewGuid(), "author index deleted");
         await chat.MutateMessageAsync(author, emptiedDm.Id, removed.MessageId, Guid.NewGuid(), "delete", null, null, false);
         var touched = new List<(Guid Channel, Guid? Message)>();
-        Action<OfflineChange> record = c =>
+        Action<ChatChange> record = c =>
         {
-            if (c.Kind == OfflineChangeKind.Content)
+            if (c.Kind == ChatChangeKind.Content)
                 lock (touched)
                     touched.Add((c.Id, c.RelatedId));
         };
@@ -188,7 +187,7 @@ static class ChangeChecks
                 "profile edit touches exactly the channels where the user still has messages");
             await users.UpdateProfileAsync(silent.Id, "Silent author", null, null, null);
             Check(Touched().Length == 0, "profile edit by a user with no messages touches no channel");
-            changes.Touch(OfflineChangeKind.Gif, gif.Id);
+            changes.Touch(ChatChangeKind.Gif, gif.Id);
             Check(Touched().SequenceEqual(new (Guid, Guid?)[] { (authorDm.Id, gifPost.MessageId) }),
                 "GIF change touches only the messages that embed it");
         }

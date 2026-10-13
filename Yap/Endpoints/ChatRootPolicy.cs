@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Routing.Matching;
 
-namespace Yap.Offline;
+namespace Yap.Endpoints;
 
 // Both Razor Welcome and chat own GET /. Select chat only for authenticated visits
 // without returnUrl; rejecting this candidate lets normal Razor routing handle the rest.

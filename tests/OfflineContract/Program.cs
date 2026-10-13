@@ -9,7 +9,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Yap.Models;
-using Yap.Offline;
+using Yap.Endpoints;
+using Yap.Hubs;
 using Yap.Services;
 using Yap.Services.Gifs;
 
@@ -32,7 +33,7 @@ static async Task Run(bool persistent)
         ["ChatSettings:Bot:Enabled"] = "false",
         ["Vapid:PublicKey"] = "",
         ["Vapid:PrivateKey"] = "",
-        ["OfflineChat:RecentMessageLimit"] = "3",
+        ["ChatSettings:RecentMessageLimit"] = "3",
         ["ChatSettings:GifSettings:Klipy:ApiKey"] = "synthetic-paging-fixture"
     };
     File.WriteAllText(Path.Combine(root, "appsettings.json"), JsonSerializer.Serialize(config));
@@ -43,7 +44,7 @@ static async Task Run(bool persistent)
             throw new Exception(label);
         Console.WriteLine("PASS " + label);
     }
-    WebApplicationFactory<OfflineHub> Factory() => new WebApplicationFactory<OfflineHub>().WithWebHostBuilder(builder =>
+    WebApplicationFactory<ChatHub> Factory() => new WebApplicationFactory<ChatHub>().WithWebHostBuilder(builder =>
     {
         builder.UseContentRoot(root).UseWebRoot(Path.Combine(root, "wwwroot"));
         builder.ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(config));
@@ -68,10 +69,10 @@ static async Task Run(bool persistent)
                 AllowAutoRedirect = false,
                 HandleCookies = false
             });
-            Check(!typeof(OfflineHub).Assembly.GetManifestResourceNames().Any(name => name.EndsWith(".razor.css")),
+            Check(!typeof(ChatHub).Assembly.GetManifestResourceNames().Any(name => name.EndsWith(".razor.css")),
                 "chat styles have no embedded Razor component dependency");
-            Check(typeof(OfflineHub).Assembly.GetType("Yap.Components.Pages.RoomChat") == null
-                && typeof(OfflineHub).Assembly.GetType("Yap.Components.Pages.DmChat") == null,
+            Check(typeof(ChatHub).Assembly.GetType("Yap.Components.Pages.RoomChat") == null
+                && typeof(ChatHub).Assembly.GetType("Yap.Components.Pages.DmChat") == null,
                 "retired Blazor chat pages are absent from the application");
             // Route removal must apply to the endpoint table as well as auth classification.
             var endpoints = factory.Services.GetRequiredService<Microsoft.AspNetCore.Routing.EndpointDataSource>()
@@ -89,7 +90,7 @@ static async Task Run(bool persistent)
             var chat = factory.Services.GetRequiredService<ChatService>();
             var store = factory.Services.GetRequiredService<IChatStore>();
             using var scope = factory.Services.CreateScope();
-            var snapshots = scope.ServiceProvider.GetRequiredService<OfflineSnapshotService>();
+            var snapshots = scope.ServiceProvider.GetRequiredService<ChatProjection>();
             var admin = (await users.CreateUserAsync("adminfixture"))!;
             var alice = (await users.CreateUserAsync("alicefixture"))!;
             var bob = (await users.CreateUserAsync("bobfixture"))!;
@@ -373,7 +374,7 @@ static async Task Run(bool persistent)
                     && users.GetByUsername("originlegacy")?.LoginOrigin == null,
                     "per-user login origin survives restart while older accounts retain nullable fallback");
                 using var scope = restarted.Services.CreateScope();
-                var snapshots = scope.ServiceProvider.GetRequiredService<OfflineSnapshotService>();
+                var snapshots = scope.ServiceProvider.GetRequiredService<ChatProjection>();
                 var alice = users.AuthenticateByToken(token)!;
                 var window = snapshots.Conversation(alice, dmId, 100)!;
                 var chat = restarted.Services.GetRequiredService<ChatService>();

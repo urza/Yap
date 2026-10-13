@@ -3,7 +3,8 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Yap.Models;
-using Yap.Offline;
+using Yap.Contracts;
+using Yap.Endpoints;
 using Yap.Services;
 
 static class SyncChecks
@@ -11,8 +12,8 @@ static class SyncChecks
     public static async Task Run(IServiceProvider services, HttpClient client, string csrf, User alice, User bob)
     {
         using var scope = services.CreateScope();
-        var sync = scope.ServiceProvider.GetRequiredService<OfflineSync>();
-        var snapshots = scope.ServiceProvider.GetRequiredService<OfflineSnapshotService>();
+        var sync = scope.ServiceProvider.GetRequiredService<ChatProjection>();
+        var snapshots = scope.ServiceProvider.GetRequiredService<ChatProjection>();
         var chat = services.GetRequiredService<ChatService>();
         var channel = chat.GetOrCreateDMChannel(alice.Id, alice.Username, bob.Id, bob.Username);
         var bootstrap = sync.Bootstrap(alice, "/dm/" + bob.Username);
@@ -24,7 +25,7 @@ static class SyncChecks
         var before = snapshots.FullView(alice);
         // Flatten independent wire packets only for assertions; the browser receives their
         // original per-conversation sequences, never this combined diagnostic value.
-        static async Task<ChatUpdate> Read(OfflineFanout.Subscription subscription, CancellationToken token)
+        static async Task<ChatUpdate> Read(ChatFanout.Subscription subscription, CancellationToken token)
         {
             var packets = await subscription.Read(token);
             var latest = packets.Last();
@@ -36,7 +37,7 @@ static class SyncChecks
                 Reset = packets.Any(p => p.Reset)
             };
         }
-        var fanout = services.GetRequiredService<OfflineFanout>();
+        var fanout = services.GetRequiredService<ChatFanout>();
         using var subscription = fanout.Subscribe(alice, bootstrap.Conversations.ToDictionary(c => c.Id, c => c.Revision));
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await Read(subscription, timeout.Token);
@@ -53,11 +54,11 @@ static class SyncChecks
             "message authors are sent once per packet");
         var history = await client.GetFromJsonAsync<JsonElement>($"/api/chat/conversations/{channel.Id}/history");
         var historyMessage = history.GetProperty("messages").EnumerateArray().Single(m => m.GetProperty("id").GetGuid() == receipt.MessageId);
-        var windowJson = JsonSerializer.SerializeToElement(sync.Conversation(alice, channel.Id, full: true), new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var windowJson = JsonSerializer.SerializeToElement(sync.Update(alice, channel.Id, full: true), new JsonSerializerOptions(JsonSerializerDefaults.Web));
         var windowMessage = windowJson.GetProperty("conversations")[0].GetProperty("messages").EnumerateArray().Single(m => m.GetProperty("id").GetGuid() == receipt.MessageId);
         Check(historyMessage.EnumerateObject().Select(p => p.Name).Order().SequenceEqual(windowMessage.EnumerateObject().Select(p => p.Name).Order()),
             "history and live windows serialize identical message fields");
-        Check(typeof(ReaderMessage).GetConstructors().All(c => c.GetParameters().All(p => !p.IsOptional)),
+        Check(typeof(MessageView).GetConstructors().All(c => c.GetParameters().All(p => !p.IsOptional)),
             "every message constructor requires every field");
         await chat.MutateMessageAsync(alice, channel.Id, receipt.MessageId, Guid.NewGuid(), "delete", null, null, false);
         var deleted = snapshots.FullView(alice);
@@ -66,7 +67,7 @@ static class SyncChecks
         var deletion = await Read(subscription, timeout.Token);
         Check(deletion.Conversations.Any(c => c.Removed.Contains(receipt.MessageId))
             && deletion.Conversations.All(c => c.Messages.All(m => m.Id != receipt.MessageId) && c.Messages.Length <= 1), "delete sends removal and only necessary window backfill");
-        var replay = sync.Conversation(alice, channel.Id, receipt.MessageId);
+        var replay = sync.Update(alice, channel.Id, receipt.MessageId);
         Check(replay.Conversations[0].Removed.Contains(receipt.MessageId) && replay.Conversations[0].Messages.Length == 0,
             "compact receipt recovery reflects current deletion");
 
@@ -77,7 +78,7 @@ static class SyncChecks
                 await chat.SendTextAsync(bob, channel.Id, Guid.NewGuid(), "overflow " + i);
             var recovery = await Read(slow, timeout.Token);
             Check(slow.Overflows > 0 && recovery.Reset && recovery.Conversations.All(c => c.Invalidate), "paused subscriber overflows into bounded invalidation recovery");
-            var window = sync.Conversation(alice, channel.Id, full: true);
+            var window = sync.Update(alice, channel.Id, full: true);
             Check(window.Conversations[0].Messages.Last().Content == "overflow 4", "overflow window recovers the latest accepted content");
         }
 
@@ -132,7 +133,7 @@ static class SyncChecks
             "observed-read acknowledgements send only recipient metadata");
 
         await chat.SendTextAsync(alice, channel.Id, Guid.NewGuid(), "before independent acknowledgement");
-        var acknowledgement = sync.Conversation(alice, channel.Id);
+        var acknowledgement = sync.Update(alice, channel.Id);
         var lobby = chat.GetRooms().Single(c => c.IsDefault);
         await chat.SendTextAsync(alice, lobby.Id, Guid.NewGuid(), "later unrelated room");
         var independent = await subscription.Read(timeout.Token);

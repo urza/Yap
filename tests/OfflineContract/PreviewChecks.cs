@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Yap.Models;
-using Yap.Offline;
 using Yap.Services;
 
 static class PreviewChecks
@@ -13,9 +12,9 @@ static class PreviewChecks
         var handler = new PreviewHandler();
         var factory = new PreviewFactory(handler);
         var env = services.GetRequiredService<IWebHostEnvironment>();
-        LinkPreviewService Create() => new(factory, NullLogger<LinkPreviewService>.Instance, env, services.GetRequiredService<OfflineChangeSignal>());
+        LinkPreviewService Create() => new(factory, NullLogger<LinkPreviewService>.Instance, env, services.GetRequiredService<ChatChangeTracker>());
         var previews = Create();
-        var snapshots = ActivatorUtilities.CreateInstance<OfflineSnapshotService>(services, previews);
+        var snapshots = ActivatorUtilities.CreateInstance<ChatProjection>(services, previews);
         // Public literal address passes the production SSRF guard; the handler never uses network.
         const string url = "https://93.184.216.34/preview-contract";
         var first = new ChatMessage(Guid.NewGuid(), user.Id, user.Username, url, DateTime.UtcNow);
@@ -44,7 +43,7 @@ static class PreviewChecks
         handler.Fail = true;
         complete = new(TaskCreationOptions.RunContinuationsAsynchronously);
         previews.OnPreviewFetched = (_, _, _) => complete.TrySetResult();
-        snapshots = ActivatorUtilities.CreateInstance<OfflineSnapshotService>(services, previews);
+        snapshots = ActivatorUtilities.CreateInstance<ChatProjection>(services, previews);
         Check(snapshots.Message(first, user.Id).Previews!.Single().Title == "Durable card",
             "expired preview remains in the snapshot while refreshing");
         await complete.Task.WaitAsync(TimeSpan.FromSeconds(10));

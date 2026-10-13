@@ -223,7 +223,7 @@ Path keys used below.
   `ESR` = Yap/Services/EmojiService.Rendering.cs, `Rx` = Yap/Models/Reaction.cs, `App` = Yap/Components/App.razor.
 - NEW (working tree, Yap/wwwroot/chat-client/ unless a path is given): `actions.js`, `messages.js`, `messages.css`,
   `composer.js`, `pickers.js`, `pickers.css`, `scroll.js`, `app.js`, `content.js`, `history.js`, `gifs.js`,
-  `rich-media.js`, `index.html`, `Yap/wwwroot/app.css`, `Yap/Offline/OfflineSnapshotService.cs`.
+  `rich-media.js`, `index.html`, `Yap/wwwroot/app.css`, `Yap/Services/ChatProjection.cs`.
 
 ### Differences
 
@@ -330,7 +330,7 @@ Path keys used below.
 
 21. **A-21 Phone: Reply hides the bar at once.** Touch, view at the bottom, tap Reply. NEW: the keyboard opens, ResizeObserver follow-bottom scrolls (scroll.js:59-61), and the 50 px rule hides the bar (actions.js:406). OLD: no code scrolled on keyboard open, so the bar stayed until the 5 s idle fade (chat.js:1199-1221). Confidence: needs a device check.
 
-22. **A-22 Reaction tooltip name order.** Mouse hover on a pill. NEW: names in alphabetical order (OfflineSnapshotService.cs:117-118), and a local toggle appends your name at the end (actions.js:447-448). OLD: names in reaction order (Rx:31-33; MI:225). Confidence: read from code.
+22. **A-22 Reaction tooltip name order.** Mouse hover on a pill. NEW: names in alphabetical order (ChatProjection.cs:117-118), and a local toggle appends your name at the end (actions.js:447-448). OLD: names in reaction order (Rx:31-33; MI:225). Confidence: read from code.
 
 23. **A-23 "(edited)" spacing.** NEW: text `' (edited)'` with a leading space inside a `pre-wrap` block (messages.js:101; messages.css:218). OLD: `(edited)` with no leading space (MI:191-194). Both add `margin-left: 4px`. Confidence: read from code.
 
@@ -382,7 +382,7 @@ Path keys used below.
 | S19 | Buttons, GIF message | touch <= 600 px | bar star shown only on phones (MI:259-272; MIcss:507-518, 904-906) | same (actions.js:295-303; messages.css:524-534, 861-863) | same |
 | S20 | Buttons, System message | any | no bar (MI:240) | no bar (actions.js:273) | same |
 | S21 | Buttons, own pending message | any | ghost text, no bar (chat.js:1929-1934) | Edit (text) and More (actions.js:278-338; app.js:574-576) | new-only |
-| S22 | Quick reactions: which, how many, order | any | top 3 from reaction history, padded ❤️😂👍 (CB:721-739) | same server rule (Yap/Offline/OfflineContent.cs:82-86); defaults until catalog loads (content.js:11-13, 96) | same |
+| S22 | Quick reactions: which, how many, order | any | top 3 from reaction history, padded ❤️😂👍 (CB:721-739) | same server rule (Yap/Endpoints/ChatMediaEndpoints.cs:82-86); defaults until catalog loads (content.js:11-13, 96) | same |
 | S23 | Picker button icon | any | 20 px (MI:250) | 18 px (actions.js:46) | different (A-25) |
 | S24 | Full picker position | mouse, desktop | below or above anchor, width assumed 340 (chat.js:904-939) | measured size (pickers.js:99-111) | same |
 | S25 | Full picker on phone | touch | bottom sheet 50vh, dim backdrop (MIcss:951-969) | same (pickers.css:663-681, 683-698) | same |
@@ -393,9 +393,9 @@ Path keys used below.
 | S30 | Pick emoji in full picker | any | picker closes, reaction toggles (MI:643-647) | same (content.js:348-351; actions.js:289) | same |
 | S31 | Pill tap or click | any | toggles own reaction after round trip (MI:223-224) | toggles at once (actions.js:340-342, 264-270) | same |
 | S32 | Fast double tap on a pill | touch | two server toggles (CB:524-530) | second tap may reuse the stale message and add again (actions.js:266-268) | unsure (timing) |
-| S33 | Pill hover names | mouse | usernames in reaction order (Rx:31-33; MI:225) | usernames sorted (OfflineSnapshotService.cs:117-118; messages.js:161) | different (A-22) |
+| S33 | Pill hover names | mouse | usernames in reaction order (Rx:31-33; MI:225) | usernames sorted (ChatProjection.cs:117-118; messages.js:161) | different (A-22) |
 | S34 | Own-reaction styling | any | `.reacted`, case-insensitive match (MI:222; MIcss:572-584) | `.reacted`, exact match (messages.js:154; messages.css:569-579) | same (unsure for mixed-case names) |
-| S35 | Pill order | any | first use of each emoji (Rx:31-33) | same (OfflineSnapshotService.cs:117) | same |
+| S35 | Pill order | any | first use of each emoji (Rx:31-33) | same (ChatProjection.cs:117) | same |
 | S36 | Scroll to show a new reaction near bottom | any | within 100 px (CB:490-509) | follow within 80 px (scroll.js:5-6, 59-61) | same |
 | S37 | Reply: composer focus, keyboard | touch, mouse | focus in gesture (chat.js:1272-1277) | focus in gesture (composer.js:290-295) | same |
 | S38 | Reply-target highlight | any | `reply-target` (MI:11; MIcss:98-101) | `reply-target`, re-applied after render (composer.js:44-54; app.js:713) | same |
@@ -734,7 +734,7 @@ Severity order: breaks use, then visible, then minor. Inside one level, the most
 | S32 | Typing stop on send | all | always (MI.razor:479) | inside finishReply (composer.js:95-103) | same (edge in M11) |
 | S33 | Typing stop on channel switch | all | MI.razor:262-268 | live.js:136-139; app.js:675 | same |
 | S34 | Typing stop on hidden tab | all | none | live.js:51-55 | new-only |
-| S35 | Typing indicator text and place | all | strip above composer (MI.razor:57-69, 389-411) | same strip, server text (app.js:271-273; index.html:229-242; Yap/Offline/OfflineHub.cs:74-75) | same |
+| S35 | Typing indicator text and place | all | strip above composer (MI.razor:57-69, 389-411) | same strip, server text (app.js:271-273; index.html:229-242; Yap/Hubs/ChatHub.cs:74-75) | same |
 | S36 | Emoji picker opens from its button | touch, mouse | attribute flip (chat.js:1736-1749) | togglePicker (composer.js:172; pickers.js:74-91) | same |
 | S37 | Tap emoji button while open | touch, mouse | backdrop catches it, closes (MI.css:313-321, 343-353) | toggle closes (pickers.js:76-78) | same (path differs, M02) |
 | S38 | Backdrop tap | touch, mouse | closes (chat.js:1752-1756) | closes (pickers.js:20) | same |
@@ -760,7 +760,7 @@ Severity order: breaks use, then visible, then minor. Inside one level, the most
 | S58 | Emoji search reset on reopen | all | chat.js:1732 | content.js:335-341 | same |
 | S59 | Recents frozen per open, max 20 | all | EP.razor:159-165; ChatBase.cs:695 | content.js:174-184, 325-334 | same |
 | S60 | Category tab jump | all | smooth scrollIntoView (chat.js:1810-1818) | instant plus offset (content.js:272-281) | different (D21) |
-| S61 | Custom emoji packs, shortcode insert | all | packs first (EP.razor:15-20, 77-92) | packs first (Yap/Offline/OfflineContent.cs:68-81; content.js:250-284) | same |
+| S61 | Custom emoji packs, shortcode insert | all | packs first (EP.razor:15-20, 77-92) | packs first (Yap/Endpoints/ChatMediaEndpoints.cs:68-81; content.js:250-284) | same |
 | S62 | Emoji grid refresh while open | all | none after mount | rebuild on catalog (content.js:287-297; pickers.js:131-134) | new-only (D24) |
 | S63 | First picker open | touch | pre-mounted at about 1.2 s (MI.razor:327-340) | built on the tap (pickers.js:36-73) | different (D25) |
 | S64 | GIF picker first tab | all | Browse if anything to browse (GP.razor:361-363) | same rule (gifs.js:413-416) | same |
@@ -935,7 +935,7 @@ Read-only audit. Nothing was built or run. "Read from code" means the code settl
 19. **C-19. Video GIFs blocked from autoplay stay frozen.**
     - NEW: `oncanplay` calls `play()` and ignores a rejection (rich-media.js:67-70). Video GIFs have no controls.
     - OLD (target): a `NotAllowedError` installed a one-shot listener, and the next tap or key anywhere started every paused GIF video (chat.js:1624-1645).
-    - Confidence: read from code. Whether it occurs (for example iOS Low Power Mode) needs a device check. Only GIF entries without a `.gif` file render as video (Offline/OfflineContent.cs:28).
+    - Confidence: read from code. Whether it occurs (for example iOS Low Power Mode) needs a device check. Only GIF entries without a `.gif` file render as video (Endpoints/ChatMediaEndpoints.cs:28).
 
 20. **C-20. Cached link videos preload less.**
     - NEW: `preload = 'metadata'` (rich-media.js:132). OLD (target): `preload="auto"` (MediaPlayer.razor:26). Desktop and Android may start playback later. Safari ignores both.
@@ -1145,7 +1145,7 @@ Sorted by severity: breaks use, then visible, then minor.
 - Trigger and input: open `/lobby` (or a room or DM link) without a valid cookie; session revoked or expired.
 - NEW: the server serves the shell without an auth check. Bootstrap or session refresh returns AUTH_REQUIRED and `loseAccount()` clears the sidebar, title and timeline. It shows "Sign in required" and a notice: "Sign in to the same account to resume saved work. If this server lost its accounts after a restart, registering again creates a new account…" with a Sign in link. A revoked session is found by the 30 s session poll.
 - OLD target: an unauthenticated visit redirected to `/?returnUrl=…` (login flow). A kicked session was sent to `/auth/signout` at once and landed on the login page.
-- OLD: `Components/Layout/ChatLayout.razor:73-79`, `:117-133`. NEW: `Yap/Offline/OfflineEndpoints.cs:31-36`, `app.js:142-155`, `:1100-1103`, `:1222-1230`.
+- OLD: `Components/Layout/ChatLayout.razor:73-79`, `:117-133`. NEW: `Yap/Endpoints/ChatEndpoints.cs:31-36`, `app.js:142-155`, `:1100-1103`, `:1222-1230`.
 - Confidence: read from code.
 
 **D10. Opening a DM that is not in the snapshot yet shows a placeholder page first. Offline it stays that way.**
@@ -1200,7 +1200,7 @@ Sorted by severity: breaks use, then visible, then minor.
 
 **D19. Push prompt: no fade-out and no "Enabling..." text.** NEW removes the overlay at once and only disables the button. OLD faded out over 300 ms and changed the label to "Enabling...". Show rules, copy, and "Maybe Later" counting are the same. OLD `Components/PushPermissionPrompt.razor:25-29`, `:107-115`, `PushPermissionPrompt.razor.css:13-15`. NEW `pwa.js:105-108`, `:145-176`. Read from code.
 
-**D20. Opening the site root in a normal browser tab resumes the last conversation.** NEW `pwa.resume()` replaces `/` with the saved route for every visit. OLD resumed the last route only inside the installed PWA, else `/lobby`. OLD `Components/Pages/Welcome.razor:63-69`, `wwwroot/js/chat.js:640-643`. NEW `pwa.js:255-260`, `app.js:1091`, `Yap/Offline/ChatRoutes.cs:9-12`. Read from code.
+**D20. Opening the site root in a normal browser tab resumes the last conversation.** NEW `pwa.resume()` replaces `/` with the saved route for every visit. OLD resumed the last route only inside the installed PWA, else `/lobby`. OLD `Components/Pages/Welcome.razor:63-69`, `wwwroot/js/chat.js:640-643`. NEW `pwa.js:255-260`, `app.js:1091`, `Yap/Endpoints/ChatRoutes.cs:9-12`. Read from code.
 
 **D21. Returning to the app does not jump to the bottom.** OLD always scrolled to the bottom on visibility return. NEW keeps the position unless the view was already following the bottom. Overlaps the conversation area. OLD `Components/Pages/ChatBase.cs:667-673`. NEW `app.js:1207-1215`, `scroll.js:7-15`. Read from code.
 
@@ -1346,7 +1346,7 @@ Verdict values: same, different, new-only, old-only, unsure.
 | S51 | Socket lost, reconnecting | none | Orange top banner with countdown (`ReconnectModal.razor:32-70`) | Header label "Disconnected · cached chat"/"Offline" (`app.js:981`, `:992`) | different |
 | S52 | Device offline | none | Same banner as S51 | "Offline · cached chat", cached chat usable (`app.js:1203-1206`, `:1128`) | different |
 | S53 | Session ended or revoked | none | Redirect to /auth/signout, then login (`ChatLayout.razor:117-133`) | Cleared page, "Sign in" label and notice (`app.js:142-155`, D9) | different |
-| S54 | Logged-out visit to /lobby | none | Redirect to `/?returnUrl=` (`ChatLayout.razor:73-79`) | Shell served, sign-in notice (`OfflineEndpoints.cs:31-36`, D9) | different |
+| S54 | Logged-out visit to /lobby | none | Redirect to `/?returnUrl=` (`ChatLayout.razor:73-79`) | Shell served, sign-in notice (`ChatEndpoints.cs:31-36`, D9) | different |
 | S55 | New release deployed | none | Circuit rejected, auto-resume or reload (`ReconnectModal.razor.js:156-181`) | Notice "Yap was updated…" + Reload; or forced update notice on 426 (`app.js:72-110`) | different |
 | S56 | Warning modal opens | touch/mouse | Modal, focus unchanged (`MessageInput.razor:24-33`) | Modal, focus to "Got It" (`warnings.js:38`) | different |
 | S57 | Warning modal ✕ / Got It / backdrop | touch/mouse | Closes (`MessageInput.razor:26-31`) | Closes and restores focus (`warnings.js:26-34`) | different |
@@ -1358,7 +1358,7 @@ Verdict values: same, different, new-only, old-only, unsure.
 | S63 | Viewport meta | none | `width=device-width, initial-scale=1.0, interactive-widget=resizes-content` (`App.razor:11`) | Same content (`index.html:4-7`) | same |
 | S64 | iOS home-screen metas | none | Present (`App.razor:70`, `:73-74`) | Absent (D13) | old-only |
 | S65 | Safe-area insets, viewport-fit | none | No `viewport-fit`; bottom inset only in mobile sheets (`MessageItem.razor.css:980`) | Same (`messages.css:907`) | same |
-| S66 | Theme and font size at first paint, online | none | Server-rendered on `<html>` (`App.razor:5-6`) | Server-injected, mirrored by blocking script (`OfflineEndpoints.cs:41-51`, `js/appearance.js:21-26`) | same |
+| S66 | Theme and font size at first paint, online | none | Server-rendered on `<html>` (`App.razor:5-6`) | Server-injected, mirrored by blocking script (`ChatEndpoints.cs:41-51`, `js/appearance.js:21-26`) | same |
 | S67 | Theme at first paint, worker-served offline | none | Not possible | From localStorage mirror; default theme if the mirror is empty, then IndexedDB (`js/appearance.js:27-34`, `app.js:1120-1124`) | new-only |
 | S68 | Tea House scene before first paint | none | Inline script before CSS (`App.razor:19-56`) | Blocking script before CSS (`index.html:9`, `js/appearance.js:36-79`) | same |
 | S69 | Theme changed on another device | none | Applied on next load | Applied live (`app.js:833`) | new-only |

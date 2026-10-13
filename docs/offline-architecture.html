@@ -1391,7 +1391,7 @@
                         </div>
                     </details>
                     <details>
-                        <summary><code>Yap/Offline/</code><span class="tag">NEW</span></summary>
+                        <summary><code>Yap/Endpoints/Chat*</code>, <code>Hubs/</code>, <code>Contracts/</code>, <code>Services/Chat*</code><span class="tag">NEW</span></summary>
                         <div class="repo-body">
                             <p>
                                 A focused HTTP/SignalR adapter inside the existing web project. It
@@ -1400,21 +1400,21 @@
                             </p>
                             <ul class="file-list">
                                 <li>
-                                    <code>OfflineEndpoints.cs · ChatRoutes.cs · ChatRootPolicy.cs</code
+                                    <code>ChatEndpoints.cs · ChatRoutes.cs · ChatRootPolicy.cs</code
                                     >Chat shell routes, the authenticated API group, and chat
                                     ownership of <code>/</code> for signed-in visits.
                                 </li>
                                 <li>
-                                    <code>OfflineSnapshotService.cs · OfflineSync.cs</code>Safe
+                                    <code>ChatProjection.cs · ChatProjection.cs</code>Safe
                                     DTOs, incremental wire updates and authoritative recent windows.
                                 </li>
                                 <li>
-                                    <code>OfflineHub.cs · OfflineFanout.cs</code>Live methods behind
+                                    <code>ChatHub.cs · ChatFanout.cs</code>Live methods behind
                                     a per-connection rate limit, targeted event queues and bounded
                                     invalidation recovery.
                                 </li>
                                 <li>
-                                    <code>OfflineLiveService.cs · OfflineContent.cs</code>Presence
+                                    <code>PresenceService.cs · ChatMediaEndpoints.cs</code>Presence
                                     and typing with a 100 ms ticker, plus catalog, GIF and
                                     completed-upload endpoints.
                                 </li>
@@ -1463,7 +1463,7 @@
                                     loading.
                                 </li>
                                 <li>
-                                    <code>ChatReceiptCleanup.cs · OfflineChangeSignal.cs · PresenceOptions.cs</code
+                                    <code>ChatReceiptCleanup.cs · ChatChangeTracker.cs · PresenceOptions.cs</code
                                     >Receipt retention (24 hours, 4,096 per account), change
                                     sequences and the 30 s disconnect grace.
                                 </li>
