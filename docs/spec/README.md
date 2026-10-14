@@ -24,7 +24,7 @@ Component pages and feature pages cross-link. A component page says what a part 
 | [Emoji and GIF pickers](pickers.md) | PK | draft, in review |
 | [Timeline and media](timeline.md) | TL | draft, in review |
 | [Header, sidebar and overlays](frame.md) | SH | draft, in review |
-| [Settings](settings.md) | ST | planned |
+| [Settings](settings.md) | ST | draft, in review |
 | [Administration](admin.md) | AD | planned |
 | [Presence](presence.md) | PR | draft, in review |
 | [Notifications and unread](notifications.md) | NT | draft, in review |

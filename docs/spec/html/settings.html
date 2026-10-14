@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings · Yap spec</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #f3f5f7; --surface: #ffffff; --surface-2: #e9edf1;
+  --fg: #182029; --muted: #56606e; --line: #d4dae2; --line-strong: #a9b3c0;
+  --accent: #0d6a87; --code-bg: #f8f9fb;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+    --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+  --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+main { max-width: 980px; margin: 0 auto; padding: 36px 16px 96px; display: flex; flex-direction: column; gap: 22px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.15; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 4.5vw, 2.8rem); font-weight: 700; }
+h2 { font-size: clamp(1.4rem, 2.6vw, 1.8rem); font-weight: 600; padding-top: 22px; margin-top: 14px; border-top: 1px solid var(--line-strong); }
+h3 { font-size: 1.12rem; font-weight: 600; margin-top: 6px; }
+p, ul, ol { margin: 0; max-width: 76ch; }
+ul, ol { padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
+li > ul, li > ol { margin-top: 6px; }
+a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 0.88em; background: var(--surface-2); padding: 0.05em 0.3em; border-radius: 3px; overflow-wrap: anywhere; }
+pre { margin: 0; padding: 12px 16px; overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--code-bg); font: 0.82rem/1.5 var(--mono); }
+pre code { background: none; padding: 0; font-size: inherit; }
+blockquote { margin: 0; padding: 10px 16px; border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; max-width: 76ch; }
+.eyebrow { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+nav.pages { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+nav.pages a, nav.pages span { display: inline-block; padding: 3px 10px; border: 1px solid var(--line); border-radius: 4px; text-decoration: none; color: var(--fg); background: var(--surface); font-size: 0.86rem; }
+nav.pages span { color: var(--muted); border-style: dashed; }
+nav.pages a[aria-current] { border-color: var(--accent); color: var(--accent); }
+.rule { border: 1px solid var(--line); border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; padding: 10px 14px; max-width: 76ch; scroll-margin-top: 16px; }
+.rule .id { font-family: var(--mono); font-size: 0.8rem; color: var(--accent); margin-right: 8px; }
+.rule .why { color: var(--muted); }
+figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+figcaption { font-size: 0.9rem; color: var(--muted); max-width: 80ch; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+th { font-family: var(--display); font-weight: 600; background: var(--surface-2); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+footer { font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; }
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">Yap · product specification</div>
+<nav class="pages" aria-label="Spec pages"><a href="index.html">Index</a><a href="yap.html">Yap</a><a href="general-rules.html">General rules</a><a href="input-box.html">Input box</a><a href="message-row.html">Message row and actions</a><a href="pickers.html">Emoji and GIF pickers</a><a href="timeline.html">Timeline and media</a><a href="frame.html">Header, sidebar and overlays</a><a href="settings.html" aria-current="page">Settings</a><span title="planned">Administration</span><a href="presence.html">Presence</a><a href="notifications.html">Notifications and unread</a><a href="sessions.html">Sign-in and sessions</a><a href="offline.html">Offline and installation</a></nav>
+<h1 id="settings">Settings</h1>
+<p>Settings is the one page where a person shapes their own Yap: profile, look, ways back into the account, devices, notifications, time format and their GIF library. It opens from the status menu and from a few links in the app. Every change saves by itself; there is no Save button anywhere on the page.</p>
+<h2 id="anatomy">Anatomy</h2>
+<figure><img src="../img/settings-desktop-top.png" alt="Settings, desktop, the top of the page. The frame around it with &quot;Settings&quot; and the back arrow; the page heading with the saved chip; the Profile card with the avatar and fields; the Appearance card with the theme grid." loading="lazy"><figcaption>Settings, desktop, the top of the page. The frame around it with "Settings" and the back arrow; the page heading with the saved chip; the Profile card with the avatar and fields; the Appearance card with the theme grid.</figcaption></figure>
+<ol><li><strong>Frame.</strong> The same header and sidebar as a conversation. The title area shows a back arrow and "Settings".</li><li><strong>Page heading.</strong> "Settings" with a chip on the right that reads "Saving..." then "Saved" for profile changes, and the line "Changes are saved automatically."</li><li><strong>Cards.</strong> One column of cards, at most 600 px wide, in this order: Profile, Appearance, Text Size, Login Link, Secret Code, Active Sessions, Install as App, Device Push Notifications, Allow / Mute Notifications, Time &amp; Date, My GIFs, and a collapsed DEBUG INFO card at the end.</li><li><strong>Notice.</strong> After "Sign out all other devices", an amber notice above the heading with a close control.</li></ol>
+<h2 id="rules">Rules</h2>
+<h3 id="page">Page</h3>
+<p class="rule" id="ST-01"><span class="id">ST-01</span>Settings opens from "Settings" and "Notification settings" in the status menu, from "Manage your GIFs in Settings" in the GIF picker, and from links in the bot's messages. "Notification settings" and the picker link scroll to their sections.</p>
+<p class="rule" id="ST-02"><span class="id">ST-02</span>Every control saves at once on change. Profile text saves after a short pause in typing and when the user leaves the page, so nothing typed is lost. A failed save says so next to the control.</p>
+<p class="rule" id="ST-03"><span class="id">ST-03</span>The page keeps the live connection: the sidebar and header keep updating while the user is here.</p>
+<h3 id="profile">Profile</h3>
+<p class="rule" id="ST-04"><span class="id">ST-04</span>The avatar shows at 80 px with "Upload Picture" or "Change Picture" and, when a picture exists, "Remove". A picture is any image up to 10 MB; the server crops it to a square. A rejected file says "Choose an image up to 10 MB". Remove needs no confirmation.</p>
+<p class="rule" id="ST-05"><span class="id">ST-05</span>Display Name holds up to 64 characters, with the username as its placeholder and the hint that it can contain symbols and emoji. Empty means the username is shown.</p>
+<p class="rule" id="ST-06"><span class="id">ST-06</span>Bio holds up to 150 characters with a live counter. Location holds up to 100 characters, with "Detect" when the server can tell the country from the address.</p>
+<p class="rule" id="ST-07"><span class="id">ST-07</span>A profile change shows at once in the user's own header and on their messages, and on other people's screens at once.</p>
+<h3 id="appearance-and-text-size">Appearance and text size</h3>
+<p class="rule" id="ST-08"><span class="id">ST-08</span>Appearance shows a grid of theme cards, each with a preview, an accent dot and the name; the chosen one has a check badge. The themes are Discord Dark (the default), Midnight, Nord, Ocean, Sunset, Aurora, Terminal, Neon Glow, Tea House, Daylight and Solarized Light. A tap repaints the whole app at once and saves. A theme that no longer exists falls back to the default.</p>
+<p class="rule" id="ST-09"><span class="id">ST-09</span>Tea House changes its picture with the time of day, every two hours, on its own.</p>
+<p class="rule" id="ST-10"><span class="id">ST-10</span>Text Size has six presets, 14, 15, 16 (Default), 17, 18 and 20 px, each shown as "Aa" at its size. A tap rescales all text at once and saves. The theme and the text size follow the account to other devices on their next load.</p>
+<h3 id="ways-back-in">Ways back in</h3>
+<p class="rule" id="ST-11"><span class="id">ST-11</span>Login Link opens with one line that sums up the ways back into the account: "This account is tied to this device only.", or the ways the person has, in the order login link, secret code, smart login.</p>
+<p class="rule" id="ST-12"><span class="id">ST-12</span>With a link: the hint, the URL with its code masked, Reveal and Copy, then "New Link", "Revoke" and the expiry choice. Without a link: the hint and "Create Login Link". The rules are on the <a href="sessions.html#AU-11">sign-in page</a>.</p>
+<p class="rule" id="ST-13"><span class="id">ST-13</span>"Allow smart login" is a switch under the link, shown only while the admin allows smart login. It is on by default.</p>
+<p class="rule" id="ST-14"><span class="id">ST-14</span>Secret Code sits below Login Link on purpose. With a code: the masked code, Reveal and Copy, "New Code" and "Disable". Without: the hint and "Enable Secret Code". Status lines show for 3 seconds.</p>
+<h3 id="devices">Devices</h3>
+<p class="rule" id="ST-15"><span class="id">ST-15</span>Active Sessions lists the account's connected devices with a phone or desktop icon, "This device" on the current one, the network address and "Active {time}". The current device is always listed. "Sign out all other devices" shows when another device is signed in and acts without a confirmation; the page then shows the notice "All other devices have been signed out." with the new secret code when one exists.</p>
+<p class="rule" id="ST-16"><span class="id">ST-16</span>Install as App shows "Install Yap" with its explanation, or "Yap is installed as an app on this device." inside the installed app. See <a href="offline.html">Offline and installation</a>.</p>
+<h3 id="notifications">Notifications</h3>
+<p class="rule" id="ST-17"><span class="id">ST-17</span>Device Push Notifications shows the state of this device, the browser permission, the count of subscribed devices, and the device list with "Remove" on each. One action fits the state: enable on this device, turn off on this device, or the reason why neither is possible. "Send a test to all devices" shows when there are devices.</p>
+<p class="rule" id="ST-18"><span class="id">ST-18</span>Allow / Mute Notifications has the server-wide "Allow" or "Mute" with a duration, then the "Direct messages" and "Rooms" rows with "Allow all", "Individual" and "Mute all", each Individual mode listing its conversations with a bell. The rules are on the <a href="notifications.html#NT-16">notifications page</a>. The mute hint reads "Muted for another {time}." with a proper singular and counts down while the page is open.</p>
+<h3 id="time-date">Time &amp; Date</h3>
+<p class="rule" id="ST-19"><span class="id">ST-19</span>"Your time" shows the current time in the user's time zone with "−", "+" and "Detect". The zone and the language were detected at sign-up and stay until changed here; "−" and "+" shift the zone by an hour, "Detect" takes the browser's zone.</p>
+<p class="rule" id="ST-20"><span class="id">ST-20</span>Clock offers 24-hour and 12-hour; Date order offers day-month-year, month-day-year and year-month-day; Separators appears when the browser language and the zone's country format differently. Each is a row of cards that show today's date and time in that form, and each works with the keyboard. The choices apply to every time in the app.</p>
+<h3 id="my-gifs">My GIFs</h3>
+<p class="rule" id="ST-21"><span class="id">ST-21</span>My GIFs is the user's pool: everything starred plus their own uploads, in folders. The toolbar has folder chips ("All", "Unsorted", one per folder), a filter field from nine GIFs on, "＋ Add GIFs", "Import zip" and "Export". A quota bar shows "{used} of {quota} used" for the user's own uploads; starred GIFs are free.</p>
+<p class="rule" id="ST-22"><span class="id">ST-22</span>Add takes several .gif, .webp or short video files at once, up to 50 MB each, into the open folder, with a progress line and one error line per refused file. Import takes one zip up to 1 GB whose subfolders become folders and whose manifest adds tags. Export downloads the pool as a zip that imports back without loss.</p>
+<p class="rule" id="ST-23"><span class="id">ST-23</span>A card shows the preview, up to four tag chips and the folder choice. Tags are edited in place and belong to the GIF, so a change affects search for everyone who can see it. A new folder is created from the folder choice; a folder disappears when its last GIF leaves it.</p>
+<p class="rule" id="ST-24"><span class="id">ST-24</span>"Delete" on an own upload asks "Sure?" before it deletes the file; a file still used in chat or by others is removed from the pool instead. "✕" unstars at once. Six cards show first, then 24 more per tap.</p>
+<h3 id="debug">Debug</h3>
+<p class="rule" id="ST-25"><span class="id">ST-25</span>DEBUG INFO is a collapsed card with what the browser keeps for Yap on this device: cached files by group and their size, the storage estimate, and "Clear this cache" for the media cache. Clearing keeps drafts and unsent messages.</p>
+<h2 id="states">States</h2>
+<div class="tablewrap"><table><thead><tr><th>State or trigger</th><th>Input</th><th>What the user sees</th></tr></thead><tbody><tr><td>Typing in a profile field</td><td>keyboard</td><td>"Saving..." then "Saved" for 2 s.</td></tr><tr><td>Leaving the page right after typing</td><td>all</td><td>The edit is saved.</td></tr><tr><td>Picture chosen</td><td>mouse, touch</td><td>Avatar updates; "Saved". A bad file: "Choose an image up to 10 MB".</td></tr><tr><td>Theme tap</td><td>mouse, touch</td><td>Whole app repainted at once.</td></tr><tr><td>Text size tap</td><td>mouse, touch</td><td>All text rescaled at once.</td></tr><tr><td>New Link, Revoke, expiry</td><td>mouse, touch</td><td>Link shown or removed; green status for 3 s.</td></tr><tr><td>New Code, Disable, Enable Secret Code</td><td>mouse, touch</td><td>Code shown or removed; green status for 3 s.</td></tr><tr><td>Sign out all other devices</td><td>mouse, touch</td><td>Other devices signed out; amber notice; code revealed.</td></tr><tr><td>Enable push</td><td>mouse, touch</td><td>Browser asks; "Subscribed"; device row appears.</td></tr><tr><td>Send a test</td><td>mouse, touch</td><td>Every device buzzes; result line for 3 s.</td></tr><tr><td>Mute with a duration</td><td>mouse, touch</td><td>Conversation rows hidden; "Muted for another {time}."</td></tr><tr><td>Individual mode</td><td>mouse, touch</td><td>A bell per conversation under the row.</td></tr><tr><td>− or + on the time</td><td>mouse, touch, keyboard</td><td>The shown time shifts by an hour; saved.</td></tr><tr><td>Date order or clock card</td><td>mouse, touch, keyboard</td><td>Times across the app change.</td></tr><tr><td>Add GIFs</td><td>mouse, touch</td><td>Progress line; cards appear; errors in a red strip.</td></tr><tr><td>Tag chip tap</td><td>mouse, touch</td><td>Inline tag input; Enter saves, Escape cancels.</td></tr><tr><td>Delete own upload</td><td>mouse, touch</td><td>"Sure?" then gone, or removed from the pool with a note.</td></tr></tbody></table></div>
+<h2 id="wording">Wording</h2>
+<div class="tablewrap"><table><thead><tr><th>Where</th><th>Text</th></tr></thead><tbody><tr><td>Page</td><td>"Settings"; "Changes are saved automatically."; "Saving..."; "Saved"</td></tr><tr><td>Notice</td><td>"All other devices have been signed out."; "Your login link keeps working."; "Your secret code was automatically changed. See the new one below."</td></tr><tr><td>Profile</td><td>"Profile"; "Upload Picture"; "Change Picture"; "Uploading..."; "Remove"; "Choose an image up to 10 MB"; "Display Name"; "Your username is {username}, but your display name can be more fun. It can contain symbols and emojis :) "; "Bio"; "Why are you awesome..."; "{n}/150"; "Location"; "London"; "Detect"</td></tr><tr><td>Appearance</td><td>"Appearance"; "Pick a color theme. Changes apply instantly and sync across your devices."; "Discord Dark"; "Midnight"; "Nord"; "Ocean"; "Sunset"; "Aurora"; "Terminal"; "Neon Glow"; "Tea House"; "Daylight"; "Solarized Light"</td></tr><tr><td>Text Size</td><td>"Text Size"; "Scales all text in the app. Applies instantly and syncs across your devices."; "Aa"; "14px"; "15px"; "Default"; "17px"; "18px"; "20px"</td></tr><tr><td>Login Link, Secret Code, Active Sessions</td><td>see the <a href="sessions.html#wording">sign-in page</a></td></tr><tr><td>Install</td><td>"Install as App"; "Install Yap to your home screen for a full-screen experience with push notifications and quick access."; "Install Yap"; "Yap is installed as an app on this device."</td></tr><tr><td>Push and mutes</td><td>see the <a href="notifications.html#wording">notifications page</a>; mute time "1 minute", "{n} minutes", "1 hour", "{n} hours", "1 day", "{n} days", "a moment"</td></tr><tr><td>Time &amp; Date</td><td>"Time &amp; Date"; "Your time"; "−"; "+"; "−1 hour"; "+1 hour"; "Detect"; "Adjust if the time doesn't match your clock"; "Clock"; "Date order"; "Separators"; "Detected: {time zone} · {locale}"</td></tr><tr><td>My GIFs</td><td>"My GIFs"; "Your GIF pool — everything you've starred plus your own uploads. Organize with folders, edit search keywords, or bring a whole collection: import files or a zip, and export everything as a zip you can take anywhere."; "All"; "Unsorted"; "Filter by keyword…"; "＋ Add GIFs"; "Uploading…"; "Import zip"; "Export"; "{used} of {quota} used"; "Only your own uploads count — starred GIFs are free"; "Uploading… {p}% ({done} of {total})"; "Importing… {done} of {total}"; "Imported {done} of {total}"; "processing…"; "add keywords…"; "+{n}"; "comma, separated, tags"; "(unsorted)"; "＋ New folder…"; "folder name"; "Delete"; "Sure?"; "Still used in chat or by others — removed from your library instead."; "You can only delete your own uploads."; "Nothing here yet — star GIFs in the picker, or add your collection above."; "No GIFs match your filter."; "Nothing in this folder."; "Show 24 more ({n} left)"; "Show {n} more"; "Show less"; "ffmpeg not detected — video conversion is off, only .gif/.webp files can be imported."</td></tr><tr><td>My GIFs errors</td><td>"\"{name}\" — unsupported file type"; "\"{name}\" — too large ({n} MB, max {m} MB)"; "\"{name}\" — server processing timeout"; "\"{name}\" — upload failed"; "GIF storage quota exceeded"; "Could not process this file as a GIF"; "Upload failed — something went wrong."; "GIF storage quota exceeded — import stopped"; "import failed — the zip could not be read"</td></tr><tr><td>Debug</td><td>"DEBUG INFO"; "Cached files"; "{n} file(s) · {size}"; "Origin storage estimate"; "{used} of {quota}"; "Empty"; "Clear this cache"; "Clearing a cache keeps your locally saved drafts and outgoing messages."</td></tr></tbody></table></div>
+<h2 id="related">Related</h2>
+<ul><li><a href="sessions.html">Sign-in and sessions</a> for the link, the code and the devices.</li><li><a href="notifications.html">Notifications and unread</a> for the two notification sections.</li><li><a href="pickers.html">Emoji and GIF pickers</a> for where the GIF pool is used.</li><li><a href="message-row.html">Message row and actions</a> for how times are shown.</li><li><a href="offline.html">Offline and installation</a> for the install section.</li><li><a href="frame.html">Header, sidebar and overlays</a> for the frame around the page.</li></ul>
+<footer>Source: <code>docs/spec/settings.md</code>. Edit the Markdown, then run <code>python3 docs/spec/tools/build.py</code>.</footer>
+</main>
+</body>
+</html>
