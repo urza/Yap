@@ -28,7 +28,7 @@ Component pages and feature pages cross-link. A component page says what a part 
 | [Administration](admin.md) | AD | planned |
 | [Presence](presence.md) | PR | draft, in review |
 | [Notifications and unread](notifications.md) | NT | draft, in review |
-| [Sign-in and sessions](sessions.md) | AU | planned |
+| [Sign-in and sessions](sessions.md) | AU | draft, in review |
 | [Offline and installation](offline.md) | OF | draft, in review |
 
 ## Rules and their IDs
