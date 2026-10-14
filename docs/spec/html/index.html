@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yap product specification · Yap spec</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #f3f5f7; --surface: #ffffff; --surface-2: #e9edf1;
+  --fg: #182029; --muted: #56606e; --line: #d4dae2; --line-strong: #a9b3c0;
+  --accent: #0d6a87; --code-bg: #f8f9fb;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+    --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+  --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+main { max-width: 980px; margin: 0 auto; padding: 36px 16px 96px; display: flex; flex-direction: column; gap: 22px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.15; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 4.5vw, 2.8rem); font-weight: 700; }
+h2 { font-size: clamp(1.4rem, 2.6vw, 1.8rem); font-weight: 600; padding-top: 22px; margin-top: 14px; border-top: 1px solid var(--line-strong); }
+h3 { font-size: 1.12rem; font-weight: 600; margin-top: 6px; }
+p, ul, ol { margin: 0; max-width: 76ch; }
+ul, ol { padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
+li > ul, li > ol { margin-top: 6px; }
+a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 0.88em; background: var(--surface-2); padding: 0.05em 0.3em; border-radius: 3px; overflow-wrap: anywhere; }
+pre { margin: 0; padding: 12px 16px; overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--code-bg); font: 0.82rem/1.5 var(--mono); }
+pre code { background: none; padding: 0; font-size: inherit; }
+blockquote { margin: 0; padding: 10px 16px; border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; max-width: 76ch; }
+.eyebrow { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+nav.pages { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+nav.pages a, nav.pages span { display: inline-block; padding: 3px 10px; border: 1px solid var(--line); border-radius: 4px; text-decoration: none; color: var(--fg); background: var(--surface); font-size: 0.86rem; }
+nav.pages span { color: var(--muted); border-style: dashed; }
+nav.pages a[aria-current] { border-color: var(--accent); color: var(--accent); }
+.rule { border: 1px solid var(--line); border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; padding: 10px 14px; max-width: 76ch; scroll-margin-top: 16px; }
+.rule .id { font-family: var(--mono); font-size: 0.8rem; color: var(--accent); margin-right: 8px; }
+.rule .why { color: var(--muted); }
+figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+figcaption { font-size: 0.9rem; color: var(--muted); max-width: 80ch; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+th { font-family: var(--display); font-weight: 600; background: var(--surface-2); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+footer { font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; }
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">Yap · product specification</div>
+<nav class="pages" aria-label="Spec pages"><a href="index.html" aria-current="page">Index</a><span title="planned">Yap</span><span title="planned">General rules</span><a href="input-box.html">Input box</a><span title="planned">Message row and actions</span><span title="planned">Emoji and GIF pickers</span><span title="planned">Timeline and media</span><span title="planned">Header, sidebar and overlays</span><span title="planned">Settings</span><span title="planned">Administration</span><span title="planned">Presence</span><span title="planned">Notifications and unread</span><span title="planned">Sign-in and sessions</span><span title="planned">Offline and installation</span></nav>
+<h1 id="yap-product-specification">Yap product specification</h1>
+<p>This folder is the source of truth for what Yap does, as the user sees it. It describes behaviour and appearance, not implementation. A page here is correct when a user who reads it knows exactly what will happen, and an implementer who reads it knows exactly what to build.</p>
+<p>The pages are Markdown so that people and agents read the same text. <code>tools/build.py</code> renders them to HTML with screenshots in <code>html/</code>. The Markdown is the source; never edit the HTML.</p>
+<h2 id="how-the-pages-are-organised">How the pages are organised</h2>
+<ol><li><strong>Yap</strong> (<code>yap.md</code>). What the product is: accounts, rooms, direct messages, messages and media, presence, notifications, offline, installation on a phone, settings and administration. One page, read first.</li><li><strong>General rules</strong> (<code>general-rules.md</code>). Rules that every component follows: every input acts locally first, sending never moves focus, what is private, how mutes and sounds decide, what the user sees in each connection state.</li><li><strong>Components</strong>. Things you can point at on the screen. One page each, same shape: purpose, anatomy with a screenshot, rules, states, wording.</li><li><strong>Feature areas</strong>. Behaviour that several components show. One page each: presence, notifications and unread counts, sign-in and sessions, offline and installation.</li></ol>
+<p>Component pages and feature pages cross-link. A component page says what a part looks like and how it reacts. A feature page says when and why.</p>
+<h2 id="pages">Pages</h2>
+<div class="tablewrap"><table><thead><tr><th>Page</th><th>Prefix</th><th>Status</th></tr></thead><tbody><tr><td><a href="yap.html">Yap</a></td><td>YAP</td><td>planned</td></tr><tr><td><a href="general-rules.html">General rules</a></td><td>GEN</td><td>planned</td></tr><tr><td><a href="input-box.html">Input box</a></td><td>IB</td><td>draft, in review</td></tr><tr><td><a href="message-row.html">Message row and actions</a></td><td>MR</td><td>planned</td></tr><tr><td><a href="pickers.html">Emoji and GIF pickers</a></td><td>PK</td><td>planned</td></tr><tr><td><a href="timeline.html">Timeline and media</a></td><td>TL</td><td>planned</td></tr><tr><td><a href="frame.html">Header, sidebar and overlays</a></td><td>SH</td><td>planned</td></tr><tr><td><a href="settings.html">Settings</a></td><td>ST</td><td>planned</td></tr><tr><td><a href="admin.html">Administration</a></td><td>AD</td><td>planned</td></tr><tr><td><a href="presence.html">Presence</a></td><td>PR</td><td>planned</td></tr><tr><td><a href="notifications.html">Notifications and unread</a></td><td>NT</td><td>planned</td></tr><tr><td><a href="sessions.html">Sign-in and sessions</a></td><td>AU</td><td>planned</td></tr><tr><td><a href="offline.html">Offline and installation</a></td><td>OF</td><td>planned</td></tr></tbody></table></div>
+<h2 id="rules-and-their-ids">Rules and their IDs</h2>
+<p>Every rule has an ID made of the page prefix and a number, for example <code>IB-04</code>. IDs are stable. A rule that is removed keeps its number and is marked retired; numbers are never reused. Tests, issues and commits cite rule IDs.</p>
+<p>A rule is one sentence that says what happens, in the present tense. Where the reason is not obvious, one more sentence gives it. A rule never names a mechanism. "The draft is kept when the user switches conversations" is a rule. "The draft is written to local storage on every keystroke" is not. &lt;!-- lint: allow --&gt;</p>
+<h2 id="page-shape">Page shape</h2>
+<p>Every component page has these sections in this order. A feature page has the same sections without Anatomy.</p>
+<ol><li><strong>Purpose.</strong> One paragraph. What the part is for.</li><li><strong>Anatomy.</strong> A screenshot with the parts numbered, and one line per part.</li><li><strong>Rules.</strong> The numbered rules.</li><li><strong>States.</strong> A table: the state or trigger, the input type (mouse, touch, keyboard), and what the user sees.</li><li><strong>Wording.</strong> Every text the user can read in this part, verbatim.</li><li><strong>Related.</strong> Links to the pages this one depends on.</li></ol>
+<p><code>tools/page-template.md</code> is the empty template.</p>
+<h2 id="screenshots">Screenshots</h2>
+<p>Screenshots are generated, never pasted. A Playwright script captures each named state against a running instance with seeded data and writes to <code>img/</code>. A screenshot that no longer matches the page is a bug in one of the two.</p>
+<h2 id="tools">Tools</h2>
+<pre><code>python3 docs/spec/tools/lint.py     # IDs unique, links resolve, no implementation words
+python3 docs/spec/tools/build.py    # Markdown to html/</code></pre>
+<p>The lint refuses words that describe an implementation instead of a behaviour. The list is in <code>tools/lint.py</code>. A page that needs one of those words for a good reason marks the line with <code>&lt;!-- lint: allow --&gt;</code>.</p>
+<footer>Source: <code>docs/spec/README.md</code>. Edit the Markdown, then run <code>python3 docs/spec/tools/build.py</code>.</footer>
+</main>
+</body>
+</html>
