@@ -23,7 +23,7 @@ Administration is the admin's page for the server: the people, the invites and l
 
 ### Users
 
-**AD-04** The Users table lists every account, the bot included, newest activity first: avatar, display name with the admin crown and the username, a status pill (Online, Away, Invisible, Offline; the admin sees Invisible as Invisible), whether the installed app was seen, the creation time, the last action, the time zone and language, and up to five recent network addresses. It is a snapshot taken when the tab opens.
+**AD-04** The Users table lists every account, the bot included, newest activity first: avatar, display name with the admin crown and the username, a status pill (Online, Away, Invisible, Offline; the admin sees Invisible as Invisible), whether the installed app was seen, the creation time, the last action, the time zone and language, and up to five recent network addresses. It is read when the tab opens and does not change until the next open.
 
 **AD-05** A tap on a row opens its detail: notification devices, installed app, the effective theme, and tables of addresses with countries and of browsers, each with the last seen time.
 
@@ -105,7 +105,7 @@ Administration is the admin's page for the server: the people, the invites and l
 
 ### Outside the page
 
-**AD-36** The project name, the playful text lists, branding files (icons, app manifest) and the custom welcome page live in the server's configuration and data folders, not on this page. Text edits apply at the next render; branding files apply without a rebuild. Custom emoji are files in a server folder, read at startup.
+**AD-36** The project name, the playful text lists, branding files (icons, the installed app's name and colours) and the custom welcome page live in the server's configuration and data folders, not on this page. Text edits apply at the next render; branding files apply without a rebuild. Custom emoji are files in a server folder, read at startup.
 
 ## States
 

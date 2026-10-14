@@ -2,7 +2,7 @@
 
 Yap is a small self-hosted chat for a group of friends. One server, one community, rooms and direct messages, run by one of the friends. It is built to feel instant on a phone and to stay out of the way: no accounts beyond a name, no feeds, no bots you did not invite, and a sense of humour in every text the app says. It is not a critical system. A message lost once a month is acceptable; a second of lag on every tap is not.
 
-This page is the map. Each part links to its own page with the rules.
+This page is the map. Each part links to its own page with the rules. The [general rules](general-rules.md) hold for every part.
 
 ## People and accounts
 
@@ -49,3 +49,7 @@ Settings holds the profile, the theme and text size, the time format, the notifi
 ## Character
 
 Many texts the app shows come from lists in the server's configuration: the room titles, the placeholder in the input box, the typing lines, the online header, the join and leave lines, the new messages pill. Each list has a plain fallback. Themes change the colours and the pattern behind the messages, never the behaviour.
+
+## How to read the pages
+
+Every page has the same shape: purpose, anatomy with a screenshot, numbered rules, a states table, every text the user can read, and links. A rule is one sentence in the present tense with a stable ID such as IB-22. When two pages touch the same thing, the component page says how it looks and reacts, and the feature page says when and why. When this page and a detail page disagree, the detail page wins.
