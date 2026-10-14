@@ -68,26 +68,34 @@ footer { font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--li
 <h1 id="general-rules">General rules</h1>
 <p>Rules that every component follows. A component page may make one of these more precise; it may not contradict it.</p>
 <h2 id="every-input-acts-at-once">Every input acts at once</h2>
-<p class="rule" id="GEN-01"><span class="id">GEN-01</span>An input acts in the user's own tap or keystroke: typing, opening a picker, picking an emoji, sending, reacting, scrolling. The screen changes before the server has answered. The server's answer confirms or corrects, it never gates.</p>
-<p class="rule" id="GEN-02"><span class="id">GEN-02</span>When the server refuses an action, the user sees why at the place where the action happened, and the screen returns to the state before the action.</p>
-<p class="rule" id="GEN-03"><span class="id">GEN-03</span>Nothing that the user did not ask for moves the keyboard on a phone. Focus moves into a text field only when the user taps it or starts an action whose point is to type, such as Reply or Edit.</p>
+<p class="rule" id="GEN-01"><span class="id">GEN-01</span>An input that can act locally acts in the user's own tap or keystroke: typing, opening a picker, picking an emoji, sending, reacting, scrolling. The screen changes before the server has answered; the server's answer confirms or corrects. What must come from the server, such as search results, older messages and uploads, shows a loading state and never blocks the rest.</p>
+<p class="rule" id="GEN-02"><span class="id">GEN-02</span>When the server refuses an action, the user sees why at the place where the action happened. A refused change returns the screen to its state before; a refused message stays as a failed row with Retry and Remove.</p>
+<p class="rule" id="GEN-03"><span class="id">GEN-03</span>The keyboard on a phone opens only when the user taps a text field or starts an action whose point is to type, such as Reply or Edit, and closes only when the user leaves the field or taps something that takes its place.</p>
 <h2 id="privacy">Privacy</h2>
-<p class="rule" id="GEN-04"><span class="id">GEN-04</span>A direct message is visible only to its two people. A room is visible to every account on the server.</p>
-<p class="rule" id="GEN-05"><span class="id">GEN-05</span>Signing out removes everything of the account from the device: drafts, unsent messages, cached conversations and the notification subscription. A different account signing in on the same device starts from nothing.</p>
-<p class="rule" id="GEN-06"><span class="id">GEN-06</span>An invisible person is shown to others as offline and is not counted as online.</p>
+<p class="rule" id="GEN-04"><span class="id">GEN-04</span>The text of a direct message is visible only to its two people; the admin sees that it happened and its uploads on the administration page. A room is visible to every account on the server.</p>
+<p class="rule" id="GEN-05"><span class="id">GEN-05</span>Signing out, or learning of a sign-out made elsewhere, removes everything of the account from the device: drafts, unsent messages, cached conversations and the notification subscription. A different account signing in on the same device starts from nothing. Device conveniences such as the last route and dismissed prompts stay.</p>
+<p class="rule" id="GEN-06"><span class="id">GEN-06</span>An invisible person is shown to others as offline and is not counted as online. Admins see the real status, and typing shows the person like anyone else.</p>
 <h2 id="sounds-counts-and-mutes">Sounds, counts and mutes</h2>
-<p class="rule" id="GEN-07"><span class="id">GEN-07</span>The conversation a message arrives in decides whether it counts, sounds and notifies. Its mute setting applies; the open conversation's setting does not.</p>
+<p class="rule" id="GEN-07"><span class="id">GEN-07</span>The conversation a message arrives in decides whether it counts, sounds and notifies. Its mute setting applies; the open conversation's setting does not. The kind of page that is open decides which arrivals the tab title and the sound announce.</p>
 <p class="rule" id="GEN-08"><span class="id">GEN-08</span>The user's own messages never count, sound or notify.</p>
-<p class="rule" id="GEN-09"><span class="id">GEN-09</span>A muted conversation shows that something arrived, as a dot, and nothing else.</p>
+<p class="rule" id="GEN-09"><span class="id">GEN-09</span>A muted conversation shows that something arrived, as a dot, and nothing else. A person who had Yap closed gets no dot for a muted room.</p>
 <h2 id="connection">Connection</h2>
-<p class="rule" id="GEN-10"><span class="id">GEN-10</span>The app stays readable and usable without a connection. Reading what is loaded, writing, and queuing messages work. Actions that need the server say "Needs a connection" where they are taken.</p>
-<p class="rule" id="GEN-11"><span class="id">GEN-11</span>The connection state is shown in the header, never as a banner over the content.</p>
+<p class="rule" id="GEN-10"><span class="id">GEN-10</span>The app stays readable and usable without a connection. Reading what is loaded, writing, and queuing messages work. Actions that need the server say "Needs a connection" where they are taken, or are dimmed.</p>
+<p class="rule" id="GEN-11"><span class="id">GEN-11</span>The connection state is shown in the header and, for a state that needs the user, in the notice strip, never as a layer over the content.</p>
 <h2 id="texts-and-look">Texts and look</h2>
-<p class="rule" id="GEN-12"><span class="id">GEN-12</span>Playful texts come from lists configured on the server, each with a plain fallback. A text is picked when its context appears and stays until the context changes.</p>
-<p class="rule" id="GEN-13"><span class="id">GEN-13</span>Themes change colours, patterns and tints. They never change behaviour, sizes of controls, or the meaning of the status colours.</p>
-<p class="rule" id="GEN-14"><span class="id">GEN-14</span>Two width tiers apply: 768 px for the frame, 600 px for the compact components. Both depend on width, not on the device.</p>
+<p class="rule" id="GEN-12"><span class="id">GEN-12</span>The playful texts that vary come from lists configured on the server, each with a plain fallback. A text is picked when its context appears and stays until the context changes.</p>
+<p class="rule" id="GEN-13"><span class="id">GEN-13</span>Themes change colours, patterns, tints and glows. They never change behaviour, sizes of controls, or the meaning of the status colours.</p>
+<p class="rule" id="GEN-14"><span class="id">GEN-14</span>Two width tiers apply: 768 px for the sidebar and the people count, 600 px for the compact components and the header's density. Both depend on width, not on the device. Hover and touch rules depend on the input, not on width.</p>
 <p class="rule" id="GEN-15"><span class="id">GEN-15</span>On a phone every text field uses 16 px text, so the page never zooms when a field takes focus.</p>
 <p class="rule" id="GEN-16"><span class="id">GEN-16</span>Every control that shows on hover on desktop is always visible, or reachable by a tap, on a touch screen.</p>
+<h2 id="shared-behaviour">Shared behaviour</h2>
+<p class="rule" id="GEN-17"><span class="id">GEN-17</span>A tap outside a popup closes it. Escape closes the topmost open layer only.</p>
+<p class="rule" id="GEN-18"><span class="id">GEN-18</span>On a phone, pickers and menus open as bottom sheets over a dimmed page.</p>
+<p class="rule" id="GEN-19"><span class="id">GEN-19</span>A person is shown by display name, or by username when there is none.</p>
+<p class="rule" id="GEN-20"><span class="id">GEN-20</span>Emoji show as images from one set, so everyone sees the same picture.</p>
+<p class="rule" id="GEN-21"><span class="id">GEN-21</span>Drafts and unsent messages survive a reload, a new version and the error screen.</p>
+<p class="rule" id="GEN-22"><span class="id">GEN-22</span>A change made elsewhere, on another device or by another person, shows at once.</p>
+<p class="rule" id="GEN-23"><span class="id">GEN-23</span>The account owns the profile, the theme and text size, the time format, the status, the mutes, the recent emoji, the favourites and the unread counts. The device owns the drafts, the pending messages, the cached conversations, the notification subscription, the last route and the dismissed prompts.</p>
 <footer>Source: <code>docs/spec/general-rules.md</code>. Edit the Markdown, then run <code>python3 docs/spec/tools/build.py</code>.</footer>
 </main>
 </body>

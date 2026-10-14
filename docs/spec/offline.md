@@ -12,19 +12,19 @@ Yap runs in the browser and can be installed on a phone or a desktop like an app
 
 **OF-02** The installed app opens full screen, with the Yap icon, name and colours. It starts on the user's last conversation, else the lobby.
 
-**OF-03** The installed app signs in by itself on its first launch, within 72 hours of the install, when it was installed from a signed-in browser. Afterwards it keeps its own session like any device.
+**OF-03** The installed app signs in by itself on its first launch, within 72 hours of the install, when it was installed from a signed-in browser. An app that still starts signed out shows the login page, as the [sign-in page](sessions.md#AU-24) says. Afterwards it keeps its own session like any device.
 
 **OF-04** A new version of Yap is announced in the notice strip with "Reload". Yap never reloads by itself, and a reload keeps drafts and unsent messages.
 
 ### Without a connection
 
-**OF-05** The header shows the state: a grey ring while offline, a pulsing orange dot while reconnecting. No banner covers the content.
+**OF-05** The header shows the state: a grey ring while offline, a pulsing orange dot while reconnecting. No banner covers the content. Others see the person as away after 30 seconds and offline after 5 minutes, as the [presence page](presence.md#PR-15) says. A device signed out elsewhere learns of it when the connection returns.
 
-**OF-06** Every conversation the user has opened on this device shows its last messages and can be read and scrolled. Older messages that were not loaded say "Needs a connection" at the top of the list. Media that was seen before shows; media that was not says so in its place.
+**OF-06** Every conversation the user has opened on this device shows its last messages and can be read and scrolled, also after a reload. Older messages that were not loaded say "Needs a connection" at the top of the list. Media that was seen before shows; media that was not shows "Needs a connection" in its place.
 
-**OF-07** Typing, drafts, emoji, the emoji picker, the GIF picker's own lists, switching conversations and reading all work without a connection.
+**OF-07** Typing, drafts, emoji, the emoji picker, the GIF picker's own lists, switching conversations and reading all work without a connection. Settings and Administration need a connection.
 
-**OF-08** Sending works without a connection. Send accepts the message, shows it as pending in the conversation, and keeps it on the device. It is sent when the connection returns, also after the app was closed and reopened.
+**OF-08** Sending works without a connection, also in a conversation never opened on the device. Send accepts the message, shows it as pending in the conversation, and keeps it on the device. It is sent when the connection returns, also after the app was closed and reopened.
 
 **OF-09** A pick of files is accepted without a connection up to 25 MB in total. A larger pick is refused and the input box says "Needs a connection".
 
@@ -32,7 +32,7 @@ Yap runs in the browser and can be installed on a phone or a desktop like an app
 
 **OF-11** A pending message that the server refuses shows as failed, with the reason, "Retry" and "Remove". A pending message that has waited more than one day shows as failed too. Remove deletes it from the device only.
 
-**OF-12** Reactions, edits, deletions, GIF search and trending need a connection. Where the user tries them, the answer is "Needs a connection" and nothing changes. The status items in the status menu are dimmed.
+**OF-12** Reactions, edits and deletions of sent messages, the GIF star, GIF uploads, search and trending need a connection. Where the user tries them, the answer is "Needs a connection" and nothing changes. A GIF pick is queued like a message. A pending message can still be edited and removed on the device. The status items in the status menu are dimmed.
 
 **OF-13** Reconnecting is automatic: when the network returns, when the tab comes back, and when the user taps the connection dot, which also shows its bubble. The newest messages are refreshed and the unread counts corrected; the view keeps its place.
 
@@ -40,24 +40,24 @@ Yap runs in the browser and can be installed on a phone or a desktop like an app
 
 **OF-14** Offline reading shows what the device already had. It does not download conversations ahead of time beyond the ones the user opened.
 
-**OF-15** Sending later is best effort. A message can be lost when the device loses its storage, when the account changes, or when the server has restarted without its accounts. The user is told through the failed state, never silently.
+**OF-15** Sending later is best effort. A message is lost without a trace when the device loses its storage or when another account signs in on the device. In every other case a message that cannot be sent shows as failed.
 
-**OF-16** Signing out, or a different account signing in on the device, removes every draft, pending message and cached conversation of the previous account.
+**OF-16** Signing out, or a different account signing in on the device, removes every draft, pending message, cached conversation and notification subscription of the previous account.
 
 ## States
 
 | State or trigger | Input | What the user sees |
 | --- | --- | --- |
 | "install it" or "Install Yap" | touch, mouse | Install dialog; then the browser's install or the guide. |
-| Installed app launched | touch | Full screen, last conversation, signed in. |
+| Installed app launched | touch | Full screen, last conversation; signed in when installed from a signed-in browser within 72 hours, else the login page. |
 | New version | all | Notice strip with "Reload"; nothing changes until the tap. |
 | Connection lost | all | Grey ring; everything readable. |
 | Open a conversation seen before | all | Its last messages at once. |
 | Open a conversation never seen | all | Header and empty list with "Needs a connection". |
 | Send a text | keyboard, touch | Pending row at the end at once. |
-| Files picked, under 25 MB | touch, mouse | Pending row with the files. |
-| Files picked, over 25 MB | touch, mouse | The pick is refused; "Needs a connection" in the input box. |
-| Reaction, edit or delete | touch, mouse | "Needs a connection" at the row. |
+| Files picked without a connection, under 25 MB | touch, mouse | Pending row with the files. |
+| Files picked without a connection, over 25 MB | touch, mouse | The pick is refused; "Needs a connection" in the input box. |
+| Reaction, edit or delete on a sent message | touch, mouse | "Needs a connection" at the row. |
 | Connection returns | all | Pending rows become normal rows in order; counts corrected; view unchanged. |
 | Server refuses a pending message | all | "Failed", reason, "Retry", "Remove". |
 | Pending for more than a day | all | Shown as failed. |
@@ -74,7 +74,7 @@ Yap runs in the browser and can be installed on a phone or a desktop like an app
 | New version | "You are awesome and so is the new version of this app. Please refresh."; "Reload" |
 | Connection bubble | "Offline. Messages are sent when the connection returns."; "Reconnecting…" |
 | Top of the list without older messages | "Needs a connection" |
-| Row actions without a connection | "Needs a connection" |
+| Row actions and media not seen before, without a connection | "Needs a connection" |
 | Input box, too much to queue | "Needs a connection" |
 | Failed message | "Failed"; "Retry"; "Remove" |
 

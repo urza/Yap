@@ -193,7 +193,7 @@ The input box is where a message is written and sent. It sits at the bottom of e
 | Send failed | all | The row shows the reason, Retry and Remove. |
 | Hover emoji toggle | mouse | The silhouette turns to a random emoji in colour. |
 | Emoji toggle tap, empty draft | mouse, touch | Picker opens at once. Send visible and dimmed. Phone: sheet, dimmed page, box on the sheet. |
-| Emoji picked | mouse, touch | Emoji at the caret. Send bright. Picker stays open. Focus and keyboard unchanged. |
+| Emoji picked | mouse, touch | Emoji at the caret. Send bright. Picker stays open. The draft's focus unchanged; a keyboard open for the picker's search closes. |
 | Send tap with the sheet open | touch | Sends on the first tap. Sheet closes. Keyboard unchanged. |
 | GIF toggle tap, empty draft | mouse | GIF picker opens, badge bright. |
 | GIF card tap | mouse, touch | Picker closes, faded GIF row at the end of the list. |

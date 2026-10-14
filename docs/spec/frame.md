@@ -56,7 +56,7 @@ The frame is everything around a conversation: the header with the title, the us
 
 **SH-13** A status pick applies at once and closes the menu. Without a connection the three status items are dimmed and do nothing. See [Presence](presence.md).
 
-**SH-14** "Notification settings" shows a crossed bell while the user's account-wide mute is on, so the mute is visible from every page.
+**SH-14** "Notification settings" shows a crossed bell while the user's server-wide mute is on, so the mute is visible from every page.
 
 **SH-15** Sign Out ends this device's session only. Other devices stay signed in. When the user has no login link and no secret code, a confirmation warns that the account cannot be reached again. When unsent messages exist on this device, a confirmation warns that they are lost. Signing out removes the device's notification subscription and local data. See [Sign-in and sessions](sessions.md).
 
@@ -78,7 +78,7 @@ The frame is everything around a conversation: the header with the title, the us
 
 **SH-22** Every user sees every room, in the admin's order; new rooms go to the bottom. A room row shows "#", the name, then a crossed bell when the user muted that room individually (not for the default room mute and not under the server-wide mute), an unread mark, and for admins a gear. The open room is highlighted and shows no unread mark.
 
-**SH-23** The unread mark is a red count for an unmuted room and a small dot without a number for a muted one. Muting hides the number, never the fact that something arrived. A room with unread has brighter text.
+**SH-23** The unread mark is a red count for an unmuted room and a small dot without a number for a muted one. Muting hides the number, never the fact that something arrived. An unmuted room with unread has brighter text.
 
 **SH-24** The gear opens the room's settings. On desktop it appears on hover; on touch it is always visible. Admins also see "Add Room" as the last row.
 

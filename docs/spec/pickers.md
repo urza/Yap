@@ -65,7 +65,7 @@ The emoji picker and the GIF picker open from the input box and put an emoji int
 
 **PK-20** A tap on a card sends the GIF at once and closes the picker, as the [input box](input-box.md#IB-47) describes. The search text of that moment is remembered with the GIF as a tag, so the next search for it finds it. On a keyboard, a focused card sends on Enter or Space. When the GIF is gone by the time it is sent, the dialog "Couldn't send GIF" says so.
 
-**PK-21** Library cards (Recent, Favorites, Server library, and library hits in a search) have a favourite star at the top right. On desktop it appears on hover; on a phone it is always visible; a favourited star is gold everywhere. A tap on the star changes the favourite only. Provider cards have no star; to keep a provider GIF, the reader sends it, then stars it in Recent or in the message.
+**PK-21** Library cards (Recent, Favorites, Server library, and library hits in a search) have a favourite star at the top right. On desktop it appears on hover; on a touch screen it is always visible; a favourited star is gold everywhere. A tap on the star changes the favourite only. Provider cards have no star; to keep a provider GIF, the reader sends it, then stars it in Recent or in the message.
 
 **PK-22** Cards show no title, uploader or folder.
 
