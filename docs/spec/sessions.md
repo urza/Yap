@@ -18,7 +18,7 @@ Getting into Yap is meant to be forgotten. An account is a username and nothing 
 
 **AU-05** The admin can close registration and can require approval. Closed: the login page keeps its form for existing users and tells a new name that registration is closed. Approval: a new name waits on the login page while the admin gets a message; approval signs the person in, rejection lets them try another name. Invites bypass both.
 
-**AU-06** With persistence off (no database), accounts live until the server restarts. After a restart every device sees the login page and the usernames are free again. This is a product mode, not an error.
+**AU-06** When the server runs without persistence, accounts live until the server restarts. After a restart every device sees the login page and the usernames are free again. This is a product mode, not an error.
 
 ### Ways in
 
