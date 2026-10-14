@@ -8,7 +8,7 @@ This page is the map. Each part links to its own page with the rules.
 
 An account is a username, chosen once, with a display name, an avatar, a short bio and a location the person can change at any time. The first account on a server is its admin. A bot account, "Ping", welcomes new people and nudges phone users to install the app.
 
-People get in by an invite link or, when the admin allows it, by registering. Signing in is meant to be forgotten: a known device signs in with the username alone, a login link signs in a new device, and a secret code is the fallback. One account can be signed in on several devices at once, and each device can be signed out on its own. See [Sign-in and sessions](sessions.md).
+People get in by an invite link or, when the admin allows it, by registering. Signing in is meant to be forgotten: a known device signs in with the username alone, a login link signs in a new device, and a secret code is the fallback. One account can be signed in on several devices at once, and the other devices can be signed out from any one of them. See [Sign-in and sessions](sessions.md).
 
 ## Rooms and direct messages
 
@@ -44,8 +44,8 @@ Yap can be installed on a phone like an app. Without a connection it shows what 
 
 ## Settings and administration
 
-Settings holds the profile, the theme and text size, the time format, the notification choices, the security tools and the user's GIF library. Administration holds the people, the invites, the rooms, the sessions, the server switches and the server's GIF library. See [Settings](settings.md) and [Administration](admin.md).
+Settings holds the profile, the theme and text size, the time format, the notification choices, the security tools and the user's GIF library. Administration holds the people, the invites, the sessions, the server switches, the logs and the server's GIF library. Rooms are created and changed on their own pages by the admin. See [Settings](settings.md) and [Administration](admin.md).
 
 ## Character
 
-Many texts the app shows come from lists the admin can edit: the room titles, the placeholder in the input box, the typing lines, the online header, the join and leave lines, the new messages pill. Each list has a plain fallback. Themes change the colours and the pattern behind the messages, never the behaviour.
+Many texts the app shows come from lists in the server's configuration: the room titles, the placeholder in the input box, the typing lines, the online header, the join and leave lines, the new messages pill. Each list has a plain fallback. Themes change the colours and the pattern behind the messages, never the behaviour.
