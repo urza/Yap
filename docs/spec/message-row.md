@@ -120,7 +120,7 @@ A message row is one message as it appears in the conversation: who wrote it, wh
 
 **MR-41** The action bar starts with three quick reactions: the reader's three most used reaction emoji, padded with ❤️, 😂 and 👍 until there are three. Only reactions count; emoji typed into messages do not change the quick set.
 
-**MR-42** Add Reaction opens the emoji picker for this message, with search, recents, the custom packs and the categories, as on the [pickers page](pickers.md#reaction-picker). A pick closes the picker and adds or removes that reaction. On desktop the picker opens under the button, flipped above when there is no room, and stays inside the window. On a phone it is a bottom sheet.
+**MR-42** Add Reaction opens the emoji picker for this message, with search, recents, the custom packs and the categories, as on the [pickers page](pickers.md#PK-43). A pick closes the picker and adds or removes that reaction. On desktop the picker opens under the button, flipped above when there is no room, and stays inside the window. On a phone it is a bottom sheet.
 
 **MR-43** While the picker is open the row keeps its action bar and its tint. A tap outside the picker, or Escape, closes it and does nothing else.
 
