@@ -1,6 +1,6 @@
 # Yap
 
-Yap is a small self-hosted chat for a group of friends. One server, one community, rooms and direct messages, run by one of the friends. It is built to feel instant on a phone and to stay out of the way, with a sense of humour in every text the app says. It is not a critical system. A message lost once a month is acceptable; a second of lag on every tap is not.
+Yap is a small self-hosted chat for a group of friends. One server, one community, rooms and direct messages, run by one of the friends. It is built to feel instant on a phone and to stay out of the way, with a sense of humour in every text the app says. It is not a critical system.
 
 This page is the map. Each part links to its own page with the rules. The [general rules](general-rules.md) hold for every part.
 
