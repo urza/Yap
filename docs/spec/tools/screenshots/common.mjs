@@ -1,5 +1,6 @@
 // Shared by seed.mjs and capture.mjs: arguments, the Playwright module, the two
-// device profiles, and sign-in. See README.md in this folder for how to run.
+// device profiles, the database lookups, sign-in, which app is the target, and waits.
+// See README.md in this folder for how to run.
 
 import { createRequire } from 'node:module';
 
@@ -36,6 +37,12 @@ export function parseArgs(argv) {
 // Login tokens come straight from the app's database: the refresh-token URL then
 // sets the auth cookie without creating anything. node:sqlite needs no install.
 export async function readTokens(dbPath, usernames) {
+    const rows = await queryDb(dbPath, `SELECT Username, Token FROM Users WHERE Username IN (${usernames.map(() => '?').join(',')})`, usernames);
+    return Object.fromEntries(rows.map(r => [r.Username, r.Token]));
+}
+
+// Read-only: the scripts only look things up (tokens, room ids). All writes go through the page.
+export async function queryDb(dbPath, sql, params = []) {
     if (!dbPath) throw new Error('Pass --db <path to the app Data/yap.db> (or set YAP_DB).');
     // node:sqlite prints an ExperimentalWarning on first import; it is noise here.
     const emit = process.emitWarning;
@@ -45,8 +52,7 @@ export async function readTokens(dbPath, usernames) {
 
     const db = new DatabaseSync(dbPath, { readOnly: true });
     try {
-        const rows = db.prepare(`SELECT Username, Token FROM Users WHERE Username IN (${usernames.map(() => '?').join(',')})`).all(...usernames);
-        return Object.fromEntries(rows.map(r => [r.Username, r.Token]));
+        return db.prepare(sql).all(...params);
     } finally {
         db.close();
     }
@@ -57,12 +63,42 @@ export async function signInWithToken(page, origin, token, path) {
     if (new URL(page.url()).pathname !== path) throw new Error(`Sign-in ended at ${page.url()}, expected ${path}`);
 }
 
-// A conversation page is ready when the composer is there, the pickers are mounted
-// (the old page mounts them about 1.2 s after load) and the visible images have loaded.
+// Rows the server accepted. The old page keeps pending copies in .pending-echoes;
+// the current client puts its rows in #timeline and marks pending ones .pending-message.
+export const ROWS = '.messages-flow > .message-group, #timeline > .message-group:not(.pending-message)';
+
+// Two apps can be the target: the old page (commit 0cb67422, the visual target of most
+// images) and the current client (wwwroot/chat-client), which has the New messages pill
+// and offline pending rows. Only the current client serves /chat-client/.
+export async function detectApp(origin) {
+    const res = await fetch(`${origin}/chat-client/app.js`, { method: 'HEAD' });
+    return res.ok ? 'main' : 'old';
+}
+
+// A conversation page is ready when the composer is there and the visible images have
+// loaded. The old page also mounts the pickers about 1.2 s after load (the picker
+// states need them); the current client builds them on first open, so there it waits
+// for the first sync instead.
 export async function waitForConversation(page) {
     await page.locator('textarea.message-input').waitFor();
-    await page.locator('.emoji-picker-container[data-picker-pane="emoji"]').waitFor({ state: 'attached' });
+    if (await page.locator('#timeline').count()) {
+        await page.locator('html[data-connection="synced"]').waitFor({ state: 'attached' });
+    } else {
+        await page.locator('.emoji-picker-container[data-picker-pane="emoji"]').waitFor({ state: 'attached' });
+    }
     await waitForVisibleImages(page);
+}
+
+// The old page switches themes with its own applyTheme (what Settings calls); the
+// current client with yapAppearance.apply (what its Settings calls). Either way the
+// account keeps its theme. The current client applies the account's theme again with
+// every server update that carries it, so a state there switches again after one.
+export async function applyTheme(page, theme) {
+    await page.evaluate(t => {
+        if (window.applyTheme) window.applyTheme(t);
+        else if (window.yapAppearance) window.yapAppearance.apply({ ...window.yapAppearance.current, theme: t });
+        else document.documentElement.dataset.theme = t;
+    }, theme);
 }
 
 // Only images on screen: lazy images outside the viewport, or inside a closed

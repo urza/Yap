@@ -3,11 +3,15 @@
 //
 //   node capture.mjs --origin http://127.0.0.1:7651 --db <app>/Data/yap.db [state ...]
 //
-// A state is <page>-<device>-<name>, which is also its file name. With no names,
-// every state is captured.
+// A state is <page>-<device>-<name>, which is also its file name. Most states need
+// the old page (commit 0cb67422); a state with app: 'main' needs the current client.
+// The script asks --origin which one it serves. With no names, every state of that
+// app is captured.
 
 import { fileURLToPath } from 'node:url';
-import { chromium, DEVICES, parseArgs, readTokens, signInWithToken, waitForConversation, waitForVisibleImages } from './common.mjs';
+import {
+    applyTheme, chromium, detectApp, DEVICES, parseArgs, readTokens, ROWS, signInWithToken, waitForConversation, waitForVisibleImages,
+} from './common.mjs';
 
 const OUT_DIR = fileURLToPath(new URL('../../img/', import.meta.url));
 
@@ -19,11 +23,24 @@ const THEME = 'light';
 // bottom of the window: the box plus the last two or three messages above it.
 const DESKTOP_COMPOSER_HEIGHT = 260;
 
+// The timeline images: the open conversation from the bottom of the window, and the
+// start of the history from the top of the column.
+const DESKTOP_TIMELINE_HEIGHT = 600;
+const DESKTOP_HISTORY_TOP_HEIGHT = 360;
+
 // The space a row or picker shot keeps around its element, so it has a little context.
 const MARGIN = 12;
 
-// Rows the server accepted (pending copies live in .pending-echoes).
-const ROWS = '.messages-flow > .message-group';
+// The other people online while a state marked people: true is captured (old page
+// only): bob online, carol away by her own pick. dave stays offline, a grey row.
+const PEOPLE_ONLINE = [['bob', 'Online'], ['carol', 'Away']];
+
+// The phone profile sends Chromium's desktop User-Agent, and the old page decides on
+// the server, from the User-Agent, whether a device is a phone. A state that shows
+// what only phones get (the sidebar's info buttons) sends a phone's.
+const PHONE_USER_AGENT = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
+
+const APP_NAMES = { old: 'the old page (commit 0cb67422)', main: 'the current client' };
 
 const STATES = [
     {
@@ -192,41 +209,323 @@ const STATES = [
             return null;
         },
     },
+    {
+        page: 'timeline', device: 'desktop', name: 'open',
+        // The lobby just opened: the newest messages at the bottom, the input box under
+        // them. The conversation column, about DESKTOP_TIMELINE_HEIGHT pixels high.
+        async drive(page) {
+            await openConversation(page, 'alice', '/lobby');
+            const gap = await page.locator('.messages').evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight);
+            if (gap > 2) throw new Error(`Expected the view at the bottom, but it is ${gap}px above it.`);
+            return columnBottomClip(page, DESKTOP_TIMELINE_HEIGHT, { atHeader: true });
+        },
+    },
+    {
+        page: 'timeline', device: 'desktop', name: 'history-start',
+        // The lobby scrolled to its top with the wheel: the note "This is the beginning
+        // of #lobby", the empty space under it, the first messages. The top of the column.
+        async drive(page) {
+            await openConversation(page, 'alice', '/lobby');
+            const list = page.locator('.messages');
+            const box = await list.boundingBox();
+            await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+            const note = page.locator('.history-start');
+            // Older pages load on the way up; the note shows once all history is there.
+            for (let i = 0; i < 60 && !(await note.count() && await list.evaluate(el => el.scrollTop === 0)); i++) {
+                await page.mouse.wheel(0, -1000);
+                await page.waitForTimeout(200);
+            }
+            const text = (await note.innerText()).trim();
+            if (text !== 'This is the beginning of #lobby') throw new Error(`Expected the beginning note, got "${text}".`);
+            await waitForVisibleImages(page);
+            return columnTopClip(page, DESKTOP_HISTORY_TOP_HEIGHT);
+        },
+    },
+    {
+        page: 'timeline', device: 'phone', name: 'gallery',
+        // A tap on the first of the two photos alice sent bob: the viewer on black, the
+        // counter "1 / 2", close and fill. Whole screen.
+        async drive(page) {
+            await openConversation(page, 'alice', '/dm/bob');
+            const rows = page.locator(ROWS);
+            const i = await rows.evaluateAll(els => els.findLastIndex(
+                r => r.dataset.author === 'alice' && r.querySelectorAll('.gallery-item').length > 1));
+            if (i < 0) throw new Error('No message from alice with two images: run seed.mjs.');
+            const item = rows.nth(i).locator('.gallery-item').first();
+            await item.scrollIntoViewIfNeeded();
+            await item.tap();
+            const viewer = page.locator('.image-modal');
+            await viewer.waitFor({ state: 'visible' });
+            await page.waitForFunction(() => {
+                const img = document.querySelector('.image-modal .modal-stage img');
+                return img && img.complete && img.naturalWidth > 0;
+            });
+            const counter = (await viewer.locator('.modal-counter').innerText()).replace(/\s+/g, ' ').trim();
+            if (counter !== '1 / 2') throw new Error(`Expected the counter "1 / 2", got "${counter}".`);
+            for (const control of ['.modal-close', '.modal-fill']) await viewer.locator(control).waitFor({ state: 'visible' });
+            await page.waitForTimeout(400); // the fade-in
+            return null;
+        },
+    },
+    {
+        page: 'frame', device: 'desktop', name: 'room', people: true,
+        // The lobby, whole window: the title, the status chip, the mailbox (unread in
+        // general and from carol), the people count, the header line, the sidebar.
+        async drive(page) {
+            await openConversation(page, 'alice', '/lobby');
+            await expectMailbox(page);
+            return null;
+        },
+    },
+    {
+        page: 'frame', device: 'desktop', name: 'status-menu',
+        // A click on alice's chip (she is the admin): the menu with its eight entries.
+        // The right side of the header with the open menu.
+        async drive(page) {
+            await openConversation(page, 'alice', '/lobby');
+            await page.locator('.status-button').click();
+            const menu = page.locator('.status-dropdown');
+            await menu.waitFor({ state: 'visible' });
+            const items = (await menu.locator('.dropdown-item').allInnerTexts()).map(t => t.replace(/\s+/g, ' ').trim());
+            const expected = ['Online', 'Away', 'Invisible', 'Settings', 'Notification settings', 'Admin', 'Sign Out'];
+            if (items.join() !== expected.join() || await menu.locator('.dropdown-divider').count() !== 1) {
+                throw new Error(`Expected ${expected.join(', ')} with one divider, got ${items.join(', ')}.`);
+            }
+            await expectClass(menu.locator('.dropdown-item').first(), 'active', 'Online marked');
+            await page.waitForTimeout(300);
+            return unionClip(page, [menu, page.locator('.header-controls')]);
+        },
+    },
+    {
+        page: 'frame', device: 'desktop', name: 'profile-card', people: true,
+        // The pointer on bob's name in the sidebar: his card with the banner, avatar,
+        // display name, @bob, Online, About me, location and Member since. The card and
+        // the rows around his.
+        async drive(page) {
+            await openConversation(page, 'alice', '/lobby');
+            const row = sidebarPerson(page, 'Bob K.');
+            await row.locator('.user-name').hover();
+            const card = page.locator('.profile-popup .profile-card');
+            await card.waitFor({ state: 'visible' });
+            // innerText follows the card's capitals in CSS, so the check ignores case.
+            const text = (await card.innerText()).toLowerCase();
+            const expected = ['Bob K.', '@bob', 'Online', 'About me', 'Trail runner', 'Brno', 'Member since'];
+            const absent = expected.filter(t => !text.includes(t.toLowerCase()));
+            if (absent.length) throw new Error(`The card lacks ${absent.join(', ')}: run seed.mjs.`);
+            await waitForVisibleImages(page);
+            await page.waitForTimeout(300);
+            return unionClip(page, [card, row, page.locator('.users-sidebar .sidebar-section', { has: page.locator('.users-list') })]);
+        },
+    },
+    {
+        page: 'frame', device: 'phone', name: 'sidebar', people: true, userAgent: PHONE_USER_AGENT,
+        // A tap on the hamburger: the sidebar over the conversation, the header above
+        // it, an info button after each other person's name. Whole screen.
+        async drive(page) {
+            await openConversation(page, 'alice', '/lobby');
+            await page.locator('.users-toggle').tap();
+            await page.locator('.users-sidebar.sidebar-open').waitFor();
+            await sidebarPerson(page, 'Bob K.').locator('.profile-info-btn').waitFor();
+            await page.waitForTimeout(400); // the slide-in
+            return null;
+        },
+    },
+    {
+        page: 'presence', device: 'desktop', name: 'list', people: true,
+        // The people section: alice (you) with the crown, the bot, carol away, bob
+        // online, dave offline. The section with a margin.
+        async drive(page) {
+            await openConversation(page, 'alice', '/lobby');
+            const section = page.locator('.users-sidebar .sidebar-section', { has: page.locator('.users-list') });
+            const dots = Object.fromEntries(await section.locator('.user-item').evaluateAll(items => items.map(i => [
+                i.querySelector('.user-name').textContent.trim(),
+                [...i.querySelector('.user-status-dot').classList].filter(c => c !== 'user-status-dot').join(' '),
+            ])));
+            const expected = { 'alice (you)': 'online', Ping: 'online', carol: 'away', 'Bob K.': 'online', dave: 'invisible' };
+            for (const [name, dot] of Object.entries(expected)) {
+                if (dots[name] !== dot) throw new Error(`Expected ${name} ${dot}, got ${JSON.stringify(dots)}.`);
+            }
+            await sidebarPerson(page, 'alice').locator('.admin-badge').waitFor();
+            await sidebarPerson(page, 'Ping').locator('.bot-badge').waitFor();
+            return unionClip(page, [section]);
+        },
+    },
+    {
+        page: 'notifications', device: 'desktop', name: 'sidebar', people: true,
+        // The unread marks: general with a count, random muted with the bell and a dot,
+        // carol with a count, dave muted with the bell and a dot, the mailbox with the
+        // total. The right side of the header and the sidebar down to the last person.
+        async drive(page) {
+            await openConversation(page, 'alice', '/lobby');
+            const marks = [
+                [sidebarRoom(page, 'general'), '.unread-badge'],
+                [sidebarRoom(page, 'random'), '.mute-bell'],
+                [sidebarRoom(page, 'random'), '.unread-dot'],
+                [sidebarPerson(page, 'carol'), '.unread-badge'],
+                [sidebarPerson(page, 'dave'), '.mute-bell'],
+                [sidebarPerson(page, 'dave'), '.unread-dot'],
+            ];
+            for (const [row, mark] of marks) {
+                if (!await row.locator(mark).count()) throw new Error(`A row lacks ${mark}: run seed.mjs (or a capture read it).`);
+            }
+            const counts = await page.locator('.users-sidebar .unread-badge').allInnerTexts();
+            const total = await expectMailbox(page);
+            const sum = counts.reduce((a, c) => a + Number(c), 0);
+            if (total !== sum) throw new Error(`The mailbox reads ${total}, the rows add up to ${sum}.`);
+            return unionClip(page, [page.locator('.header-controls'), page.locator('.users-sidebar .rooms-list'), page.locator('.users-sidebar .users-list')]);
+        },
+    },
+    {
+        page: 'sessions', device: 'desktop', name: 'login', signedOut: true,
+        // A browser that never signed in, on the login page, after typing a name nobody
+        // has: the heading, the box and the join button in one row, the new-account
+        // hint, the build time. The card with the heading.
+        async drive(page) {
+            await page.goto(`${origin}/login`);
+            const input = page.locator('.username-input');
+            await input.waitFor();
+            await applyTheme(page, THEME);
+            // The page is interactive only once its connection is up; earlier keys are lost.
+            await page.waitForTimeout(1500);
+            await input.pressSequentially('marek', { delay: 50 });
+            const hint = page.locator('.new-account-hint');
+            await hint.waitFor();
+            if (!(await hint.innerText()).includes('marek')) throw new Error('The hint does not name the typed username.');
+            const card = page.locator('.username-container');
+            return unionClip(page, [card.locator('h2'), card.locator('.username-form'), card.locator('.build-info')]);
+        },
+    },
+    {
+        page: 'timeline', device: 'desktop', name: 'pill', app: 'main',
+        // The current client. alice scrolls up about two screens with the wheel; bob
+        // posts from his own session; the view holds and the New messages pill shows
+        // above the typing strip. The bottom of the column with the pill and the input
+        // box. bob deletes his message after the capture, so the lobby stays as seeded.
+        async drive(page) {
+            await openConversation(page, 'alice', '/lobby');
+            const list = page.locator('.messages');
+            const box = await list.boundingBox();
+            await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+            for (let i = 0; i < 6; i++) {
+                await page.mouse.wheel(0, -box.height / 3);
+                await page.waitForTimeout(100);
+            }
+            await page.waitForTimeout(500);
+            const top = await list.evaluate(el => el.scrollTop);
+            const bob = await page.openAs('bob', '/lobby');
+            const text = 'does anyone know if the hut takes cards?';
+            const before = await bob.locator(ROWS).count();
+            await sendText(bob, text);
+            await bob.waitForFunction(([sel, n]) => document.querySelectorAll(sel).length > n, [ROWS, before]);
+            const id = await bob.locator(ROWS).last().getAttribute('id');
+            page.cleanup = async () => {
+                const row = bob.locator(`#${id}`);
+                await row.hover();
+                await row.locator('.action-more').click();
+                await bob.locator('.more-menu-item', { hasText: 'Delete Message' }).click();
+                await bob.locator('.delete-confirm-dialog .confirm-delete').click();
+                await row.waitFor({ state: 'detached' });
+            };
+            const pill = page.locator('#new-messages');
+            await pill.waitFor({ state: 'visible' });
+            await page.locator('#typing').waitFor({ state: 'hidden' });
+            const moved = await list.evaluate(el => el.scrollTop) - top;
+            if (Math.abs(moved) > 1) throw new Error(`The view moved by ${moved}px when bob's message arrived.`);
+            await applyTheme(page, THEME); // the arrival brought the account's theme back
+            await page.waitForTimeout(300);
+            const pillTop = (await pill.boundingBox()).y;
+            return columnBottomClip(page, page.viewportSize().height - pillTop + 100);
+        },
+    },
+    {
+        page: 'offline', device: 'phone', name: 'pending', app: 'main',
+        // The current client on a phone without a connection: the grey ring in the
+        // header, the last messages, and "see you there" faded at the bottom, pending.
+        // Whole screen. The pending message dies with the browser context.
+        async drive(page) {
+            await openConversation(page, 'alice', '/lobby');
+            await page.context().setOffline(true);
+            await page.locator('html[data-connection="offline"]').waitFor({ state: 'attached' });
+            const box = page.locator('textarea.message-input');
+            await box.tap();
+            await box.fill('see you there');
+            await page.locator('.send-button').tap();
+            // Pending rows have their own list (#pending) under the accepted ones.
+            await page.locator('.message-group.pending-message', { hasText: 'see you there' }).waitFor();
+            await applyTheme(page, THEME);
+            await page.waitForTimeout(400);
+            return null;
+        },
+    },
 ];
 
 const { origin, db, names } = parseArgs(process.argv.slice(2));
+const app = await detectApp(origin);
 const fileName = s => `${s.page}-${s.device}-${s.name}`;
+const appOf = s => s.app ?? 'old';
 const unknown = names.filter(n => !STATES.some(s => fileName(s) === n));
 if (unknown.length) {
     throw new Error(`Unknown state(s): ${unknown.join(', ')}. Known: ${STATES.map(fileName).join(', ')}`);
 }
-const selected = names.length ? STATES.filter(s => names.includes(fileName(s))) : STATES;
+const selected = names.length ? STATES.filter(s => names.includes(fileName(s))) : STATES.filter(s => appOf(s) === app);
+const elsewhere = selected.filter(s => appOf(s) !== app);
+if (elsewhere.length) {
+    throw new Error(`${origin} serves ${APP_NAMES[app]}, but ${elsewhere.map(fileName).join(', ')} need ${APP_NAMES[appOf(elsewhere[0])]}.`);
+}
+const people = selected.some(s => s.people);
 
-const tokens = await readTokens(db, ['alice', 'bob']);
-if (!tokens.alice || !tokens.bob) throw new Error('alice or bob is missing: run seed.mjs first.');
+const tokens = await readTokens(db, ['alice', 'bob', ...(people ? ['carol', 'dave'] : [])]);
+const missing = ['alice', 'bob', ...(people ? ['carol', 'dave'] : [])].filter(n => !tokens[n]);
+if (missing.length) throw new Error(`${missing.join(', ')} missing: run seed.mjs first.`);
 
 const browser = await chromium.launch();
 try {
+    const open = async (user, path, device = 'desktop') => {
+        const page = await (await browser.newContext(DEVICES[device])).newPage();
+        await signInWithToken(page, origin, tokens[user], path);
+        await waitForConversation(page);
+        return page;
+    };
+
     // One session of alice stays open for the whole run. When the last session of a user
-    // closes, the server sets them Away, and the next state's header would show it.
-    const anchor = await (await browser.newContext(DEVICES.desktop)).newPage();
-    await signInWithToken(anchor, origin, tokens.alice, '/dm/ping');
-    await waitForConversation(anchor);
+    // closes, the server sets them Away, and the next state's header would show it. A
+    // session that closed a moment ago (the seed's) still holds that Away, and a new
+    // session does not reset it on the old page: the pick does.
+    const anchor = await open('alice', '/dm/ping');
+    if (app === 'old') await pickStatus(anchor, 'Online');
+
+    if (people) {
+        await expectOffline(anchor, 'dave');
+        for (const [user, status] of PEOPLE_ONLINE) await pickStatus(await open(user, '/lobby'), status);
+        // A person's first session makes the bot tell alice (the admin) "just joined".
+        // Opening the bot conversation again reads it, so no count shows on Ping.
+        await anchor.goto(`${origin}/dm/ping`);
+        await waitForConversation(anchor);
+    }
 
     for (const state of selected) {
         // A fresh context per state: no draft, picker or hover left over from the last one.
-        const context = await browser.newContext(DEVICES[state.device]);
+        const context = await browser.newContext({ ...DEVICES[state.device], ...(state.userAgent && { userAgent: state.userAgent }) });
         const page = await context.newPage();
+        const others = [];
         page.signIn = (user, path) => signInWithToken(page, origin, tokens[user], path);
+        // Another person's session for this state only.
+        page.openAs = async (user, path) => {
+            const other = await open(user, path);
+            others.push(other.context());
+            return other;
+        };
         const clip = await state.drive(page);
         // A whole screen shows the header's status pill: alice reads Online.
-        if (!clip) await expectClass(page.locator('.status-button').first(), 'status-online', 'alice Online in the header');
+        if (!clip && !state.signedOut) await expectClass(page.locator('.status-button').first(), 'status-online', 'alice Online in the header');
         const path = `${OUT_DIR}${fileName(state)}.png`;
         // animations: 'disabled' runs transitions to their end, so Send is fully
         // shown or fully collapsed rather than caught halfway.
         await page.screenshot({ path, clip: clip ?? undefined, animations: 'disabled' });
         console.log(`${fileName(state)}.png`);
-        await context.close();
+        // A state that changed data undoes it here.
+        await page.cleanup?.();
+        await Promise.all([context, ...others].map(c => c.close()));
     }
 } finally {
     await browser.close();
@@ -235,23 +534,44 @@ try {
 async function openConversation(page, user, path) {
     await page.signIn(user, path);
     await waitForConversation(page);
-    await page.evaluate(theme => window.applyTheme(theme), THEME);
+    await applyTheme(page, THEME);
     // The page scrolls to the newest message on load; images above can still shift it.
     await page.locator('.messages').evaluate(el => { el.scrollTop = el.scrollHeight; });
     await waitForVisibleImages(page);
 }
 
 // The conversation column (not the sidebar), about DESKTOP_COMPOSER_HEIGHT pixels
-// from the bottom. The top edge moves up into the gap above the first message row
-// that the target line would cut, so no row is cut in half.
-async function composerClip(page) {
+// from the bottom.
+function composerClip(page) {
+    return columnBottomClip(page, DESKTOP_COMPOSER_HEIGHT);
+}
+
+// The conversation column, about `height` pixels from the bottom of the window. The
+// top edge moves up into the gap above the first message row that the target line
+// would cut, so no row is cut in half. With atHeader it moves down instead, to the gap
+// above the first row with a name: rows of one person touch, so the gap above a row
+// in the middle of a group is too thin to cut in.
+async function columnBottomClip(page, height, { atHeader = false } = {}) {
     const column = await page.locator('.messages').boundingBox();
     const bottom = page.viewportSize().height;
-    const target = bottom - DESKTOP_COMPOSER_HEIGHT;
+    const target = bottom - height;
+    const rowTop = await page.locator(ROWS).evaluateAll((rows, [line, header]) => rows
+        .filter(r => !header || r.classList.contains('has-header'))
+        .map(r => r.getBoundingClientRect())
+        .find(r => (header ? r.top >= line : r.bottom > line))?.top ?? line, [target, atHeader]);
+    const y = Math.floor(atHeader ? rowTop - 12 : Math.min(target, rowTop - 8));
+    return { x: column.x, y, width: column.width, height: bottom - y };
+}
+
+// The conversation column from its top, about `height` pixels down. The bottom edge
+// moves up into the gap above the row that the target line would cut.
+async function columnTopClip(page, height) {
+    const column = await page.locator('.messages').boundingBox();
+    const target = column.y + height;
     const rowTop = await page.locator(ROWS).evaluateAll(
         (rows, line) => rows.map(r => r.getBoundingClientRect()).find(r => r.bottom > line)?.top ?? line, target);
-    const y = Math.floor(Math.min(target, rowTop - 8));
-    return { x: column.x, y, width: column.width, height: bottom - y };
+    const bottom = Math.ceil(Math.min(target, rowTop - 8));
+    return { x: column.x, y: Math.floor(column.y), width: column.width, height: bottom - Math.floor(column.y) };
 }
 
 // The index in ROWS of the last row by `author` whose text contains `text`.
@@ -285,6 +605,45 @@ async function unionClip(page, locators) {
     const right = Math.min(width, Math.ceil(Math.max(...boxes.map(b => b.x + b.width)) + MARGIN));
     const bottom = Math.min(height, Math.ceil(Math.max(...boxes.map(b => b.y + b.height)) + MARGIN));
     return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
+// A pick in the status menu (old page): Online, Away or Invisible.
+async function pickStatus(page, label) {
+    await page.locator('.status-button').click();
+    await page.locator('.status-dropdown .dropdown-item', { hasText: new RegExp(`^\\s*${label}\\s*$`) }).click();
+    await page.locator(`.status-button.status-${label.toLowerCase()}`).waitFor();
+}
+
+// dave is grey only while he has no session. The seed signs him out; a closed tab
+// would leave his session on the old page for four hours, as Away.
+async function expectOffline(page, user) {
+    const dot = sidebarPerson(page, user).locator('.user-status-dot');
+    if (!await dot.evaluate(el => el.classList.contains('invisible'))) {
+        throw new Error(`${user} has a session, so his dot is not grey. Restart the app: it forgets every session.`);
+    }
+}
+
+function sidebarPerson(page, name) {
+    return page.locator('.users-sidebar .user-item', { has: page.locator('.user-name', { hasText: new RegExp(`^${name}( \\(you\\))?$`) }) });
+}
+
+function sidebarRoom(page, name) {
+    return page.locator('.users-sidebar .room-item', { has: page.locator('.room-name', { hasText: new RegExp(`^${name}$`) }) });
+}
+
+async function sendText(page, text) {
+    const box = page.locator('textarea.message-input');
+    await box.fill(text);
+    await box.press('Enter');
+}
+
+// The mailbox shows a count above zero; returns it.
+async function expectMailbox(page) {
+    const badge = page.locator('.mailbox-badge');
+    await badge.waitFor();
+    const total = Number(await badge.innerText());
+    if (!(total > 0)) throw new Error('No mailbox count: run seed.mjs (or a capture read the unread conversations).');
+    return total;
 }
 
 // Fails the capture when the page is not in the state the image claims to show.

@@ -4,13 +4,13 @@ The timeline is the scrolling list of messages in a conversation, from the oldes
 
 ## Anatomy
 
-![Timeline, desktop, a room just opened. The newest messages at the bottom, the input box under them, nothing above the first loaded row.](img/timeline-desktop-open.png)
+![Timeline, desktop, a room just opened. The newest messages at the bottom and the input box under them.](img/timeline-desktop-open.png)
 
 ![Timeline, desktop, the user has scrolled up and a new message arrived. The view has not moved; the New messages pill floats centred above the typing strip.](img/timeline-desktop-pill.png)
 
 ![Timeline, desktop, the start of a room's history. The note "This is the beginning of #lobby" at the top, empty space, then the messages.](img/timeline-desktop-history-start.png)
 
-![Gallery viewer, phone. A photo on a black background, the counter on a dark pill at the bottom, the close and fill controls.](img/timeline-phone-gallery.png)
+![Gallery viewer, phone. A photo on a black background, the previous and next controls, the counter at the bottom, the close and fill controls.](img/timeline-phone-gallery.png)
 
 1. **The list.** Fills the conversation column above the input box and scrolls vertically. A short conversation sits at the bottom, with empty space above it.
 2. **The top note.** Shown only when all history is loaded: the room description, the "beginning" note, or the restricted-history note. While older messages exist, nothing shows above the first row.

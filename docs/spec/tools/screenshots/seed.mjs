@@ -1,7 +1,9 @@
 // Seeds a fresh Yap instance with the data the spec screenshots show:
 // accounts alice and bob, a conversation in #lobby (one image, one reply with
-// reactions, one other reaction), a direct message thread, recent emoji for alice
-// and one GIF that alice uploaded (her favourite).
+// reactions, one other reaction), a direct message thread with two photos in one
+// message, recent emoji for alice and one GIF that alice uploaded (her favourite).
+// For the frame, presence and notification images: carol and dave, the rooms
+// general and random, bob's profile, alice's mutes and messages she has not read.
 //
 // Everything goes through the real page, the way a user does it, so the script
 // works on any version of the app without knowing its internals.
@@ -10,17 +12,19 @@
 //
 // The base seed runs once, when alice and bob do not exist. The additions after
 // it run every time and skip each step that is already there, so an instance
-// seeded before they existed gets them too.
+// seeded before they existed gets them too. On the current client (not the old
+// page) only the base runs: its two images need nothing more.
 
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { chromium, DEVICES, parseArgs, readTokens, signInWithToken, waitForConversation } from './common.mjs';
+import { chromium, detectApp, DEVICES, parseArgs, queryDb, readTokens, ROWS, signInWithToken, waitForConversation } from './common.mjs';
 
 const { origin, db } = parseArgs(process.argv.slice(2));
+const app = await detectApp(origin);
 
-// Rows the server accepted. Pending copies live in .pending-echoes, not here.
-const ROWS = '.messages-flow > .message-group';
+// The + button's file input: inside the button on the old page, beside it in the current client.
+const UPLOAD_INPUT = '.image-upload-button input[type=file], #upload-files';
 
 // Each step is [who, text] for a message, or [who, {kind, ...}] for something else.
 // Times are not set: the rows get the time of the seed run.
@@ -74,7 +78,9 @@ const DM = [
 // the emoji picker, not typed: only picks and reactions fill an account's recent
 // emoji, which the emoji picker image shows. Last, alice uploads a GIF through the
 // GIF picker; an upload also adds the GIF to her favourites, so the GIF picker has
-// a Favorites tile and a card to show.
+// a Favorites tile and a card to show. Then she sends two photos in one message: the
+// gallery viewer shows its counter only for a message with more than one image. They
+// go here, not in the lobby, so the lobby images keep their last rows.
 const DM_MORE = [
     ['bob', 'so is there cake on saturday?'],
     ['alice', 'of course, a whole one'],
@@ -82,6 +88,7 @@ const DM_MORE = [
     ['alice', { kind: 'pick', text: 'if it survives the trail', emoji: '😅' }],
     ['bob', "I'll carry it like a baby"],
     ['alice', { kind: 'gif' }],
+    ['alice', { kind: 'photos' }],
 ];
 
 // Reactions on bob's reply (the reply row image): two pills, and for alice only the
@@ -93,6 +100,46 @@ const LOBBY_MORE = [
     ['bob', { kind: 'react', to: 'no cucumber in mine please', emoji: '😂' }],
 ];
 
+// The frame, presence and notification images. Two more people: carol writes alice
+// two direct messages she has not read; dave writes one that alice mutes, and he
+// stays offline, so the people list has a grey row. Two more rooms, which alice (the
+// admin) makes with Add Room: general, with a two-line description, where two posts
+// from bob are unread for her, and random, which she mutes, so bob's post there is a
+// dot. bob gets a display name, a bio and a location for the profile card.
+const PEOPLE = ['carol', 'dave'];
+
+const ROOMS = [
+    { name: 'general', description: 'Plans, links and anything that is not for the lobby.\nBe kind: everyone can read this room.' },
+    { name: 'random', description: '' },
+];
+
+// Settings field id -> value.
+const BOB_PROFILE = {
+    'display-name': 'Bob K.',
+    bio: 'Trail runner, coffee snob, keeper of the good chocolate.',
+    country: 'Brno',
+};
+
+// [who, where, text]: '#room' or '@user' for the direct message with that user. alice
+// stays online in the lobby while they arrive: a post in a room she muted counts only
+// because she is online (NT-03).
+const UNREAD = [
+    ['bob', '#general', 'did you see the new trail map at the station?'],
+    ['bob', '#general', 'the ridge loop is marked as difficult now'],
+    ['bob', '#random', 'found a great bakery next to the station'],
+    ['carol', '@alice', 'hi alice! is there room for one more on saturday?'],
+    ['carol', '@alice', 'I can bring a thermos of tea'],
+    ['dave', '@alice', 'hey, can I borrow your trekking poles sometime?'],
+];
+
+// alice's notification settings, both in Individual mode so each conversation has its
+// own bell. A room starts muted (NT-18), so the lobby and general are allowed here;
+// with the room rows' bells, a muted lobby would show one on the open room. Name -> muted.
+const MUTES = {
+    Rooms: { '#lobby': false, '#general': false, '#random': true },
+    'Direct messages': { dave: true },
+};
+
 if (!db) throw new Error('Pass --db <app>/Data/yap.db so the seed can see whether it already ran.');
 const existing = await readTokens(db, ['alice', 'bob']);
 
@@ -102,13 +149,21 @@ try {
     const files = {
         image: await drawRidgePhoto(browser, join(work, 'ridge.jpg')),
         gif: writeSunriseGif(join(work, 'sunrise-over-the-ridge.gif')),
+        photos: await drawHutPhotos(browser, work),
     };
     if (Object.keys(existing).length) {
         console.log(`Base seed skipped (${Object.keys(existing).join(', ')} exist). Delete the app's Data/yap.db for a fresh seed.`);
     } else {
         await seedBase(browser, files);
     }
-    await seedAdditions(browser, files);
+    // The current client's two states need only the lobby; everything after the base
+    // drives the old page's pickers, Settings and Add Room.
+    if (app === 'main') {
+        console.log('Current client: base seed only.');
+    } else {
+        await seedAdditions(browser, files);
+        await seedFrame(browser);
+    }
 } finally {
     await browser.close();
     rmSync(work, { recursive: true, force: true });
@@ -128,16 +183,23 @@ async function seedBase(browser, files) {
 
     await runConversation(pages, LOBBY, files);
 
-    await Promise.all([pages.alice.goto(`${origin}/dm/bob`), pages.bob.goto(`${origin}/dm/alice`)]);
-    await Promise.all(Object.values(pages).map(p => p.locator('textarea.message-input').waitFor()));
+    // One after the other: two first opens at the same moment can make two threads for
+    // the same pair on the old page, and its Settings page then fails on the duplicate.
+    for (const [page, path] of [[pages.alice, '/dm/bob'], [pages.bob, '/dm/alice']]) {
+        await page.goto(`${origin}${path}`);
+        await page.locator('textarea.message-input').waitFor();
+    }
     await runConversation(pages, DM, files);
 
     // The bot sends every new account a welcome message one minute after sign-up.
     // Wait for it with the bot conversation open, so it arrives read and no unread
-    // badge shows in the screenshots.
+    // badge shows in the screenshots. The current client sends no welcome once the
+    // bot conversation exists, and this visit makes it exist: there the visit only
+    // reads the bot's note to alice that bob joined.
     await Promise.all(Object.values(pages).map(async page => {
         await page.goto(`${origin}/dm/ping`);
-        await page.locator('.message-content', { hasText: /welcome/i }).first().waitFor({ timeout: 120000 });
+        if (app === 'main') await waitForConversation(page);
+        else await page.locator('.message-content', { hasText: /welcome/i }).first().waitFor({ timeout: 120000 });
     }));
 
     await Promise.all(Object.values(pages).map(p => p.context().close()));
@@ -169,6 +231,118 @@ async function seedAdditions(browser, files) {
     console.log(`Additions: ${added} of ${DM_MORE.length + LOBBY_MORE.length} steps added, the rest were there.`);
 }
 
+async function seedFrame(browser) {
+    // A new name at /auth/signin creates the account. Every first session of a person
+    // also makes the bot tell alice (the admin) "just joined"; she reads those last.
+    const known = await readTokens(db, PEOPLE);
+    for (const name of PEOPLE.filter(n => !known[n])) {
+        const page = await (await browser.newContext(DEVICES.desktop)).newPage();
+        await page.goto(`${origin}/auth/signin?username=${name}`);
+        if (new URL(page.url()).pathname !== '/lobby') throw new Error(`Could not create ${name}: ended at ${page.url()}`);
+        await page.context().close();
+    }
+    const tokens = await readTokens(db, ['alice', 'bob', ...PEOPLE]);
+    const pages = {};
+    const open = async (name, path) => {
+        const page = pages[name] ??= await (await browser.newContext(DEVICES.desktop)).newPage();
+        await signInWithToken(page, origin, tokens[name], path);
+        return page;
+    };
+    let added = 0;
+
+    const alice = await open('alice', '/lobby');
+    await waitForConversation(alice);
+    for (const room of ROOMS) {
+        if (await alice.locator('.room-item .room-name', { hasText: new RegExp(`^${room.name}$`) }).count()) continue;
+        await alice.locator('.room-item.add-room').click();
+        await alice.locator('#channel-name').fill(room.name);
+        await alice.locator('#channel-description').fill(room.description);
+        await alice.locator('.save-button').click();
+        await alice.waitForURL(/\/room\//);
+        added++;
+    }
+
+    const bob = await open('bob', '/settings');
+    let changed = false;
+    for (const [id, value] of Object.entries(BOB_PROFILE)) {
+        const field = bob.locator(`#${id}`);
+        if (await field.inputValue() === value) continue;
+        await field.fill(value);
+        changed = true;
+    }
+    if (changed) {
+        // The page saves the profile half a second after the last keystroke.
+        await bob.locator('.save-status.saved', { hasText: 'Saved' }).first().waitFor();
+        added++;
+    }
+
+    // The old page saves a count only on the reader's existing read row; it never makes
+    // one. Without a row the count is gone after a restart. alice got rows for the rooms
+    // when she made them; she opens each new direct message once for the same reason.
+    // Only a new one: opening it later would read the messages it holds.
+    for (const name of new Set(UNREAD.filter(([, where]) => where === '@alice').map(([who]) => who))) {
+        const [dm] = await queryDb(db, `SELECT Id FROM Channels WHERE Type = 1
+            AND ((Participant1 = ? AND Participant2 = 'alice') OR (Participant1 = 'alice' AND Participant2 = ?))`, [name, name]);
+        if (dm) continue;
+        await alice.goto(`${origin}/dm/${name}`);
+        await waitForConversation(alice);
+        added++;
+    }
+
+    // alice waits in the lobby, online, while the messages arrive.
+    await alice.goto(`${origin}/lobby`);
+    await waitForConversation(alice);
+    const rooms = Object.fromEntries((await queryDb(db, 'SELECT Name, Id FROM Channels WHERE Type = 0')).map(r => [r.Name, r.Id]));
+    for (const [who, where, text] of UNREAD) {
+        const path = where.startsWith('#') ? `/room/${rooms[where.slice(1)]}` : `/dm/${where.slice(1)}`;
+        const page = pages[who] && new URL(pages[who].url()).pathname === path ? pages[who] : await open(who, path);
+        await waitForConversation(page);
+        await page.waitForTimeout(1000); // the rows of a room opened after load
+        const own = page.locator(`${ROWS}[data-author="${who}"]`, { has: page.locator('.message-content', { hasText: text }) });
+        if (await own.count()) continue;
+        const before = await page.locator(ROWS).count();
+        await sendText(page, text);
+        await page.waitForFunction(([sel, n]) => document.querySelectorAll(sel).length > n, [ROWS, before]);
+        added++;
+    }
+
+    // Both lists exist only in Individual mode; dave's row exists once he wrote. The
+    // classes are the state: Blazor writes a true aria-checked or aria-pressed as an
+    // empty attribute.
+    await alice.goto(`${origin}/settings`);
+    for (const [mode, items] of Object.entries(MUTES)) {
+        const individual = alice.locator(`.segmented[aria-label="${mode}"] .seg-btn`, { hasText: 'Individual' });
+        if (!await individual.evaluate(el => el.classList.contains('seg-selected'))) {
+            await individual.click();
+            await alice.locator(`.segmented[aria-label="${mode}"] .seg-btn.seg-selected`, { hasText: 'Individual' }).waitFor();
+            added++;
+        }
+        for (const [name, muted] of Object.entries(items)) {
+            const item = alice.locator('.notif-item', { has: alice.locator('.notif-item-name', { hasText: new RegExp(`^${name}$`) }) });
+            if (await item.locator('.notif-item-toggle').evaluate(el => el.classList.contains('muted')) === muted) continue;
+            await item.locator('.notif-item-toggle').click();
+            await item.locator(`.notif-item-toggle${muted ? '.muted' : ':not(.muted)'}`).waitFor();
+            added++;
+        }
+    }
+
+    // Last, with everyone's sessions open: alice reads the bot's "just joined" notes.
+    await alice.goto(`${origin}/dm/ping`);
+    await waitForConversation(alice);
+    await alice.waitForTimeout(1000);
+
+    // dave signs out, which ends his session at once, so he shows offline (grey). A
+    // closed tab would not do: the old page keeps a lost session for four hours, as Away.
+    const dave = pages.dave;
+    dave.on('dialog', dialog => dialog.accept());
+    await dave.locator('.status-button').click();
+    await dave.locator('.status-dropdown .dropdown-item.signout').click();
+    await dave.waitForURL(url => !url.pathname.startsWith('/dm/'));
+
+    await Promise.all(Object.values(pages).map(p => p.context().close()));
+    console.log(`Frame data: ${added} steps added, the rest were there.`);
+}
+
 async function openEverywhere(pages, pathFor) {
     await Promise.all(Object.entries(pages).map(async ([name, page]) => {
         await page.goto(`${origin}${pathFor(name)}`);
@@ -192,8 +366,18 @@ async function runConversation(pages, steps, files, isDone = async () => false) 
 
         if (step.kind === 'react') {
             const row = rowWithText(page, step.to);
-            await row.hover();
-            await row.locator(`.message-actions .action-btn[title="${step.emoji}"]`).click();
+            // The bar shows on hover and fades in; a click during the fade can find the row
+            // on top of the button. Hover again and retry.
+            for (let attempt = 1; ; attempt++) {
+                await row.hover();
+                await page.waitForTimeout(300);
+                try {
+                    await row.locator(`.message-actions .action-btn[title="${step.emoji}"]`).click({ timeout: 5000 });
+                    break;
+                } catch (e) {
+                    if (attempt === 3) throw e;
+                }
+            }
             // A reaction adds no row: wait until every page shows this person's pill.
             for (const p of Object.values(pages)) await reactionPill(p, who, step).waitFor();
             continue;
@@ -218,7 +402,10 @@ async function runConversation(pages, steps, files, isDone = async () => false) 
             await page.keyboard.press('Escape');
             await box.press('Enter');
         } else if (step.kind === 'image') {
-            await page.locator('.image-upload-button input[type=file]').setInputFiles(files.image);
+            await page.locator(UPLOAD_INPUT).setInputFiles(files.image);
+        } else if (step.kind === 'photos') {
+            // Several files in one pick make one message.
+            await page.locator(UPLOAD_INPUT).setInputFiles(files.photos);
         } else if (step.kind === 'gif') {
             await page.locator('.gif-toggle-button').click();
             const picker = page.locator('.emoji-picker-container[data-picker-pane="gif"]');
@@ -238,6 +425,7 @@ async function isDone(page, who, step) {
     const own = page.locator(`${ROWS}[data-author="${who}"]`);
     // Any GIF from the uploader counts: the upload made it a favourite.
     if (step.kind === 'gif') return await own.locator('.gif-message').count() > 0;
+    if (step.kind === 'photos') return await own.evaluateAll(rows => rows.some(r => r.querySelectorAll('.gallery-item').length > 1));
     const text = typeof step === 'string' ? step : step.text;
     return await own.filter({ has: page.locator('.message-content', { hasText: text }) }).count() > 0;
 }
@@ -275,6 +463,41 @@ async function drawRidgePhoto(browser, path) {
     await page.screenshot({ path, type: 'jpeg', quality: 85 });
     await page.close();
     return path;
+}
+
+// Two generated PNG "photos" from the hike, for the message with two images.
+async function drawHutPhotos(browser, dir) {
+    const scenes = {
+        'hut.png': `
+            body { background: linear-gradient(#6fa3dc, #cfe3f4 70%); }
+            .peak { left: 0; right: 0; bottom: 120px; height: 300px; background: #8a9bb4;
+                    clip-path: polygon(0 70%, 30% 15%, 45% 40%, 62% 5%, 100% 60%, 100% 100%, 0 100%); }
+            .meadow { left: 0; right: 0; bottom: 0; height: 170px; background: linear-gradient(#5f8f4e, #3f6b35); }
+            .hut { left: 380px; bottom: 110px; width: 150px; height: 90px; background: #7a4a2b; }
+            .roof { left: 360px; bottom: 195px; width: 190px; height: 70px; background: #3b2a22;
+                    clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+            .window { left: 470px; bottom: 140px; width: 30px; height: 26px; background: #ffd77a; }
+            .door { left: 405px; bottom: 110px; width: 34px; height: 56px; background: #4a2c1a; }`,
+        'lake.png': `
+            body { background: linear-gradient(#f1a65f, #fbe0bd 55%, #4e7898 55%, #2d4f6b); }
+            .range { left: 0; right: 0; top: 150px; height: 114px; background: #3d4e63;
+                     clip-path: polygon(0 60%, 18% 20%, 30% 45%, 48% 0, 63% 40%, 78% 15%, 100% 55%, 100% 100%, 0 100%); }
+            .mirror { left: 0; right: 0; top: 264px; height: 114px; background: #3d4e63; opacity: .45; transform: scaleY(-1);
+                      clip-path: polygon(0 60%, 18% 20%, 30% 45%, 48% 0, 63% 40%, 78% 15%, 100% 55%, 100% 100%, 0 100%); }
+            .sun { left: 450px; top: 90px; width: 60px; height: 60px; border-radius: 50%; background: #fff1cf; }`,
+    };
+    const paths = [];
+    for (const [name, css] of Object.entries(scenes)) {
+        const page = await browser.newPage({ viewport: { width: 640, height: 480 } });
+        const divs = [...css.matchAll(/^\s*\.([a-z]+) \{/gm)].map(m => `<div class="${m[1]}"></div>`).join('');
+        await page.setContent(`<!doctype html><style>body { margin: 0; height: 480px; overflow: hidden; position: relative; }
+            div { position: absolute; } ${css}</style>${divs}`);
+        const path = join(dir, name);
+        await page.screenshot({ path });
+        await page.close();
+        paths.push(path);
+    }
+    return paths;
 }
 
 // A generated animated GIF (the sun rises and sets behind the same ridge), encoded

@@ -2,7 +2,7 @@
 
 Yap runs in the browser and can be installed on a phone or a desktop like an app. Without a connection it stays readable and keeps what the user writes. This page decides what the installed app is, what works without a connection, and what happens to messages written offline. The design behind it is in `docs/offline-design-notes.md`; the promise here is deliberately modest. Yap is not a critical system. A message lost once in a long while is acceptable; a second of lag on every tap is not.
 
-![Installed app, phone, offline. The grey connection ring in the header, the last messages readable, a faded pending message at the bottom.](img/offline-phone-pending.png)
+![Phone, offline. The grey connection ring in the header, the last messages readable, a faded pending message at the bottom.](img/offline-phone-pending.png)
 
 ## Rules
 
