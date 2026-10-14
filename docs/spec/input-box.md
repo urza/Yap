@@ -91,7 +91,7 @@ The input box is where a message is written and sent. It sits at the bottom of e
 
 **IB-30** Dropping files on the input box uploads them the same way. While a file (not text) is dragged over the box, the box shows "Drop images here" with an accent ring. The ring clears on drop, when the drag leaves, and when the drag is cancelled. A drop anywhere else does nothing, and the browser does not open the file.
 
-**IB-31** Accepted types are images .jpg, .jpeg, .png, .gif, .webp and videos .mp4, .webm, .mov, .avi, .mkv. Dropped or pasted files of other kinds are ignored. A file of another kind chosen with + is listed as unsupported in the upload dialog before anything is uploaded. *Why:* the old page let such a file wait half a minute before it failed.
+**IB-31** Accepted types are images .jpg, .jpeg, .png, .gif, .webp and videos .mp4, .webm, .mov, .avi, .mkv. Dropped or pasted files of other kinds are ignored. A file of another kind chosen with + is listed as unsupported in the upload dialog before anything is uploaded..
 
 **IB-32** One file may be up to the configured size limit, 100 MB by default. One message holds at most 10 files; a larger pick is refused with "Choose at most 10 files." and nothing is uploaded.
 

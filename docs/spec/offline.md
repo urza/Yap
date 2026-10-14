@@ -26,7 +26,7 @@ Yap runs in the browser and can be installed on a phone or a desktop like an app
 
 **OF-08** Sending works without a connection. Send accepts the message, shows it as pending in the conversation, and keeps it on the device. It is sent when the connection returns, also after the app was closed and reopened.
 
-**OF-09** A message with attachments is accepted without a connection up to 25 MB in total. Above that, Send does nothing and the input box says "needs a connection".
+**OF-09** A pick of files is accepted without a connection up to 25 MB in total. A larger pick is refused and the input box says "Needs a connection".
 
 **OF-10** Pending messages are sent in the order they were written, as soon as a connection exists. The user sees each one turn into a normal message. No action is needed.
 
@@ -55,8 +55,8 @@ Yap runs in the browser and can be installed on a phone or a desktop like an app
 | Open a conversation seen before | all | Its last messages at once. |
 | Open a conversation never seen | all | Header and empty list with "Needs a connection". |
 | Send a text | keyboard, touch | Pending row at the end at once. |
-| Send with attachments under 25 MB | touch, mouse | Pending row with the files. |
-| Send with attachments over 25 MB | touch, mouse | Nothing sent; "needs a connection" in the input box. |
+| Files picked, under 25 MB | touch, mouse | Pending row with the files. |
+| Files picked, over 25 MB | touch, mouse | The pick is refused; "Needs a connection" in the input box. |
 | Reaction, edit or delete | touch, mouse | "Needs a connection" at the row. |
 | Connection returns | all | Pending rows become normal rows in order; counts corrected; view unchanged. |
 | Server refuses a pending message | all | "Failed", reason, "Retry", "Remove". |
@@ -75,7 +75,7 @@ Yap runs in the browser and can be installed on a phone or a desktop like an app
 | Connection bubble | "Offline. Messages are sent when the connection returns."; "Reconnecting…" |
 | Top of the list without older messages | "Needs a connection" |
 | Row actions without a connection | "Needs a connection" |
-| Input box, too much to queue | "needs a connection" |
+| Input box, too much to queue | "Needs a connection" |
 | Failed message | "Failed"; "Retry"; "Remove" |
 
 ## Related
