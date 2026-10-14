@@ -1,6 +1,6 @@
 # Notifications and unread
 
-This page decides what is unread, when it becomes read, what the counts show, when a sound plays, what a mute silences, and when a device is notified while Yap is not in front. The places where the numbers appear are on the [frame page](frame.md); the rules that produce them are here.
+Unread counts and notifications tell a person about new messages. This page specifies what is unread, when it becomes read and what the counts show. It specifies when a sound plays and what a mute silences. It also specifies when a device receives a notification while Yap is not visible. The [frame page](frame.md) shows where the numbers appear. This page gives the rules that produce the numbers.
 
 ![Sidebar, desktop, with unread marks. A room with a red count, a muted room with a crossed bell and a dot, a person with a red count, a muted direct message with a crossed bell and a dot, the mailbox in the header with the total.](img/notifications-desktop-sidebar.png)
 
@@ -8,97 +8,97 @@ This page decides what is unread, when it becomes read, what the counts show, wh
 
 ### What is unread
 
-**NT-01** Every conversation has one unread count per person. It belongs to the account: every device of the person shows the same number, and a read on one device clears it on all of them at once.
+**NT-01** Every conversation has one unread count for each person. The count belongs to the account. Every device of the person shows the same number. A read on one device clears the count on all devices at once.
 
-**NT-02** Only a new message adds to a count. Edits, deletions, reactions, typing and presence never change it. The sender's own messages never count, also when sent from another device. Bot messages count like a person's.
+**NT-02** Only a new message increases a count. Edits, deletions, reactions, typing and presence never change it. The sender's own messages never count, also when the sender uses another device. Bot messages count like the messages of a person.
 
-**NT-03** A direct message counts for the other person, online or not. A room message counts for every person who has Yap open on any device at that moment, whatever their status, and for every person who has that room unmuted. A person who is offline and has the room muted gets nothing, not even a dot. *Why:* nobody should come back to a sidebar full of dots for rooms they never opened.
+**NT-03** A direct message counts for the other person, online or not. A room message counts for every person who has Yap open on any device at that moment, whatever their status. It also counts for every person who has that room unmuted. A person who is offline and has the room muted gets nothing. That person gets no count and no dot. *Why:* a person who opens Yap again should not find many dots in the sidebar for rooms that the person never opened.
 
-**NT-04** A mute never stops counting. A muted conversation shows a dot instead of its number, and unmuting reveals the true count.
+**NT-04** A mute never stops the count for a person who receives it. A muted conversation shows a dot instead of its number. When the person unmutes the conversation, its true count appears.
 
-**NT-05** Counts survive a reload and a server restart. Signing out keeps them.
+**NT-05** Counts stay after a reload and after a server restart. A sign-out does not clear them.
 
 ### When a conversation becomes read
 
-**NT-06** Opening a conversation marks it read, whatever the status and visibility: a tap in the sidebar, a link, a notification tap, a switch from another conversation. Leaving a conversation for Settings or another page marks it read when the page was visible and the person not away.
+**NT-06** Opening a conversation marks it read, whatever the status and the visibility. This includes a tap in the sidebar, a link, a notification tap and a switch from another conversation. Leaving a conversation for Settings or another page marks it read when the page was visible and the person was not away.
 
-**NT-07** A message that arrives in the open conversation is marked read at once when the page is visible, the person is not away, and the view is at the bottom. It then never shows a count on any device. Otherwise it stays unread until all three hold again: the tab comes back to the front, the person is not away, and the view reaches the bottom. A desktop window that is visible but not focused counts as visible.
+**NT-07** A message that arrives in the open conversation is marked read at once when three conditions are true. The conditions are that the page is visible, the person is not away, and the view is at the bottom. Such a message never shows a count on any device. Otherwise the message stays unread until all three conditions are true again. A desktop window that is visible but not focused counts as visible.
 
-**NT-08** A read clears the whole conversation. There is no partial read, no divider and no "mark all as read".
+**NT-08** A read clears the whole conversation. Yap has no partial read, no divider and no "mark all as read".
 
 ### Counts, total and badges
 
 **NT-09** A conversation's row shows its count when it is unmuted, a dot when it is muted, and nothing when it is the open conversation.
 
-**NT-10** The total in the mailbox is the sum of the counts of the unmuted conversations, without the open conversation. It equals the sum of the numbers the rows show.
+**NT-10** The total in the mailbox is the sum of the counts of the unmuted conversations. It does not include the open conversation. It equals the sum of the numbers that the rows show.
 
-**NT-11** The installed app's icon badge shows the sum of the unread counts of the unmuted conversations, the open one included. It updates while the app is open and when a notification arrives while it is closed; a suppressed or muted message leaves it as it is. A read on another device corrects it at the next notification or the next open.
+**NT-11** The icon badge of the installed app shows the sum of the unread counts of the unmuted conversations. The sum includes the open conversation. The badge updates while the app is open, and when a notification arrives while the app is closed. A suppressed or muted message does not change the badge. A read on another device corrects the badge at the next notification or the next open of the app.
 
-**NT-12** While the tab is hidden, the tab title starts with the number of arrivals this tab has seen since it was hidden, by the mute rules below. The number resets when the tab comes to the front. On a room page every unmuted conversation counts; on a direct message page only direct messages count.
+**NT-12** While the tab is hidden, the tab title starts with a number. The number counts the new messages that this tab received after it became hidden. The mute rules below apply to this number. The number resets when the tab becomes visible again. On a room page, every unmuted conversation counts. On a direct message page, only direct messages count.
 
 ### Sound
 
-**NT-13** A sound plays when a direct message arrives from someone else while the tab is hidden and a direct message page is open, unless the arriving direct message is muted. It never plays on a room page, never while the tab is visible, never for the person's own messages. Status does not matter.
+**NT-13** A sound plays when a direct message from another person arrives while the tab is hidden and a direct message page is open. No sound plays when the arriving direct message is muted. The sound never plays on a room page, while the tab is visible, or for the person's own messages. Status has no effect on the sound.
 
-**NT-14** One sound per arrival, whatever the number of tabs.
+**NT-14** One arrival plays one sound, whatever the number of tabs.
 
-**NT-15** The sound cannot be changed or turned off. A mute is the way to silence it.
+**NT-15** The person cannot change the sound or turn it off. To silence the sound, the person uses a mute.
 
 ### Mutes
 
-**NT-16** Mutes have three levels, read top down; the first that decides wins: the whole server, then all direct messages or all rooms, then one conversation.
+**NT-16** Mutes have three levels: the whole server, then all direct messages or all rooms, then one conversation. Yap checks the levels from the top down. The first level that decides applies.
 
-**NT-17** The server-wide mute has a duration: 1 hour, 1 day, 1 week, or until the person turns it back on. A new mute starts as "Until I turn it back on"; a duration pick counts from now, and the highlighted duration is the shortest one that still covers the time left. While the mute is on, the status menu shows a crossed bell and the direct message and room rows are hidden in Settings.
+**NT-17** The server-wide mute has a duration of 1 hour, 1 day, 1 week, or until the person turns notifications back on. A new mute starts as "Until I turn it back on". A duration pick counts from the moment of the pick. The highlighted duration is the shortest one that still covers the remaining time. While the mute is on, the status menu shows a crossed bell. Settings then hides the direct message and room rows.
 
-**NT-18** Direct messages and rooms each have a mode: "Allow all", "Individual" or "Mute all". In Individual mode every conversation has its own bell. New direct messages follow the "New DMs" bell; a new room is muted until the person allows it.
+**NT-18** Direct messages and rooms each have a mode: "Allow all", "Individual" or "Mute all". In Individual mode, every conversation has its own bell. New direct messages follow the "New DMs" bell. A new room is muted until the person allows it.
 
-**NT-19** Defaults for a new account: the server allowed, direct messages allowed, rooms muted.
+**NT-19** A new account has these defaults: the server is allowed, direct messages are allowed, and rooms are muted.
 
-**NT-20** The conversation a message arrives in decides: its mute setting applies to the count, the total, the badge, the sound, the tab title and the notification. The open conversation's setting does not matter.
+**NT-20** The conversation that receives a message decides. Its mute setting applies to the count, the total, the badge, the sound, the tab title and the notification. The setting of the open conversation has no effect.
 
-**NT-21** A muted conversation shows a dot when something arrives and nothing else: no number, no sound, no notification, no move to the top of the people list. Per-conversation choices survive a switch of mode and return with it.
+**NT-21** When something arrives in a muted conversation, the conversation shows a dot and nothing else. There is no number, no sound, no notification and no move to the top of the people list. The choices for each conversation stay after a switch of mode. They apply again when the person switches back.
 
-**NT-22** Mutes belong to the account and apply on every device. They are set in Settings only, under "Allow / Mute Notifications", and apply to the next message.
+**NT-22** Mutes belong to the account and apply on every device. The person sets them only in Settings, under "Allow / Mute Notifications". A change applies from the next message.
 
 ### Notifications on a device
 
-**NT-23** Any browser that supports it, and the installed app, can receive notifications while Yap is not open. A device subscribes in Settings, or from the "One more step" prompt in the installed app. Each device subscribes on its own.
+**NT-23** Any browser that supports notifications, and the installed app, can receive notifications while Yap is not open. A device subscribes in Settings, or from the "One more step" prompt in the installed app. Each device subscribes separately.
 
-**NT-24** A device's subscription belongs to the account signed in on it. Signing out removes it. "Sign out all other devices" removes the other devices' subscriptions too. A second account signing in on the device takes it over. A device that turned push off stays off until the person enables it again; nothing subscribes it silently.
+**NT-24** The subscription of a device belongs to the account that is signed in on the device. A sign-out removes the subscription. "Sign out all other devices" also removes the subscriptions of the other devices. When a second account signs in on the device, the first account's subscription is removed, and the second account can make its own. When the person turns push off on a device, push stays off until the person enables it again. Yap never subscribes a device silently.
 
-**NT-25** A notification is sent for a direct message to the other person, and for a room message to every person who has that room unmuted, except the sender.
+**NT-25** For a direct message, Yap sends a notification to the other person. For a room message, Yap sends a notification to every person who has that room unmuted, except the sender.
 
-**NT-26** No notification is sent to a person who is online and has a visible Yap session on any device. Away, chosen or automatic, does not suppress notifications: away is when the phone should buzz, and an idle desktop tab must not eat it. Invisible does not suppress them either. A hidden tab suppresses nothing.
+**NT-26** Yap sends no notification to a person who is online and has a visible Yap session on any device. Away, chosen or automatic, does not suppress notifications. When a person is away, the phone should show the notification, and an idle desktop tab must not suppress it. Invisible also does not suppress notifications. A hidden tab suppresses nothing.
 
-**NT-27** A direct message notification is titled "DM from {display name}" with the message text as typed, shortcodes included, as its body. A room notification is titled "#{room}" with "{display name}: {text}". A message with a GIF reads "[GIF]"; a message with images or videos reads "[Attachment]". Bodies longer than 100 characters are cut with "...". Notifications of one conversation replace each other and alert again.
+**NT-27** A direct message notification has the title "DM from {display name}". Its body is the message text as typed, including shortcodes. A room notification has the title "#{room}" and the body "{display name}: {text}". A message with a GIF shows "[GIF]". A message with images or videos shows "[Attachment]". A body longer than 100 characters is cut and ends with "...". A new notification of a conversation replaces the previous one and alerts again.
 
-**NT-28** A tap on a notification opens that conversation in an open Yap window, or opens a new one. The notification carries the unread total for the icon badge. A read in the app does not remove a notification already shown.
+**NT-28** A tap on a notification opens that conversation in an open Yap window, or in a new window. The notification contains the unread total for the icon badge. A read in the app does not remove a notification that is already shown.
 
-**NT-29** Every message sends its own notification at once. There is no grouping delay and no summary message.
+**NT-29** Yap sends a separate notification for every message at once. There is no delay for grouping and no summary message.
 
-**NT-30** "Send a test to all devices" in Settings notifies every subscribed device, ignores every mute, and leaves the badge alone.
+**NT-30** "Send a test to all devices" in Settings sends a notification to every subscribed device. The test ignores every mute and does not change the badge.
 
-**NT-31** The notification prompt shows only in the installed app while the browser has not been asked, up to three dismissals. A refusal in the browser ends it for good; the person can still enable notifications in Settings when the browser allows it. See [frame page](frame.md#SH-38).
+**NT-31** The notification prompt shows only in the installed app, and only while the browser is not yet asked for permission. It stops after three dismissals. A refusal in the browser stops it permanently. The person can still enable notifications in Settings when the browser allows it. See [frame page](frame.md#SH-38).
 
 ## States
 
 | State or trigger | Input | What the user sees |
 | --- | --- | --- |
-| Message in an unmuted room, person online elsewhere | all | Red count on the row; total up; notification only if the room is unmuted and no session is visible. |
+| Message in an unmuted room, person online elsewhere | all | Red count on the row; the total increases; a notification only if the room is unmuted and no session is visible. |
 | Message in a muted room | all | Dot on the row for a person with Yap open; nothing for an offline person. |
-| Direct message, person offline | all | Count on the row at the next open; notification on every subscribed device. |
+| Direct message, person offline | all | Count on the row when the person next opens Yap; notification on every subscribed device. |
 | Direct message, tab hidden on a direct message page | all | Sound; title "(1) …"; a count unless it is the open conversation; no notification if the person is online with a visible session elsewhere. |
-| Direct message, online with a visible session anywhere | all | No notification; sound and counts by the rows above. |
-| Open conversation, visible, not away, at the bottom | all | Arrival read at once; no count anywhere. |
-| Open conversation, away or hidden | all | Stays unread; read when the person is back. |
+| Direct message, online with a visible session anywhere | all | No notification; sound and counts as in the rows above. |
+| Open conversation, visible, not away, at the bottom | all | The new message is read at once; no count on any device. |
+| Open conversation, away or hidden | all | Stays unread; read when the person returns. |
 | Open conversation, scrolled up | all | Stays unread until the view reaches the bottom; the pill shows. |
 | Read on the phone | all | Desktop row and mailbox clear at once. |
-| Tab returns to the front | all | Title prefix gone; open conversation read if at the bottom and not away. |
-| Server mute on | all | Crossed bell in the status menu; no sounds or notifications; counts go on as dots. |
-| Timed mute ends | all | Everything back to the settings below it. |
+| Tab becomes visible again | all | Title prefix gone; open conversation read if at the bottom and not away. |
+| Server mute on | all | Crossed bell in the status menu; no sounds or notifications; counts continue as dots. |
+| Timed mute ends | all | The settings of the lower levels apply again. |
 | Unmute a conversation | all | Its true count appears. |
 | Notification tap | touch, mouse | The conversation opens and is read. |
-| Test send | mouse, touch | Every device shows the test banner; result line for 3 s. |
+| Test send | mouse, touch | Every device shows the test banner; the result line shows for 3 s. |
 
 ## Wording
 

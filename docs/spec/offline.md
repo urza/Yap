@@ -1,6 +1,6 @@
 # Offline and installation
 
-Yap runs in the browser and can be installed on a phone or a desktop like an app. Without a connection it stays readable and keeps what the user writes. This page decides what the installed app is, what works without a connection, and what happens to messages written offline. The design behind it is in `docs/offline-design-notes.md`; the promise here is deliberately modest. Yap is not a critical system. A message lost once in a long while is acceptable; a second of lag on every tap is not.
+Yap runs in the browser and can also be installed as an app on a phone or a desktop. Without a connection, the user can still read conversations, and Yap keeps what the user writes. This page specifies what the installed app is, what works without a connection, and what happens to messages written offline. The design is in `docs/offline-design-notes.md`. The promise on this page is intentionally limited. Yap is not a critical system. The loss of a message on rare occasions is acceptable. A delay of one second on every tap is not acceptable.
 
 ![Phone, offline. The grey connection ring in the header, the last messages readable, a faded pending message at the bottom.](img/offline-phone-pending.png)
 
@@ -8,41 +8,41 @@ Yap runs in the browser and can be installed on a phone or a desktop like an app
 
 ### Installation
 
-**OF-01** Yap can be installed from the bot's welcome message ("install it"), from Settings ("Install Yap"), or from the browser's own install control. The install dialog explains how to replace an older install before it starts the browser's install or shows the add-to-home-screen guide. When Yap is already installed, the dialog says so.
+**OF-01** The user can install Yap from the bot's welcome message ("install it"), from Settings ("Install Yap"), or from the browser's own install control. The install dialog first explains how to replace an older install. Then it starts the browser's install or shows the add-to-home-screen guide. When Yap is already installed, the dialog says so.
 
-**OF-02** The installed app opens full screen, with the Yap icon, name and colours. It starts on the user's last conversation, else the lobby.
+**OF-02** The installed app opens full screen, with the Yap icon, name and colours. It starts on the user's last conversation, or on the lobby if there is none.
 
-**OF-03** The installed app signs in by itself on its first launch, within 72 hours of the install, when it was installed from a signed-in browser. An app that still starts signed out shows the login page, as the [sign-in page](sessions.md#AU-24) says. Afterwards it keeps its own session like any device.
+**OF-03** When the app is installed from a signed-in browser, it signs in automatically on its first launch, within 72 hours after the install. An app that still starts signed out shows the login page, as the [sign-in page](sessions.md#AU-24) says. After its first sign-in, the app keeps its own session, like any device.
 
-**OF-04** A new version of Yap is announced in the notice strip with "Reload". Yap never reloads by itself, and a reload keeps drafts and unsent messages.
+**OF-04** The notice strip announces a new version of Yap with "Reload". Yap never reloads automatically. A reload keeps drafts and unsent messages.
 
 ### Without a connection
 
-**OF-05** The header shows the state: a grey ring while offline, a pulsing orange dot while reconnecting. No banner covers the content. Others see the person as away after 30 seconds and offline after 5 minutes, as the [presence page](presence.md#PR-15) says. A device signed out elsewhere learns of it when the connection returns.
+**OF-05** The header shows the connection state. It shows a grey ring while the device is offline and a pulsing orange dot while it reconnects. No banner covers the content. Other people see the person as away after 30 seconds and as offline after 5 minutes, as the [presence page](presence.md#PR-15) says. A device that is signed out from elsewhere receives the sign-out when the connection returns.
 
-**OF-06** Every conversation the user has opened on this device shows its last messages and can be read and scrolled, also after a reload. Older messages that were not loaded say "Needs a connection" at the top of the list. Media that was seen before shows; media that was not shows "Needs a connection" in its place.
+**OF-06** Every conversation that the user opened on this device shows its last messages. The user can read and scroll it, also after a reload. When older messages were not loaded, the top of the list shows "Needs a connection". Media that was seen before shows. Media that was not seen before shows "Needs a connection" in its place.
 
-**OF-07** Typing, drafts, emoji, the emoji picker, the GIF picker's own lists, switching conversations and reading all work without a connection. Settings and Administration need a connection.
+**OF-07** Typing, drafts, emoji, the emoji picker, the GIF picker's own lists, a switch between conversations and reading all work without a connection. Settings and Administration need a connection.
 
-**OF-08** Sending works without a connection, also in a conversation never opened on the device. Send accepts the message, shows it as pending in the conversation, and keeps it on the device. It is sent when the connection returns, also after the app was closed and reopened.
+**OF-08** Sending works without a connection, also in a conversation that the user never opened on the device. Send accepts the message, shows it as pending in the conversation and keeps it on the device. Yap sends the message when the connection returns, also after the app was closed and opened again.
 
-**OF-09** A pick of files is accepted without a connection up to 25 MB in total. A larger pick is refused and the input box says "Needs a connection".
+**OF-09** Without a connection, Yap accepts a pick of files up to 25 MB in total. Yap refuses a larger pick, and the input box shows "Needs a connection".
 
-**OF-10** Pending messages are sent in the order they were written, as soon as a connection exists. The user sees each one turn into a normal message. No action is needed.
+**OF-10** Yap sends pending messages in the order in which the user wrote them, as soon as a connection exists. The user sees each one change into a normal message. The user does not have to do anything.
 
-**OF-11** A pending message that the server refuses shows as failed, with the reason, "Retry" and "Remove". A pending message that has waited more than one day shows as failed too. Remove deletes it from the device only.
+**OF-11** When the server refuses a pending message, the message shows as failed, with the reason, "Retry" and "Remove". A pending message that waits for more than one day also shows as failed. Remove deletes the message from the device only.
 
-**OF-12** Reactions, edits and deletions of sent messages, the GIF star, GIF uploads, search and trending need a connection. Where the user tries them, the answer is "Needs a connection" and nothing changes. A GIF pick is queued like a message. A pending message can still be edited and removed on the device. The status items in the status menu are dimmed.
+**OF-12** Reactions, edits and deletions of sent messages, the GIF star, GIF uploads, search and trending need a connection. When the user tries one of them, Yap shows "Needs a connection" there, and nothing changes. A GIF pick is queued like a message. The user can still edit and remove a pending message on the device. The status items in the status menu are dimmed.
 
-**OF-13** Reconnecting is automatic: when the network returns, when the tab comes back, and when the user taps the connection dot, which also shows its bubble. The newest messages are refreshed and the unread counts corrected; the view keeps its place.
+**OF-13** Yap reconnects automatically when the network returns and when the tab becomes visible again. It also reconnects when the user taps the connection dot. The tap also shows the bubble of the dot. Yap then refreshes the newest messages and corrects the unread counts. The view keeps its position.
 
 ### The promise and its limits
 
-**OF-14** Offline reading shows what the device already had. It does not download conversations ahead of time beyond the ones the user opened.
+**OF-14** Reading without a connection shows what the device already has. Yap does not download in advance any conversation that the user did not open.
 
-**OF-15** Sending later is best effort. A message is lost without a trace when the device loses its storage or when another account signs in on the device. In every other case a message that cannot be sent shows as failed.
+**OF-15** Sending later is best effort. A message is lost with no indication when the device loses its storage or when another account signs in on the device. In every other case, a message that cannot be sent shows as failed.
 
-**OF-16** Signing out, or a different account signing in on the device, removes every draft, pending message, cached conversation and notification subscription of the previous account.
+**OF-16** A sign-out removes every draft, pending message, cached conversation and notification subscription of the previous account. A sign-in of a different account on the device does the same.
 
 ## States
 
@@ -62,7 +62,7 @@ Yap runs in the browser and can be installed on a phone or a desktop like an app
 | Server refuses a pending message | all | "Failed", reason, "Retry", "Remove". |
 | Pending for more than a day | all | Shown as failed. |
 | App closed with pending messages, reopened online | touch | They are sent. |
-| Sign out | touch, mouse | Device data gone; confirmation first when pending messages exist. |
+| Sign out | touch, mouse | Device data removed; a confirmation first when pending messages exist. |
 
 ## Wording
 
