@@ -19,7 +19,7 @@ Component pages and feature pages cross-link. A component page says what a part 
 | --- | --- | --- |
 | [Yap](yap.md) | YAP | draft, in review |
 | [General rules](general-rules.md) | GEN | draft, in review |
-| [Input box](input-box.md) | IB | reviewed |
+| [Input box](input-box.md) | IB | draft, in review |
 | [Message row and actions](message-row.md) | MR | draft, in review |
 | [Emoji and GIF pickers](pickers.md) | PK | draft, in review |
 | [Timeline and media](timeline.md) | TL | draft, in review |
