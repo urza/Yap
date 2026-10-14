@@ -1,6 +1,6 @@
 # Message row and actions
 
-A message row is one message as it appears in the conversation: who wrote it, when, the text or media, the replies and reactions attached to it, and the actions the reader can take on it. Rows from the same author within an hour form a group under one header. Everything a reader can do to a message happens in the row: react, reply, edit, delete, copy, open media.
+A message row is one message as it appears in the conversation: who wrote it, when, the text or media, the replies and reactions attached to it, and the actions the reader can take on it. Rows from the same author within an hour form a group under one header. Everything a reader can do to a message happens in the row: react, reply, edit, delete, copy, open media. "Phone" on this page means a window 600 px wide or less, as in the [general rules](general-rules.md#GEN-14).
 
 ## Anatomy
 
@@ -18,7 +18,7 @@ A message row is one message as it appears in the conversation: who wrote it, wh
 4. **Content.** The text with links and emoji, or the media: images in a gallery, videos, GIFs. A text row may end with "(edited)".
 5. **Link cards.** Under the text, one card per link with a preview, at most five.
 6. **Reaction pills.** Under the content: the emoji and the count, the reader's own reactions highlighted.
-7. **Action bar.** Top right of the row, shown on hover or after a tap: quick reactions, Add Reaction, Reply, Edit on own text rows, the GIF star on phones, More.
+7. **Action bar.** Top right of the row, shown on hover or after a tap: quick reactions, Add Reaction, Reply, the GIF star on phones, Edit on own text rows, More.
 8. **Popups.** The reaction picker, the More menu and the delete dialog open from the bar. On a phone the picker and the menu are bottom sheets.
 9. **System line.** In the lobby, a centred italic line when someone joins or leaves. It has no header, no actions and no hover.
 
@@ -38,7 +38,7 @@ A message row is one message as it appears in the conversation: who wrote it, wh
 
 **MR-06** Times are in the user's time zone and in the date order and clock style from Settings. Until the user changes them, they follow the language of the browser used at sign-up. Labels follow the clock: a message from today reads "Yesterday" once midnight passes.
 
-**MR-07** Own messages and other people's messages look the same. Only the available actions differ.
+**MR-07** Own messages and other people's messages look the same. Only the available actions differ. A tap on the avatar or the name opens nothing; the profile card opens from the sidebar.
 
 **MR-08** The pointer over a row tints the row. The tint stays while the row's picker, menu or dialog is open.
 
@@ -52,7 +52,7 @@ A message row is one message as it appears in the conversation: who wrote it, wh
 
 **MR-12** Links are recognised in text: addresses that start with http:// or https://, addresses that start with www., and bare domains that end in .com, .org, .net, .io, .dev, .app, .co, .me, .info, .edu or .gov. Trailing punctuation stays outside the link. A closing bracket that balances an opening bracket inside the address stays inside it, so an encyclopedia link keeps its tail.
 
-**MR-13** A link shows as typed, in the accent colour, underlined on hover only. It opens in a new tab. The domain of an e-mail address is not a link.
+**MR-13** A link shows as typed, in the accent colour, underlined on hover only. It opens in a new tab. An e-mail address is not a link, and neither is its domain.
 
 **MR-14** An edited text row ends with "(edited)" in small placeholder-coloured text.
 
@@ -64,7 +64,7 @@ A message row is one message as it appears in the conversation: who wrote it, wh
 
 **MR-17** A custom pack emoji is written as ":shortcode:" and shows as the pack image at the same sizes. An unknown shortcode stays text. A shortcode inside a link stays text.
 
-**MR-18** Emoji in messages load before the row is shown, so they do not pop in while the reader reads.
+**MR-18** Emoji in messages do not pop in while the reader reads.
 
 ### Link cards
 
@@ -76,35 +76,35 @@ A message row is one message as it appears in the conversation: who wrote it, wh
 
 **MR-22** Cards appear when the server has read the page, a moment after the message. A reader who is at the bottom of the list stays at the bottom when a card appears. A card, once shown, stays with the message. An edit that adds or removes a link adds or removes its card.
 
-**MR-23** When the admin switch for media caching is on, a link to a video or audio file shows a player instead of a card: the site name and the title above the player. A player downloads nothing until the user plays it.
+**MR-23** When the admin switch for media caching is on, a link to a page whose video or audio the server can download shows a player instead of a card: the site name and the title above the player. A player downloads nothing until the user plays it.
 
 ### Images, videos and GIFs
 
 **MR-24** A message with media shows no text. One image shows at its own ratio, at most 400 px wide and 350 px high on desktop, full width and at most 450 px high on a phone. While it loads, a 4:3 box of the sidebar colour holds its place.
 
-**MR-25** Several images form a gallery of square cropped thumbnails in rows of two or three, with 4 px gaps. Two and three images make one row. Four make two and two. Five make two and three. Six make three and three. Larger counts continue the pattern of twos and threes.
+**MR-25** Several images form a gallery of square cropped thumbnails in rows of two or three, with 4 px gaps. Two and three images make one row. Four make two and two. Five make two and three. Six make three and three. Seven make two, two and three. Eight make two, three and three. Nine make three rows of three. Ten make two, two, three and three. More continue in rows of three.
 
 **MR-26** A tap or click on an image opens the gallery viewer at that image, with this message's images only. The viewer is on the [timeline page](timeline.md).
 
-**MR-27** A video shows its poster frame under a dark tint with a round play icon. A tap turns on the controls and plays. When it ends or is paused at the start, the poster and the icon come back. On an iPhone a video plays in the phone's full-screen player.
+**MR-27** Videos stack with 4 px gaps, each at most 400 px wide and 350 px high on desktop, full width on a phone. A video shows its poster frame under a dark tint with a round play icon. A tap turns on the controls and plays. When it ends or is paused at the start, the tint and the icon come back over the current frame. On an iPhone a video plays in the phone's full-screen player.
 
-**MR-28** A GIF keeps its own ratio, at most 360 px wide, never cropped. It plays by itself, muted and looped. While it loads, a small spinner shows after a quarter second. When the GIF no longer exists, the row reads "GIF unavailable".
+**MR-28** A GIF keeps its own ratio, at most 360 px wide, never cropped; while its size is unknown it holds a 240 px square. It plays by itself, muted and looped. While it loads, a small spinner shows after a quarter second. A tap on a GIF opens nothing. When the GIF no longer exists, the row reads "GIF unavailable".
 
 **MR-29** When the browser blocks autoplay, the next tap or key press anywhere starts every paused GIF.
 
 **MR-30** A GIF has a favourite star at its top right corner. On desktop the star shows on hover; a favourited star is gold and always shows. A click changes the favourite and nothing else. On a phone the corner star only marks a favourite; favouriting is done from the star in the action bar.
 
-**MR-31** On hover a GIF shows "via {name}" at its bottom left, the display name of the person who first sent it.
+**MR-31** On hover a GIF uploaded to Yap shows "via {name}" at its bottom left, the display name of the person who uploaded it. A GIF from the provider shows no name.
 
 ### Reply quote
 
-**MR-32** A reply shows the quote line above its header: a 16 px avatar, the original author's display name, and the original text on one line with an ellipsis, two lines on a phone. For a media-only original it reads "Click to see attachment". The quote shows emoji as small images and no links.
+**MR-32** A reply shows the quote line above its header: a 16 px avatar, the original author's display name, and the original text on one line with an ellipsis, two lines on a phone. For a media-only original it reads "Click to see attachment". The quote shows emoji as small images and no links, and it follows edits to the original.
 
 **MR-33** A curved connector runs from the quote's avatar to the reply's avatar. A reply always starts a group, so it always has a header.
 
-**MR-34** A tap or click on the quote scrolls the list to the original message, centred, and tints it for two seconds. When the original is not loaded yet, the list loads older messages until it is.
+**MR-34** A tap or click on the quote scrolls the list to the original message, centred, and tints it for two seconds. When the original is not loaded yet, it is loaded first.
 
-**MR-35** When the original message was deleted, the quote reads "Original message unavailable" and the connector stays.
+**MR-35** When the original message was deleted, the quote reads "Original message unavailable", the connector stays, and a tap on the quote does nothing.
 
 **MR-36** While the pointer is over the quote, the action bar hides so the quote stays readable.
 
@@ -190,17 +190,17 @@ A message row is one message as it appears in the conversation: who wrote it, wh
 
 **MR-71** A message that could not be sent shows "Failed", the reason, "Retry" and "Remove". Remove deletes it from this device only. A message that waited more than one day shows as failed.
 
-**MR-72** A pending message offers Edit on text rows and Remove, acting on the device. It offers no reactions and no Reply.
+**MR-72** A pending message offers Edit on text rows and, under More, Copy Text and Remove, all acting on the device. It offers no reactions and no Reply.
 
 ### System lines and bot rows
 
-**MR-73** In the lobby, a centred italic line appears when a person's first session joins or last session leaves, with a random text from the configured lists. The line is not stored; a reload removes it.
+**MR-73** In the lobby, a centred italic line appears when a person's first session joins or last session leaves, with a random text from the configured lists and the person's username. The line is not stored; a reload removes it.
 
 **MR-74** A bot message may contain an "install it" link. It starts the installation of Yap on the device. See [Offline and installation](offline.md).
 
 ### Without a connection
 
-**MR-75** Reactions, edits and deletes need a connection. A tap on a pill, a quick reaction, Save or Delete without a connection changes nothing and shows "Needs a connection" at the row for two seconds. Reply, Copy Text and opening media work as usual.
+**MR-75** Reactions, edits, deletes and the GIF star need a connection. Without one, a tap on a pill, a quick reaction, a pick in the reaction picker, the star, Save or Delete changes nothing and shows "Needs a connection" at the row for two seconds. Pending messages are the exception: their Edit and Remove act on the device. Reply, Copy Text and opening media seen before work as usual.
 
 ## States
 
@@ -221,13 +221,13 @@ A message row is one message as it appears in the conversation: who wrote it, wh
 | Pick in the picker | mouse, touch | Picker closes; reaction toggled; emoji moved to the front of recents. |
 | Tap outside the picker, Escape | mouse, touch, keyboard | Picker closes; nothing else happens. |
 | Reply | mouse, touch | Reply bar in the input box, draft focused, row tinted. |
-| More | mouse, touch | Dropdown (desktop) or bottom sheet (phone) with Copy Text and, on own rows, Delete Message. |
+| More | mouse, touch | Dropdown (desktop) or bottom sheet (phone) with Copy Text when the row has text and, on own rows, Delete Message. |
 | Tap outside the menu | mouse, touch | Menu closes; nothing underneath is pressed. |
 | Scroll with the menu open | touch | Menu stays open. |
 | Copy Text | mouse, touch | Text copied as typed; menu closes. |
 | Edit | mouse, touch | Editor in the row, caret at the end, bar hidden. Phone: keyboard state unchanged. |
-| Enter in the editor | keyboard, no touch | Saves. |
-| Enter in the editor | touch device | Newline. |
+| Enter in the editor | keyboard, device without touch | Saves. |
+| Enter in the editor | keyboard, device with touch | Newline. |
 | Escape in the editor | keyboard | Cancels. |
 | Save, unchanged or empty | all | Editor closes, message unchanged. |
 | Save, changed | all | New text for everyone, "(edited)" appended. |
@@ -238,18 +238,19 @@ A message row is one message as it appears in the conversation: who wrote it, wh
 | Tap on the quote | mouse, touch | List scrolls to the original, centred, tinted for 2 s; older messages load if needed. |
 | Tap on an image | mouse, touch | Gallery viewer with this message's images. |
 | Tap on a video | mouse, touch | Controls on, playing; iPhone full-screen player. |
-| Video ends | all | Poster and play icon back. |
+| Video ends | all | Tint and play icon back over the current frame. |
 | GIF loading | all | Spinner after 0.25 s. |
 | Autoplay blocked | all | The next tap or key starts all GIFs. |
 | Pointer over a GIF | mouse | Corner star and "via {name}". |
-| Star tap | mouse, touch | Favourite toggled; nothing else. |
+| Corner star tap | mouse | Favourite toggled; nothing else. |
+| Bar star tap | touch | Favourite toggled; nothing else. |
 | Link in text | mouse, touch | Opens in a new tab. |
 | Card arrives | all | Card under the text; a reader at the bottom stays at the bottom. |
 | Own message sent | all | Faded full row at the end at once. |
 | Message accepted | all | Row becomes normal. |
 | Send failed | all | "Failed", reason, Retry, Remove. |
 | Files uploading | all | File names, progress bar, "Cancel upload". |
-| No connection, reaction, Save or Delete | all | Nothing changes; "Needs a connection" at the row for 2 s. |
+| No connection, reaction, star, Save or Delete | all | Nothing changes; "Needs a connection" at the row for 2 s. |
 | Someone joins or leaves the lobby | all | Centred italic system line. |
 
 ## Wording
@@ -257,6 +258,7 @@ A message row is one message as it appears in the conversation: who wrote it, wh
 | Where | Text |
 | --- | --- |
 | Edited marker | "(edited)" |
+| Avatar tooltip | the display name |
 | Bot badge tooltip | "Bot" |
 | Bot install link | "install it" |
 | Time, yesterday | "Yesterday {time}" |
@@ -271,7 +273,8 @@ A message row is one message as it appears in the conversation: who wrote it, wh
 | More menu | "Copy Text"; "Delete Message" |
 | Editor | "✓ Save" (tooltip "Save"); "✕ Cancel" (tooltip "Cancel"); "Enter to save · Shift+Enter for newline · Esc to cancel" |
 | Delete dialog | "Delete Message"; "Are you sure you want to delete this message?"; "GIF attachment"; preview alt texts "Attachment", "Video attachment"; "Pro tip: hold Shift when deleting to skip this confirmation." with Shift as a keycap; "Cancel"; "Delete" |
-| Pending row | "Cancel upload"; "Failed"; "Retry"; "Remove" |
+| Pending row | "Cancel upload"; "Failed"; "Retry"; "Remove"; the reason is the server's refusal text, or "Could not send" when there is none |
+| Reaction tooltip | the display names joined with ", " |
 | Without a connection | "Needs a connection" |
 | Lobby join lines (configured; defaults) | "{0} just dropped", "{0} is here", "{0} arrives", "W {0} joined", "{0} spawned in", "{0} returns" |
 | Lobby leave lines (configured; defaults) | "{0} dipped", "{0} ghosted us", "{0} went to touch grass", "{0} logged off", "{0} left on read", "{0} has left the chat", "rip {0}" |
