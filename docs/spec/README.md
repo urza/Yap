@@ -25,7 +25,7 @@ Component pages and feature pages cross-link. A component page says what a part 
 | [Timeline and media](timeline.md) | TL | draft, in review |
 | [Header, sidebar and overlays](frame.md) | SH | draft, in review |
 | [Settings](settings.md) | ST | draft, in review |
-| [Administration](admin.md) | AD | planned |
+| [Administration](admin.md) | AD | draft, in review |
 | [Presence](presence.md) | PR | draft, in review |
 | [Notifications and unread](notifications.md) | NT | draft, in review |
 | [Sign-in and sessions](sessions.md) | AU | draft, in review |

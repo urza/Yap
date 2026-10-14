@@ -71,7 +71,7 @@ Settings is the one page where a person shapes their own Yap: profile, look, way
 
 **ST-21** My GIFs is the user's pool: everything starred plus their own uploads, in folders. The toolbar has folder chips ("All", "Unsorted", one per folder), a filter field from nine GIFs on, "＋ Add GIFs", "Import zip" and "Export". A quota bar shows "{used} of {quota} used" for the user's own uploads; starred GIFs are free.
 
-**ST-22** Add takes several .gif, .webp or short video files at once, up to 50 MB each, into the open folder, with a progress line and one error line per refused file. Import takes one zip up to 1 GB whose subfolders become folders and whose manifest adds tags. Export downloads the pool as a zip that imports back without loss.
+**ST-22** Add takes several .gif, .webp or short video files at once, up to 50 MB each, into the open folder, with a progress line and one error line per refused file. Import takes one zip up to 1 GB whose subfolders become folders and whose tag list, when present, adds tags. Export downloads the pool as a zip that imports back without loss.
 
 **ST-23** A card shows the preview, up to four tag chips and the folder choice. Tags are edited in place and belong to the GIF, so a change affects search for everyone who can see it. A new folder is created from the folder choice; a folder disappears when its last GIF leaves it.
 
