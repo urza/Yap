@@ -6,7 +6,7 @@ This page is the map. Each part links to its own page with the rules. The [gener
 
 ## People and accounts
 
-An account is a username, chosen once, with a display name, an avatar, a short bio and a location the person can change at any time. The first human account on a server is its admin. A bot account, "Ping", welcomes new people and nudges phone users to install the app.
+An account is a username, chosen once, with a display name, an avatar, a short bio and a location the person can change at any time. The first human account on a server is its admin. A bot account, "Ping" by default, welcomes new people and nudges phone users to install the app. Its username, display name and welcome text are set per server; the display name and the text can be changed on the administration page.
 
 People get in by an invite link or by registering, unless the admin closed registration. Signing in is meant to be forgotten: a device stays signed in, a device on a known network signs in with the username alone, a login link signs in any other device, and a secret code is the fallback. One account can be signed in on several devices at once, and the other devices can be signed out from any one of them. See [Sign-in and sessions](sessions.md).
 
