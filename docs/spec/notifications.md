@@ -64,7 +64,7 @@ This page decides what is unread, when it becomes read, what the counts show, wh
 
 **NT-23** Any browser that supports it, and the installed app, can receive notifications while Yap is not open. A device subscribes in Settings, or from the "One more step" prompt in the installed app. Each device subscribes on its own.
 
-**NT-24** A device's subscription belongs to the account signed in on it. Signing out removes it. "Sign out other devices" removes the other devices' subscriptions too. A second account signing in on the device takes it over.
+**NT-24** A device's subscription belongs to the account signed in on it. Signing out removes it. "Sign out all other devices" removes the other devices' subscriptions too. A second account signing in on the device takes it over.
 
 **NT-25** A notification is sent for a direct message to the other person, and for a room message to every person who has that room unmuted, except the sender.
 

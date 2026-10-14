@@ -40,7 +40,7 @@ Presence is what Yap tells people about each other's current state: who is onlin
 
 ### Leaving
 
-**PR-14** Closing the last tab, signing out, or "Sign out other devices" takes the person out of the list at once.
+**PR-14** Closing the last tab, signing out, or "Sign out all other devices" takes the person out of the list at once.
 
 **PR-15** When a connection drops without the tab closing (network loss, phone sleep, a closed laptop), the person shows as away after 30 seconds, unless another of their devices is visible and active. A visible device blocks the change so that a locked phone does not turn an attended desktop orange.
 
