@@ -6,9 +6,9 @@ The emoji picker and the GIF picker open from the input box and put an emoji int
 
 ![Emoji picker, desktop. The category bar on the left with Recent active, the search field on top, the Recent row, then the first pack section.](img/pickers-desktop-emoji.png)
 
-![GIF picker, desktop, Browse tab. The tab rail on the left, the search row with the upload button, the Favorites and library tiles, the Trending header and grid, the attribution badge at the bottom.](img/pickers-desktop-gif-browse.png)
+![GIF picker, desktop, Browse tab without a provider. The tab rail on the left with Trending disabled, the library search field with the upload button, and the Favorites tile. With a provider, a Trending header and grid and the attribution badge follow.](img/pickers-desktop-gif-browse.png)
 
-![Phone sheet, GIFs tab. The tab row GIFs and Emoji, the GIF rail and the search row, a two-column grid of cards.](img/pickers-phone-sheet-gifs.png)
+![Phone sheet, GIFs tab, Favorites open. The tab row GIFs and Emoji, the GIF rail and the search row, a favourite card with its gold star, the Settings link.](img/pickers-phone-sheet-gifs.png)
 
 1. **Category bar.** A 40 px rail on the left of the emoji picker, one icon per section: Recent, each custom pack, then the ten categories. The icon of the section in view is highlighted.
 2. **Emoji search.** A field at the top of the grid with a clear button. Results update on every keystroke.
@@ -123,7 +123,7 @@ The emoji picker and the GIF picker open from the input box and put an emoji int
 
 ### The phone sheet
 
-**PK-45** On a phone (600 px or less) both pickers live in one bottom sheet with the tabs "GIFs" and "Emoji", Emoji first. The sheet is half the screen high, at most 400 px. Each tab fills the sheet and scrolls inside it. The rails are 36 px wide.
+**PK-45** On a phone (600 px or less) both pickers live in one bottom sheet with the tabs "GIFs" and "Emoji" in that order. Emoji is the active tab on the first open. The sheet is half the screen high, at most 400 px. Each tab fills the sheet and scrolls inside it. The rails are 36 px wide.
 
 **PK-46** A tab switch is instant and keeps each tab's search text, results and scroll position. The active tab is remembered until the page is reloaded.
 

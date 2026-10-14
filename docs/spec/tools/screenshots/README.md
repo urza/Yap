@@ -45,9 +45,18 @@ On a fresh instance, registration is open, so a new name at `/auth/signin?userna
 - about 30 messages between them in `#lobby`, with a few emoji, one image, one reply and one reaction;
 - a direct message thread of six messages.
 
-It then waits with the bot conversation open until the bot's welcome message arrives (the bot sends it one minute after sign-up). That keeps unread badges out of the images. The seed takes a little over one minute.
+It then waits with the bot conversation open until the bot's welcome message arrives (the bot sends it one minute after sign-up). That keeps unread badges out of the images.
 
-The seed runs once. If `alice` or `bob` already exists, it does nothing.
+After that come the additions:
+
+- the direct thread grows by six steps: a group of three rows from `alice` between two rows from `bob`, then a GIF from `alice`;
+- two of alice's emoji in that group are picks in the emoji picker, not typed, because only picks and reactions fill the account's recent emoji;
+- the GIF is a small animated GIF that the seed draws itself, uploaded with the GIF picker's upload button; the upload also makes it alice's favourite;
+- three reactions on bob's reply in `#lobby`: bob 👍, alice 😂, bob 😂. For alice only the second pill is her own.
+
+The seed takes a little under one and a half minutes.
+
+The base seed runs once: if `alice` or `bob` already exists, it skips it. The additions run every time and skip each step that is already there, so an instance seeded before they existed gets them, and a second run adds nothing.
 
 ## 3. Capture
 
@@ -65,10 +74,19 @@ With no names, every state is captured. A state name is `<page>-<device>-<state>
 | `input-box-desktop-empty` | alice in `#lobby`, empty draft: room placeholder, GIF badge, grey emoji icon, Send hidden. |
 | `input-box-desktop-text` | The draft reads "hello": Send shown, the GIF toggle collapsed. The light theme of this page draws no glow on Send. |
 | `input-box-phone-sheet` | Phone, emoji sheet open from the emoji toggle over an empty draft. The whole screen. |
+| `message-row-desktop-group` | The direct thread: alice's header row, two rows without header, then bob's header row. |
+| `message-row-desktop-hover-bar` | The pointer over alice's own row in `#lobby`: tint and action bar. The row above is in the shot, because the bar overlaps it. |
+| `message-row-desktop-reply-reactions` | bob's reply in `#lobby` with the quote line and two pills; alice's own pill is highlighted. |
+| `message-row-phone-more-sheet` | Phone, a tap on alice's own row, then More: the bottom sheet with Copy Text and Delete Message over the dimmed page. The whole screen. |
+| `pickers-desktop-emoji` | The emoji picker from the input box toggle: Recent highlighted, the search field, the Recent row, the first pack. |
+| `pickers-desktop-gif-browse` | The GIF picker's first open, on Browse: the rail, the search row with the upload button, the Favorites tile. |
+| `pickers-phone-sheet-gifs` | Phone, the sheet on the GIFs tab with Favorites open: the rail, the search row, alice's GIF card. The whole screen. |
 
 Devices: `desktop` is 1280 × 800. `phone` is 390 × 844 with touch, at device scale factor 2. All captures use the light theme ("Daylight"), set with the page's own theme switch. The app's default theme is dark.
 
-A desktop input box image is the conversation column from about 260 px above the bottom of the window. The top edge moves up to the gap above a message row, so no row is cut.
+A desktop input box image is the conversation column from about 260 px above the bottom of the window. The top edge moves up to the gap above a message row, so no row is cut. A desktop message row image is the conversation column from 12 px above its first row to 12 px below its last. A desktop picker image is the picker and the input box with 12 px around them.
+
+While it captures, the script keeps one more session of `alice` open. When the last session of a user closes, the server sets the user Away, and the header of the next whole-screen image would show it. A whole-screen state fails when the header does not show alice as Online.
 
 ## Adding a state
 
@@ -78,5 +96,6 @@ Add an entry to `STATES` in `capture.mjs`: the page prefix, the device, a state 
 
 Some parts change from one capture to the next. This is expected:
 
-- The room placeholder and the emoji toggle's emoji are picked at random by the server each time the page opens.
+- The room placeholder, the emoji toggle's emoji and the room title in the phone header are picked at random by the server each time the page opens.
+- A GIF shows whichever frame is current.
 - Message times are the times of the seed run.

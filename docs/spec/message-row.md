@@ -36,7 +36,7 @@ A message row is one message as it appears in the conversation: who wrote it, wh
 
 **MR-05** The time is small and muted, on the same line as the name. Today shows the time only. Yesterday shows "Yesterday" and the time. The same year shows the date and time. Older shows the full date and time. Rows without a header show no time.
 
-**MR-06** Times are in the user's time zone and in the date order and clock style from Settings. The defaults are day-month order and a 24-hour clock. Labels follow the clock: a message from today reads "Yesterday" once midnight passes.
+**MR-06** Times are in the user's time zone and in the date order and clock style from Settings. Until the user changes them, they follow the language of the browser used at sign-up. Labels follow the clock: a message from today reads "Yesterday" once midnight passes.
 
 **MR-07** Own messages and other people's messages look the same. Only the available actions differ.
 
