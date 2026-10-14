@@ -1,6 +1,6 @@
 # Yap
 
-Yap is a self-hosted chat for one group of people. One server holds one community with rooms and direct messages. The server is run by one of the members, the admin. Yap is not a critical system. User experience on a phone has priority over guarantees.
+Yap is a self-hosted chat for one group of people. One server holds one community with rooms and direct messages. The server is run by one of the members, the admin. Yap is not a critical system. User experience has priority over guarantees.
 
 This page is the overview. Each section links to the page that holds the rules. The [general rules](general-rules.md) apply to every page.
 
