@@ -17,7 +17,7 @@ The frame is everything around a conversation: the header with the title, the us
 3. **Status chip.** A small coloured chip with a dot, the user's display name and a gear. Its colour is the user's current status. It opens the status menu.
 4. **Mailbox.** A tray icon with a red count of unread messages, shown only when the count is above zero.
 5. **People button.** A people icon with the online count on desktop. On narrow screens a hamburger that opens the sidebar.
-6. **Connection dot.** A small dot next to the title area, shown only while the connection is not normal.
+6. **Connection dot.** A small dot at the left of the header's controls, before the status chip, shown only while the connection is not normal.
 7. **Sidebar.** On the right, 240 px wide on desktop. The section "ROOMS" with every room, then the people section with a playful title and the online count.
 8. **Notice strip.** A one-line strip between the header line and the conversation, shown only for a lasting state that needs the user: a new version, or a sign-in.
 9. **Overlays.** The status menu, the profile card, the notification prompt, the install dialog and the error screen.
@@ -52,7 +52,7 @@ The frame is everything around a conversation: the header with the title, the us
 
 **SH-11** The chip shows a dot, the user's display name and a gear. Its colour is the user's current status: green for online, orange for away, grey for invisible. An automatic away changes the colour, not the chosen status.
 
-**SH-12** A tap on the chip opens the menu under it: "Online", "Away", "Invisible", a divider, "Settings", "Notification settings", "Admin" for admins, and "Sign Out" in red. The chosen status is highlighted. A tap outside the menu, or Escape, closes it.
+**SH-12** A tap on the chip opens the menu under it: "Online", "Away", "Invisible", a divider, "Settings", "Notification settings", "Admin" for admins, and "Sign Out" in red. The chosen status is highlighted. A second tap on the chip, a tap outside the menu, or Escape closes it. Settings opens the Settings page, Notification settings its notification section, Admin the administration page, which has its own back arrow.
 
 **SH-13** A status pick applies at once and closes the menu. Without a connection the three status items are dimmed and do nothing. See [Presence](presence.md).
 
@@ -64,19 +64,19 @@ The frame is everything around a conversation: the header with the title, the us
 
 **SH-16** While the connection is normal the header shows no connection indicator.
 
-**SH-17** While Yap connects or reconnects, a pulsing orange dot shows next to the title area and the header line pulses orange. Without a connection the dot is a grey ring and the header line is dimmed. When the user must act, the dot is red and the notice strip says what to do.
+**SH-17** While Yap connects or reconnects, a pulsing orange dot shows before the status chip and the header line pulses orange. Without a connection the dot is a grey ring and the header line is dimmed. When the user must act, the dot is red and the notice strip says what to do. With reduced motion the pulse stops. The chip, the count and the people list keep their last known state until the connection returns.
 
-**SH-18** The dot's meaning shows as a short text bubble on hover or after a tap: "Connecting…", "Reconnecting…", "Offline. Messages are sent when the connection returns.", "Signed out", "Update available". The next tap elsewhere closes the bubble.
+**SH-18** The dot's meaning shows as a short text bubble on hover or after a tap: "Connecting…", "Reconnecting…", "Offline. Messages are sent when the connection returns.", "Signed out", "Update available". A tap on the dot while disconnected also starts a reconnect. The next tap elsewhere closes the bubble.
 
 **SH-19** The conversation stays readable and usable during an outage. There is no banner over the page and no modal.
 
-**SH-20** The notice strip shows only for two lasting states. A new version: "You are awesome and so is the new version of this app. Please refresh." with a "Reload" button; Yap never reloads by itself. Signed out: "Sign in to continue." with a "Sign in" link. The strip has one line and at most one control, and shortens the conversation while it shows.
+**SH-20** The notice strip shows only for two lasting states. A new version: "You are awesome and so is the new version of this app. Please refresh." with a "Reload" button; Yap never reloads by itself. Signed out while without a connection: "Sign in to continue." with a "Sign in" link; with a connection the user goes to the login page instead. The strip has one line and at most one control, and shortens the conversation while it shows.
 
 ### Sidebar: rooms
 
 **SH-21** The sidebar has two sections in this order: "ROOMS", then the people section. Section titles are small capitals.
 
-**SH-22** Every user sees every room, in the admin's order; new rooms go to the bottom. A room row shows "#", the name, then a crossed bell when the user muted that room, an unread mark, and for admins a gear. The open room is highlighted and shows no unread mark.
+**SH-22** Every user sees every room, in the admin's order; new rooms go to the bottom. A room row shows "#", the name, then a crossed bell when the user muted that room individually (not for the default room mute and not under the server-wide mute), an unread mark, and for admins a gear. The open room is highlighted and shows no unread mark.
 
 **SH-23** The unread mark is a red count for an unmuted room and a small dot without a number for a muted one. Muting hides the number, never the fact that something arrived. A room with unread has brighter text.
 
@@ -92,11 +92,11 @@ The frame is everything around a conversation: the header with the title, the us
 
 **SH-28** The people section title is one text from the configured list with the online count filled in; the fallback is "Online Users ({n})". A new text is picked when the count changes.
 
-**SH-29** The list holds every person online, whatever their status, and every person the user has a direct message with. Invisible people are shown grey, like offline ones, and are not counted.
+**SH-29** The list holds every person online, whatever their status, and every person the user has exchanged at least one direct message with. Invisible people are shown grey, like offline ones, and are not counted.
 
-**SH-30** Order: admins, then the bot, then the user, then everyone else. Everyone else: unmuted direct messages with unread first; then people online; then offline people, the most recent direct message first; within a tier by name.
+**SH-30** Order: admins, then the bot, then the user (each slot only when the person is not already placed as an admin), then everyone else. Everyone else: unmuted direct messages with unread first; then people online; then offline people, the most recent direct message first; within a tier by display name.
 
-**SH-31** A row shows a status dot (green online, orange away, grey otherwise), the display name, " (you)" on the user's own row, the info button on touch screens, a crown for admins, a robot for the bot, a crossed bell for a muted direct message, and the unread mark with the room rules. Rows show no avatar and no message preview.
+**SH-31** A row shows a status dot (green online, orange away, grey otherwise), the display name, " (you)" on the user's own row, the info button where SH-34 shows one, a crown for admins, a robot for the bot, a crossed bell for a muted direct message, and the unread mark with the room rules. Rows show no avatar and no message preview.
 
 **SH-32** A tap on another person opens the direct message with them and closes the sidebar on narrow screens. A tap on the user's own row does nothing. The open direct message's row is highlighted.
 
@@ -104,13 +104,13 @@ The frame is everything around a conversation: the header with the title, the us
 
 ### Profile card
 
-**SH-34** On a device with a fine pointer above 768 px, hovering a person's name shows their profile card next to the pointer; it closes when the pointer leaves the name. On touch screens and at 768 px or less, an info button after the name opens the card centred over a dimmed page; a tap outside, or Escape, closes it.
+**SH-34** Above 768 px, hovering a person's name shows their profile card next to the pointer; it closes when the pointer leaves the name. On any touch screen, and at 768 px or less, an info button after the name opens the card centred over a dimmed page; a second tap on the button, a tap outside, Escape, or a room or person pick closes it. A tap on the row outside the button opens the direct message. The user's own row opens their own card. The card shows the status at the moment it opened.
 
 **SH-35** The card shows: a banner in the person's avatar colours, the 80 px avatar, the display name with the admin crown or the bot badge, "@username", a status line "Online", "Away" or "Offline" (invisible shows as offline), "About me" with the bio or "No bio yet — a person of mystery 🕵️", "📍 {location}" when set, and "🗓️ Member since {Month yyyy}". It has no buttons.
 
 ### Sidebar on phones
 
-**SH-36** The sidebar opens from the hamburger or the mailbox and slides in from the right, its top edge under the header. The conversation stays visible behind a transparent layer; the header stays usable.
+**SH-36** The sidebar opens from the hamburger or the mailbox and slides in from the right, its top edge under the header. The conversation stays visible and is not dimmed; the header stays usable.
 
 **SH-37** It closes on a tap outside it, on a room or person pick, on the hamburger, and on any menu item that leaves the page.
 
@@ -122,11 +122,11 @@ The frame is everything around a conversation: the header with the title, the us
 
 **SH-40** The "install it" link in the bot's welcome message, and "Install Yap" in Settings, open the install dialog: "Add Yap to your home screen" with the buttons "Use existing app" and "Install app", or "Yap is already installed" with "Close" when it is installed. "Install app" starts the browser's install or shows the add-to-home-screen guide. See [Offline and installation](offline.md).
 
-**SH-41** When a page fails, the conversation area shows "Something went wrong" with "Try Again" and "Reload Page", and the header and sidebar stay. Drafts and unsent messages survive both buttons. When Yap cannot start at all, the gremlin screen shows: "Oops! The gremlins got us" with "Reload & Try Again".
+**SH-41** When a page fails, the conversation area shows "Something went wrong" with "Try Again" and "Reload Page", and the header and sidebar stay. Try Again repaints the page; Reload Page reloads it. Drafts and unsent messages survive both. When Yap cannot start at all, the gremlin screen shows: "Oops! The gremlins got us" with "Reload & Try Again".
 
 ### Routes and the tab
 
-**SH-42** Routes: /lobby for the default room, /room/{id}, /dm/{username}, /settings, /admin, /channel/new, /channel/{id}/settings, /login, /invite/{code}, and / for the start. A room or direct message link opens directly when signed in; signed out, the user goes to the login page and lands on the link after signing in.
+**SH-42** Routes: /lobby for the default room, /room/{id}, /dm/{username}, /settings, /admin, /channel/new, /channel/{id}/settings, /login, /invite/{code}, and / for the start. A room or direct message link opens directly when signed in; signed out, the user goes to the login page and lands on the link after signing in. An unknown address shows "Not Found".
 
 **SH-43** / opens the user's last conversation on this device, else the lobby. /dm/{unknown user}, /dm/{the user themself} and /room/{unknown id} go to the lobby.
 
@@ -142,7 +142,7 @@ The frame is everything around a conversation: the header with the title, the us
 | --- | --- | --- |
 | Room opened | all | Playful room title, turquoise line, room row highlighted. |
 | Direct message opened | all | Back arrow, avatar and name, purple line, person's row highlighted. |
-| Unread arrives elsewhere | all | Red count or dot on its row; mailbox with the total. |
+| Unread arrives elsewhere | all | Red count or dot on its row; the mailbox total rises unless the conversation is muted. |
 | Open conversation | all | Its row shows no count; the total excludes it. |
 | Chip tap | mouse, touch | Status menu under the chip. |
 | Status pick | mouse, touch | Chip colour changes at once; menu closes. |
@@ -153,7 +153,8 @@ The frame is everything around a conversation: the header with the title, the us
 | Connected | all | No indicator. |
 | Dot hover or tap | mouse, touch | Text bubble with the state. |
 | New version | all | Orange notice strip with "Reload". |
-| Signed out elsewhere | all | Red dot; strip "Sign in to continue." |
+| Signed out elsewhere, connected | all | The login page at the next action. |
+| Signed out elsewhere, no connection | all | Red dot; strip "Sign in to continue." |
 | Hover a name, desktop | mouse | Profile card next to the pointer. |
 | Info button, touch or narrow | touch, mouse | Centred card over a dim layer. |
 | Hamburger or mailbox, narrow | touch, mouse | Sidebar slides in; header still usable. |
@@ -174,6 +175,7 @@ The frame is everything around a conversation: the header with the title, the us
 | Room header fallback | "# {0}" |
 | People section titles (configured; defaults) | "the gang ({0})", "squad check ({0})", "main characters ({0})", "{0} legends present", "chat fam ({0})" |
 | People section fallback | "Online Users ({0})" |
+| Header titles | "Settings"; "#{room} Settings"; "New Channel" |
 | Header tooltips | "Back to lobby"; "Toggle sidebar"; "{n} unread messages" |
 | Status menu | "Online"; "Away"; "Invisible"; "Settings"; "Notification settings"; "Admin"; "Sign Out" |
 | Sign-out confirmations | "You have no login link and no secret code. Without one, you won't be able to get back into this account. Continue signing out?"; "Unsent messages on this device will be lost. Continue signing out?" |
@@ -186,7 +188,7 @@ The frame is everything around a conversation: the header with the title, the us
 | Error screen | "Something went wrong"; "Try Again"; "Reload Page" |
 | Start failure | "Oops! The gremlins got us"; "Something went terribly wrong. Our best engineers (who are also gremlins) are looking into it."; "Reload & Try Again"; "If this keeps happening, try clearing your browser cache or yelling at your computer." |
 | Not found | "Not Found"; "Sorry, the content you are looking for does not exist." |
-| Tab titles | "{Project} \| #{room}"; "{Project} \| @{username}"; "({n}) " prefix; "Settings"; "Admin" |
+| Tab titles | "{Project} \| #{room}"; "{Project} \| @{username}"; "({n}) " prefix; "Settings"; "Admin"; "#{room} Settings"; "New Channel" |
 
 ## Related
 

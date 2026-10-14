@@ -32,9 +32,9 @@ Yap runs in the browser and can be installed on a phone or a desktop like an app
 
 **OF-11** A pending message that the server refuses shows as failed, with the reason, "Retry" and "Remove". A pending message that has waited more than one day shows as failed too. Remove deletes it from the device only.
 
-**OF-12** Reactions, edits, deletions, status changes, GIF search and trending need a connection. Where the user tries them, the answer is "Needs a connection" and nothing changes.
+**OF-12** Reactions, edits, deletions, GIF search and trending need a connection. Where the user tries them, the answer is "Needs a connection" and nothing changes. The status items in the status menu are dimmed.
 
-**OF-13** Reconnecting is automatic: when the network returns, when the tab comes back, and when the user taps the connection dot. The newest messages are refreshed and the unread counts corrected; the view keeps its place.
+**OF-13** Reconnecting is automatic: when the network returns, when the tab comes back, and when the user taps the connection dot, which also shows its bubble. The newest messages are refreshed and the unread counts corrected; the view keeps its place.
 
 ### The promise and its limits
 

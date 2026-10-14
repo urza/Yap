@@ -13,7 +13,7 @@ The timeline is the scrolling list of messages in a conversation, from the oldes
 ![Gallery viewer, phone. A photo on a black background, the previous and next controls, the counter at the bottom, the close and fill controls.](img/timeline-phone-gallery.png)
 
 1. **The list.** Fills the conversation column above the input box and scrolls vertically. A short conversation sits at the bottom, with empty space above it.
-2. **The top note.** Shown only when all history is loaded: the room description, the "beginning" note, or the restricted-history note. While older messages exist, nothing shows above the first row.
+2. **The top note.** Shown only when all history is loaded: the room description, the "beginning" note, or the restricted-history note. While older messages exist, nothing shows above the first row, except the "Load earlier messages" link in a conversation too short to scroll, or "Needs a connection" without a connection. There are no date separators and no unread divider.
 3. **The loading row.** "Loading older messages..." with a spinner at the top while a page loads.
 4. **New messages pill.** A rounded accent pill with a down chevron, centred above the typing strip, shown when messages arrive while the user reads older ones.
 5. **Pending rows.** The user's own messages that the server has not accepted yet, at the end of the list.
@@ -29,7 +29,7 @@ The timeline is the scrolling list of messages in a conversation, from the oldes
 
 **TL-03** Opening a conversation marks it read. See [Notifications and unread](notifications.md).
 
-**TL-04** The view scrolls to the bottom after the images in the newest messages have loaded, so the last message is fully in view and nothing is hidden under the input box.
+**TL-04** The view scrolls to the bottom after the images and video posters in the newest messages have loaded, so the last message is fully in view and nothing is hidden under the input box.
 
 **TL-05** Non-admins see a room's history only as far back as its admin settings allow: a time window (one day to three months, or unlimited) and, when set, only messages since their own account was created. Admins see everything. Direct messages have no limit.
 
@@ -53,13 +53,13 @@ The timeline is the scrolling list of messages in a conversation, from the oldes
 
 **TL-13** The follow resumes when the user scrolls back to within 80 px of the bottom, or taps the New messages pill.
 
-**TL-14** The user's own send always goes to the bottom, with its pending row in view, whether the view was following or not.
+**TL-14** The user's own send always goes to the bottom, with its pending row in view, and turns the follow on.
 
 **TL-15** Returning to the tab or the app re-pins the bottom only when the view was following. Otherwise the view stays, and the pill shows if messages arrived.
 
 ### New messages pill
 
-**TL-16** When a message from someone else arrives while the view does not follow, the pill appears centred above the typing strip. It never covers the draft. Reactions, edits, link cards and the user's own messages do not show it.
+**TL-16** When a message from someone else arrives while the view does not follow, the pill appears centred above the typing strip. It never covers the draft. Reactions, edits, link cards, lobby join and leave lines and the user's own messages do not show it.
 
 **TL-17** The pill reads a random phrase from the configured list, "New messages" when none is configured, with a down chevron. The phrase stays while the pill is shown.
 
@@ -69,7 +69,7 @@ The timeline is the scrolling list of messages in a conversation, from the oldes
 
 ### Switching conversations
 
-**TL-20** A switch shows the new conversation's messages and header together. The pill hides, the pending rows of the old conversation are no longer shown, and an open picker closes.
+**TL-20** A switch shows the new conversation's header and its last known messages together; a conversation never shown before shows its header over an empty list until its messages arrive. The pill hides, the old conversation's pending rows leave the screen but stay queued, and an open picker and an open viewer close.
 
 **TL-21** When the open room is deleted, the user is taken to the lobby.
 
@@ -77,15 +77,15 @@ The timeline is the scrolling list of messages in a conversation, from the oldes
 
 **TL-22** A tap or click on an image opens the viewer at that image at once, with the images of that message only. GIFs and videos do not open it.
 
-**TL-23** The viewer covers the whole app on a black layer, 90 % opaque on desktop and fully black on a phone. The picture is centred and fits within 85 % of the screen on desktop, the whole screen on a phone, never cropped.
+**TL-23** The viewer covers the whole app on a black layer, 90 % opaque on desktop and fully black on a phone. The picture is centred and fits within 85 % of the screen on desktop, the whole screen on a phone, never cropped. On a phone the controls are smaller and sit 8 px from the edges.
 
 **TL-24** Controls float over the picture: close at the top right, previous and next at mid height, fill at the bottom right, and a counter "{n} / {total}" at the bottom centre. With one image there are no previous and next controls and no counter.
 
-**TL-25** On touch, a horizontal swipe moves one image per fling. Previous, next and the arrow keys move one image. The counter changes when more than half of an image is in view. Tab moves between the viewer's controls.
+**TL-25** On touch, a horizontal swipe moves one image per fling. Previous, next and the arrow keys move one image; at the first and last image they do nothing. The counter changes when 60 % of an image is in view.
 
-**TL-26** The fill control, or a double tap, switches between fit and fill. Fill covers the screen along one axis, centred on the tapped point, and the picture pans. Moving to another image resets it to fit. There is no pinch zoom of the picture itself and no rotation.
+**TL-26** The fill control, or a double tap, switches between fit and fill; its icon changes between maximize and minimize. Fill covers the screen along one axis, centred on the tapped point, and the picture pans and stops at its edges without moving to the next image. Moving to another image resets it to fit. There is no pinch zoom of the picture itself and no rotation.
 
-**TL-27** The viewer closes on the close control, on Escape, on a tap outside the picture and the controls, and on a drag down of more than 120 px on touch. During the drag the picture follows the finger and the background fades; a shorter drag springs back. Every close fades out over 0.15 s. Escape closes the viewer only.
+**TL-27** The viewer closes on the close control, on Escape, on a tap anywhere outside the picture and its four controls (the counter included), and in fit mode on a drag down of more than 120 px on touch. During the drag the picture follows the finger and the background fades; a shorter drag springs back. Every close fades out over 0.15 s. Escape closes the viewer only.
 
 **TL-28** Opening or closing the viewer moves no focus: the phone keyboard and the list position stay as they were.
 
@@ -93,7 +93,7 @@ The timeline is the scrolling list of messages in a conversation, from the oldes
 
 ### Media in the list
 
-**TL-30** Images, GIF previews and card thumbnails load as they come near the view. Every media box holds its final size before it loads, so the list does not jump: a 4:3 box for a single image, squares for thumbnails, the known ratio for a GIF.
+**TL-30** Images, GIF previews and card thumbnails load as they come near the view. Thumbnails, GIFs with a known size and cards hold their final size before they load. A single image holds a 4:3 box until it loads, then takes its own ratio; a video holds its poster's size once the poster is known. The list never moves the row the user reads.
 
 **TL-31** GIFs play by themselves, muted. When the browser blocks that, the next tap or key press anywhere starts every paused GIF.
 
@@ -105,7 +105,7 @@ The timeline is the scrolling list of messages in a conversation, from the oldes
 
 **TL-34** Without a connection the list shows the last messages it had for the conversation, and the user can read and scroll them. Older messages that were not loaded cannot be reached; the top of the list reads "Needs a connection" in place of the loading row.
 
-**TL-35** When the connection returns, the newest messages are fetched again. The view stays where it is when it did not follow, and at the bottom when it did.
+**TL-35** When the connection returns, the newest messages are fetched again and the loaded rows are refreshed. When more arrived than one page holds, the gap loads as the user scrolls up. The view stays where it is when it did not follow, and at the bottom when it did.
 
 ## States
 
@@ -122,22 +122,22 @@ The timeline is the scrolling list of messages in a conversation, from the oldes
 | Keyboard opens or input box grows, following | touch, keyboard | Newest message stays in view. |
 | Upward scroll | mouse, touch, keyboard | Follow released; the view holds from now on. |
 | New message from someone else, not following | all | View holds; pill above the typing strip. |
-| Own reaction, edit, or card, not following | all | View holds; no pill. |
+| Reaction, edit or card from anyone, not following | all | View holds; no pill. |
 | Own send, not following | all | List goes to the bottom with the pending row. |
-| Scroll back within 80 px of the bottom | mouse, touch | Follow on; pill hidden. |
+| Scroll back within 80 px of the bottom | mouse, touch, keyboard | Follow on; pill hidden. |
 | Pill tap | mouse, touch | Bottom; follow on; pill hidden. |
 | Return to the tab, following | all | Bottom re-pinned. |
 | Return to the tab, not following | all | View unchanged; pill if messages arrived. |
-| Conversation switched | all | New messages and header together; pill and pending rows gone; picker closed. |
+| Conversation switched | all | New header and messages together; pill gone; the old pending rows stay queued but leave the screen; picker and viewer closed. |
 | Image tap | mouse, touch | Viewer at that image. |
-| Swipe, arrow key, previous or next | touch, keyboard, mouse | One image; counter updates past half view. |
+| Swipe, arrow key, previous or next | touch, keyboard, mouse | One image; counter updates at 60 % in view. |
 | Double tap or fill control | touch, mouse | Fit to fill or back; pan in fill. |
-| Drag down 120 px | touch | Viewer closes with a fade. |
+| Drag down 120 px, fit mode | touch | Viewer closes with a fade. |
 | Close control, Escape, tap outside | mouse, touch, keyboard | Viewer closes with a fade; focus unchanged. |
 | Message deleted while viewing | all | Viewer closes. |
 | GIF autoplay blocked | all | Next tap or key starts all GIFs. |
-| No connection | all | Last messages readable; "Needs a connection" at the top instead of loading. |
-| Connection returns | all | Newest messages refreshed; view position kept. |
+| No connection, older messages exist | all | Last messages readable; "Needs a connection" at the top instead of loading. |
+| Connection returns | all | Newest messages refreshed; view stays when not following, bottom when following. |
 
 ## Wording
 
@@ -150,7 +150,7 @@ The timeline is the scrolling list of messages in a conversation, from the oldes
 | Start of a direct message | "This is the beginning of your direct message history with {username}." |
 | Pill (configured; these are the defaults) | "new gold just spawned", "fresh yaps below", "new loot dropped", "chat moved on, catch up", "new heat below", "someone said something", "fresh tea down there", "plot twist below", "new drops, no cap", "scroll down, legend" |
 | Pill when the list is missing | "New messages" |
-| Viewer controls | "Previous", "Next", "Close", "Fill screen"; counter "{n} / {total}"; image alt "Full size image" |
+| Viewer controls | "‹" (title "Previous"); "›" (title "Next"); "×" (title "Close"); the fill icon (title "Fill screen"); counter "{n} / {total}"; image alt "Full size image" |
 | Without a connection | "Needs a connection" |
 | Admin history setting, for reference | "History Visibility"; "Unlimited", "1 Day", "3 Days", "1 Week", "2 Weeks", "1 Month", "3 Months"; "Only show messages since user joined" |
 
