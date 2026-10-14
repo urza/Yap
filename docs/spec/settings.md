@@ -15,11 +15,11 @@ Settings is the one page where a person shapes their own Yap: profile, look, way
 
 ### Page
 
-**ST-01** Settings opens from "Settings" and "Notification settings" in the status menu, from "Manage your GIFs in Settings" in the GIF picker, and from links in the bot's messages. "Notification settings" and the picker link scroll to their sections.
+**ST-01** Settings opens from "Settings" and "Notification settings" in the status menu and from "Manage your GIFs in Settings" in the GIF picker; the bot's messages point to it by name. "Notification settings" and the picker link scroll to their sections. A signed-out visit goes to the login page. Settings needs a connection.
 
-**ST-02** Every control saves at once on change. Profile text saves after a short pause in typing and when the user leaves the page, so nothing typed is lost. A failed save says so next to the control.
+**ST-02** Every control saves at once on change. Profile text saves after a short pause in typing and when the user leaves the page, so nothing typed is lost. A failed save shows "Could not save. Try again." next to the control.
 
-**ST-03** The page keeps the live connection: the sidebar and header keep updating while the user is here.
+**ST-03** The sidebar and the header on Settings show live state, as on a conversation.
 
 ### Profile
 
@@ -35,7 +35,7 @@ Settings is the one page where a person shapes their own Yap: profile, look, way
 
 **ST-08** Appearance shows a grid of theme cards, each with a preview, an accent dot and the name; the chosen one has a check badge. The themes are Discord Dark (the default), Midnight, Nord, Ocean, Sunset, Aurora, Terminal, Neon Glow, Tea House, Daylight and Solarized Light. A tap repaints the whole app at once and saves. A theme that no longer exists falls back to the default.
 
-**ST-09** Tea House changes its picture with the time of day, every two hours, on its own.
+**ST-09** Tea House changes its picture with the device's time of day, every two hours, on its own.
 
 **ST-10** Text Size has six presets, 14, 15, 16 (Default), 17, 18 and 20 px, each shown as "Aa" at its size. A tap rescales all text at once and saves. The theme and the text size follow the account to other devices on their next load.
 
@@ -47,11 +47,11 @@ Settings is the one page where a person shapes their own Yap: profile, look, way
 
 **ST-13** "Allow smart login" is a switch under the link, shown only while the admin allows smart login. It is on by default.
 
-**ST-14** Secret Code sits below Login Link on purpose. With a code: the masked code, Reveal and Copy, "New Code" and "Disable". Without: the hint and "Enable Secret Code". Status lines show for 3 seconds.
+**ST-14** Secret Code sits below Login Link. *Why:* the link is the preferred way back; the code is the fallback. With a code: the masked code, Reveal and Copy, "New Code" and "Disable". Without: the hint and "Enable Secret Code". Status lines show for 3 seconds.
 
 ### Devices
 
-**ST-15** Active Sessions lists the account's connected devices with a phone or desktop icon, "This device" on the current one, the network address and "Active {time}". The current device is always listed. "Sign out all other devices" shows when another device is signed in and acts without a confirmation; the page then shows the notice "All other devices have been signed out." with the new secret code when one exists.
+**ST-15** Active Sessions lists the account's connected devices with a phone or desktop icon, "This device" on the current one, the network address and "Active {time}". The current device is always listed. "Sign out all other devices" is always available, since a device can hold a sign-in without being connected, and acts without a confirmation; the page then shows the notice "All other devices have been signed out." with the new secret code when one exists.
 
 **ST-16** Install as App shows "Install Yap" with its explanation, or "Yap is installed as an app on this device." inside the installed app. See [Offline and installation](offline.md).
 
@@ -63,23 +63,27 @@ Settings is the one page where a person shapes their own Yap: profile, look, way
 
 ### Time & Date
 
-**ST-19** "Your time" shows the current time in the user's time zone with "−", "+" and "Detect". The zone and the language were detected at sign-up and stay until changed here; "−" and "+" shift the zone by an hour, "Detect" takes the browser's zone.
+**ST-19** "Your time" shows the current time in the user's time zone with "−", "+" and "Detect". The zone was detected at sign-up and stays until changed here. "−" and "+" shift the shown time by one hour from where it is, within 14 hours of universal time either way; after an adjustment the zone is a fixed offset and daylight saving no longer applies. "Detect" takes the browser's zone again. The language detected at sign-up decides the defaults below and has no control of its own.
 
-**ST-20** Clock offers 24-hour and 12-hour; Date order offers day-month-year, month-day-year and year-month-day; Separators appears when the browser language and the zone's country format differently. Each is a row of cards that show today's date and time in that form, and each works with the keyboard. The choices apply to every time in the app.
+**ST-20** Clock offers 24-hour and 12-hour; Date order offers day-month-year, month-day-year and year-month-day; Separators appears when that language and the zone's country format differently. Each is a row of cards that show the current time or today's date in that form, the one matching the language first, and each works with the keyboard. The choices apply to every time in the app.
 
 ### My GIFs
 
 **ST-21** My GIFs is the user's pool: everything starred plus their own uploads, in folders. The toolbar has folder chips ("All", "Unsorted", one per folder), a filter field from nine GIFs on, "＋ Add GIFs", "Import zip" and "Export". A quota bar shows "{used} of {quota} used" for the user's own uploads; starred GIFs are free.
 
-**ST-22** Add takes several .gif, .webp or short video files at once, up to 50 MB each, into the open folder, with a progress line and one error line per refused file. Import takes one zip up to 1 GB whose subfolders become folders and whose tag list, when present, adds tags. Export downloads the pool as a zip that imports back without loss.
+**ST-22** Add takes several .gif, .webp or short video files at once, up to 50 MB each, into the open folder, with a progress line and one error line per refused file. Import takes one zip up to the configured size (1 GB by default) with at most 1000 files of 50 MB each, whose subfolders become folders and whose tag list, when present, adds tags. Export downloads the pool as a zip that imports back without loss, except starred provider GIFs the server never stored.
 
-**ST-23** A card shows the preview, up to four tag chips and the folder choice. Tags are edited in place and belong to the GIF, so a change affects search for everyone who can see it. A new folder is created from the folder choice; a folder disappears when its last GIF leaves it.
+**ST-23** Cards show newest first and refresh at once when a star or an upload changes the pool elsewhere. A card shows the preview, up to four tag chips and the folder choice. Tags are edited in place, lowercased, 2 to 64 characters each, and belong to the GIF, so a change affects search for everyone who can see it. A new folder is created from the folder choice, named with up to 64 characters; a folder disappears when its last GIF leaves it.
 
-**ST-24** "Delete" on an own upload asks "Sure?" before it deletes the file; a file still used in chat or by others is removed from the pool instead. "✕" unstars at once. Six cards show first, then 24 more per tap.
+**ST-24** "Delete" on an own upload asks "Sure?" before it deletes the file; a file still used in chat or by others is removed from the pool instead and keeps counting against the quota while it exists. "✕" unstars at once. Six cards show first, then 24 more per tap.
 
 ### Debug
 
 **ST-25** DEBUG INFO is a collapsed card with what the browser keeps for Yap on this device: cached files by group and their size, the storage estimate, and "Clear this cache" for the media cache. Clearing keeps drafts and unsent messages.
+
+### Phones
+
+**ST-26** At 600 px or less the avatar sits above its buttons, the notification rows stack with full-width controls and 44 px buttons, the link controls wrap, and the GIF grid has two columns.
 
 ## States
 
@@ -95,7 +99,8 @@ Settings is the one page where a person shapes their own Yap: profile, look, way
 | Sign out all other devices | mouse, touch | Other devices signed out; amber notice; code revealed. |
 | Enable push | mouse, touch | Browser asks; "Subscribed"; device row appears. |
 | Send a test | mouse, touch | Every device buzzes; result line for 3 s. |
-| Mute with a duration | mouse, touch | Conversation rows hidden; "Muted for another {time}." |
+| Mute picked | mouse, touch | Direct message and room rows hidden; "Muted until you turn notifications back on." |
+| Mute with a duration | mouse, touch | "Muted for another {time}." |
 | Individual mode | mouse, touch | A bell per conversation under the row. |
 | − or + on the time | mouse, touch, keyboard | The shown time shifts by an hour; saved. |
 | Date order or clock card | mouse, touch, keyboard | Times across the app change. |
@@ -109,7 +114,8 @@ Settings is the one page where a person shapes their own Yap: profile, look, way
 | --- | --- |
 | Page | "Settings"; "Changes are saved automatically."; "Saving..."; "Saved" |
 | Notice | "All other devices have been signed out."; "Your login link keeps working."; "Your secret code was automatically changed. See the new one below." |
-| Profile | "Profile"; "Upload Picture"; "Change Picture"; "Uploading..."; "Remove"; "Choose an image up to 10 MB"; "Display Name"; "Your username is {username}, but your display name can be more fun. It can contain symbols and emojis :) "; "Bio"; "Why are you awesome..."; "{n}/150"; "Location"; "London"; "Detect" |
+| Page | "Could not save. Try again." |
+| Profile | "Profile"; "Upload Picture"; "Change Picture"; "Uploading..."; "Remove"; "Choose an image up to 10 MB"; "Display Name"; "Your username is {username}, but your display name can be more fun. It can contain symbols and emojis :) "; "Bio"; "Why are you awesome..."; "{n}/150"; "Tell us where are you from - map is in the making!"; "Your location — used for the user map"; "London"; "Detect" |
 | Appearance | "Appearance"; "Pick a color theme. Changes apply instantly and sync across your devices."; "Discord Dark"; "Midnight"; "Nord"; "Ocean"; "Sunset"; "Aurora"; "Terminal"; "Neon Glow"; "Tea House"; "Daylight"; "Solarized Light" |
 | Text Size | "Text Size"; "Scales all text in the app. Applies instantly and syncs across your devices."; "Aa"; "14px"; "15px"; "Default"; "17px"; "18px"; "20px" |
 | Login Link, Secret Code, Active Sessions | see the [sign-in page](sessions.md#wording) |
@@ -117,8 +123,8 @@ Settings is the one page where a person shapes their own Yap: profile, look, way
 | Push and mutes | see the [notifications page](notifications.md#wording); mute time "1 minute", "{n} minutes", "1 hour", "{n} hours", "1 day", "{n} days", "a moment" |
 | Time & Date | "Time & Date"; "Your time"; "−"; "+"; "−1 hour"; "+1 hour"; "Detect"; "Adjust if the time doesn't match your clock"; "Clock"; "Date order"; "Separators"; "Detected: {time zone} · {locale}" |
 | My GIFs | "My GIFs"; "Your GIF pool — everything you've starred plus your own uploads. Organize with folders, edit search keywords, or bring a whole collection: import files or a zip, and export everything as a zip you can take anywhere."; "All"; "Unsorted"; "Filter by keyword…"; "＋ Add GIFs"; "Uploading…"; "Import zip"; "Export"; "{used} of {quota} used"; "Only your own uploads count — starred GIFs are free"; "Uploading… {p}% ({done} of {total})"; "Importing… {done} of {total}"; "Imported {done} of {total}"; "processing…"; "add keywords…"; "+{n}"; "comma, separated, tags"; "(unsorted)"; "＋ New folder…"; "folder name"; "Delete"; "Sure?"; "Still used in chat or by others — removed from your library instead."; "You can only delete your own uploads."; "Nothing here yet — star GIFs in the picker, or add your collection above."; "No GIFs match your filter."; "Nothing in this folder."; "Show 24 more ({n} left)"; "Show {n} more"; "Show less"; "ffmpeg not detected — video conversion is off, only .gif/.webp files can be imported." |
-| My GIFs errors | "\"{name}\" — unsupported file type"; "\"{name}\" — too large ({n} MB, max {m} MB)"; "\"{name}\" — server processing timeout"; "\"{name}\" — upload failed"; "GIF storage quota exceeded"; "Could not process this file as a GIF"; "Upload failed — something went wrong."; "GIF storage quota exceeded — import stopped"; "import failed — the zip could not be read" |
-| Debug | "DEBUG INFO"; "Cached files"; "{n} file(s) · {size}"; "Origin storage estimate"; "{used} of {quota}"; "Empty"; "Clear this cache"; "Clearing a cache keeps your locally saved drafts and outgoing messages." |
+| My GIFs errors | "\"{name}\" — unsupported file type"; "\"{name}\" — too large ({n} MB, max {m} MB)"; "\"{name}\" — {error}" with "upload failed" when there is none; "GIF storage quota exceeded"; "Not allowed"; "Could not process this file as a GIF"; "Upload failed — something went wrong."; "GIF storage quota exceeded — import stopped"; "import failed — the zip could not be read"; " ({n} skipped)"; " — {n} skipped" |
+| Debug | "DEBUG INFO"; "Reading cache…"; "Cache report unavailable."; "Cached files"; "1 file" or "{n} files" with "· {size}"; "Origin storage estimate"; "{used} of {quota}"; groups "Media — saved chat attachments", "App — offline interface", "Emoji — downloaded artwork"; "Empty"; "Clear this cache"; "Clearing a cache keeps your locally saved drafts and outgoing messages." |
 
 ## Related
 

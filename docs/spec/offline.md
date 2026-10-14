@@ -12,7 +12,7 @@ Yap runs in the browser and can be installed on a phone or a desktop like an app
 
 **OF-02** The installed app opens full screen, with the Yap icon, name and colours. It starts on the user's last conversation, else the lobby.
 
-**OF-03** The installed app signs in by itself on its first launch when it was installed from a signed-in browser. Afterwards it keeps its own session like any device.
+**OF-03** The installed app signs in by itself on its first launch, within 72 hours of the install, when it was installed from a signed-in browser. Afterwards it keeps its own session like any device.
 
 **OF-04** A new version of Yap is announced in the notice strip with "Reload". Yap never reloads by itself, and a reload keeps drafts and unsent messages.
 
