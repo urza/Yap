@@ -74,7 +74,7 @@ This page decides what is unread, when it becomes read, what the counts show, wh
 
 **NT-28** A tap on a notification opens that conversation in an open Yap window, or opens a new one. The notification carries the unread total for the icon badge.
 
-**NT-29** Every message sends its own notification at once. There is no grouping delay and no digest.
+**NT-29** Every message sends its own notification at once. There is no grouping delay and no summary message.
 
 **NT-30** "Send a test to all devices" in Settings notifies every subscribed device, ignores every mute, and leaves the badge alone.
 
