@@ -92,7 +92,7 @@ The frame is everything around a conversation: the header with the title, the us
 
 **SH-28** The people section title is one text from the configured list with the online count filled in; the fallback is "Online Users ({n})". A new text is picked when the count changes.
 
-**SH-29** The list holds every person online, whatever their status, and every person the user has exchanged at least one direct message with. Invisible people are shown grey, like offline ones, and are not counted.
+**SH-29** The list holds every person online or away, and every person the user has exchanged at least one direct message with. An invisible person is listed only as a direct message partner, grey like an offline one, and is not counted.
 
 **SH-30** Order: admins, then the bot, then the user (each slot only when the person is not already placed as an admin), then everyone else. Everyone else: unmuted direct messages with unread first; then people online; then offline people, the most recent direct message first; within a tier by display name.
 
@@ -134,7 +134,7 @@ The frame is everything around a conversation: the header with the title, the us
 
 **SH-45** The tab title is "{Project} | #{room}" in a room and "{Project} | @{username}" in a direct message; "Settings" and "Admin" on those pages. While the tab is hidden, a "({n}) " prefix counts the arrivals by the rules on the [notifications page](notifications.md), and resets on return.
 
-**SH-46** The installed app's icon shows the mailbox count as a badge where the system supports it, without asking for permission. The badge clears when the count is zero.
+**SH-46** The installed app's icon shows the unread total as a badge where the system supports it, without asking for permission. The badge clears when the total is zero.
 
 ## States
 

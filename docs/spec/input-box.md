@@ -157,7 +157,7 @@ The input box is where a message is written and sent. It sits at the bottom of e
 
 ### Who is typing
 
-**IB-59** Others see the user as typing from the first non-blank keystroke, paste or emoji pick, until 3 s after the last one, until the draft is blank, until a send, or until the user leaves the conversation.
+**IB-59** Others see the user as typing from the first non-blank keystroke, paste or emoji pick, until 3 s after the last one, until the draft is blank, until a send, until the user leaves the conversation, or until the tab goes hidden or the connection drops.
 
 **IB-60** The typing strip shows who types in this conversation. In a direct message: "{name} is typing...". In a room: a random text from the configured lists for one, two, or more people. The user's own name is never shown. The text is small and grey, with three bouncing dots in front.
 

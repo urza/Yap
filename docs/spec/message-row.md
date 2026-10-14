@@ -194,7 +194,7 @@ A message row is one message as it appears in the conversation: who wrote it, wh
 
 ### System lines and bot rows
 
-**MR-73** In the lobby, a centred italic line appears when a person's first session joins or last session leaves, with a random text from the configured lists and the person's username. The line is not stored; a reload removes it.
+**MR-73** In the lobby, a centred italic line appears when a person joins or leaves, as the [presence page](presence.md#PR-17) times it, with a random text from the configured lists and the person's username. Invisible people get no line. The line is not stored; a reload removes it.
 
 **MR-74** A bot message may contain an "install it" link. It starts the installation of Yap on the device. See [Offline and installation](offline.md).
 
