@@ -6,9 +6,9 @@ The input box is where a message is written and sent. It sits at the bottom of e
 
 ![Input box, desktop, empty draft. The pill with +, the text area, the GIF badge and the grey emoji icon. Send is hidden.](img/input-box-desktop-empty.png)
 
-![Input box, desktop, with text. Send is visible with its glow, the GIF toggle has collapsed.](img/input-box-desktop-text.png)
+![Input box, desktop, with text. Send is visible and the GIF toggle has collapsed.](img/input-box-desktop-text.png)
 
-![Input box, phone, emoji sheet open. The box sits on the sheet; the page, the pill, + and the toggle are dimmed; the draft text and Send are bright.](img/input-box-phone-sheet.png)
+![Input box, phone, emoji sheet open. The box sits on the sheet; the page, the pill, + and the toggle are dimmed; Send is dimmed over the empty draft; the sheet is bright.](img/input-box-phone-sheet.png)
 
 1. **Typing strip.** An 18 px band above the box. It shows who is typing in this conversation. When nobody types it is empty but keeps its height, so the box never jumps.
 2. **Reply bar.** Shown only while replying. "Replying to" and the name on the left, ✕ on the right. It sits directly on the pill and forms one block with it.
@@ -65,7 +65,7 @@ The input box is where a message is written and sent. It sits at the bottom of e
 
 **IB-18** Send is hidden while the draft is empty and no picker is open. It collapses in 0.15 s and the pill takes its space. "Empty" means no character at all; a single space shows the button.
 
-**IB-19** With text in the draft, Send has the accent colour, a white icon and a soft accent glow. It is the only glowing control in the chat.
+**IB-19** With text in the draft, Send has the accent colour and a white icon. A theme may give it a soft glow. No other control in the chat glows.
 
 **IB-20** With a picker open over an empty draft, Send is visible and dimmed. *Why:* the user sees that sending is one step away once something is picked.
 
