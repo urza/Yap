@@ -21,7 +21,7 @@ Component pages and feature pages cross-link. A component page says what a part 
 | [General rules](general-rules.md) | GEN | planned |
 | [Input box](input-box.md) | IB | written |
 | [Message row and actions](message-row.md) | MR | draft, in review |
-| [Emoji and GIF pickers](pickers.md) | PK | planned |
+| [Emoji and GIF pickers](pickers.md) | PK | draft, in review |
 | [Timeline and media](timeline.md) | TL | planned |
 | [Header, sidebar and overlays](frame.md) | SH | planned |
 | [Settings](settings.md) | ST | planned |
