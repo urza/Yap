@@ -26,6 +26,7 @@ One IndexedDB store, the outbox. One row per unsent message:
 | `clientId` | A UUID the client makes at send time. The server dedupes by it. |
 | `conversation` | Room id or DM partner. |
 | `text` | The message text. |
+| `attachments` | The picked files as Blobs. Each is replaced by its upload id once uploaded. |
 | `createdAt` | When the user pressed Send. |
 | `state` | `queued` or `failed`. |
 
@@ -36,10 +37,11 @@ Send appends a row and paints the pending message in the timeline. That is the w
 One loop, driven by events, never by a timer:
 
 1. Take the oldest `queued` row.
-2. POST it with its `clientId`.
-3. On 2xx, delete the row. The live update from the server paints the real message.
-4. On a network error, stop. Do nothing until a wake-up.
-5. On a 4xx, set `state = failed` and stop trying that row.
+2. For each attachment that is still a Blob, upload it and write the upload id back into the row.
+3. POST the message with its `clientId` and the upload ids.
+4. On 2xx, delete the row. The live update from the server paints the real message.
+5. On a network error, stop. Do nothing until a wake-up.
+6. On a 4xx, set `state = failed` and stop trying that row.
 
 Wake-ups: the `online` event, a SignalR reconnect, the tab becoming visible, a new row appended. No poll, no backoff table, no attempt counter, no persisted next-attempt time.
 
@@ -51,7 +53,7 @@ The server dedupes by `clientId`. A bounded dictionary per user in memory, `clie
 
 On connect, fetch the tail of the open conversation and the unread counts in one request. Live updates arrive as SignalR events, as before. On reconnect, fetch the tail again. Nothing to merge, no versions per record, no epoch, no digest, no reset.
 
-If history must stay visible after a reload while offline, store the last fetched tail per conversation as one blob, replaced wholesale on each fetch. A snapshot cache. It has no merge logic because it is never partially updated.
+History stays visible after a reload while offline. Each time the client fetches a conversation's tail, it stores that response under the conversation id. On an offline reload it paints that. One record per conversation, overwritten whole, never merged. On phones the browser kills the app often, so without this cache "readable with what it already has" would mean almost nothing.
 
 ## Tabs
 
@@ -77,7 +79,7 @@ A row older than one day is marked `failed` when a tab opens. One comparison. Th
 
 Only new text messages are queued. Edits, deletes, reactions and uploads need a connection, and the UI says so when there is none. Queuing every operation is where the previous design grew its acceptance locks, its operation ids and its conflict rules. Not queuing them removes that whole class of code.
 
-Attachments while offline are an open decision. If they are in, the file blob goes into the outbox row, with a size cap, and the sender uploads before it posts. If they are out, the + button says "needs a connection".
+Attachments are in the offline promise. The case to serve: someone loses the connection in a tunnel with pictures already picked, presses Send, and the message goes out when the connection returns. The Blobs live in the outbox row. A row may hold at most 25 MB of attachments. Above that the client refuses to queue and the composer says "needs a connection". There is no resumable upload state. After a crash halfway through an upload, the file is uploaded again from zero, which is acceptable for a few megabytes. Added machinery: one field, one sender step, one cap.
 
 ## What this design does not have
 
@@ -93,8 +95,8 @@ Attachments while offline are an open decision. If they are in, the file blob go
 
 The client side is a few hundred lines: the outbox store, the sender, the pending row, the lock. The server side is the dictionary and one POST handler. The previous implementation of the same promise was about 7,600 lines of client code.
 
-## Open decisions
+## Decisions (2026-10-14)
 
-- Attachments in the offline promise, or text only.
-- The stale row limit (one day proposed).
-- The snapshot cache for reading after a reload, yes or no.
+- Attachments are in, with a 25 MB cap per queued message.
+- A queued row older than one day is marked failed.
+- The snapshot cache for reading after a reload is in.
