@@ -1,6 +1,6 @@
 # Timeline and media
 
-The timeline is the scrolling list of messages in a conversation, from the oldest loaded message at the top to the newest at the bottom. It decides what is loaded, where the view is, when it follows new messages and when it holds still, and how older messages are reached. It also owns the gallery viewer that opens from an image. The rows themselves are on the [message row page](message-row.md).
+The timeline is the scrolling list of messages in a conversation. The oldest loaded message is at the top and the newest message is at the bottom. The timeline controls which messages load and the position of the view. It controls when the view follows new messages, when it stays in position, and how the user gets to older messages. The timeline also includes the gallery viewer, which opens from an image. The [message row page](message-row.md) specifies the rows.
 
 ## Anatomy
 
@@ -12,107 +12,107 @@ The timeline is the scrolling list of messages in a conversation, from the oldes
 
 ![Gallery viewer, phone. A photo on a black background, the previous and next controls, the counter at the bottom, the close and fill controls.](img/timeline-phone-gallery.png)
 
-1. **The list.** Fills the conversation column above the input box and scrolls vertically. A short conversation sits at the bottom, with empty space above it.
-2. **The top note.** Shown only when all history is loaded: the room description, the "beginning" note, or the restricted-history note. While older messages exist, nothing shows above the first row, except the "Load earlier messages" link in a conversation too short to scroll, or "Needs a connection" without a connection. There are no date separators and no unread divider.
-3. **The loading row.** "Loading older messages..." with a spinner at the top while a page loads.
-4. **New messages pill.** A rounded accent pill with a down chevron, centred above the typing strip, shown when messages arrive while the user reads older ones.
-5. **Pending rows.** The user's own messages that the server has not accepted yet, at the end of the list.
-6. **Gallery viewer.** A full-screen layer over everything, opened from an image: the picture, previous and next, fill, close, and a counter.
+1. **The list.** The list fills the conversation column above the input box and scrolls vertically. A short conversation shows at the bottom, with empty space above it.
+2. **The top note.** A note that shows only when all history is loaded. It is the room description, the "beginning" note, or the restricted-history note. While older messages exist, nothing shows above the first row. The exceptions are the loading row while a page loads, the "Load earlier messages" link in a conversation too short to scroll, and "Needs a connection" without a connection. There are no date separators and no unread divider.
+3. **The loading row.** A row with "Loading older messages..." and a spinner. It shows at the top while a page loads.
+4. **New messages pill.** A rounded pill in the accent colour, with a down chevron. It shows centred above the typing strip when messages arrive while the user reads older messages.
+5. **Pending rows.** Rows for the user's own messages that the server did not accept yet. They are at the end of the list.
+6. **Gallery viewer.** A full-screen layer over the whole app, which opens from an image. It shows the picture, the previous and next controls, the fill and close controls, and a counter.
 
 ## Rules
 
 ### Opening a conversation
 
-**TL-01** A conversation opens at the bottom, on its newest 50 messages. Nothing jumps to the first unread message.
+**TL-01** A conversation opens at the bottom and shows its newest 50 messages. The view does not go to the first unread message.
 
-**TL-02** When the conversation was shown before on this device, its last known messages paint at once, and the fresh list replaces them when the server answers. A conversation never shown before stays empty until its messages arrive; there is no spinner.
+**TL-02** When the conversation was shown before on this device, its last known messages show immediately. When the server responds, the new list replaces them. A conversation that was never shown before stays empty until its messages arrive. There is no spinner.
 
-**TL-03** Opening a conversation marks it read. See [Notifications and unread](notifications.md).
+**TL-03** A conversation is marked read when it opens. See [Notifications and unread](notifications.md).
 
-**TL-04** The view scrolls to the bottom after the images and video posters in the newest messages have loaded, so the last message is fully in view and nothing is hidden under the input box.
+**TL-04** The view scrolls to the bottom after the images and video posters in the newest messages load. This makes sure that the last message is fully in view and that nothing is hidden under the input box.
 
-**TL-05** Non-admins see a room's history only as far back as its admin settings allow: a time window (one day to three months, or unlimited) and, when set, only messages since their own account was created. Admins see everything. Direct messages have no limit.
+**TL-05** A non-admin sees the history of a room only as far back as the admin settings of the room allow. One setting is a time window (one day to three months, or unlimited). When the second setting is on, a non-admin sees only messages since their own account was created. Admins see all history. Direct messages have no limit.
 
 ### Older messages
 
-**TL-06** When the user scrolls to within 100 px of the top and older messages exist, the next 50 load. The loading row shows meanwhile. The row that was at the top stays in place when the older messages appear; the view does not move.
+**TL-06** When the user scrolls to within 100 px of the top and older messages exist, the next 50 load. The loading row shows while they load. When the older messages appear, the row that was at the top stays in its position. The view does not move.
 
 **TL-07** When the conversation is too short to scroll and older messages exist, a "Load earlier messages" link shows above the first row instead.
 
-**TL-08** Older messages loaded during a visit stay loaded until the user leaves the conversation. Returning to a conversation opens it as in TL-01.
+**TL-08** Older messages loaded during a visit stay loaded until the user leaves the conversation. When the user returns to a conversation, it opens as TL-01 describes.
 
-**TL-09** When all history is loaded, the top note shows in place of the loading row. In a room: the restricted note "Older messages are not available in this channel" when messages are hidden by TL-05, else the room's description with one line per line break, else "This is the beginning of #{room}". In a direct message: an italic line "This is the beginning of your direct message history with {username}." with the name in bold.
+**TL-09** When all history is loaded, the top note shows in place of the loading row. In a room, the note is the restricted note "Older messages are not available in this channel" when TL-05 hides messages. Otherwise, the note is the room's description, with one line for each line break. When there is no description, the note is "This is the beginning of #{room}". In a direct message, the note is the italic line "This is the beginning of your direct message history with {username}.", with the name in bold.
 
 ### Following the bottom
 
-**TL-10** While the view is at the bottom, it follows: every new message, reaction, link card, loaded image or growth of the input box keeps the newest message in view. This holds when the phone keyboard opens or closes, when the reply bar appears, and when the picker sheet opens.
+**TL-10** While the view is at the bottom, it follows. This means that every new message, reaction, link card, loaded image or growth of the input box keeps the newest message in view. This also applies when the phone keyboard opens or closes, when the reply bar appears, and when the picker sheet opens.
 
-**TL-11** Only an upward scroll by the user releases the follow. A tap, a click, a key or a wheel movement that does not move the list never releases it.
+**TL-11** Only an upward scroll by the user stops the follow. A tap, a click, a key or a wheel movement that does not move the list never stops it.
 
-**TL-12** While the view does not follow, the list holds its position whatever arrives: new messages, reactions, edits, deletions, images loading above or below. The row the user reads stays where it is.
+**TL-12** While the view does not follow, the list keeps its position for all content that arrives. This includes new messages, reactions, edits, deletions, and images that load above or below. The row that the user reads stays in the same position.
 
 **TL-13** The follow resumes when the user scrolls back to within 80 px of the bottom, or taps the New messages pill.
 
-**TL-14** The user's own send always goes to the bottom, with its pending row in view, and turns the follow on.
+**TL-14** When the user sends a message, the view always goes to the bottom, with the pending row in view. The send also turns the follow on.
 
-**TL-15** Returning to the tab or the app re-pins the bottom only when the view was following. Otherwise the view stays, and the pill shows if messages arrived.
+**TL-15** When the user returns to the tab or the app, the view goes back to the bottom only if it was following. Otherwise the view stays in its position, and the pill shows if messages arrived.
 
 ### New messages pill
 
-**TL-16** When a message from someone else arrives while the view does not follow, the pill appears centred above the typing strip. It never covers the draft. Reactions, edits, link cards, lobby join and leave lines and the user's own messages do not show it.
+**TL-16** When a message from someone else arrives while the view does not follow, the pill shows centred above the typing strip. It never covers the draft. Reactions, edits, link cards, lobby join and leave lines and the user's own messages do not make the pill show.
 
-**TL-17** The pill reads a random phrase from the configured list, "New messages" when none is configured, with a down chevron. The phrase stays while the pill is shown.
+**TL-17** The pill shows a random phrase from the configured list and a down chevron. When no list is configured, the phrase is "New messages". The phrase does not change while the pill is shown.
 
-**TL-18** A tap on the pill scrolls to the bottom and turns the follow on. The pill hides when the follow resumes and when the conversation changes.
+**TL-18** A tap on the pill scrolls to the bottom and turns the follow on. The pill is hidden when the follow resumes and when the conversation changes.
 
 **TL-19** A message that arrives while the view does not follow is not marked read until the user reaches the bottom. See [Notifications and unread](notifications.md).
 
 ### Switching conversations
 
-**TL-20** A switch shows the new conversation's header and its last known messages together; a conversation never shown before shows its header over an empty list until its messages arrive. The pill hides, the old conversation's pending rows leave the screen but stay queued, and an open picker and an open viewer close.
+**TL-20** A switch shows the header and the last known messages of the new conversation together. A conversation that was never shown before shows its header over an empty list until its messages arrive. On a switch, the pill is hidden. The pending rows of the old conversation leave the screen, but their messages stay in the queue. An open picker and an open viewer close.
 
-**TL-21** When the open room is deleted, the user is taken to the lobby.
+**TL-21** When the open room is deleted, the lobby opens.
 
 ### Gallery viewer
 
-**TL-22** A tap or click on an image opens the viewer at that image at once, with the images of that message only. GIFs and videos do not open it.
+**TL-22** A tap or click on an image opens the viewer immediately, at that image. The viewer contains only the images of that message. GIFs and videos do not open the viewer.
 
-**TL-23** The viewer covers the whole app on a black layer, 90 % opaque on desktop and fully black on a phone. The picture is centred and fits within 85 % of the screen on desktop, the whole screen on a phone, never cropped. On a phone the controls are smaller and sit 8 px from the edges.
+**TL-23** The viewer covers the whole app with a black layer. The layer is 90 % opaque on desktop and fully black on a phone. The picture is centred and is never cropped. On desktop, it fits within 85 % of the screen. On a phone, it fits within the whole screen. On a phone, the controls are smaller and are 8 px from the edges.
 
-**TL-24** Controls float over the picture: close at the top right, previous and next at mid height, fill at the bottom right, and a counter "{n} / {total}" at the bottom centre. With one image there are no previous and next controls and no counter.
+**TL-24** The controls are on top of the picture. Close is at the top right, previous and next are at mid height, and fill is at the bottom right. The counter "{n} / {total}" is at the bottom centre. With one image, there are no previous and next controls and no counter.
 
-**TL-25** On touch, a horizontal swipe moves one image per fling. Previous, next and the arrow keys move one image; at the first and last image they do nothing. The counter changes when 60 % of an image is in view.
+**TL-25** On touch, each horizontal swipe moves one image. Previous, next and the arrow keys move one image. At the first and the last image, they do nothing. The counter changes when 60 % of an image is in view.
 
-**TL-26** The fill control, or a double tap, switches between fit and fill; its icon changes between maximize and minimize. Fill covers the screen along one axis, centred on the tapped point, and the picture pans and stops at its edges without moving to the next image. Moving to another image resets it to fit. There is no pinch zoom of the picture itself and no rotation.
+**TL-26** The fill control or a double tap switches between fit and fill. The icon of the fill control changes between maximize and minimize. In fill, the picture covers the screen along one axis and is centred on the tapped point. The user can pan the picture up to its edges. A pan does not move to the next image. A move to another image resets the picture to fit. There is no pinch zoom of the picture itself and no rotation.
 
-**TL-27** The viewer closes on the close control, on Escape, on a tap anywhere outside the picture and its four controls (the counter included), and in fit mode on a drag down of more than 120 px on touch. During the drag the picture follows the finger and the background fades; a shorter drag springs back. Every close fades out over 0.15 s. Escape closes the viewer only.
+**TL-27** The viewer closes on the close control and on Escape. It also closes on a tap anywhere outside the picture and its four buttons. A tap on the counter closes it too. In fit mode on touch, it closes on a drag down of more than 120 px. During the drag, the picture moves with the finger and the background fades. After a shorter drag, the picture goes back to its position. At every close, the viewer fades out over 0.15 s. Escape closes only the viewer.
 
-**TL-28** Opening or closing the viewer moves no focus: the phone keyboard and the list position stay as they were.
+**TL-28** The viewer does not move the focus when it opens or closes. The phone keyboard and the list position do not change.
 
 **TL-29** The viewer has no caption, no download control and no video. A conversation switch closes it. If the message is deleted while the viewer is open, the viewer closes.
 
 ### Media in the list
 
-**TL-30** Images, GIF previews and card thumbnails load as they come near the view. Thumbnails, GIFs with a known size and cards hold their final size before they load. A single image holds a 4:3 box until it loads, then takes its own ratio; a video holds its poster's size once the poster is known. The list never moves the row the user reads.
+**TL-30** Images, GIF previews and card thumbnails load when they come near the view. Thumbnails, GIFs with a known size and cards have their final size before they load. A single image has a 4:3 box until it loads. Then it changes to its own ratio. A video has the size of its poster from the time the poster is known. The list never moves the row that the user reads.
 
-**TL-31** GIFs play by themselves, muted. When the browser blocks that, the next tap or key press anywhere starts every paused GIF.
+**TL-31** GIFs play automatically and muted. When the browser blocks autoplay, the next tap or key press anywhere starts all paused GIFs.
 
-**TL-32** Media the user has seen is kept on the device and shown without a new download the next time, also after the app was closed.
+**TL-32** Media that the user saw is kept on the device. The next time, it shows without a new download, also after the app was closed.
 
 **TL-33** The theme's background pattern scrolls with the messages and shows only in the message column.
 
 ### Without a connection
 
-**TL-34** Without a connection the list shows the last messages it had for the conversation, and the user can read and scroll them. Older messages that were not loaded cannot be reached; the top of the list reads "Needs a connection" in place of the loading row.
+**TL-34** Without a connection, the list shows the last messages that it had for the conversation. The user can read and scroll them. The user cannot get older messages that were not loaded. The top of the list shows "Needs a connection" in place of the loading row.
 
-**TL-35** When the connection returns, the newest messages are fetched again and the loaded rows are refreshed. When more arrived than one page holds, the gap loads as the user scrolls up. The view stays where it is when it did not follow, and at the bottom when it did.
+**TL-35** When the connection returns, the newest messages load again and the loaded rows are updated. When more messages arrived than one page holds, the missing messages load as the user scrolls up. If the view did not follow, it stays where it is. If the view followed, it stays at the bottom.
 
 ## States
 
 | State or trigger | Input | What the user sees |
 | --- | --- | --- |
 | Conversation opened | all | Newest 50 messages, view at the bottom. |
-| Opened again on this device | all | Last known messages at once, then the fresh list. |
+| Opened again on this device | all | Last known messages immediately, then the new list. |
 | Scroll to within 100 px of the top | mouse, touch, keyboard | "Loading older messages..." then 50 more above; the view does not move. |
 | Too short to scroll, more history | all | "Load earlier messages" above the first row. |
 | All history loaded, room | all | Restricted note, room description, or "This is the beginning of #{room}". |
@@ -120,15 +120,15 @@ The timeline is the scrolling list of messages in a conversation, from the oldes
 | New message, following | all | List moves to show it. |
 | Reaction, card or image, following | all | Newest message stays in view. |
 | Keyboard opens or input box grows, following | touch, keyboard | Newest message stays in view. |
-| Upward scroll | mouse, touch, keyboard | Follow released; the view holds from now on. |
-| New message from someone else, not following | all | View holds; pill above the typing strip. |
-| Reaction, edit or card from anyone, not following | all | View holds; no pill. |
+| Upward scroll | mouse, touch, keyboard | Follow stopped; the view keeps its position from now on. |
+| New message from someone else, not following | all | View keeps its position; pill above the typing strip. |
+| Reaction, edit or card from anyone, not following | all | View keeps its position; no pill. |
 | Own send, not following | all | List goes to the bottom with the pending row. |
 | Scroll back within 80 px of the bottom | mouse, touch, keyboard | Follow on; pill hidden. |
 | Pill tap | mouse, touch | Bottom; follow on; pill hidden. |
-| Return to the tab, following | all | Bottom re-pinned. |
+| Return to the tab, following | all | View goes back to the bottom. |
 | Return to the tab, not following | all | View unchanged; pill if messages arrived. |
-| Conversation switched | all | New header and messages together; pill gone; the old pending rows stay queued but leave the screen; picker and viewer closed. |
+| Conversation switched | all | New header and messages together; pill hidden; the old pending rows leave the screen but stay in the queue; picker and viewer closed. |
 | Image tap | mouse, touch | Viewer at that image. |
 | Swipe, arrow key, previous or next | touch, keyboard, mouse | One image; counter updates at 60 % in view. |
 | Double tap or fill control | touch, mouse | Fit to fill or back; pan in fill. |
@@ -136,8 +136,8 @@ The timeline is the scrolling list of messages in a conversation, from the oldes
 | Close control, Escape, tap outside | mouse, touch, keyboard | Viewer closes with a fade; focus unchanged. |
 | Message deleted while viewing | all | Viewer closes. |
 | GIF autoplay blocked | all | Next tap or key starts all GIFs. |
-| No connection, older messages exist | all | Last messages readable; "Needs a connection" at the top instead of loading. |
-| Connection returns | all | Newest messages refreshed; view stays when not following, bottom when following. |
+| No connection, older messages exist | all | Last messages readable; "Needs a connection" at the top in place of the loading row. |
+| Connection returns | all | Newest messages updated; view stays when not following, at the bottom when following. |
 
 ## Wording
 
@@ -157,7 +157,7 @@ The timeline is the scrolling list of messages in a conversation, from the oldes
 ## Related
 
 - [Message row and actions](message-row.md) for the rows, the reply quote jump and the pending rows.
-- [Input box](input-box.md) for sending and the typing strip the pill sits above.
+- [Input box](input-box.md) for sending, and for the typing strip below the pill.
 - [Notifications and unread](notifications.md) for when a conversation counts as read.
 - [Header, sidebar and overlays](frame.md) for the connection state and the error screen.
 - [Administration](admin.md) for the history visibility settings and the media switches.
