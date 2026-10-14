@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yap · Yap spec</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #f3f5f7; --surface: #ffffff; --surface-2: #e9edf1;
+  --fg: #182029; --muted: #56606e; --line: #d4dae2; --line-strong: #a9b3c0;
+  --accent: #0d6a87; --code-bg: #f8f9fb;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+    --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+  --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+main { max-width: 980px; margin: 0 auto; padding: 36px 16px 96px; display: flex; flex-direction: column; gap: 22px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.15; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 4.5vw, 2.8rem); font-weight: 700; }
+h2 { font-size: clamp(1.4rem, 2.6vw, 1.8rem); font-weight: 600; padding-top: 22px; margin-top: 14px; border-top: 1px solid var(--line-strong); }
+h3 { font-size: 1.12rem; font-weight: 600; margin-top: 6px; }
+p, ul, ol { margin: 0; max-width: 76ch; }
+ul, ol { padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
+li > ul, li > ol { margin-top: 6px; }
+a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 0.88em; background: var(--surface-2); padding: 0.05em 0.3em; border-radius: 3px; overflow-wrap: anywhere; }
+pre { margin: 0; padding: 12px 16px; overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--code-bg); font: 0.82rem/1.5 var(--mono); }
+pre code { background: none; padding: 0; font-size: inherit; }
+blockquote { margin: 0; padding: 10px 16px; border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; max-width: 76ch; }
+.eyebrow { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+nav.pages { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+nav.pages a, nav.pages span { display: inline-block; padding: 3px 10px; border: 1px solid var(--line); border-radius: 4px; text-decoration: none; color: var(--fg); background: var(--surface); font-size: 0.86rem; }
+nav.pages span { color: var(--muted); border-style: dashed; }
+nav.pages a[aria-current] { border-color: var(--accent); color: var(--accent); }
+.rule { border: 1px solid var(--line); border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; padding: 10px 14px; max-width: 76ch; scroll-margin-top: 16px; }
+.rule .id { font-family: var(--mono); font-size: 0.8rem; color: var(--accent); margin-right: 8px; }
+.rule .why { color: var(--muted); }
+figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+figcaption { font-size: 0.9rem; color: var(--muted); max-width: 80ch; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+th { font-family: var(--display); font-weight: 600; background: var(--surface-2); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+footer { font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; }
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">Yap · product specification</div>
+<nav class="pages" aria-label="Spec pages"><a href="index.html">Index</a><a href="yap.html" aria-current="page">Yap</a><a href="general-rules.html">General rules</a><a href="input-box.html">Input box</a><a href="message-row.html">Message row and actions</a><a href="pickers.html">Emoji and GIF pickers</a><a href="timeline.html">Timeline and media</a><a href="frame.html">Header, sidebar and overlays</a><span title="planned">Settings</span><span title="planned">Administration</span><span title="planned">Presence</span><span title="planned">Notifications and unread</span><span title="planned">Sign-in and sessions</span><span title="planned">Offline and installation</span></nav>
+<h1 id="yap">Yap</h1>
+<p>Yap is a small self-hosted chat for a group of friends. One server, one community, rooms and direct messages, run by one of the friends. It is built to feel instant on a phone and to stay out of the way: no accounts beyond a name, no feeds, no bots you did not invite, and a sense of humour in every text the app says. It is not a critical system. A message lost once a month is acceptable; a second of lag on every tap is not.</p>
+<p>This page is the map. Each part links to its own page with the rules.</p>
+<h2 id="people-and-accounts">People and accounts</h2>
+<p>An account is a username, chosen once, with a display name, an avatar, a short bio and a location the person can change at any time. The first account on a server is its admin. A bot account, "Ping", welcomes new people and nudges phone users to install the app.</p>
+<p>People get in by an invite link or, when the admin allows it, by registering. Signing in is meant to be forgotten: a known device signs in with the username alone, a login link signs in a new device, and a secret code is the fallback. One account can be signed in on several devices at once, and each device can be signed out on its own. See <a href="sessions.html">Sign-in and sessions</a>.</p>
+<h2 id="rooms-and-direct-messages">Rooms and direct messages</h2>
+<p>Every room is visible to everyone. The lobby is the default room and cannot be deleted. An admin can make a room admin-only, which makes it read-only for the others, and can limit how far back non-admins see its history. Rooms have a description and an order set by the admin.</p>
+<p>A direct message is a private conversation between two people. It starts when one of them opens the other's name. There are no group direct messages. See <a href="frame.html">Header, sidebar and overlays</a> for how rooms and people are listed.</p>
+<h2 id="messages">Messages</h2>
+<p>A message is text, or media. Text keeps its line breaks, shows links with a preview card, and shows emoji as pictures from one set so everyone sees the same thing. There is no formatting syntax and no mentions. Media is up to ten images or videos sent together, or one GIF from the user's library, from the server's library or from the GIF provider. A message can reply to another, carry reactions, be edited by its author while it has text, be deleted by its author, and be copied. See <a href="message-row.html">Message row and actions</a> and <a href="input-box.html">Input box</a>.</p>
+<p>Everything the user does in the input box, the pickers and the message rows answers at once. The server confirms afterwards. See <a href="general-rules.html">General rules</a>.</p>
+<h2 id="emoji-and-gifs">Emoji and GIFs</h2>
+<p>The emoji picker has the user's recent emoji, custom packs from the server, and the standard categories, with search. The GIF picker has the user's recent and favourite GIFs with folders, the server's library, trending GIFs and search from the provider, and an upload. Reactions use the same emoji picker. See <a href="pickers.html">Emoji and GIF pickers</a>.</p>
+<h2 id="the-conversation">The conversation</h2>
+<p>The timeline shows the newest messages at the bottom and loads older ones as the user scrolls up. It follows new messages while the user is at the bottom and holds still while the user reads older ones, with a pill that announces new messages. Images open in a full-screen viewer. See <a href="timeline.html">Timeline and media</a>.</p>
+<h2 id="presence">Presence</h2>
+<p>Everyone online is listed, with a status: online, away, or invisible. Away is automatic after a few minutes without input and ends with the next keystroke. Invisible people see everyone and are seen by no one. People typing in the open conversation are shown under the messages. See <a href="presence.html">Presence</a>.</p>
+<h2 id="notifications">Notifications</h2>
+<p>Unread messages are counted per room and per direct message, with a total in the header and on the installed app's icon. A sound and the tab title announce arrivals while the user is elsewhere. Every room and every direct message can be muted; a muted conversation stays quiet in every way except a small dot. The installed app receives notifications when it is closed. See <a href="notifications.html">Notifications and unread</a>.</p>
+<h2 id="offline-and-installation">Offline and installation</h2>
+<p>Yap can be installed on a phone like an app. Without a connection it shows what it already has, and a message written offline is kept on the device and sent when the connection returns. This is best effort, not a guarantee. See <a href="offline.html">Offline and installation</a>.</p>
+<h2 id="settings-and-administration">Settings and administration</h2>
+<p>Settings holds the profile, the theme and text size, the time format, the notification choices, the security tools and the user's GIF library. Administration holds the people, the invites, the rooms, the sessions, the server switches and the server's GIF library. See <a href="settings.html">Settings</a> and <a href="admin.html">Administration</a>.</p>
+<h2 id="character">Character</h2>
+<p>Many texts the app shows come from lists the admin can edit: the room titles, the placeholder in the input box, the typing lines, the online header, the join and leave lines, the new messages pill. Each list has a plain fallback. Themes change the colours and the pattern behind the messages, never the behaviour.</p>
+<footer>Source: <code>docs/spec/yap.md</code>. Edit the Markdown, then run <code>python3 docs/spec/tools/build.py</code>.</footer>
+</main>
+</body>
+</html>

@@ -17,8 +17,8 @@ Component pages and feature pages cross-link. A component page says what a part 
 
 | Page | Prefix | Status |
 | --- | --- | --- |
-| [Yap](yap.md) | YAP | planned |
-| [General rules](general-rules.md) | GEN | planned |
+| [Yap](yap.md) | YAP | draft, finished last |
+| [General rules](general-rules.md) | GEN | draft, in review |
 | [Input box](input-box.md) | IB | written |
 | [Message row and actions](message-row.md) | MR | draft, in review |
 | [Emoji and GIF pickers](pickers.md) | PK | draft, in review |
