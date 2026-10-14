@@ -22,7 +22,7 @@ Component pages and feature pages cross-link. A component page says what a part 
 | [Input box](input-box.md) | IB | written |
 | [Message row and actions](message-row.md) | MR | draft, in review |
 | [Emoji and GIF pickers](pickers.md) | PK | draft, in review |
-| [Timeline and media](timeline.md) | TL | planned |
+| [Timeline and media](timeline.md) | TL | draft, in review |
 | [Header, sidebar and overlays](frame.md) | SH | planned |
 | [Settings](settings.md) | ST | planned |
 | [Administration](admin.md) | AD | planned |
