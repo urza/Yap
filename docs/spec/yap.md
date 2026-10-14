@@ -36,7 +36,7 @@ Everyone online is listed, with a status: online, away, or invisible. Away is au
 
 ## Notifications
 
-Unread messages are counted per room and per direct message, with a total in the header and on the installed app's icon. A sound and the tab title announce arrivals while the user is elsewhere. Every room and every direct message can be muted; a muted conversation stays quiet in every way except a small dot. The installed app receives notifications when it is closed. See [Notifications and unread](notifications.md).
+Unread messages are counted per room and per direct message, with a total in the header and on the installed app's icon. A sound and the tab title announce arrivals while the user is elsewhere. Every room and every direct message can be muted; a muted conversation stays quiet in every way except a small dot. Any browser that supports it, and the installed app, can receive notifications while Yap is closed. See [Notifications and unread](notifications.md).
 
 ## Offline and installation
 

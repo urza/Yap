@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notifications and unread · Yap spec</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #f3f5f7; --surface: #ffffff; --surface-2: #e9edf1;
+  --fg: #182029; --muted: #56606e; --line: #d4dae2; --line-strong: #a9b3c0;
+  --accent: #0d6a87; --code-bg: #f8f9fb;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+    --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+  --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+main { max-width: 980px; margin: 0 auto; padding: 36px 16px 96px; display: flex; flex-direction: column; gap: 22px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.15; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 4.5vw, 2.8rem); font-weight: 700; }
+h2 { font-size: clamp(1.4rem, 2.6vw, 1.8rem); font-weight: 600; padding-top: 22px; margin-top: 14px; border-top: 1px solid var(--line-strong); }
+h3 { font-size: 1.12rem; font-weight: 600; margin-top: 6px; }
+p, ul, ol { margin: 0; max-width: 76ch; }
+ul, ol { padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
+li > ul, li > ol { margin-top: 6px; }
+a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 0.88em; background: var(--surface-2); padding: 0.05em 0.3em; border-radius: 3px; overflow-wrap: anywhere; }
+pre { margin: 0; padding: 12px 16px; overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--code-bg); font: 0.82rem/1.5 var(--mono); }
+pre code { background: none; padding: 0; font-size: inherit; }
+blockquote { margin: 0; padding: 10px 16px; border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; max-width: 76ch; }
+.eyebrow { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+nav.pages { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+nav.pages a, nav.pages span { display: inline-block; padding: 3px 10px; border: 1px solid var(--line); border-radius: 4px; text-decoration: none; color: var(--fg); background: var(--surface); font-size: 0.86rem; }
+nav.pages span { color: var(--muted); border-style: dashed; }
+nav.pages a[aria-current] { border-color: var(--accent); color: var(--accent); }
+.rule { border: 1px solid var(--line); border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; padding: 10px 14px; max-width: 76ch; scroll-margin-top: 16px; }
+.rule .id { font-family: var(--mono); font-size: 0.8rem; color: var(--accent); margin-right: 8px; }
+.rule .why { color: var(--muted); }
+figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+figcaption { font-size: 0.9rem; color: var(--muted); max-width: 80ch; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+th { font-family: var(--display); font-weight: 600; background: var(--surface-2); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+footer { font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; }
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">Yap · product specification</div>
+<nav class="pages" aria-label="Spec pages"><a href="index.html">Index</a><a href="yap.html">Yap</a><a href="general-rules.html">General rules</a><a href="input-box.html">Input box</a><a href="message-row.html">Message row and actions</a><a href="pickers.html">Emoji and GIF pickers</a><a href="timeline.html">Timeline and media</a><a href="frame.html">Header, sidebar and overlays</a><span title="planned">Settings</span><span title="planned">Administration</span><a href="presence.html">Presence</a><a href="notifications.html" aria-current="page">Notifications and unread</a><span title="planned">Sign-in and sessions</span><a href="offline.html">Offline and installation</a></nav>
+<h1 id="notifications-and-unread">Notifications and unread</h1>
+<p>This page decides what is unread, when it becomes read, what the counts show, when a sound plays, what a mute silences, and when a device is notified while Yap is not in front. The places where the numbers appear are on the <a href="frame.html">frame page</a>; the rules that produce them are here.</p>
+<figure><img src="../img/notifications-desktop-sidebar.png" alt="Sidebar, desktop, with unread marks. A room with a red count, a muted room with a crossed bell and a dot, a person with a red count, a muted direct message with a bell and a dot, the mailbox in the header with the total." loading="lazy"><figcaption>Sidebar, desktop, with unread marks. A room with a red count, a muted room with a crossed bell and a dot, a person with a red count, a muted direct message with a bell and a dot, the mailbox in the header with the total.</figcaption></figure>
+<h2 id="rules">Rules</h2>
+<h3 id="what-is-unread">What is unread</h3>
+<p class="rule" id="NT-01"><span class="id">NT-01</span>Every conversation has one unread count per person. It belongs to the account: every device of the person shows the same number, and a read on one device clears it on all of them at once.</p>
+<p class="rule" id="NT-02"><span class="id">NT-02</span>Only a new message adds to a count. Edits, deletions, reactions, typing and presence never change it. The sender's own messages never count, also when sent from another device. Bot messages count like a person's.</p>
+<p class="rule" id="NT-03"><span class="id">NT-03</span>A direct message counts for the other person, online or not. A room message counts for every person who is online at that moment and for every person who has that room unmuted. A person who is offline and has the room muted gets nothing, not even a dot. <em class="why">Why:</em> nobody should come back to a sidebar full of dots for rooms they never opened.</p>
+<p class="rule" id="NT-04"><span class="id">NT-04</span>A mute never stops counting. A muted conversation shows a dot instead of its number, and unmuting reveals the true count.</p>
+<p class="rule" id="NT-05"><span class="id">NT-05</span>Counts survive a reload and a server restart. Signing out keeps them.</p>
+<h3 id="when-a-conversation-becomes-read">When a conversation becomes read</h3>
+<p class="rule" id="NT-06"><span class="id">NT-06</span>Opening a conversation marks it read: a tap in the sidebar, a link, a notification tap, a switch from another conversation.</p>
+<p class="rule" id="NT-07"><span class="id">NT-07</span>A message that arrives in the open conversation is marked read at once when the page is visible, the person is not away, and the view is at the bottom. It then never shows a count on any device. Otherwise it stays unread until one of those becomes true: the tab comes back to the front, the person becomes active again, or the view reaches the bottom.</p>
+<p class="rule" id="NT-08"><span class="id">NT-08</span>A read clears the whole conversation. There is no partial read, no divider and no "mark all as read".</p>
+<h3 id="counts-total-and-badges">Counts, total and badges</h3>
+<p class="rule" id="NT-09"><span class="id">NT-09</span>A conversation's row shows its count when it is unmuted, a dot when it is muted, and nothing when it is the open conversation.</p>
+<p class="rule" id="NT-10"><span class="id">NT-10</span>The total in the mailbox is the sum of the counts of the unmuted conversations, without the open conversation. It equals the sum of the numbers the rows show.</p>
+<p class="rule" id="NT-11"><span class="id">NT-11</span>The installed app's icon badge shows the total of unread unmuted conversations. It updates while the app is open and when a notification arrives while it is closed. A read on another device corrects it at the next notification or the next open.</p>
+<p class="rule" id="NT-12"><span class="id">NT-12</span>While the tab is hidden, the tab title starts with the number of arrivals this tab has seen since it was hidden, by the mute rules below. The number resets when the tab comes to the front. On a room page every unmuted conversation counts; on a direct message page only direct messages count.</p>
+<h3 id="sound">Sound</h3>
+<p class="rule" id="NT-13"><span class="id">NT-13</span>A sound plays when a direct message arrives from someone else while the tab is hidden and a direct message page is open, unless the arriving direct message is muted. It never plays on a room page, never while the tab is visible, never for the person's own messages. Status does not matter.</p>
+<p class="rule" id="NT-14"><span class="id">NT-14</span>One sound per arrival, whatever the number of tabs.</p>
+<p class="rule" id="NT-15"><span class="id">NT-15</span>The sound cannot be changed or turned off. A mute is the way to silence it.</p>
+<h3 id="mutes">Mutes</h3>
+<p class="rule" id="NT-16"><span class="id">NT-16</span>Mutes have three levels, read top down; the first that decides wins: the whole server, then all direct messages or all rooms, then one conversation.</p>
+<p class="rule" id="NT-17"><span class="id">NT-17</span>The server-wide mute has a duration: 1 hour, 1 day, 1 week, or until the person turns it back on. While it is on, the status menu shows a crossed bell and the per-conversation settings are hidden.</p>
+<p class="rule" id="NT-18"><span class="id">NT-18</span>Direct messages and rooms each have a mode: "Allow all", "Individual" or "Mute all". In Individual mode every conversation has its own bell. New direct messages follow the "New DMs" bell; a new room is muted until the person allows it.</p>
+<p class="rule" id="NT-19"><span class="id">NT-19</span>Defaults for a new account: the server allowed, direct messages allowed, rooms muted.</p>
+<p class="rule" id="NT-20"><span class="id">NT-20</span>The conversation a message arrives in decides: its mute setting applies to the count, the total, the badge, the sound, the tab title and the notification. The open conversation's setting does not matter.</p>
+<p class="rule" id="NT-21"><span class="id">NT-21</span>A muted conversation shows a dot when something arrives and nothing else: no number, no sound, no notification, no move to the top of the people list. Per-conversation choices survive a switch of mode and return with it.</p>
+<p class="rule" id="NT-22"><span class="id">NT-22</span>Mutes belong to the account and apply on every device. They are set in Settings only, under "Allow / Mute Notifications", and apply at once.</p>
+<h3 id="notifications-on-a-device">Notifications on a device</h3>
+<p class="rule" id="NT-23"><span class="id">NT-23</span>Any browser that supports it, and the installed app, can receive notifications while Yap is not open. A device subscribes in Settings, or from the "One more step" prompt in the installed app. Each device subscribes on its own.</p>
+<p class="rule" id="NT-24"><span class="id">NT-24</span>A device's subscription belongs to the account signed in on it. Signing out removes it. "Sign out other devices" removes the other devices' subscriptions too. A second account signing in on the device takes it over.</p>
+<p class="rule" id="NT-25"><span class="id">NT-25</span>A notification is sent for a direct message to the other person, and for a room message to every person who has that room unmuted, except the sender.</p>
+<p class="rule" id="NT-26"><span class="id">NT-26</span>No notification is sent to a person who has a visible Yap session on any device, whatever the status. Away does not suppress notifications: away is when the phone should buzz. A hidden tab suppresses nothing.</p>
+<p class="rule" id="NT-27"><span class="id">NT-27</span>A direct message notification is titled "DM from {display name}" with the message text as its body. A room notification is titled "#{room}" with "{display name}: {text}". A message with a GIF reads "[GIF]"; a message with images or videos reads "[Attachment]". Bodies longer than 100 characters are cut with "...". Notifications of one conversation replace each other and alert again.</p>
+<p class="rule" id="NT-28"><span class="id">NT-28</span>A tap on a notification opens that conversation in an open Yap window, or opens a new one. The notification carries the unread total for the icon badge.</p>
+<p class="rule" id="NT-29"><span class="id">NT-29</span>Every message sends its own notification at once. There is no grouping delay and no digest.</p>
+<p class="rule" id="NT-30"><span class="id">NT-30</span>"Send a test to all devices" in Settings notifies every subscribed device, ignores every mute, and leaves the badge alone.</p>
+<p class="rule" id="NT-31"><span class="id">NT-31</span>The notification prompt shows only in the installed app while the browser has not been asked, up to three dismissals. A refusal in the browser ends it for good; the person can still enable notifications in Settings when the browser allows it. See <a href="frame.html#SH-38">frame page</a>.</p>
+<h2 id="states">States</h2>
+<div class="tablewrap"><table><thead><tr><th>State or trigger</th><th>Input</th><th>What the user sees</th></tr></thead><tbody><tr><td>Message in an unmuted room, person online elsewhere</td><td>all</td><td>Red count on the row; total up; notification only if the room is unmuted and no session is visible.</td></tr><tr><td>Message in a muted room</td><td>all</td><td>Dot on the row; nothing else.</td></tr><tr><td>Direct message, person offline</td><td>all</td><td>Count on the row at the next open; notification on every subscribed device.</td></tr><tr><td>Direct message, tab hidden on a direct message page</td><td>all</td><td>Sound; title "(1) …"; row count; no notification if the tab is visible on another device.</td></tr><tr><td>Direct message, visible session anywhere</td><td>all</td><td>No notification, no sound; count only where the conversation is not open.</td></tr><tr><td>Open conversation, visible, at the bottom</td><td>all</td><td>Arrival read at once; no count anywhere.</td></tr><tr><td>Open conversation, away or hidden</td><td>all</td><td>Stays unread; read when the person is back.</td></tr><tr><td>Open conversation, scrolled up</td><td>all</td><td>Stays unread until the view reaches the bottom; the pill shows.</td></tr><tr><td>Read on the phone</td><td>all</td><td>Desktop row and mailbox clear at once.</td></tr><tr><td>Tab returns to the front</td><td>all</td><td>Title prefix gone; open conversation read if at the bottom.</td></tr><tr><td>Server mute on</td><td>all</td><td>Crossed bell in the status menu; no sounds, counts or notifications.</td></tr><tr><td>Timed mute ends</td><td>all</td><td>Everything back to the settings below it.</td></tr><tr><td>Unmute a conversation</td><td>all</td><td>Its true count appears.</td></tr><tr><td>Notification tap</td><td>touch, mouse</td><td>The conversation opens and is read.</td></tr><tr><td>Test send</td><td>mouse, touch</td><td>Every device shows the test banner; result line for 3 s.</td></tr></tbody></table></div>
+<h2 id="wording">Wording</h2>
+<div class="tablewrap"><table><thead><tr><th>Where</th><th>Text</th></tr></thead><tbody><tr><td>Direct message notification</td><td>"DM from {display name}"; body "{text}", "[GIF]" or "[Attachment]"</td></tr><tr><td>Room notification</td><td>"#{room}"; body "{display name}: {text}"</td></tr><tr><td>Notification when the content is missing</td><td>"New Message"; "You have a new message"</td></tr><tr><td>Test notification</td><td>"Yap test notification"; "If you can see this, push notifications work on this device."</td></tr><tr><td>Tab title prefix</td><td>"({n}) "</td></tr><tr><td>Mailbox tooltip</td><td>"{n} unread messages"</td></tr><tr><td>Sidebar bell tooltip</td><td>"Notifications muted"</td></tr><tr><td>Settings, device section</td><td>"Device Push Notifications"; "Push lets Yap notify a device even when the tab is closed. Each device subscribes separately."; "This device"; "Not Supported"; "Not Configured"; "Subscribed"; "Not subscribed"; "Browser Permission"; "Subscribed Devices"; "{n} device(s)"; "Added {time}"; "Delivered {time}"; "Remove"</td></tr><tr><td>Settings, device actions</td><td>"Enable push on this device"; "Enabling..."; "Your browser will ask for permission. Yap can then notify this device even when the tab is closed."; "Turn off push on this device"; "Turning off..."; "Stops push for this device only. Other devices stay subscribed; remove them in the list above."; "Send a test to all devices"; "Sending..."; "Sends a notification to every subscribed device — the ones that buzz are alive."; "Push only makes delivery possible. What actually notifies you is set in Allow / Mute Notifications below."</td></tr><tr><td>Settings, device hints</td><td>"Push notifications are not supported in this browser."; "Push notifications are not configured on this server."; "Notification permission was denied. Reset it in your browser settings to re-enable."</td></tr><tr><td>Settings, results</td><td>"No subscribed devices to notify."; "Sent to {n} device(s) — check them now."; "Sent to {sent}/{total} device(s); {failed} failed (expired ones removed)."; "Failed to send test notification."; "The browser closed the permission prompt without granting."; "Subscription failed in the browser: {error}."</td></tr><tr><td>Settings, rules section</td><td>"Allow / Mute Notifications"; "Choose what actually notifies you. These rules follow your account on every device."; "Everything on this server"; "Allow"; "Mute"; "Mute for"; "1 hour"; "1 day"; "1 week"; "Until I turn it back on"; "Muted for another {time}."; "Muted until you turn notifications back on."; "Direct messages"; "Rooms"; "Allow all"; "Individual"; "Mute all"; "New DMs"; tooltips "Allowed — click to mute", "Muted — click to allow"</td></tr><tr><td>Settings, footer</td><td>"A muted room or DM still shows a small dot in the sidebar when something arrives. It sends no notification, plays no sound, and adds nothing to the unread count."</td></tr><tr><td>Prompt</td><td>"One more step"; "Please enable notifications so Yap can send you notifs about new DM messages / mentions when the app is not open. You can always change this later in Settings, and you can also disable notifications temporarily."; "Enable Notifications"; "Maybe Later"</td></tr></tbody></table></div>
+<h2 id="related">Related</h2>
+<ul><li><a href="frame.html">Header, sidebar and overlays</a> for the rows, the mailbox, the title and the prompt.</li><li><a href="timeline.html">Timeline and media</a> for the view following the bottom and the New messages pill.</li><li><a href="presence.html">Presence</a> for away and visible sessions.</li><li><a href="settings.html">Settings</a> for the two notification sections.</li><li><a href="admin.html">Administration</a> for the notification audit admins see.</li><li><a href="offline.html">Offline and installation</a> for the installed app.</li></ul>
+<footer>Source: <code>docs/spec/notifications.md</code>. Edit the Markdown, then run <code>python3 docs/spec/tools/build.py</code>.</footer>
+</main>
+</body>
+</html>
