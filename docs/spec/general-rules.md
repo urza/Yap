@@ -1,61 +1,61 @@
 # General rules
 
-Rules that every component follows. A component page may make one of these more precise; it may not contradict it.
+This page holds the rules that every component follows. A component page can make one of these rules more precise. A component page must not contradict them.
 
-## Every input acts at once
+## Local actions
 
-**GEN-01** An input that can act locally acts in the user's own tap or keystroke: typing, opening a picker, picking an emoji, sending, reacting, scrolling. The screen changes before the server has answered; the server's answer confirms or corrects. What must come from the server, such as search results, older messages and uploads, shows a loading state and never blocks the rest.
+**GEN-01** An input that can act locally acts within the user's own tap or keystroke: typing, opening a picker, picking an emoji, sending, reacting and scrolling. The screen changes before the server answers. The answer from the server then confirms or corrects the change. Anything that must come from the server, such as search results, older messages and uploads, shows a loading state. A loading state never blocks the rest of the app.
 
-**GEN-02** When the server refuses an action, the user sees why at the place where the action happened. A refused change returns the screen to its state before; a refused message stays as a failed row with Retry and Remove.
+**GEN-02** When the server refuses an action, the user sees the reason at the place of the action. A refused change puts the screen back to its previous state. A refused message stays as a failed row with Retry and Remove.
 
-**GEN-03** The keyboard on a phone opens only when the user taps a text field or starts an action whose point is to type, such as Reply or Edit, and closes only when the user leaves the field or taps something that takes its place.
+**GEN-03** On a phone, the keyboard opens only when the user taps a text field or starts an action whose purpose is typing. Reply and Edit are such actions. The keyboard closes only when the user leaves the field or taps something that takes its place.
 
 ## Privacy
 
-**GEN-04** The text of a direct message is visible only to its two people; the admin sees that it happened and its uploads on the administration page. A room is visible to every account on the server.
+**GEN-04** Only the two people in a direct message can see its text. On the administration page, the admin sees that the message was sent and sees its uploads. A room is visible to every account on the server.
 
-**GEN-05** Signing out, or learning of a sign-out made elsewhere, removes everything of the account from the device: drafts, unsent messages, cached conversations and the notification subscription. A different account signing in on the same device starts from nothing. Device conveniences such as the last route and dismissed prompts stay.
+**GEN-05** A sign-out removes all data of the account from the device: drafts, unsent messages, cached conversations and the notification subscription. A sign-out made elsewhere has the same effect when the device learns of it. When a different account signs in on the same device, that account starts empty. Device conveniences, such as the last route and the dismissed prompts, stay on the device.
 
-**GEN-06** An invisible person is shown to others as offline and is not counted as online. Admins see the real status, and typing shows the person like anyone else.
+**GEN-06** Other people see an invisible person as offline. Yap does not count an invisible person as online. Admins see the real status. When an invisible person types, the typing strip shows that person like any other person.
 
 ## Sounds, counts and mutes
 
-**GEN-07** The conversation a message arrives in decides whether it counts, sounds and notifies. Its mute setting applies; the open conversation's setting does not. The kind of page that is open decides which arrivals the tab title and the sound announce.
+**GEN-07** The conversation that receives a message decides whether the message counts as unread, plays a sound and causes a notification. The mute setting of that conversation applies. The mute setting of the open conversation does not apply. The type of the open page decides which arriving messages the tab title and the sound announce.
 
-**GEN-08** The user's own messages never count, sound or notify.
+**GEN-08** The user's own messages never count as unread, never play a sound and never cause a notification.
 
-**GEN-09** A muted conversation shows that something arrived, as a dot, and nothing else. A person who had Yap closed gets no dot for a muted room.
+**GEN-09** When something arrives in a muted conversation, the conversation shows a dot and nothing else. A person who had Yap closed gets no dot for a muted room.
 
 ## Connection
 
-**GEN-10** The app stays readable and usable without a connection. Reading what is loaded, writing, and queuing messages work. Actions that need the server say "Needs a connection" where they are taken, or are dimmed.
+**GEN-10** Without a connection, the app stays readable and usable. The user can read what is loaded, can write, and can queue messages. An action that needs the server shows "Needs a connection" where the user takes it, or is dimmed.
 
-**GEN-11** The connection state is shown in the header and, for a state that needs the user, in the notice strip, never as a layer over the content.
+**GEN-11** The header shows the connection state. When a state needs action from the user, the notice strip also shows it. The connection state never shows as a layer over the content.
 
 ## Texts and look
 
-**GEN-12** The playful texts that vary come from lists configured on the server, each with a plain fallback. A text is picked when its context appears and stays until the context changes.
+**GEN-12** The playful texts that vary come from lists that are configured on the server. Each list has a plain fallback. Yap picks a text when its context appears. The text stays until the context changes.
 
-**GEN-13** Themes change colours, patterns, tints and glows. They never change behaviour, sizes of controls, or the meaning of the status colours.
+**GEN-13** A theme changes colours, patterns, tints and glows. A theme never changes behaviour, the sizes of controls or the meaning of the status colours.
 
-**GEN-14** Two width tiers apply: 768 px for the sidebar and the people count, 600 px for the compact components and the header's density. Both depend on width, not on the device. Hover and touch rules depend on the input, not on width.
+**GEN-14** Two width tiers apply. The 768 px tier controls the sidebar and the people count. The 600 px tier controls the compact components and the header's density. Both tiers depend on the width, not on the device. Hover and touch rules depend on the input, not on the width.
 
-**GEN-15** On a phone every text field uses 16 px text, so the page never zooms when a field takes focus.
+**GEN-15** On a phone, every text field uses 16 px text, so the page never zooms when a field gets focus.
 
-**GEN-16** Every control that shows on hover on desktop is always visible, or reachable by a tap, on a touch screen.
+**GEN-16** On a touch screen, every control that shows on hover on desktop is always visible, or the user can reach it with a tap.
 
 ## Shared behaviour
 
-**GEN-17** A tap outside a popup closes it. Escape closes the topmost open layer only.
+**GEN-17** A tap outside a popup closes it. Escape closes only the topmost open layer.
 
 **GEN-18** On a phone, pickers and menus open as bottom sheets over a dimmed page.
 
-**GEN-19** A person is shown by display name, or by username when there is none.
+**GEN-19** Yap shows a person by display name. When the person has no display name, Yap shows the username.
 
 **GEN-20** Emoji show as images from one set, so everyone sees the same picture.
 
-**GEN-21** Drafts and unsent messages survive a reload, a new version and the error screen.
+**GEN-21** Drafts and unsent messages are kept through a reload, a new version and the error screen.
 
-**GEN-22** A change made elsewhere, on another device or by another person, shows at once.
+**GEN-22** A change made on another device or by another person shows at once. The one exception is the Users table of the administration page, which is read when that page loads.
 
-**GEN-23** The account owns the profile, the theme and text size, the time format, the status, the mutes, the recent emoji, the favourites and the unread counts. The device owns the drafts, the pending messages, the cached conversations, the notification subscription, the last route and the dismissed prompts.
+**GEN-23** These belong to the account: the profile, the theme and text size, the time format and the status. The mutes, the recent emoji, the favourites and the unread counts also belong to the account. These belong to the device: the drafts, the pending messages, the cached conversations, the notification subscription, the last route and the dismissed prompts.

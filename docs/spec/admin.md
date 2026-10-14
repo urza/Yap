@@ -1,135 +1,135 @@
 # Administration
 
-Administration is the admin's page for the server: the people, the invites and login links, the registration switches, the bot, the server switches, the server's GIF library, the logs and the live diagnostics. There is one admin, the first account on the server. Rooms are created and changed on their own pages, reached from the sidebar; those pages are specified here too.
+Administration is the admin's page for the server. It covers the people, the invites and login links, the registration switches and the bot. It also covers the server switches, the server's GIF library, the logs and the live diagnostics. There is one admin, the first human account on the server. Rooms are created and changed on separate pages that open from the sidebar. This page also specifies those room pages.
 
 ## Anatomy
 
 ![Administration, desktop, the Users tab. The navigation column on the left with the back arrow, "Admin" and the ten tabs; the users table with avatars, status pills and the PWA column.](img/admin-desktop-users.png)
 
-1. **Navigation.** A 180 px column with a round back arrow, "Admin", and the tabs Users, Debug, Bot, Settings, Invites, Logs, Media, GIFs, Diagnostics, Visitors. On a phone, a horizontal tab bar under the back arrow.
+1. **Navigation.** A 180 px column with a round back arrow, "Admin", and the tabs Users, Debug, Bot, Settings, Invites, Logs, Media, GIFs, Diagnostics, Visitors. On a phone, the tabs are a horizontal tab bar under the back arrow.
 2. **Content.** The open tab, with a title row (name and a count or subtitle), stat cards where the tab has them, filters, and tables that scroll sideways when wide.
-3. **Tables.** Small capitals headers, 24 more rows per "Show more" tap, or 100 per "Load more" page. On a phone a wide table scrolls sideways; no column is hidden.
+3. **Tables.** Headers in small capitals. A table adds 24 rows for each "Show more" tap, or 100 rows for each "Load more" page. On a phone, a wide table scrolls sideways and no column is hidden.
 4. **Room pages.** "Create Channel" and "Channel Settings", inside the chat frame, with the cards Channel Info, Permissions, History Visibility, Channel Order and Danger Zone.
 
 ## Rules
 
 ### Access and layout
 
-**AD-01** Only the admin opens the page, from "Admin" in the status menu. Anyone else goes to the lobby. The page sits outside the chat frame, in the theme's colours. The back arrow goes to the lobby and is present on phones too.
+**AD-01** Only the admin can open the page, from "Admin" in the status menu. Any other person goes to the lobby. The page is outside the chat frame and uses the theme's colours. The back arrow goes to the lobby. The back arrow is also present on phones.
 
-**AD-02** Users opens first. Users, Bot, Invites and Settings load with the page; Logs, Media and Visitors load on first open; GIFs reloads on every open; Diagnostics refreshes every 30 seconds while open.
+**AD-02** Users opens first. Users, Bot, Invites and Settings load with the page. Logs, Media and Visitors load when they open for the first time. GIFs loads again each time it opens. Diagnostics refreshes every 30 seconds while it is open.
 
-**AD-03** When the server runs without persistence (the optional saved copy of accounts, messages and settings), the page says so at the top: "This server runs without persistence. Accounts, messages and settings last until the next restart." Logs, Media and Visitors then read "Not available without persistence." instead of staying empty.
+**AD-03** Persistence is the optional saved copy of accounts, messages and settings. When the server runs without persistence, the top of the page shows "This server runs without persistence. Accounts, messages and settings last until the next restart." Logs, Media and Visitors then show "Not available without persistence." instead of an empty tab.
 
 ### Users
 
-**AD-04** The Users table lists every account, the bot included, newest activity first: avatar, display name with the admin crown and the username, a status pill (Online, Away, Invisible, Offline; the admin sees Invisible as Invisible), whether the installed app was seen, the creation time, the last action, the time zone and language, and up to five recent network addresses. It is read when the page loads and does not change until the next load.
+**AD-04** The Users table lists every account, including the bot, with the newest activity first. Each row shows the avatar, the display name with the admin crown, the username and a status pill. The pill is Online, Away, Invisible or Offline, and the admin sees Invisible as Invisible. The row also shows whether the installed app was seen, the creation time and the last action. It also shows the time zone and language, and up to five recent network addresses. The table is read when the page loads and does not change until the next load.
 
-**AD-05** A tap on a row opens its detail: notification devices, installed app, the effective theme, and tables of addresses with countries and of browsers, each with the last seen time.
+**AD-05** A tap on a row opens its detail. The detail shows the notification devices, the installed app and the effective theme. It also has a table of addresses with countries and a table of browsers. Both tables show the last seen time.
 
-**AD-06** There are no actions on an account: no disable, delete, rename, admin transfer or forced sign-out. The one rescue is a new login link from the Invites tab.
+**AD-06** The page has no actions for an account. There is no disable, delete, rename, admin transfer or forced sign-out. The only rescue is a new login link from the Invites tab.
 
-**AD-07** Under the table, Themes shows one card per theme with its count and share, most used first; unused themes are dimmed.
+**AD-07** Under the table, Themes shows one card for each theme, with its count and share. The cards are in order of use, most used first. Unused themes are dimmed.
 
 ### Debug
 
-**AD-08** The message generator posts test messages into a chosen room: a count (default 200) spread over a chosen span from an hour to a year, as real messages from the admin and five fictional people, in bursts. Generated messages add no unread counts.
+**AD-08** The message generator posts test messages into a chosen room. The admin chooses a count (default 200) and a span from an hour to a year. The generator spreads the messages over the span, in bursts. They are real messages from the admin and five fictional people. Generated messages add no unread counts.
 
 ### Bot
 
-**AD-09** Bot Settings shows the bot's fixed username, its display name, and the welcome message with "{0}" for the server name. "Save" confirms with "Saved!". The welcome message is what the bot sends one minute after a person's first session, with the install line on phones and the login link.
+**AD-09** Bot Settings shows the bot's fixed username, its display name and the welcome message. In the welcome message, "{0}" stands for the server name. "Save" confirms with "Saved!". The bot sends the welcome message one minute after a person's first session. The message includes the login link and, on phones, the install line.
 
 ### Settings tab
 
-**AD-10** Registration has three switches that save at once: "Close registration", "Require approval" and "Smart login". Smart login is on by default. Their effects are on the [sign-in page](sessions.md#AU-05).
+**AD-10** Registration has three switches: "Close registration", "Require approval" and "Smart login". Each switch saves at once. Smart login is on by default. Their effects are on the [sign-in page](sessions.md#AU-05).
 
-**AD-11** Pending Requests appears while someone waits: the username, how long ago, "Approve" and "Reject". It updates by itself when a request arrives. The admin also gets a message from the bot per request. Pending requests are lost when the server restarts.
+**AD-11** Pending Requests shows while someone waits for approval. Each request shows the username, how long ago it arrived, "Approve" and "Reject". The list updates automatically when a request arrives. For each request, the admin also gets a message from the bot. Pending requests are lost when the server restarts.
 
-**AD-12** Link Previews has "Enable link previews" (on by default) and "Enable media caching" (off by default; disabled with a note when the downloader is missing). Both apply at once to every open chat.
+**AD-12** Link Previews has "Enable link previews" (on by default) and "Enable media caching" (off by default). When the downloader is missing, "Enable media caching" is disabled and shows a note. Both switches apply at once to every open chat.
 
-**AD-13** GIFs has the provider's content rating: G, PG, PG-13 or R, PG by default, applied to the next search. The tab also shows "Provider: configured" or "Provider: not configured".
+**AD-13** GIFs has the content rating of the provider: G, PG, PG-13 or R. The default is PG. A change applies to the next search. The tab also shows "Provider: configured" or "Provider: not configured".
 
-**AD-14** Deployment shows read-only how-to boxes for settings that need a matching DNS record: the upload subdomain and the IPv4 beacon, each with its current state.
+**AD-14** Deployment shows read-only instruction boxes for the settings that need a matching DNS record. These settings are the upload subdomain and the IPv4 beacon. Each box shows the current state of its setting.
 
 ### Invites and login links
 
-**AD-15** The create form makes an invite for someone new, with a private note and an expiry (never, 1, 7 or 30 days), or a new login link for an existing person (the bot is not offered), which replaces their current link and sends them the bot's rescue message. No confirmation.
+**AD-15** The create form makes an invite for someone new, with a private note and an expiry (never, 1, 7 or 30 days), or a new login link for an existing person. The bot is not offered. A new login link replaces the person's current link and sends them the bot's rescue message. The form asks for no confirmation.
 
-**AD-16** Open invites lists unclaimed invites with the link, a copy control, the note, created and expiry times, an expiry change and "Revoke". User login links lists every person's active or expired link with its status, the link where the admin may see it, "🔒 hidden" otherwise, who created it, how often it was used, and for active links the same two controls; expired rows have none. An expiry change counts from now.
+**AD-16** Open invites lists the unclaimed invites. Each row has the link, a copy control, the note, the creation time, the expiry time, an expiry change and "Revoke". User login links lists the active or expired link of every person. Each row has the status, the link, who created the link and how often it was used. When the admin may not see the link, the row shows "🔒 hidden" instead. Rows for active links also have the same two controls. Expired rows have no controls. A new expiry counts from the time of the change.
 
-**AD-17** The admin sees a link's code only when the admin created it and it has not been used yet. Links people made for themselves are always hidden.
+**AD-17** The admin sees the code of a link only when the admin created the link and the link is still unused. A link that a person made for themselves is always hidden.
 
 ### Logs, Media, Visitors
 
-**AD-18** Logs lists signed-in people's actions, newest first, with an action filter and a username filter: time, user, action, address, detail. 100 per page.
+**AD-18** Logs lists the actions of signed-in people, newest first. Each row shows the time, user, action, address and detail. The tab has an action filter and a username filter. A page has 100 entries.
 
-**AD-19** Media lists every upload with a preview, time, user, file name, type, size and processing time, with type and username filters, and stat cards for the converter's availability, total storage, images and videos.
+**AD-19** Media lists every upload with a preview, the time, user, file name, type, size and processing time. The tab has a type filter and a username filter. Stat cards show the converter's availability, total storage, images and videos.
 
-**AD-20** Visitors lists anonymous visits and failed sign-ins with address, action, reason and browser, with stat cards for visits, failures, unique addresses and today. A tap on a row shows the full detail with the country.
+**AD-20** Visitors lists anonymous visits and failed sign-ins with the address, action, reason and browser. It has stat cards for visits, failures, unique addresses and today. A tap on a row shows the full detail with the country.
 
 ### GIFs tab and the server library
 
-**AD-21** The server library is a curated set every person sees as its own picker tab, searchable by everyone and ranked above the general pool. The admin manages it with the same library manager as My GIFs, without a quota: add files, import a zip, export, folders, tags, and "Delete", which removes the file for everyone, or "✕", which only takes a GIF out of the library.
+**AD-21** The server library is a set of GIFs that the admin selects. Every person sees it as a separate tab in the picker. Everyone can search it, and it ranks above the general pool. The admin manages it with the same library manager as My GIFs, without a quota. The admin can add files, import a zip, export, and use folders and tags. "Delete" removes the file for everyone. "✕" only takes the GIF out of the library.
 
-**AD-22** The tab opens with stat cards for the converter's availability, total storage, custom GIFs and the provider cache. Under the library, a table of every GIF the server knows, custom uploads and provider cache alike, with a filter (all, custom, provider cache, favourited, server library): preview, date, source, uploader, format, dimensions, size, uses, favourites, tags edited in place as in My GIFs, and the actions "★ server" to add to or remove from the library and "Delete", which asks "Sure?" first.
+**AD-22** The tab opens with stat cards for the converter's availability, total storage, custom GIFs and the provider cache. Under the library is a table of every GIF that the server knows, both custom uploads and provider cache. The table has a filter: all, custom, provider cache, favourited, server library. Each row shows the preview, date, source, uploader, format, dimensions, size, uses, favourites and tags. The admin edits tags in place, as in My GIFs. The "★ server" action adds the GIF to the library or removes it. The "Delete" action asks "Sure?" first.
 
-**AD-23** An admin delete removes the GIF from everyone's favourites. A GIF used in messages keeps its file so history still shows it; an unused one is removed with its files. The table confirms with "Deleted." or "Removed from everyone's libraries; the file stays while messages use it."
+**AD-23** A delete by the admin removes the GIF from the favourites of every person. A GIF that messages use keeps its file, so the history still shows it. An unused GIF is removed with its files. The table confirms with "Deleted." or "Removed from everyone's libraries; the file stays while messages use it."
 
 ### Diagnostics
 
 **AD-24** Stat cards show users, sessions, messages, connections and channels from the latest 30-second sample.
 
-**AD-25** The sessions table has one row per session, the bot left out: user, device and address, transport, connected, visible, status, the open conversation, last input, last report, age. A row that counts as visible while its connection is gone is drawn in the warning colour. Header tooltips explain the Visible, Viewing, Last input and Heartbeat columns.
+**AD-25** The sessions table has one row for each session, except the bot's sessions. The columns are user, device and address, transport, connected, visible, status, the open conversation, last input, last report and age. A row that counts as visible while it has no connection shows in the warning colour. Tooltips on the headers explain the Visible, Viewing, Last input and Heartbeat columns.
 
-**AD-26** The connections table shows latency per chat connection: transport, connected, round trip last, average and maximum, slow events, and send-to-appear last, average and maximum, with the last 50 closed connections greyed under it. Rows go to the warning colour on a fallback transport or an average round trip over 250 ms.
+**AD-26** The connections table shows the latency of each chat connection. The columns are transport, connected, round trip last, average and maximum, slow events, and send-to-appear last, average and maximum. The last 50 closed connections show in grey under the table. A row shows in the warning colour when it uses a fallback transport or its average round trip is over 250 ms.
 
-**AD-27** Push notifications shows whether the keys are configured and valid. The push audit lists the last 200 notification decisions (sent, or suppressed by a visible session) with the unread count, devices and sessions at that moment, and the last 200 results with sent, failed and total. The unread audit lists the last 200 direct-message count changes with their trigger and the device's state. All three live in memory since the last restart.
+**AD-27** Push notifications shows whether the keys are configured and valid. The push audit lists the last 200 notification decisions (sent, or suppressed by a visible session). Each decision shows the unread count, devices and sessions at that moment. The push audit also lists the last 200 results with sent, failed and total. The unread audit lists the last 200 changes to direct-message counts, with their trigger and the device's state. All three are kept in memory and cover the time since the last restart.
 
-**AD-28** Three charts over the last seven days, one point per 30 seconds: users and sessions, connections active and disconnected, total messages. They use the theme's colours.
+**AD-28** Three charts cover the last seven days, with one point for each 30 seconds. They show users and sessions, active and disconnected connections, and total messages. They use the theme's colours.
 
 ### Rooms
 
-**AD-29** "Add Room" at the end of the sidebar opens Create Channel; the gear on a room row opens Channel Settings. Both are admin only and sit in the chat frame with a back arrow. A non-admin, an unknown room id or a direct message id goes to the lobby.
+**AD-29** "Add Room" at the end of the sidebar opens Create Channel. The gear on a room row opens Channel Settings. Both pages are for the admin only. Both are in the chat frame and have a back arrow. A visit by a non-admin, or with an unknown room id or a direct message id, goes to the lobby.
 
-**AD-30** Channel Info has the name (lowercase, no spaces, at most 50 characters, unique; a name with a space is refused with "Lowercase, no spaces." shown in red) and the description (at most 500 characters, shown at the top of the room's history; empty means the default "This is the beginning of #{name}").
+**AD-30** Channel Info has the name and the description. The name is lowercase, has no spaces, has at most 50 characters and is unique. A name with a space is refused, and "Lowercase, no spaces." shows in red. The description has at most 500 characters and shows at the top of the room's history. An empty description means the default "This is the beginning of #{name}".
 
 **AD-31** Permissions offers "Everyone" and "Admin Only". An admin-only room is visible to everyone and read-only for others.
 
-**AD-32** History Visibility offers Unlimited, 1 Day, 3 Days, 1 Week, 2 Weeks, 1 Month, 3 Months, and "Only show messages since user joined". A new room starts with 1 Month and since-joined on. Admins always see everything.
+**AD-32** History Visibility offers Unlimited, 1 Day, 3 Days, 1 Week, 2 Weeks, 1 Month, 3 Months, and "Only show messages since user joined". A new room starts with 1 Month and with the since-joined option on. Admins always see everything.
 
-**AD-33** Channel Order, shown when editing a room, lists every room with "Move up" and "Move down"; a move saves at once and changes the sidebar order for everyone.
+**AD-33** Channel Order shows when the admin edits a room. It lists every room with "Move up" and "Move down". A move saves at once and changes the sidebar order for everyone.
 
-**AD-34** "Save Changes" is enabled once something changed and returns to the room; errors stay on the page. "Cancel" returns without saving. Create opens the new room, which goes to the bottom of the order. A name already in use says "A channel with that name already exists." when editing and "Failed to create channel. The name may already be taken." when creating.
+**AD-34** "Save Changes" is enabled after a change, and it returns to the room. When there is an error, the page stays open and shows the error. "Cancel" returns without saving. Create opens the new room. The new room goes to the bottom of the order. A name already in use shows "A channel with that name already exists." when editing. When creating, it shows "Failed to create channel. The name may already be taken."
 
-**AD-35** Danger Zone, shown when editing a room other than the lobby: "Delete Channel" arms on the first tap ("Click again to confirm") and deletes on the second, then goes to the lobby. Everyone's mute choices for the room are cleared, and open chats leave it at once.
+**AD-35** Danger Zone shows when the admin edits a room other than the lobby. The first tap on "Delete Channel" arms it and shows "Click again to confirm". The second tap deletes the room and goes to the lobby. The mute choices of every person for the room are cleared. Open chats leave the room at once.
 
-### Outside the page
+### Server configuration
 
-**AD-36** The project name, the playful text lists, the public address for links, branding files (icons, the installed app's name and colours) and the custom welcome page live in the server's configuration and data folders, not on this page. Text edits apply the next time the text is shown; branding files apply without a rebuild. Custom emoji are files in a server folder, read at startup.
+**AD-36** The server's configuration and data folders hold the project name, the playful text lists and the public address for links. They also hold the branding files (icons, the installed app's name and colours) and the custom welcome page. These items are not on this page. A text edit applies the next time the text shows. A change to the branding files applies without a rebuild. Custom emoji are files in a server folder. The server reads them at startup.
 
 ## States
 
 | State or trigger | Input | What the user sees |
 | --- | --- | --- |
-| Non-admin opens /admin | all | The lobby. |
-| Row tap in Users | mouse, touch | Detail row with tags and tables; another tap closes it. |
-| Generate | mouse, touch | "Generating..." then "Generated {n} messages spread across {h}h"; the room fills. |
+| Non-admin opens /admin | all | The lobby opens. |
+| Row tap in Users | mouse, touch | A detail row opens with tags and tables. Another tap closes it. |
+| Generate | mouse, touch | "Generating..." then "Generated {n} messages spread across {h}h". The messages appear in the room. |
 | Bot Save | mouse, touch | "Saving..." then "Saved!". |
-| Registration switch | mouse, touch | Saved at once; the login page changes for the next visitor. |
-| Pending request arrives | all | The row appears; the bot's message arrives. |
+| Registration switch | mouse, touch | The switch saves at once. The login page changes for the next visitor. |
+| Pending request arrives | all | The row appears, and the bot's message arrives. |
 | Approve or Reject | mouse, touch | The person's login page continues or shows the rejection. |
 | Create link for a person | mouse, touch | "New link for {username} created. Their old one no longer works."; the person gets the bot's message. |
 | Copy link | mouse, touch | "Copied!" for 2 s. |
-| Revoke | mouse, touch | The row disappears; devices stay signed in. |
-| ★ server | mouse, touch | The GIF joins or leaves the server library at once. |
+| Revoke | mouse, touch | The row disappears. Devices stay signed in. |
+| ★ server | mouse, touch | The GIF is added to or removed from the server library at once. |
 | Delete in the GIFs table | mouse, touch | "Sure?", then "Deleted." or the kept-file line. |
-| Diagnostics open | all | Tables and charts refresh every 30 s; expanded tables stay expanded. |
-| Ghost session | all | Row in the warning colour. |
-| Create Channel with a name | keyboard, mouse, touch | "Create Channel" enabled; the new room opens at the bottom of the list. |
+| Diagnostics open | all | Tables and charts refresh every 30 s. Expanded tables stay expanded. |
+| Ghost session | all | The row shows in the warning colour. |
+| Create Channel with a name | keyboard, mouse, touch | "Create Channel" is enabled. The new room opens at the bottom of the list. |
 | Duplicate name | keyboard, mouse, touch | Editing: "A channel with that name already exists." Creating: "Failed to create channel. The name may already be taken." |
-| Move up or down | mouse, touch | Order changes at once for everyone. |
+| Move up or down | mouse, touch | The order changes at once for everyone. |
 | Delete Channel | mouse, touch | "Click again to confirm", then the lobby. |
-| Phone | touch | Horizontal tab bar; wide tables scroll sideways. |
+| Phone | touch | A horizontal tab bar shows. Wide tables scroll sideways. |
 
 ## Wording
 
