@@ -10,7 +10,7 @@
 
 import { fileURLToPath } from 'node:url';
 import {
-    applyTheme, chromium, detectApp, DEVICES, parseArgs, readTokens, ROWS, signInWithToken, waitForConversation, waitForVisibleImages,
+    applyTheme, chromium, detectApp, DEVICES, parseArgs, queryDb, readTokens, ROWS, signInWithToken, waitForConversation, waitForVisibleImages,
 } from './common.mjs';
 
 const OUT_DIR = fileURLToPath(new URL('../../img/', import.meta.url));
@@ -30,6 +30,11 @@ const DESKTOP_HISTORY_TOP_HEIGHT = 360;
 
 // The space a row or picker shot keeps around its element, so it has a little context.
 const MARGIN = 12;
+
+// The Settings image shows the page from the header to the end of the Appearance
+// card, about 1370 px. The page scrolls inside its own column, which a full-page shot
+// does not reach, so that state uses a window this tall. The width stays the desktop's.
+const SETTINGS_TOP_WINDOW = { width: 1280, height: 1400 };
 
 // The other people online while a state marked people: true is captured (old page
 // only): bob online, carol away by her own pick. dave stays offline, a grey row.
@@ -396,6 +401,112 @@ const STATES = [
         },
     },
     {
+        page: 'settings', device: 'desktop', name: 'top', people: true,
+        // bob (display name, bio, location) opens Settings from the status menu: the frame
+        // with the back arrow and "Settings", the page heading with the "Saved" chip, the
+        // Profile card, the Appearance card with the theme grid. From the top of the window
+        // to the end of the Appearance card, in a taller window (SETTINGS_TOP_WINDOW).
+        async drive(page) {
+            await page.setViewportSize(SETTINGS_TOP_WINDOW);
+            await openConversation(page, 'bob', '/lobby');
+            await expectClass(page.locator('.status-button'), 'status-online', 'bob Online in the header');
+            await openFromStatusMenu(page, 'Settings', '/settings');
+            const title = (await page.locator('.chat-header .dm-header-title').innerText()).trim();
+            if (title !== 'Settings') throw new Error(`Expected "Settings" in the header, got "${title}".`);
+            await page.locator('.chat-header .back-button').waitFor({ state: 'visible' });
+            await page.waitForFunction(() => document.querySelector('#display-name')?.value);
+            for (const [id, value] of Object.entries({ 'display-name': 'Bob K.', bio: 'Trail runner', country: 'Brno' })) {
+                if (!(await page.locator(`#${id}`).inputValue()).startsWith(value)) throw new Error(`#${id} lacks "${value}": run seed.mjs.`);
+            }
+
+            // THEME paints the page but does not save it, so the check badge would sit on
+            // bob's own theme while the page shows Daylight. He picks Daylight here and his
+            // own theme again after the shot. (An unset theme comes back as the default
+            // theme set explicitly; the Themes stats on the admin page count both the same.)
+            const cards = page.locator('.theme-grid .theme-card');
+            if (await cards.count() !== 11) throw new Error(`Expected 11 theme cards, got ${await cards.count()}.`);
+            const own = await page.locator('.theme-grid .theme-card.selected').getAttribute('title');
+            const daylight = page.locator('.theme-grid .theme-card[title="Daylight"]');
+            if (own !== 'Daylight') {
+                await daylight.click();
+                page.cleanup = async () => {
+                    await page.locator(`.theme-grid .theme-card[title="${own}"]`).click();
+                    // The badge moves before the server saves; the page must stay open until it has.
+                    for (let i = 0; i < 50 && (await queryDb(db, 'SELECT Theme FROM Users WHERE Username = ?', ['bob']))[0].Theme === THEME; i++) {
+                        await page.waitForTimeout(100);
+                    }
+                };
+            }
+            await expectClass(daylight, 'selected', 'Daylight checked');
+            const shown = await page.evaluate(() => document.documentElement.dataset.theme);
+            if (shown !== THEME) throw new Error(`Daylight should paint the page as "${THEME}", got "${shown}".`);
+
+            await page.locator('.settings-container').evaluate(el => { el.scrollTop = 0; });
+            const appearance = page.locator('.settings-section', { has: page.locator('h3', { hasText: /^Appearance$/ }) });
+            const box = await appearance.boundingBox();
+            const bottom = Math.ceil(box.y + box.height + MARGIN);
+            if (bottom > SETTINGS_TOP_WINDOW.height) throw new Error(`The Appearance card ends at ${bottom}px, below the window.`);
+            await page.mouse.move(900, 300); // empty space right of the cards: no hover tint anywhere
+            await waitForVisibleImages(page);
+
+            // The chip shows for 2 s after a profile save. A space typed and taken back
+            // saves the same values, so the profile does not change. It goes last, so the
+            // shot comes while the chip still shows.
+            const bio = page.locator('#bio');
+            const text = await bio.inputValue();
+            await bio.focus();
+            await bio.evaluate(el => el.setSelectionRange(el.value.length, el.value.length));
+            await page.keyboard.type(' ');
+            await page.keyboard.press('Backspace');
+            await bio.evaluate(el => el.blur());
+            await page.locator('.settings-header .save-status.saved', { hasText: 'Saved' }).waitFor();
+            if (await bio.inputValue() !== text) throw new Error('The bio changed.');
+            return { x: 0, y: 0, width: SETTINGS_TOP_WINDOW.width, height: bottom };
+        },
+    },
+    {
+        page: 'admin', device: 'desktop', name: 'users', people: true, noHeader: true,
+        // alice (the admin) opens Admin from the status menu: the navigation column with
+        // the back arrow, "Admin" and the ten tabs, Users open; the users table with
+        // avatars, status pills (bob online, carol away, dave offline) and the PWA
+        // column. Whole screen. The page sits outside the chat frame: no header.
+        async drive(page) {
+            await openConversation(page, 'alice', '/lobby');
+            await openFromStatusMenu(page, 'Admin', '/admin');
+            const nav = page.locator('.admin-sidebar');
+            await nav.locator('.back-button[title="Go back"]').waitFor({ state: 'visible' });
+            const heading = (await nav.locator('h2').innerText()).trim();
+            const tabs = (await nav.locator('.nav-item').allInnerTexts()).map(t => t.trim());
+            const expectedTabs = ['Users', 'Debug', 'Bot', 'Settings', 'Invites', 'Logs', 'Media', 'GIFs', 'Diagnostics', 'Visitors'];
+            if (heading !== 'Admin' || tabs.join() !== expectedTabs.join()) {
+                throw new Error(`Expected "Admin" and ${expectedTabs.join(', ')}, got "${heading}" and ${tabs.join(', ')}.`);
+            }
+            await expectClass(nav.locator('.nav-item').first(), 'active', 'Users open');
+
+            const table = page.locator('.users-table');
+            await table.locator('tbody tr').first().waitFor();
+            // innerText follows the headers' capitals in CSS, so the check ignores case.
+            const columns = (await table.locator('thead th').allInnerTexts()).map(t => t.trim().toLowerCase());
+            const expectedColumns = ['user', 'status', 'pwa', 'created', 'last action', 'locale', 'recent ips'];
+            if (columns.join() !== expectedColumns.join()) throw new Error(`Expected the columns ${expectedColumns.join(', ')}, got ${columns.join(', ')}.`);
+            const rows = await table.locator('tbody tr').evaluateAll(trs => trs.map(tr => ({
+                name: tr.querySelector('.user-name').firstChild.textContent.trim(),
+                pill: tr.querySelector('.status-pill').textContent.trim(),
+                avatar: !!tr.querySelector('.user-cell .avatar'),
+            })));
+            const pills = Object.fromEntries(rows.map(r => [r.name, r.pill]));
+            const expected = { alice: 'Online', 'Bob K.': 'Online', carol: 'Away', dave: 'Offline', Ping: 'Online' };
+            for (const [name, pill] of Object.entries(expected)) {
+                if (pills[name] !== pill) throw new Error(`Expected ${name} ${pill}, got ${JSON.stringify(pills)}.`);
+            }
+            if (!rows.every(r => r.avatar)) throw new Error('A row lacks its avatar.');
+            // The pointer stays where the menu was, over the table; a row under it is tinted.
+            await page.mouse.move(1100, 760);
+            await waitForVisibleImages(page);
+            return null;
+        },
+    },
+    {
         page: 'timeline', device: 'desktop', name: 'pill', app: 'main',
         // The current client. alice scrolls up about two screens with the wheel; bob
         // posts from his own session; the view holds and the New messages pill shows
@@ -517,7 +628,7 @@ try {
         };
         const clip = await state.drive(page);
         // A whole screen shows the header's status pill: alice reads Online.
-        if (!clip && !state.signedOut) await expectClass(page.locator('.status-button').first(), 'status-online', 'alice Online in the header');
+        if (!clip && !state.signedOut && !state.noHeader) await expectClass(page.locator('.status-button').first(), 'status-online', 'alice Online in the header');
         const path = `${OUT_DIR}${fileName(state)}.png`;
         // animations: 'disabled' runs transitions to their end, so Send is fully
         // shown or fully collapsed rather than caught halfway.
@@ -612,6 +723,13 @@ async function pickStatus(page, label) {
     await page.locator('.status-button').click();
     await page.locator('.status-dropdown .dropdown-item', { hasText: new RegExp(`^\\s*${label}\\s*$`) }).click();
     await page.locator(`.status-button.status-${label.toLowerCase()}`).waitFor();
+}
+
+// An entry of the status menu that opens a page (old page): Settings or Admin.
+async function openFromStatusMenu(page, label, path) {
+    await page.locator('.status-button').click();
+    await page.locator('.status-dropdown .dropdown-item', { hasText: new RegExp(`^\\s*${label}\\s*$`) }).click();
+    await page.waitForURL(url => url.pathname === path);
 }
 
 // dave is grey only while he has no session. The seed signs him out; a closed tab
