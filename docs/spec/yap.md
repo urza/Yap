@@ -32,7 +32,7 @@ The timeline shows the newest messages at the bottom and loads older ones as the
 
 ## Presence
 
-Everyone online is listed, with a status: online, away, or invisible. Away is automatic after a few minutes without input and ends with the next keystroke. Invisible people see everyone and are seen by no one. People typing in the open conversation are shown under the messages. See [Presence](presence.md).
+Everyone online is listed, with a status: online, away, or invisible. Away is automatic after a few minutes without input and ends with the next input. Invisible people see everyone and appear offline to everyone else. People typing in the open conversation are shown under the messages. See [Presence](presence.md).
 
 ## Notifications
 
