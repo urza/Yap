@@ -415,6 +415,13 @@ const STATES = [
             if (title !== 'Settings') throw new Error(`Expected "Settings" in the header, got "${title}".`);
             await page.locator('.chat-header .back-button').waitFor({ state: 'visible' });
             await page.waitForFunction(() => document.querySelector('#display-name')?.value);
+            // The one style this script adds to a page. The old build means to hide the native
+            // file input behind "Upload Picture" (.file-input { display: none } in
+            // Settings.razor.css), but a scoped rule cannot reach the <input> that the
+            // InputFile component draws, so "Choose File / No file chosen" shows. The spec
+            // shows only the button.
+            await page.addStyleTag({ content: '#profile-upload { display: none !important; }' });
+            await expectWidth(page, '#profile-upload', w => w === 0, 'the native file input hidden');
             for (const [id, value] of Object.entries({ 'display-name': 'Bob K.', bio: 'Trail runner', country: 'Brno' })) {
                 if (!(await page.locator(`#${id}`).inputValue()).startsWith(value)) throw new Error(`#${id} lacks "${value}": run seed.mjs.`);
             }
@@ -493,6 +500,7 @@ const STATES = [
                 name: tr.querySelector('.user-name').firstChild.textContent.trim(),
                 pill: tr.querySelector('.status-pill').textContent.trim(),
                 avatar: !!tr.querySelector('.user-cell .avatar'),
+                crown: !!tr.querySelector('.admin-badge'),
             })));
             const pills = Object.fromEntries(rows.map(r => [r.name, r.pill]));
             const expected = { alice: 'Online', 'Bob K.': 'Online', carol: 'Away', dave: 'Offline', Ping: 'Online' };
@@ -500,6 +508,10 @@ const STATES = [
                 if (pills[name] !== pill) throw new Error(`Expected ${name} ${pill}, got ${JSON.stringify(pills)}.`);
             }
             if (!rows.every(r => r.avatar)) throw new Error('A row lacks its avatar.');
+            // One admin, one crown. The old build keeps the bot's admin flag in the database
+            // (see README.md, "Seed"), and then the bot's row has the crown too.
+            const crowns = rows.filter(r => r.crown).map(r => r.name);
+            if (crowns.join() !== 'alice') throw new Error(`Expected the crown on alice only, got ${crowns.join(', ')}: clear the bot's admin flag (README.md).`);
             // The pointer stays where the menu was, over the table; a row under it is tinted.
             await page.mouse.move(1100, 760);
             await waitForVisibleImages(page);
