@@ -71,7 +71,7 @@ The input box is where a message is written and sent. It sits at the bottom of e
 
 **IB-21** Send is never disabled. A tap with a whitespace-only draft sends nothing and leaves the draft as it is.
 
-**IB-22** A tap or click on Send never moves focus. An open phone keyboard stays open; a closed one stays closed. See [General rules](general-rules.md).
+**IB-22** A tap or click on Send never moves focus. An open phone keyboard stays open; a closed one stays closed. *Why:* a focus move here closed the picker under the finger, and the keyboard opened after every send.
 
 **IB-23** On a phone, after emoji were picked with the sheet open, the first tap on Send sends.
 
@@ -249,7 +249,7 @@ The input box is where a message is written and sent. It sits at the bottom of e
 
 ## Related
 
-- [General rules](general-rules.md) for acting locally first and for the focus rules.
+- [General rules](general-rules.md) for acting locally first.
 - [Emoji and GIF pickers](pickers.md) for the content and behaviour of the pickers.
 - [Message row and actions](message-row.md) for the pending and failed rows, Reply, and editing.
 - [Timeline and media](timeline.md) for scrolling after a send and the behaviour when the keyboard opens.
