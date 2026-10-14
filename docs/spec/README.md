@@ -20,7 +20,7 @@ Component pages and feature pages cross-link. A component page says what a part 
 | [Yap](yap.md) | YAP | planned |
 | [General rules](general-rules.md) | GEN | planned |
 | [Input box](input-box.md) | IB | written |
-| [Message row and actions](message-row.md) | MR | planned |
+| [Message row and actions](message-row.md) | MR | draft, in review |
 | [Emoji and GIF pickers](pickers.md) | PK | planned |
 | [Timeline and media](timeline.md) | TL | planned |
 | [Header, sidebar and overlays](frame.md) | SH | planned |
