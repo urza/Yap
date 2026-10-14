@@ -35,7 +35,7 @@ Component pages and feature pages cross-link. A component page says what a part 
 
 Every rule has an ID made of the page prefix and a number, for example `IB-04`. IDs are stable. A rule that is removed keeps its number and is marked retired; numbers are never reused. Tests, issues and commits cite rule IDs.
 
-A rule is one sentence that says what happens, in the present tense. Where the reason is not obvious, one more sentence gives it. A rule never names a mechanism. "The draft is kept when the user switches conversations" is a rule. "The draft is written to local storage on every keystroke" is not. <!-- lint: allow -->
+A rule is a few short sentences about one thing, in the present tense, saying what happens. Where the reason is not obvious, a *Why:* sentence gives it. A rule never names a mechanism. "The draft is kept when the user switches conversations" is a rule. "The draft is written to local storage on every keystroke" is not. <!-- lint: allow -->
 
 ## Page shape
 

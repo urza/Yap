@@ -53,13 +53,13 @@ The input box is where a message is written and sent. It sits at the bottom of e
 
 **IB-13** While an input method editor composes a character (for example Japanese or Chinese input), Enter goes to the editor and does not send.
 
-**IB-14** A message holds at most 4000 characters. The box does not accept more.
+**IB-14** A message holds at most 4000 characters. The box does not accept more, and a paste beyond the limit is cut at the limit.
 
 **IB-15** Pasting text is the normal paste. Pasting images or videos uploads them as attachments (see IB-29 to IB-37) and pastes no text from that clipboard. Pasted files of other kinds are ignored.
 
 **IB-16** In a direct message the placeholder is "Message @{username}". In a room it is one text picked at random from the configured list when the conversation opens, and it stays until the user leaves the conversation. The placeholder is never empty.
 
-**IB-17** Escape closes an open picker. Escape closes an open warning dialog. Escape never clears the draft and never cancels a reply.
+**IB-17** Escape closes the topmost open layer: a dialog when one is open, else a picker. Escape never clears the draft and never cancels a reply.
 
 ### Send
 
@@ -91,15 +91,15 @@ The input box is where a message is written and sent. It sits at the bottom of e
 
 **IB-30** Dropping files on the input box uploads them the same way. While a file (not text) is dragged over the box, the box shows "Drop images here" with an accent ring. The ring clears on drop, when the drag leaves, and when the drag is cancelled. A drop anywhere else does nothing, and the browser does not open the file.
 
-**IB-31** Accepted types are images .jpg, .jpeg, .png, .gif, .webp and videos .mp4, .webm, .mov, .avi, .mkv. Dropped or pasted files of other kinds are ignored. A file of another kind chosen with + is listed as unsupported in the upload dialog.
+**IB-31** Accepted types are images .jpg, .jpeg, .png, .gif, .webp and videos .mp4, .webm, .mov, .avi, .mkv. Dropped or pasted files of other kinds are ignored. A file of another kind chosen with + is listed as unsupported in the upload dialog before anything is uploaded. *Why:* the old page let such a file wait half a minute before it failed.
 
-**IB-32** One file may be up to the configured size limit, 100 MB by default. One message holds at most 10 files.
+**IB-32** One file may be up to the configured size limit, 100 MB by default. One message holds at most 10 files; a larger pick is refused with "Choose at most 10 files." and nothing is uploaded.
 
-**IB-33** All files of one pick go out together as one message with no text. The draft text stays in the box. A GIF file becomes a GIF attachment, the same as one sent from the picker.
+**IB-33** All files of one pick go out together, at once, as one message with no text. The draft text stays in the box. A GIF file becomes a GIF attachment, the same as one sent from the picker.
 
-**IB-34** While files upload, the pending row shows the file names, one progress bar for the whole message, and "Cancel upload". Cancel removes the pending message; nothing is sent.
+**IB-34** While files upload, the pending row shows the file names, one progress bar for the whole message, and "Cancel upload". Cancel removes the pending message and discards what was uploaded for it; nothing is sent.
 
-**IB-35** Files that could not be uploaded are reported in one dialog: "Upload failed" when no file got through, "{s} of {t} files uploaded" when some did, with one line per failed file. The files that got through still post. The dialog closes with "Got It", with ✕ or with a tap outside it. It moves no focus and never closes the keyboard.
+**IB-35** Files refused before the upload starts (wrong kind, too large, too many) are reported in one dialog: "Upload failed" when no file is left, "{s} of {t} files uploaded" when some are, with one line per refused file. The files that are left still go out. A failure during the upload itself shows the pending row as failed instead, with Retry and Remove. The dialog closes with "Got It", with ✕ or with a tap outside it. It moves no focus and never closes the keyboard.
 
 **IB-36** An upload during a reply is a reply, and it closes the reply bar.
 
@@ -111,17 +111,17 @@ The input box is where a message is written and sent. It sits at the bottom of e
 
 **IB-39** On desktop the GIF toggle collapses while the draft has text. The emoji toggle stays. *Why:* a GIF is a message of its own and cannot be added to a text.
 
-**IB-40** On desktop a picker opens above the toggles, right-aligned, 8 px above the pill, with a transparent layer over the rest of the page.
+**IB-40** On desktop a picker opens above the toggle group, right-aligned, with an 8 px gap. The rest of the page stays visible and a tap anywhere outside closes the picker.
 
 **IB-41** On a phone there is no GIF toggle. The emoji toggle opens one bottom sheet with two tabs, "GIFs" and "Emoji", with Emoji active at first. The sheet is half the screen high, at most 400 px. The box moves up to sit on the sheet. Everything else is dimmed to half, except the draft text, the sheet and Send. The sheet remembers its tab until the page is reloaded.
 
 **IB-42** While a picker is open: a tap on + only closes the picker, the chooser does not open. A tap on the other toggle only closes the picker. A tap on the open picker's own toggle closes it. A tap on the draft focuses the draft and closes the picker in one gesture. A tap anywhere else closes it.
 
-**IB-43** A picker also closes on a send, on a GIF pick, when the conversation changes, and on Escape.
+**IB-43** A picker also closes on a send, on a GIF pick, when the conversation changes, when the window crosses the 600 px width, and on Escape.
 
-**IB-44** Picking an emoji inserts it into the draft at the caret. If the draft was never focused, it goes to the end. If text is selected, it goes in front of the selection and the selection stays. The pick does not move focus, keeps the picker open, counts as typing, and updates the user's recent emoji. Several picks insert one after another. A custom pack emoji inserts its shortcode text, for example ":name:".
+**IB-44** Picking an emoji inserts it into the draft at the caret. If the draft was never focused, or the conversation changed since, it goes to the end. If text is selected, the emoji goes in front of it and the selection is released, with the caret after the emoji. The pick does not move focus, keeps the picker open, counts as typing, and updates the user's recent emoji. Several picks insert one after another. A custom pack emoji inserts its shortcode text, for example ":name:".
 
-**IB-45** The emoji toggle shows a grey silhouette of one random emoji. It shows the same emoji in full colour on hover and while the picker is open. Each time the mouse enters, a new random emoji is picked.
+**IB-45** At rest the emoji toggle shows a grey silhouette of a random emoji. Each time the mouse enters, a new random emoji is picked and shown in full colour; the silhouette then matches it. The toggle stays in colour while its picker is open.
 
 **IB-46** The GIF toggle is a 22 px badge with the text "GIF". It brightens on hover and while its picker is open.
 
@@ -131,7 +131,7 @@ The input box is where a message is written and sent. It sits at the bottom of e
 
 ### Reply bar
 
-**IB-49** Reply on a message shows the bar: "Replying to" and the author's display name, or username when there is none, with ✕ on the right. The replied-to row has an accent tint while the bar is open.
+**IB-49** Reply on a message shows the bar: "Replying to" and the author's display name, or username when there is none, with ✕ on the right. A long name is cut with an ellipsis. The replied-to row has an accent tint while the bar is open.
 
 **IB-50** Reply moves focus into the draft inside the tap, so a phone keyboard opens. Reply is the only action besides a tap on the draft that does this.
 
@@ -147,7 +147,7 @@ The input box is where a message is written and sent. It sits at the bottom of e
 
 **IB-55** Signing out deletes all drafts on the device. See [Sign-in and sessions](sessions.md).
 
-**IB-56** When a room becomes read-only while the user types, the read-only bar replaces the box and the draft is kept.
+**IB-56** When a room becomes read-only while the user types, the read-only bar replaces the box. The draft is kept and comes back when writing is allowed again.
 
 ### Focus
 
@@ -167,9 +167,9 @@ The input box is where a message is written and sent. It sits at the bottom of e
 
 **IB-62** In a room where the user may not write, the read-only bar replaces the reply bar and the box: a lock icon and "You do not have permission to send messages in this channel". Direct messages are always writable. A permission change applies at once to the open room.
 
-**IB-63** Without a connection the box works as usual: typing, emoji, pickers and drafts. Send accepts the message and shows it as pending. It goes out when the connection returns, also after the app was closed. See [Offline and installation](offline.md).
+**IB-63** Without a connection the box works as usual: typing, emoji, pickers and drafts. Send accepts the message and shows it as pending; a GIF pick and a file pick are accepted the same way. The message goes out when the connection returns, also after the app was closed and reopened. See [Offline and installation](offline.md).
 
-**IB-64** A message with attachments is accepted without a connection up to 25 MB in total. Above that, Send does nothing and the box says "needs a connection".
+**IB-64** A pick of files is accepted without a connection up to 25 MB in total. A larger pick is refused and the box says "Needs a connection".
 
 **IB-65** A pending message that has waited more than one day is shown as failed, with Retry and Remove.
 
@@ -178,8 +178,8 @@ The input box is where a message is written and sent. It sits at the bottom of e
 | State or trigger | Input | What the user sees |
 | --- | --- | --- |
 | Empty draft, no picker | all | Placeholder in the pill. Send hidden. GIF badge and grey emoji icon visible (desktop); + and emoji icon (phone). |
-| First character typed | keyboard, touch | Send appears with its glow in 0.15 s. On desktop the GIF toggle collapses. |
-| Draft deleted to empty | keyboard, touch | Send collapses. The GIF toggle returns. |
+| First character typed | keyboard, touch | Send appears in 0.15 s. On desktop the GIF toggle collapses. |
+| Draft deleted to empty | keyboard, touch | Send collapses, or stays dimmed while a picker is open. The GIF toggle returns. |
 | Whitespace only | keyboard, touch | Send visible and bright. A tap sends nothing; the spaces stay. |
 | Four lines | keyboard | The pill is taller; +, toggles and Send stay at the bottom edge. |
 | More than 200 px of text | keyboard | The text area stops growing and scrolls. No scrollbar. |
@@ -187,7 +187,7 @@ The input box is where a message is written and sent. It sits at the bottom of e
 | Shift+Enter | keyboard | Newline. |
 | Enter | touch device | Newline. |
 | Enter while composing (IME) | keyboard | Goes to the input method editor. |
-| Escape | keyboard | Closes an open picker or warning dialog. Draft and reply unchanged. |
+| Escape | keyboard | Closes the topmost layer: a dialog, else a picker. Draft and reply unchanged. |
 | Send tap or click | mouse, touch | Draft cleared, box one line, picker closed, pending row at the end of the list, list scrolled. Focus unchanged. |
 | Send accepted | all | The pending row becomes a normal row. |
 | Send failed | all | The row shows the reason, Retry and Remove. |
@@ -206,12 +206,13 @@ The input box is where a message is written and sent. It sits at the bottom of e
 | File dragged over the box | mouse | "Drop images here" and the accent ring. |
 | File dropped outside the box | mouse | Nothing. |
 | Files chosen, dropped or pasted | all | One pending row with file names, a progress bar and "Cancel upload". Draft text unchanged. |
-| Some files refused | all | Dialog "{s} of {t} files uploaded" with one line per file. The rest posts. |
-| All files refused | all | Dialog "Upload failed" with one line per file. |
+| Some files refused before upload | all | Dialog "{s} of {t} files uploaded" with one line per refused file. The rest goes out. |
+| All files refused before upload | all | Dialog "Upload failed" with one line per file. |
+| Upload fails midway | all | The pending row shows Failed, the reason, Retry and Remove. |
 | Room becomes read-only | all | Lock icon and the read-only text replace the box. Draft kept. |
 | Someone types in the conversation | all | Typing strip text with three dots. Gone 3 s after their last keystroke. |
 | No connection | all | Box unchanged. Send shows a pending row; it sends later. The header shows the connection state. |
-| No connection, attachments over 25 MB | all | Send does nothing; the box says "needs a connection". |
+| No connection, a pick over 25 MB | all | The pick is refused; the box says "Needs a connection". |
 
 ## Wording
 
@@ -233,19 +234,19 @@ The input box is where a message is written and sent. It sits at the bottom of e
 | Pending row with files | "Cancel upload" |
 | Failed row | "Failed", the reason, "Retry", "Remove" |
 | Upload dialog titles | "Upload failed"; "{s} of {t} files uploaded" |
-| Upload dialog lines, one per file | `"{name}" — unsupported file type`; `"{name}" — too large ({size} MB, max {max} MB)`; `"{name}" — server processing timeout`; `"{name}" — failed to get upload result`; `"{name}" — {error}` |
-| Upload dialog, no file usable | "No valid files selected"; "No files selected" |
+| Upload dialog lines, one per file | `"{name}" — unsupported file type`; `"{name}" — too large ({size} MB, max {max} MB)` |
+| Upload dialog, too many files | "Choose at most 10 files." |
 | Upload dialog, unexpected error | "Something went wrong while uploading your files" |
 | Dialog buttons | "Got It"; "✕" |
 | GIF dialog title | "Couldn't send GIF" |
 | GIF dialog texts | "That GIF isn't available anymore — try another one."; "File is too large (max 50MB)"; "Could not process this file as a GIF"; "Upload failed" |
 | Phone sheet tabs | "GIFs", "Emoji" |
-| Typing, direct message | "{names} is typing..." |
+| Typing, direct message | "{name} is typing..." |
 | Typing, one person in a room (configured; defaults) | "{0} is cooking..", "{0} boutta drop heat..", "{0} typing their villain arc..", "{0} lowkey struggling..", "{0} channeling their inner poet..", "{0} manifesting a message..", "{0} is in their typing era.." |
 | Typing, two people (configured; defaults) | "{0} and {1} are cooking..", "{0} and {1} causing chaos..", "{0} and {1} boutta spam..", "{0} and {1} racing fr fr..", "{0} and {1} typing faast.." |
 | Typing, three or more (configured; defaults; {0} the first name, {1} the number of others) | "{0}, {1} and more going crazy..", "chat's popping off: {0}, {1} + others..", "{0} and {1} causing chaos..", "typing apocalypse: {0}, {1} and more..", "{0} and {1} others said bet..", "everyone typing their hot takes.." |
 | Typing when the lists are missing | "{0} is typing..", "{0} and {1} are typing..", "{0} and {1} others are typing.." |
-| No connection, too much to queue | "needs a connection" |
+| No connection, too much to queue | "Needs a connection" |
 
 ## Related
 

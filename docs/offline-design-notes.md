@@ -79,7 +79,7 @@ A row older than one day is marked `failed` when a tab opens. One comparison. Th
 
 Only new text messages are queued. Edits, deletes, reactions and uploads need a connection, and the UI says so when there is none. Queuing every operation is where the previous design grew its acceptance locks, its operation ids and its conflict rules. Not queuing them removes that whole class of code.
 
-Attachments are in the offline promise. The case to serve: someone loses the connection in a tunnel with pictures already picked, presses Send, and the message goes out when the connection returns. The Blobs live in the outbox row. A row may hold at most 25 MB of attachments. Above that the client refuses to queue and the composer says "needs a connection". There is no resumable upload state. After a crash halfway through an upload, the file is uploaded again from zero, which is acceptable for a few megabytes. Added machinery: one field, one sender step, one cap.
+Attachments are in the offline promise. The case to serve: someone loses the connection in a tunnel with pictures already picked, presses Send, and the message goes out when the connection returns. The Blobs live in the outbox row. A row may hold at most 25 MB of attachments. Above that the client refuses to queue and the composer says "Needs a connection". There is no resumable upload state. After a crash halfway through an upload, the file is uploaded again from zero, which is acceptable for a few megabytes. Added machinery: one field, one sender step, one cap.
 
 ## What this design does not have
 
