@@ -28,6 +28,7 @@ export function openGallery(message, startIndex = 0) {
 
   const stages = [...strip.children];
   const counter = modal.querySelector('.modal-counter-index');
+  const prev = modal.querySelector('.modal-nav.prev'), next = modal.querySelector('.modal-nav.next');
   const step = dir => strip.scrollBy({ left: dir * strip.clientWidth, behavior: 'smooth' });
   const visible = () => strip.children[Math.round(strip.scrollLeft / strip.clientWidth)];
 
@@ -90,10 +91,16 @@ export function openGallery(message, startIndex = 0) {
   modal.addEventListener('pointerup', endDrag);
   modal.addEventListener('pointercancel', endDrag);
 
-  // the counter and the videos follow the stage in view (TL-25)
+  // the counter and the end controls follow the stage in view (TL-25): no loop, so the control that would
+  // lead past an end is hidden rather than shown as a button that does nothing
   const watcher = new IntersectionObserver(entries => {
     for (const entry of entries) {
-      if (entry.isIntersecting) { if (counter) counter.textContent = String(stages.indexOf(entry.target) + 1); }
+      if (entry.isIntersecting) {
+        const index = stages.indexOf(entry.target);
+        if (counter) counter.textContent = String(index + 1);
+        if (prev) prev.hidden = index === 0;
+        if (next) next.hidden = index === stages.length - 1;
+      }
       else entry.target.classList.remove('fill', 'fill-w');   // a swipe lands on fit, like every native viewer
     }
   }, { root: strip, threshold: 0.6 });

@@ -81,7 +81,7 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 
 **TL-24** The controls are on top of the picture. Close is at the top right, previous and next are at mid height, and fill is at the bottom right. The counter "{n} / {total}" is at the bottom centre. With one image, there are no previous and next controls and no counter.
 
-**TL-25** On touch, each horizontal swipe moves one image. Previous, next and the arrow keys move one image. At the first and the last image, they do nothing. The counter changes when 60 % of an image is in view.
+**TL-25** On touch, each horizontal swipe moves one image. Previous, next and the arrow keys move one image. The viewer does not loop. At the first image, the previous control is hidden. At the last image, the next control is hidden. A swipe or an arrow key past an end does nothing. The counter changes when 60 % of an image is in view.
 
 **TL-26** The fill control or a double tap switches between fit and fill. The icon of the fill control changes between maximize and minimize. In fill, the picture covers the screen along one axis and is centred on the tapped point. The user can pan the picture up to its edges. A pan does not move to the next image. A move to another image resets the picture to fit. There is no pinch zoom of the picture itself and no rotation.
 
@@ -131,6 +131,7 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 | Conversation switched | all | New header and messages together; pill hidden; the old pending rows leave the screen but stay in the queue; picker and viewer closed. |
 | Image tap | mouse, touch | Viewer at that image. |
 | Swipe, arrow key, previous or next | touch, keyboard, mouse | One image; counter updates at 60 % in view. |
+| First or last image in view | all | The previous or the next control is hidden. |
 | Double tap or fill control | touch, mouse | Fit to fill or back; pan in fill. |
 | Drag down 120 px, fit mode | touch | Viewer closes with a fade. |
 | Close control, Escape, tap outside | mouse, touch, keyboard | Viewer closes with a fade; focus unchanged. |

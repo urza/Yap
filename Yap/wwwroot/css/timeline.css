@@ -135,6 +135,10 @@
     transform: translateY(-50%);
 }
 
+.modal-nav[hidden] {
+    display: none;   /* the control at an end of the gallery (TL-25); `hidden` alone loses to the display: flex above */
+}
+
 .modal-nav.prev {
     left: 20px;
 }
