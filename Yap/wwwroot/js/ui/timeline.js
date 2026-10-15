@@ -47,8 +47,16 @@ export function Timeline(root) {
     if (!state.open) { renderTop(); return; }
     let prev = null;
     for (const m of ordered()) { flow.append(makeRow(m, prev)); prev = m; }
+    // An older page still in flight belongs to the rows just removed: its answer is dropped (loadOlder), and
+    // the spinner must not outlive the rows it was loading for. Without this, a reconnect that re-opened the
+    // conversation while a page was loading showed "loading older" for ever (the token was never released).
+    loadToken++; loading = false;
     renderTop();
-    if (same && !keptFollowing) { following = false; list.scrollTop = keptTop; return; }
+    if (same && !keptFollowing) {
+      following = false; list.scrollTop = keptTop;
+      if (list.scrollTop <= 100) loadOlder();   // still at the top after a reconnect: the page the person waited for (TL-06)
+      return;
+    }
     following = true;
     scrollToBottom();
   }
@@ -173,13 +181,15 @@ export function Timeline(root) {
     replace(top, [note]);
   }
 
+  let loadToken = 0;   // the older request in flight; a reset invalidates it
   async function loadOlder() {
     const open = state.open;
     if (!open || loading || !open.hasMore || !open.messages.length || state.connection !== 'connected') return;
+    const token = ++loadToken;
     loading = true; renderTop();
     const oldest = open.messages[0];
     const page = await hub.invoke('older', open.channelId, oldest.timestamp, oldest.id);
-    if (state.open !== open) return;
+    if (token !== loadToken || state.open !== open) return;   // the rows changed meanwhile; reset() released the spinner
     if (page?.error) { loading = false; renderTop(); overlays.reason(list.parentElement, page.error); return; }   // GEN-02
     prependOlder(page);
   }
