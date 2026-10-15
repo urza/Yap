@@ -119,13 +119,11 @@ public partial class MediaCacheService
             && uri.Host.Equals("open.spotify.com", StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>The cached file of a URL, from memory or from disk (a restart empties the memory), or null.</summary>
-    public MediaCacheEntry? GetCachedMedia(string url) => GetOrLoadCachedMedia(url);   // a file on disk plays without yt-dlp
-
     /// <summary>
-    /// Checks memory cache, then disk. Populates memory cache on disk hit.
+    /// Checks memory cache, then disk (a restart empties the memory). Populates memory cache on disk hit.
+    /// The mapper asks for every link of a served page: a file on disk plays without yt-dlp.
     /// </summary>
-    private MediaCacheEntry? GetOrLoadCachedMedia(string url)
+    public MediaCacheEntry? GetOrLoadCachedMedia(string url)
     {
         if (_cache.TryGetValue(url, out var existing))
             return existing;

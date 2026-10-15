@@ -37,11 +37,11 @@ public sealed class MessageMapper(ChatService chat, GifService gifs, UserService
     {
         if (!previewSettings.Enabled || m.HasMedia) return [];
         var result = new List<PreviewDto>();
-        foreach (var url in LinkPreviewService.ExtractUrls(m.Content).Take(5))
+        foreach (var url in LinkPreviewService.ExtractUrls(m.Content).Take(LinkPreviewService.MaxLinksPerMessage))
         {
             var p = previews.GetCachedPreview(url);
             // The file outlives the scrape: it is on disk across restarts, the scrape is in memory for an hour.
-            if (p?.CachedMediaUrl is null && mediaCache.GetCachedMedia(url) is { } file) p = previews.AttachMedia(url, file);
+            if (p?.CachedMediaUrl is null && mediaCache.GetOrLoadCachedMedia(url) is { } file) p = previews.AttachMedia(url, file);
             if (p is null || (!p.HasContent && p.CachedMediaUrl is null)) continue;
             var media = p.CachedMediaUrl is null ? null
                 : new PreviewMediaDto(p.MediaType?.ToString().ToLowerInvariant() ?? "video", p.CachedMediaUrl, p.CachedPosterUrl, p.MediaWidth, p.MediaHeight, p.MediaDurationSeconds);

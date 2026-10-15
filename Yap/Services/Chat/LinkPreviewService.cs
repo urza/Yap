@@ -39,6 +39,9 @@ public partial class LinkPreviewService
     /// <summary>
     /// Extracts URLs from plain text. Handles balanced parentheses (Wikipedia) and strips trailing punctuation.
     /// </summary>
+    /// <summary>At most this many cards per message, in text order (MR-19): the queue and the mapper agree on it.</summary>
+    public const int MaxLinksPerMessage = 5;
+
     public static List<string> ExtractUrls(string text)
     {
         if (string.IsNullOrEmpty(text))

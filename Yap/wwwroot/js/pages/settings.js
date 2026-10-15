@@ -161,6 +161,7 @@ export function mount(root, route) {
 
   // ---- Active Sessions (ST-15, AU-19, AU-20) ----
   const deviceList = $('.device-list');
+  const signOutOthers = $('.sign-out-others'), sessionsStatus = $('.sessions-status');
   let allowedAt = 0;   // when this device may sign the others out (AU-20): its first hour is over, or it never was new
   async function drawDevices() {
     let devices = [];
@@ -193,7 +194,6 @@ export function mount(root, route) {
   }
   drawDevices();
   offs.push(on('presence', () => { clearTimeout(timers.devices); timers.devices = setTimeout(drawDevices, 500); }));
-  const signOutOthers = $('.sign-out-others'), sessionsStatus = $('.sessions-status');
   signOutOthers.addEventListener('click', async () => {
     signOutOthers.disabled = true; signOutOthers.textContent = 'Signing out...';
     try {

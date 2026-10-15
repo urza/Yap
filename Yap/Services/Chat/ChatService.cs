@@ -441,22 +441,15 @@ public class ChatService
             _byClientId.TryRemove(key, out _);
     }
 
-    /// <summary>Link cards for a text message, at most five, in text order (MR-19). Media messages get none.</summary>
-    private void QueuePreviews(ChatMessage message)
-    {
-        if (!_linkPreviewSettings.Enabled || message.HasMedia) return;
-        foreach (var url in LinkPreviewService.ExtractUrls(message.Content).Take(5))
-        {
-            _linkPreviewService.QueueFetch(message.Id, url);
-            if (_linkPreviewSettings.MediaCachingEnabled) _mediaCacheService.QueueDownload(message.Id, url);
-        }
-    }
+    /// <summary>Link cards for a text message, in text order (MR-19). Media messages get none.</summary>
+    private void QueuePreviews(ChatMessage message) => EnsurePreviews([message]);
 
     /// <summary>
-    /// The cards of a served page. Previews live in memory for an hour and not across a restart, so a page of
-    /// history has none until they are fetched again: the hub calls this for every page it serves, the fetch runs
-    /// in the background, and the "previews" message fills the rows in while the reader looks at them (MR-22).
-    /// A preview still in memory is not fetched again. A media file already on disk is attached by the mapper.
+    /// The cards of a message or of a served page. Previews live in memory for an hour and not across a restart, so
+    /// a page of history has none until they are fetched again: the hub calls this for every page it serves, the
+    /// fetch runs in the background, and the "previews" message fills the rows in while the reader looks at them
+    /// (MR-22). A preview still in memory is not fetched again: the mapper already put its card into the page or
+    /// the broadcast. A media file already on disk is attached by the mapper.
     /// </summary>
     public void EnsurePreviews(IEnumerable<ChatMessage> messages)
     {
@@ -464,7 +457,7 @@ public class ChatService
         foreach (var message in messages)
         {
             if (message.HasMedia) continue;
-            foreach (var url in LinkPreviewService.ExtractUrls(message.Content).Take(5))
+            foreach (var url in LinkPreviewService.ExtractUrls(message.Content).Take(LinkPreviewService.MaxLinksPerMessage))
             {
                 if (_linkPreviewService.GetCachedPreview(url) is null) _linkPreviewService.QueueFetch(message.Id, url);
                 if (_linkPreviewSettings.MediaCachingEnabled) _mediaCacheService.QueueDownload(message.Id, url);   // a no-op for a file on disk
