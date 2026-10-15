@@ -89,23 +89,29 @@ public static class AccountEndpoints
 
         // ---- devices (AU-19, AU-20) --------------------------------------------------------------------------
 
-        account.MapGet("/devices", (ClaimsPrincipal me, string? device, PresenceService presence) =>
-            Results.Ok(presence.SessionsOf(me.Id())
+        account.MapGet("/devices", (ClaimsPrincipal me, string? device, PresenceService presence, UserService users) =>
+            Results.Ok(new DevicesDto(presence.SessionsOf(me.Id())
                 .GroupBy(s => s.DeviceId)
                 .Select(g => new DeviceDto(g.Key, g.Any(s => s.IsMobile), g.First().ClientIp, g.Max(s => s.LastHeartbeatAt), g.Key == device))
                 .OrderByDescending(d => d.Current).ThenByDescending(d => d.LastActiveAt)
-                .ToList()));
+                .ToList(), users.SignOutOthersAllowedAt(me.Id(), device))));
 
         account.MapPost("/devices/sign-out-others", async (SignOutOthersRequest body, ClaimsPrincipal me, HttpResponse response,
             UserService users, PresenceService presence, PushSubscriptionStore push, IHubContext<ChatHub> hub) =>
         {
             var user = users.GetById(me.Id());
             if (user is null) return Results.Unauthorized();
+            // A device in its first hour cannot do this (AU-20): the bot's message about a new sign-in reaches that
+            // device too, and a person who got in through smart login must not sign the owner out. The client
+            // shows the button disabled; the check here is the one that counts.
+            if (users.SignOutOthersAllowedAt(user.Id, body.DeviceId) is { } allowedAt && allowedAt > DateTime.UtcNow)
+                return Results.Problem("Available one hour after this device signed in", statusCode: 403);
 
             var token = users.RotateToken(user.Id);                    // every other cookie fails the lookup from now on
             if (token is null) return Results.Problem("Failed", statusCode: 500);
             AuthCookie.Set(response, token);                            // this browser keeps its session; its other tabs share the cookie
             users.ForgetKnownIps(user.Id);
+            users.ForgetOtherDevices(user.Id, body.DeviceId);           // the others come back as new devices, with the hour
             string? passphrase = null;
             if (users.HasPassword(user.Username))                       // a leaked code dies with the other devices
             {
@@ -184,6 +190,9 @@ public sealed record AccountPatch(string? DisplayName, string? Bio, string? Loca
     string? TimeZone, string? Locale, string? DateFormat, bool? SmartLoginOptOut);
 
 public sealed record DeviceDto(string DeviceId, bool IsMobile, string? Ip, DateTime LastActiveAt, bool Current);
+
+/// <summary>The device list and when this device may sign the others out: now, or the end of its first hour (AU-20).</summary>
+public sealed record DevicesDto(List<DeviceDto> Devices, DateTime SignOutOthersAllowedAt);
 
 public sealed record SignOutOthersRequest(string DeviceId, string? PushEndpoint);
 

@@ -99,6 +99,9 @@ namespace Yap.Migrations
                     b.Property<bool>("IsAdmin")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("KnownDevices")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("KnownIps")
                         .HasColumnType("TEXT");
 

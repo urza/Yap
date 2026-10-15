@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Data.Sqlite;
 using Yap.Models.Accounts;
 
+using Yap.Services.Accounts;
+
 namespace Yap.Tests;
 
 /// <summary>Sign-out of other devices (AU-20) and the persistence writer's drain on shutdown.</summary>
@@ -26,7 +28,13 @@ public class AccountTests : IClassFixture<YapFactory>
         phone.Closed += _ => { closed.Set(true); return Task.CompletedTask; };
 
         var devices = await grace.Http.GetFromJsonAsync<JsonElement>("/api/account/devices?device=laptop");
-        Assert.Equal(2, devices.GetArrayLength());
+        Assert.Equal(2, devices.GetProperty("devices").GetArrayLength());
+
+        // the laptop connected a moment ago: in its first hour it cannot sign the others out (AU-20)
+        var tooNew = await grace.Http.PostAsJsonAsync("/api/account/devices/sign-out-others", new { deviceId = "laptop" });
+        Assert.Equal(HttpStatusCode.Forbidden, tooNew.StatusCode);
+        var users = _app.Service<UserService>();
+        users.RecordDevice(users.GetByUsername("grace_devices")!.Id, "laptop", DateTime.UtcNow - TimeSpan.FromHours(2));
 
         var response = await grace.Http.PostAsJsonAsync("/api/account/devices/sign-out-others", new { deviceId = "laptop" });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

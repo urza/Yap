@@ -51,7 +51,7 @@ Settings is the one page where the user changes their profile, appearance, sign-
 
 ### Devices
 
-**ST-15** Active Sessions lists the account's connected devices. Each device has a phone or desktop icon, the network address and "Active {time}". The current device shows "This device" and is always listed. "Sign out all other devices" is always available, because a device can stay signed in without a connection. It acts without a confirmation. After it, the page shows the notice "All other devices have been signed out." with the new secret code, when one exists.
+**ST-15** Active Sessions lists the account's connected devices. Each device has a phone or desktop icon, the network address and "Active {time}". The current device shows "This device" and is always listed. "Sign out all other devices" is always available, because a device can stay signed in without a connection. It is disabled during the first hour of the current device, with the text that says when it is available. It acts without a confirmation. After it, the page shows the notice "All other devices have been signed out." with the new secret code, when one exists.
 
 **ST-16** Install as App shows "Install Yap" with its explanation. Inside the installed app, it shows "Yap is installed as an app on this device." instead. See [Offline and installation](offline.md).
 

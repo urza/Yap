@@ -34,12 +34,14 @@ public sealed class ChatHub(ChatService chat, PresenceService presence, UserServ
         var http = Context.GetHttpContext()!;
         users.UpdateLastSeen(Me);                                           // AD-04: the admin list orders by the newest activity
         if (http.Request.Query["pwa"] == "1") users.MarkPwaInstalled(Me);   // AD-05: the client runs as the installed app
+        var deviceId = http.Request.Query["device"].FirstOrDefault() ?? "unknown";
+        users.RecordDevice(Me, deviceId);                                   // AU-20: the device's first hour starts here
         presence.Connect(new Session
         {
             ConnectionId = Context.ConnectionId,
             UserId = Me,
             Username = MyName,
-            DeviceId = http.Request.Query["device"].FirstOrDefault() ?? "unknown",
+            DeviceId = deviceId,
             IsMobile = UserAgent.IsMobile(http.Request.Headers.UserAgent),
             ClientIp = IpHelper.GetClientIp(http),
             Transport = Context.Features.Get<IHttpTransportFeature>()?.TransportType.ToString() ?? "",   // the connection's features, not the request's (AD-26)

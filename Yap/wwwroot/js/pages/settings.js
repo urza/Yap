@@ -161,9 +161,13 @@ export function mount(root, route) {
 
   // ---- Active Sessions (ST-15, AU-19, AU-20) ----
   const deviceList = $('.device-list');
+  let allowedAt = 0;   // when this device may sign the others out (AU-20): its first hour is over, or it never was new
   async function drawDevices() {
     let devices = [];
-    try { devices = await api.get(`/api/account/devices?device=${encodeURIComponent(deviceId())}`); } catch { /* keep what shows */ }
+    try {
+      const answer = await api.get(`/api/account/devices?device=${encodeURIComponent(deviceId())}`);
+      devices = answer.devices; allowedAt = new Date(answer.signOutOthersAllowedAt).getTime();
+    } catch { /* keep what shows */ }
     replace(deviceList, devices.map(d => {
       const item = clone('t-session-item');
       item.classList.toggle('current', d.current);
@@ -174,7 +178,18 @@ export function mount(root, route) {
       return item;
     }));
     $('.no-sessions').hidden = devices.length > 0;
-    $('.sign-out-others-row').hidden = false;   // always available (AU-20)
+    $('.sign-out-others-row').hidden = false;   // always present (AU-20); disabled during this device's first hour
+    drawSignOutOthers();
+  }
+  // A new device cannot sign the others out for an hour (AU-20). The button says so and comes back on its own.
+  function drawSignOutOthers() {
+    const wait = allowedAt - Date.now();
+    signOutOthers.disabled = wait > 0;
+    $('.new-device-hint').hidden = wait <= 0;
+    if (wait > 0) {
+      $('.new-device-hint').textContent = `Available ${Math.ceil(wait / 60_000)} min after this device signed in. The devices that were signed in before can use it now.`;
+      clearTimeout(timers.signOutOthers); timers.signOutOthers = setTimeout(drawSignOutOthers, Math.min(wait, 60_000));
+    }
   }
   drawDevices();
   offs.push(on('presence', () => { clearTimeout(timers.devices); timers.devices = setTimeout(drawDevices, 500); }));
@@ -190,8 +205,9 @@ export function mount(root, route) {
       notice.querySelector('.kicked-detail').textContent = `${link.value ? 'Your login link keeps working. ' : ''}${answer?.passphrase ? 'Your secret code was automatically changed. See the new one below.' : ''}`;
       if (answer?.passphrase) { code.value = answer.passphrase; code.shown = true; drawCode(); }
       drawDevices();
-    } catch (e) { saved(sessionsStatus, 'Failed', 'error'); }
-    signOutOthers.disabled = false; signOutOthers.textContent = 'Sign out all other devices';
+    } catch (e) { saved(sessionsStatus, e.message || 'Failed', 'error'); }
+    signOutOthers.textContent = 'Sign out all other devices';
+    drawSignOutOthers();
   });
   $('.kicked-notice-dismiss').addEventListener('click', () => { $('.kicked-notice').hidden = true; });
 

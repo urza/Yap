@@ -521,6 +521,55 @@ public class UserService
         _writer.Enqueue(Writes.User(user));
     }
 
+    // ---- known devices (AU-20): a device cannot sign the others out within its first hour ----
+
+    public static readonly TimeSpan NewDevicePeriod = TimeSpan.FromHours(1);
+    private const int MaxKnownDevices = 20;
+    private sealed record KnownDeviceEntry(string Id, DateTime FirstSeenUtc);
+
+    /// <summary>The first hub connection of a device records it. The entry is never refreshed: its age is the point.
+    /// A given <paramref name="firstSeenUtc"/> replaces the entry (a test makes a device old).</summary>
+    public void RecordDevice(Guid userId, string? deviceId, DateTime? firstSeenUtc = null)
+    {
+        if (string.IsNullOrEmpty(deviceId) || deviceId == "unknown" || !_users.TryGetValue(userId, out var user)) return;
+        var entries = ParseKnownDevices(user.KnownDevices);
+        if (firstSeenUtc is null && entries.Any(e => e.Id == deviceId)) return;
+        entries.RemoveAll(e => e.Id == deviceId);
+        entries.Add(new KnownDeviceEntry(deviceId, firstSeenUtc ?? DateTime.UtcNow));
+        if (entries.Count > MaxKnownDevices) entries.RemoveRange(0, entries.Count - MaxKnownDevices);   // the oldest go; an old device dropped here counts as new again, which errs on the safe side
+        user.KnownDevices = System.Text.Json.JsonSerializer.Serialize(entries);
+        _writer.Enqueue(Writes.User(user));
+    }
+
+    /// <summary>When this device may sign the others out: now for a device older than an hour, else the end of its
+    /// first hour. A device the server never saw counts as new, so a made-up id gains nothing.</summary>
+    public DateTime SignOutOthersAllowedAt(Guid userId, string? deviceId)
+    {
+        var now = DateTime.UtcNow;
+        if (string.IsNullOrEmpty(deviceId) || !_users.TryGetValue(userId, out var user)) return now + NewDevicePeriod;
+        var entry = ParseKnownDevices(user.KnownDevices).FirstOrDefault(e => e.Id == deviceId);
+        if (entry is null) return now + NewDevicePeriod;
+        var allowedAt = entry.FirstSeenUtc + NewDevicePeriod;
+        return allowedAt <= now ? now : allowedAt;
+    }
+
+    /// <summary>After "Sign out all other devices": only the device that did it stays known. The others sign in
+    /// again as new devices, with the hour that comes with it.</summary>
+    public void ForgetOtherDevices(Guid userId, string deviceId)
+    {
+        if (!_users.TryGetValue(userId, out var user)) return;
+        var entries = ParseKnownDevices(user.KnownDevices).Where(e => e.Id == deviceId).ToList();
+        user.KnownDevices = entries.Count == 0 ? null : System.Text.Json.JsonSerializer.Serialize(entries);
+        _writer.Enqueue(Writes.User(user));
+    }
+
+    private static List<KnownDeviceEntry> ParseKnownDevices(string? json)
+    {
+        if (string.IsNullOrEmpty(json)) return [];
+        try { return System.Text.Json.JsonSerializer.Deserialize<List<KnownDeviceEntry>>(json) ?? []; }
+        catch { return []; }
+    }
+
     public bool HasRecentKnownIp(string username, string? ip)
     {
         if (string.IsNullOrEmpty(ip))

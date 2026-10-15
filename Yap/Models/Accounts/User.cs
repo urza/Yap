@@ -161,6 +161,14 @@ public class User
     public string? KnownIps { get; set; }
 
     /// <summary>
+    /// JSON-serialized list of the devices that connected for this account: the browser's device id and when the
+    /// server first saw it. "Sign out all other devices" is refused to a device seen less than an hour ago (AU-20):
+    /// a person who got in through smart login on a shared network must not be able to sign the owner out at once.
+    /// Persisted, so a restart does not make every device new.
+    /// </summary>
+    public string? KnownDevices { get; set; }
+
+    /// <summary>
     /// JSON-serialized List&lt;string&gt; of recently used emojis (most recent first, max 20).
     /// </summary>
     public string? RecentEmojis { get; set; }
