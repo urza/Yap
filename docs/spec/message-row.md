@@ -58,7 +58,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 ### Emoji
 
-**MR-15** Emoji in text show as images from one image set, so every reader sees the same image. The device's own emoji glyphs are not used. A skin tone variant, a flag, a keycap or a joined sequence shows as one image. An emoji image that the device could not load is loaded again when the connection returns.
+**MR-15** Emoji in text show as images from one image set, so every reader sees the same image. The device's own emoji glyphs are not used. A skin tone variant, a flag, a keycap or a joined sequence shows as one image. If the device does not load an emoji image, Yap loads the image again when the connection returns.
 
 **MR-16** In mixed text, an emoji is 1.2 times the text size. When a message contains only emoji and whitespace, the emoji are 3 times the text size. A link or any other text in the message prevents this larger size.
 
@@ -74,7 +74,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 **MR-21** The whole card is one link that opens in a new tab. The card has an accent bar on the left. It is at most 520 px wide, and full width on a phone.
 
-**MR-22** A card appears after the server reads the page, a short time after the message. When a card appears, a reader at the bottom of the list stays at the bottom. After a card shows, it stays with the message. An edit that adds or removes a link adds or removes the card for that link. A card for a message loaded from history appears a short time after the page loads, in the same way.
+**MR-22** A card appears after the server reads the page, a short time after the message. When a card appears, a reader at the bottom of the list stays at the bottom. After a card shows, it stays with the message. An edit that adds or removes a link adds or removes the card for that link. A message from history gets its cards in the same way. The cards appear a short time after the page loads.
 
 **MR-23** When the admin switch for media caching is on, a link to a page whose video or audio the server can download shows a player instead of a card. The site name and the title show above the player. A player downloads nothing until the user starts it.
 
@@ -138,9 +138,9 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 **MR-49** Reply opens the reply bar in the input box and moves focus into the draft in the same tap. See [Input box](input-box.md#IB-50).
 
-**MR-50** On a touch screen, a tap on a row shows its bar. Only one row shows a bar at a time. The tap that shows the bar also acts on the tapped item: a link opens, a pill toggles, an image opens the viewer. The bar appears after the tap, never under the finger. A scroll gesture never shows a bar.
+**MR-50** On a touch screen, a tap on a row shows its bar. Only one row shows a bar at a time. The tap that shows the bar also acts on the tapped item: a link opens, a pill toggles, an image opens the viewer. The bar appears after the tap, never under the finger. A scroll gesture does not show a bar.
 
-**MR-51** On a touch screen, the bar is hidden 5 s after the last touch in the row, or after the list scrolls more than 50 px. Touches in the picker, menu or dialog of the row count as touches in the row, including the tap that closes it. The bar is never hidden while one of them is open. A change to the row while its bar shows, such as a new reaction, keeps the bar and the open picker or menu. A mouse on a device with touch input uses the hover rule.
+**MR-51** On a touch screen, the bar is hidden 5 s after the last touch in the row, or after the list scrolls more than 50 px. Touches in the picker, menu or dialog of the row count as touches in the row. The tap that closes the picker, the menu or the dialog is also a touch in the row. The bar is never hidden while one of them is open. When the row changes while its bar shows, for example when a reaction arrives, the bar stays. An open picker or menu also stays. A mouse on a device with touch input uses the hover rule.
 
 **MR-52** On a phone, the buttons of the bar are larger. The bar also contains the GIF star for the first GIF of the row.
 
@@ -212,7 +212,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 | Keyboard focus on a bar button | keyboard | The bar is visible. |
 | Pointer over the reply quote | mouse | The bar is hidden. |
 | Tap on a row | touch | The bar shows after the tap. The tapped item does its action. The bars of other rows are hidden. |
-| Scroll gesture that starts on a row | touch | The list scrolls. No bar shows. |
+| Scroll gesture that starts on a row | touch | The list scrolls. The bar does not show. |
 | 5 s without a touch, or a 50 px scroll | touch | The bar fades out. Not while a picker, menu or dialog is open. |
 | Long press | touch | Nothing. |
 | Tap on a pill | mouse, touch | The reader's reaction toggles immediately. The pill highlight and count change. |
