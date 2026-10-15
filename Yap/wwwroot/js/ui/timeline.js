@@ -8,7 +8,7 @@ import { inline, pick } from '../render/text.js';
 import { messageTime } from '../render/time.js';
 import * as hub from '../hub.js';
 import * as overlays from './overlays.js';
-import { renderRow, needsHeader } from './message.js';
+import { renderRow, needsHeader, rowReplaced, touchScrolled } from './message.js';
 
 let current = null;   // the mounted instance, for jumpTo
 
@@ -73,6 +73,7 @@ export function Timeline(root) {
     if (!r || r.node.classList.contains('editing')) return;   // the editor and its text stay (MR-62); the row refreshes after
     const node = renderRow(m, { header: needsHeader(prev, m) });
     r.node.replaceWith(node);
+    rowReplaced(r.node, node);   // the touch bar and an open picker or menu follow the row (MR-51)
     r.node = node; r.message = m;
   }
 
@@ -210,6 +211,7 @@ export function Timeline(root) {
 
   let lastTop = 0;
   list.addEventListener('scroll', () => {
+    touchScrolled(list.scrollTop);                                            // MR-51: 50 px hides the touch bar
     const up = list.scrollTop < lastTop;
     lastTop = list.scrollTop;
     if (up && distanceFromBottom() > 80) following = false;                  // only an upward scroll stops the follow (TL-11)

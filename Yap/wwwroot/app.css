@@ -383,7 +383,9 @@ body { display: flex; flex-direction: column; min-height: 100vh; min-height: 100
 
 .page-not-found { padding: 3rem 1rem; text-align: center; color: var(--text-secondary); }
 
-/* A tapped row shows its bar on a touch screen (MR-50); the class goes away 5 s after the last touch (MR-51). */
+/* A tapped row shows its bar and its tint on a touch screen (MR-50); the class goes away 5 s after the last
+   touch or 50 px of scrolling (MR-51). The hover rules in message.css apply only where a pointer can hover. */
+.message-group.touched { background: var(--bg-hover); }
 .message-group.touched .message-actions { opacity: 1; pointer-events: auto; }
 .message-group.editing .message-actions { opacity: 0 !important; pointer-events: none; }
 

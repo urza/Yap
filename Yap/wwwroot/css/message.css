@@ -214,8 +214,12 @@
     max-width: 100%;
 }
 
-.message-group:hover:not(.system-message) {
-    background: var(--bg-hover);
+/* Only where a pointer can hover. A touch browser keeps the tapped row in :hover until the next tap, so an
+   ungated rule showed a second bar and tint on the previous row (MR-50: one bar at a time). */
+@media (hover: hover) {
+    .message-group:hover:not(.system-message) {
+        background: var(--bg-hover);
+    }
 }
 
 /* Messages with header show avatar in the reserved space */
@@ -636,8 +640,13 @@
     transition: opacity 0.1s ease;
 }
 
-/* Show on hover or when picker/menu is open - pure CSS, no server round-trip */
-.message-group:hover:not(.system-message) .message-actions,
+/* Show on hover (where a pointer can hover, see the tint rule above) or when picker/menu is open - pure CSS */
+@media (hover: hover) {
+    .message-group:hover:not(.system-message) .message-actions {
+        opacity: 1;
+        pointer-events: auto;
+    }
+}
 .message-group.picker-open .message-actions,
 .message-group.menu-open .message-actions {
     opacity: 1;

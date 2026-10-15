@@ -79,8 +79,7 @@ that name the class get it. 150 selectors in total. In the old markup, every pre
 6. Not prefixed, with no conflict: state classes that always join a component class (`.active`, `.selected`,
    `.online`, `.disabled` ...), and the old `::deep` overrides that are meant to reach another component
    (`.dm-header-title .avatar`, `.reply-preview .avatar`, `.profile-card-avatar .avatar`, `.combined-pane .emoji-picker`,
-   `.emoji-picker-container .emoji-picker`, `.emoji-picker-wrapper .emoji-picker`, `.system-message .message-content`,
-   `.messages.scroll-dismissing .message-actions`).
+   `.emoji-picker-container .emoji-picker`, `.emoji-picker-wrapper .emoji-picker`, `.system-message .message-content`).
 7. Some keyframe names occur twice with identical bodies: `spin` (ChatLayout, Login), `gif-spin` (MessageItem,
    GifPicker), `fadeIn` (MessageInput, app.css). Blazor scoped them per component. Flat, the last one wins, with the same result.
 8. Three guard comments mark deliberate oddities: decisions 3 and 4, and the MessageInput `[data-picker-pane]` hide
@@ -110,7 +109,7 @@ that name the class get it. 150 selectors in total. In the old markup, every pre
 | Avatar | frame | avatar (avatar-small, avatar-medium, avatar-large), avatar-image, avatar-initials |
 | ChatHeader | frame | chat-header, back-button, dm-header-title, header-controls, mailbox-button (has-unread), mailbox-badge, users-toggle, icon-hamburger, icon-people, online-count, status-dropdown-container, status-button (status-online, status-away, status-invisible), status-indicator, status-username, dropdown-backdrop, status-dropdown, dropdown-item (active, signout), dropdown-divider, status-dot (online, away, invisible), checkmark |
 | ChatSidebar | frame | users-sidebar (sidebar-open), sidebar-section, rooms-list, room-item (active, has-unread), room-icon, room-name, room-settings, add-room, users-list, user-item (current-user, active-dm), user-name, user-status-dot (online, away, invisible), admin-badge, bot-badge, unread-dot, unread-badge, mute-bell, profile-info-btn, profile-popup (is-mobile; a sibling of the sidebar), profile-popup-backdrop |
-| ChatLayout | frame, timeline | chat-container (data-context), theme-scene, theme-scrim, header-line, chat-main, messages-container, sidebar-backdrop (show), error-content, error-retry-button, error-reload-button; messages (scroll-dismissing), messages-flow, messages-spacer, system-message, loading-more, loading-spinner, history-start |
+| ChatLayout | frame, timeline | chat-container (data-context), theme-scene, theme-scrim, header-line, chat-main, messages-container, sidebar-backdrop (show), error-content, error-retry-button, error-reload-button; messages, messages-flow, messages-spacer, system-message, loading-more, loading-spinner, history-start |
 | ReconnectModal | frame | reconnect-banner-content, reconnect-dots, dot |
 | PushPermissionPrompt | frame | push-prompt-overlay (hiding), push-prompt-card, push-prompt-icon, push-prompt-heading, push-prompt-body, push-prompt-enable, push-prompt-later |
 | PwaInstallBanner | frame | pwa-install-banner (hiding), pwa-banner-content, pwa-banner-illustration, pwa-banner-text, pwa-banner-actions, pwa-install-btn, pwa-dismiss-btn |

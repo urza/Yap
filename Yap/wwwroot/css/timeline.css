@@ -237,15 +237,6 @@
     min-height: 100%;
 }
 
-/* Hide message action popups on mobile scroll/idle dismiss.
-   The slower transition applies only while this class is present, so the
-   fade-out is gentle but re-show (class removed) uses the snappy base 0.1s. */
-.messages.scroll-dismissing .message-actions {
-    opacity: 0 !important;
-    pointer-events: none !important;
-    transition: opacity 0.3s ease;
-}
-
 /* Spacer pushes messages to bottom when few messages */
 .messages-spacer {
     flex: 1 1 auto;

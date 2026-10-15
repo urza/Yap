@@ -86,7 +86,6 @@ export function renderRow(m, { header }) {
   renderReactions(row, m);
   renderPending(row, m);
   renderActions(row, m);
-  wireTouch(row);
   return row;
 }
 
@@ -311,7 +310,7 @@ function renderActions(rowNode, m) {
 
 function openReactionPicker(rowNode, m, anchor) {
   rowNode.classList.add('picker-open');   // the bar and the tint stay (MR-43)
-  reactionPicker(rowNode, anchor, emoji => react(rowNode, m, emoji), () => rowNode.classList.remove('picker-open'));
+  reactionPicker(rowNode, anchor, emoji => react(live(rowNode), m, emoji), () => live(rowNode).classList.remove('picker-open'));
 }
 
 function openMore(rowNode, m, anchor, event) {
@@ -328,7 +327,7 @@ function openMore(rowNode, m, anchor, event) {
   rowNode.append(layer);
   rowNode.classList.add('menu-open');
   overlays.place(menu, anchor);
-  const close = overlays.open({ element: menu, keep: [anchor], onClose: () => { layer.remove(); rowNode.classList.remove('menu-open'); } });
+  const close = overlays.open({ element: menu, keep: [anchor], onClose: () => { layer.remove(); live(rowNode).classList.remove('menu-open'); } });
 }
 
 function confirmDelete(rowNode, m) {
@@ -351,7 +350,7 @@ function confirmDelete(rowNode, m) {
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
   document.body.append(overlay);
   rowNode.classList.add('menu-open');   // the tint and the bar stay while the dialog is open (MR-08, MR-46)
-  const close = overlays.open({ element: overlay.querySelector('.delete-confirm-dialog'), outsideCloses: false, onClose: () => { overlay.remove(); rowNode.classList.remove('menu-open'); } });
+  const close = overlays.open({ element: overlay.querySelector('.delete-confirm-dialog'), outsideCloses: false, onClose: () => { overlay.remove(); live(rowNode).classList.remove('menu-open'); } });
   overlay.querySelector('.confirm-delete').focus();   // Enter confirms (MR-66)
 }
 
@@ -404,16 +403,70 @@ function startEdit(rowNode, m) {
 }
 
 // ---- touch: a tap shows the bar, 5 s or a scroll hides it (MR-50, MR-51) ----
+//
+// The bar is shown by the click of the tap, not by pointerup: the click's target is fixed before the bar
+// becomes hit-testable, so the tap that shows the bar can never press one of its buttons (MR-50, "never under
+// the finger"). The browser's own pan detection tells a tap from a scroll: a scroll ends in pointercancel and
+// no click follows. pointerdown only notes the row under the finger. The listeners sit on the document in the
+// capture phase because the bar's buttons stop propagation of their clicks.
 
-let touched = null, touchTimer = 0;
+const TOUCH_IDLE_MS = 5000, TOUCH_SCROLL_PX = 50;
+let touched = null, touchTimer = 0, touchRow = null, scrollStart = 0;
 
-function wireTouch(rowNode) {
-  rowNode.addEventListener('pointerup', e => {
-    if (e.pointerType !== 'touch' || rowNode.classList.contains('system-message')) return;
-    if (touched && touched !== rowNode) touched.classList.remove('touched');
-    touched = rowNode;
-    rowNode.classList.add('touched');
-    clearTimeout(touchTimer);
-    touchTimer = setTimeout(() => { if (!rowNode.classList.contains('picker-open') && !rowNode.classList.contains('menu-open')) rowNode.classList.remove('touched'); }, 5000);
-  });
+const rowOf = target => target instanceof Element ? target.closest('.message-group:not(.system-message)') : null;
+const keepsBar = rowNode => rowNode.classList.contains('picker-open') || rowNode.classList.contains('menu-open');   // MR-51: never hidden while open
+const listOf = rowNode => rowNode.closest('.messages');
+
+function showTouched(rowNode) {
+  if (touched && touched !== rowNode) touched.classList.remove('touched');   // one bar at a time (MR-50)
+  touched = rowNode;
+  rowNode.classList.add('touched');
+  scrollStart = listOf(rowNode)?.scrollTop ?? 0;
+  armTouchTimer();
 }
+
+function hideTouched() {
+  clearTimeout(touchTimer);
+  touched?.classList.remove('touched');
+  touched = null;
+}
+
+// 5 s after the last touch in the row. While the picker, the menu or the dialog is open the timer waits
+// for another 5 s instead of giving up: the bar stays, and goes 5 s after the layer closed (MR-51).
+function armTouchTimer() {
+  clearTimeout(touchTimer);
+  touchTimer = setTimeout(() => { if (touched && keepsBar(touched)) armTouchTimer(); else hideTouched(); }, TOUCH_IDLE_MS);
+}
+
+document.addEventListener('pointerdown', e => {
+  if (e.pointerType !== 'touch') return;
+  touchRow = rowOf(e.target);
+  if (touchRow) return;
+  // Outside every row: inside the touched row's own layer (the picker, the menu, the dialog on body) the touch
+  // counts as a touch in the row; anywhere else it hides the bar. A target that is no longer in the document
+  // was a backdrop: the overlay stack's own pointerdown listener runs first and removed the layer with it, so
+  // the tap that closed the picker or the menu is a touch in the row too (MR-51).
+  if (!e.target.isConnected || (touched && keepsBar(touched))) armTouchTimer(); else hideTouched();
+}, { capture: true, passive: true });
+document.addEventListener('pointercancel', () => { touchRow = null; });
+document.addEventListener('click', e => {
+  const rowNode = touchRow; touchRow = null;
+  if (!rowNode?.isConnected || !rowNode.contains(e.target)) return;
+  showTouched(rowNode);
+}, true);
+
+// The list scrolled: more than 50 px since the bar appeared hides it (MR-51). Called by the timeline.
+export function touchScrolled(scrollTop) {
+  if (touched && !keepsBar(touched) && Math.abs(scrollTop - scrollStart) > TOUCH_SCROLL_PX) hideTouched();
+}
+
+// A row drawn again in place (a reaction, an edit, a header change): the bar, the open picker or menu and
+// its state move to the new node, so a redraw never takes the bar away under the finger (MR-51). The closures
+// of the open layer still hold the old node; they look the live row up by id when they close.
+export function rowReplaced(oldNode, newNode) {
+  for (const cls of ['touched', 'picker-open', 'menu-open']) if (oldNode.classList.contains(cls)) newNode.classList.add(cls);
+  newNode.append(...oldNode.querySelectorAll(':scope > .emoji-picker-backdrop, :scope > .emoji-picker-wrapper, :scope > .more-menu-layer'));
+  if (touched === oldNode) touched = newNode;
+}
+
+const live = rowNode => document.getElementById(rowNode.id) ?? rowNode;
