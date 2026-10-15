@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Yap.Tests/Yap.Tests.csproj" />
+  <Project Path="Yap/Yap.csproj" />
+</Solution>

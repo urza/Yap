@@ -4,8 +4,18 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
-	  <NoWarn>$(NoWarn);NU1903</NoWarn>
+    <NoWarn>$(NoWarn);NU1903</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Yap.Tests" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <!-- Runtime data, not project files: the tus store and the uploads land here while the app runs.
+         As project items they would be published into the image, and the IDE's file watcher treats a
+         new file here as a changed asset of the running app. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);wwwroot\uploads\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,18 +23,14 @@
     <Folder Include="wwwroot\uploads\" />
   </ItemGroup>
 
-  <!-- Apple emoji filename map (emoji-datasource). Embedded + read at runtime by EmojiService.Apple.cs. -->
-  <ItemGroup>
-    <None Remove="Data\emoji.json" />
-    <EmbeddedResource Include="Data\emoji.json" />
-  </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.10">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <!-- 3.1.12 carries two moderate advisories (NU1902) and no fixed release is adopted yet. The warning is off for
+         this package only, so an advisory on any other package still shows. -->
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" NoWarn="NU1902" />
     <PackageReference Include="WebPush" Version="1.0.13" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">

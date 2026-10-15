@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Authentication and Program.cs · Yap architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #f3f5f7; --surface: #ffffff; --surface-2: #e9edf1;
+  --fg: #182029; --muted: #56606e; --line: #d4dae2; --line-strong: #a9b3c0;
+  --accent: #0d6a87; --code-bg: #f8f9fb;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+    --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+  --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+main { max-width: 980px; margin: 0 auto; padding: 36px 16px 96px; display: flex; flex-direction: column; gap: 22px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.15; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 4.5vw, 2.8rem); font-weight: 700; }
+h2 { font-size: clamp(1.4rem, 2.6vw, 1.8rem); font-weight: 600; padding-top: 22px; margin-top: 14px; border-top: 1px solid var(--line-strong); }
+h3 { font-size: 1.12rem; font-weight: 600; margin-top: 6px; }
+p, ul, ol { margin: 0; max-width: 76ch; }
+ul, ol { padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
+li > ul, li > ol { margin-top: 6px; }
+a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 0.88em; background: var(--surface-2); padding: 0.05em 0.3em; border-radius: 3px; overflow-wrap: anywhere; }
+pre { margin: 0; padding: 12px 16px; overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--code-bg); font: 0.82rem/1.5 var(--mono); }
+pre code { background: none; padding: 0; font-size: inherit; }
+blockquote { margin: 0; padding: 10px 16px; border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; max-width: 76ch; }
+.eyebrow { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+nav.pages { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+nav.pages a, nav.pages span { display: inline-block; padding: 3px 10px; border: 1px solid var(--line); border-radius: 4px; text-decoration: none; color: var(--fg); background: var(--surface); font-size: 0.86rem; }
+nav.pages span { color: var(--muted); border-style: dashed; }
+nav.pages a[aria-current] { border-color: var(--accent); color: var(--accent); }
+.rule { border: 1px solid var(--line); border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; padding: 10px 14px; max-width: 76ch; scroll-margin-top: 16px; }
+.rule .id { font-family: var(--mono); font-size: 0.8rem; color: var(--accent); margin-right: 8px; }
+.rule .why { color: var(--muted); }
+figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+figcaption { font-size: 0.9rem; color: var(--muted); max-width: 80ch; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+th { font-family: var(--display); font-weight: 600; background: var(--surface-2); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+footer { font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; }
+
+figure.code { position: relative; }
+figure.code .lang { position: absolute; top: 6px; right: 10px; font: 0.7rem var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+pre .c { color: var(--muted); font-style: italic; }
+pre .s { color: #2f7d32; }
+pre .n { color: #a4541c; }
+pre .k { color: #7a3fb3; font-weight: 500; }
+pre .t { color: var(--accent); }
+pre .p { color: #0b5e8a; }
+pre .a { color: #8a6d00; }
+pre .v { color: #a4541c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) pre .s { color: #8fd18f; } :root:not([data-theme="light"]) pre .n, :root:not([data-theme="light"]) pre .v { color: #f0a86a; } :root:not([data-theme="light"]) pre .k { color: #c99af5; } :root:not([data-theme="light"]) pre .p { color: #7cc4ea; } :root:not([data-theme="light"]) pre .a { color: #e0c860; } }
+:root[data-theme="dark"] pre .s { color: #8fd18f; } :root[data-theme="dark"] pre .n, :root[data-theme="dark"] pre .v { color: #f0a86a; } :root[data-theme="dark"] pre .k { color: #c99af5; } :root[data-theme="dark"] pre .p { color: #7cc4ea; } :root[data-theme="dark"] pre .a { color: #e0c860; }
+/* Contract tables: a route or a method name never breaks across lines, so the first column grows to fit it.
+   Long lists of code spans still wrap between the spans. The wrapper scrolls sideways when a table is wider than the page. */
+.tablewrap code { white-space: nowrap; }
+.tablewrap td:first-child { min-width: 10rem; }
+figure.diagram { padding: 16px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+figure.diagram svg { display: block; max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">Yap · architecture</div>
+<nav class="pages" aria-label="Architecture pages"><a href="sketch.html">Architecture sketch: Yap without Blazor</a><a href="plan.html">Plan of action</a><a href="message-path.html">Message path</a><a href="presence.html">Presence</a><a href="chat-hub.html">ChatHub and read state</a><a href="auth-and-program.html" aria-current="page">Authentication and Program.cs</a><a href="sign-in.html">Sign-in flows</a><a href="bootstrap-and-events.html">Bootstrap and events</a><a href="client.html">The client</a><a href="wire-contract.html">Wire contract</a></nav>
+<h1 id="authentication-and-program-cs">Authentication and Program.cs</h1>
+<p>This page specifies how a request gets its user, how the hub gets its user, how an admin is recognised, and how <code>Program.cs</code> composes the application. The sign-in pages and their routes (check, verify, invite, approval) are the subject of the next page, <a href="sign-in.html">Sign-in flows</a>.</p>
+<h2 id="what-stays-the-same">What stays the same</h2>
+<ul><li>The cookie. Name <code>yap_auth</code>. Value: the account's opaque token, 32 random bytes, base64url. Flags: HttpOnly, Secure, SameSite=Lax, MaxAge 365 days, Path <code>/</code>. Installed apps and current sessions depend on these bytes. Nothing changes.</li><li>The token. <code>User.Token</code>, one per account, unique index, in UserService memory. All devices of one account hold the same token.</li><li>The admin. The first human account. <code>UserService.IsAdmin(userId)</code>.</li><li>The link token for the installed app (<code>/pwa-launch</code>, HMAC over user id, expiry and the hash of the auth token).</li></ul>
+<h2 id="what-changes">What changes</h2>
+<p>Today <code>AuthMiddleware</code> looks up the cookie, fills a scoped <code>UserStateService</code>, and <code>AdminGate</code> reads that service. The new code uses the ASP.NET Core authentication pipeline. One handler builds a <code>ClaimsPrincipal</code>. <code>[Authorize]</code> and <code>RequireAuthorization()</code> do the rest. Three classes go away: <code>AuthMiddleware</code>, <code>AdminGate</code>, <code>UserStateService</code>.</p>
+<h3 id="the-handler">The handler</h3>
+<figure class="code"><span class="lang">cs</span><pre><code><span class="c">// Services/Accounts/YapCookieAuthHandler.cs (sketch)</span>
+<span class="k">public</span> <span class="k">sealed</span> <span class="k">class</span> <span class="t">YapCookieAuthHandler</span>(<span class="t">IOptionsMonitor</span>&lt;<span class="t">AuthenticationSchemeOptions</span>&gt; options, <span class="t">ILoggerFactory</span> logger,
+                                         <span class="t">UrlEncoder</span> encoder, <span class="t">UserService</span> users)
+    : <span class="t">AuthenticationHandler</span>&lt;<span class="t">AuthenticationSchemeOptions</span>&gt;(options, logger, encoder)
+{
+    <span class="k">public</span> <span class="k">const</span> <span class="k">string</span> <span class="t">Scheme</span> = <span class="s">&quot;yap&quot;</span>;
+
+    <span class="k">protected</span> <span class="k">override</span> <span class="t">Task</span>&lt;<span class="t">AuthenticateResult</span>&gt; <span class="t">HandleAuthenticateAsync</span>()
+    {
+        <span class="k">if</span> (!<span class="t">Request</span>.<span class="t">Cookies</span>.<span class="t">TryGetValue</span>(<span class="t">AuthCookie</span>.<span class="t">Name</span>, <span class="k">out</span> <span class="k">var</span> token)) <span class="k">return</span> <span class="t">Task</span>.<span class="t">FromResult</span>(<span class="t">AuthenticateResult</span>.<span class="t">NoResult</span>());
+        <span class="k">var</span> user = users.<span class="t">ByToken</span>(token);                                       <span class="c">// a dictionary lookup in memory</span>
+        <span class="k">if</span> (user <span class="k">is</span> <span class="k">null</span>) <span class="k">return</span> <span class="t">Task</span>.<span class="t">FromResult</span>(<span class="t">AuthenticateResult</span>.<span class="t">NoResult</span>());
+
+        <span class="k">var</span> identity = <span class="k">new</span> <span class="t">ClaimsIdentity</span>(<span class="t">Scheme</span>);
+        identity.<span class="t">AddClaim</span>(<span class="k">new</span> <span class="t">Claim</span>(<span class="t">ClaimTypes</span>.<span class="t">NameIdentifier</span>, user.<span class="t">Id</span>.<span class="t">ToString</span>()));  <span class="c">// SignalR&#x27;s user identifier</span>
+        identity.<span class="t">AddClaim</span>(<span class="k">new</span> <span class="t">Claim</span>(<span class="t">ClaimTypes</span>.<span class="t">Name</span>, user.<span class="t">Username</span>));
+        <span class="k">if</span> (users.<span class="t">IsAdmin</span>(user.<span class="t">Id</span>)) identity.<span class="t">AddClaim</span>(<span class="k">new</span> <span class="t">Claim</span>(<span class="t">ClaimTypes</span>.<span class="t">Role</span>, <span class="s">&quot;admin&quot;</span>));
+        <span class="k">return</span> <span class="t">Task</span>.<span class="t">FromResult</span>(<span class="t">AuthenticateResult</span>.<span class="t">Success</span>(<span class="k">new</span> <span class="t">AuthenticationTicket</span>(<span class="k">new</span> <span class="t">ClaimsPrincipal</span>(identity), <span class="t">Scheme</span>)));
+    }
+
+    <span class="k">protected</span> <span class="k">override</span> <span class="t">Task</span> <span class="t">HandleChallengeAsync</span>(<span class="t">AuthenticationProperties</span> p) { <span class="t">Response</span>.<span class="t">StatusCode</span> = <span class="n">401</span>; <span class="k">return</span> <span class="t">Task</span>.<span class="t">CompletedTask</span>; }
+    <span class="k">protected</span> <span class="k">override</span> <span class="t">Task</span> <span class="t">HandleForbiddenAsync</span>(<span class="t">AuthenticationProperties</span> p)  { <span class="t">Response</span>.<span class="t">StatusCode</span> = <span class="n">404</span>; <span class="k">return</span> <span class="t">Task</span>.<span class="t">CompletedTask</span>; }
+}</code></pre></figure>
+<p>The principal carries three claims: id, username, and the admin role. Display name, theme and the other account fields are not claims. The client gets them from the bootstrap. A challenge returns 401. A forbidden request returns 404, as <code>AdminGate</code> does today: a non-admin does not learn that a route exists.</p>
+<figure class="code"><span class="lang">cs</span><pre><code><span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="t">PrincipalExtensions</span>
+{
+    <span class="k">public</span> <span class="k">static</span> <span class="t">Guid</span> <span class="t">Id</span>(<span class="k">this</span> <span class="t">ClaimsPrincipal</span> user) =&gt; <span class="t">Guid</span>.<span class="t">Parse</span>(user.<span class="t">FindFirstValue</span>(<span class="t">ClaimTypes</span>.<span class="t">NameIdentifier</span>)!);
+}</code></pre></figure>
+<h3 id="where-the-rules-apply">Where the rules apply</h3>
+<figure class="code"><span class="lang">cs</span><pre><code>builder.<span class="t">Services</span>.<span class="t">AddAuthentication</span>(<span class="t">YapCookieAuthHandler</span>.<span class="t">Scheme</span>)
+    .<span class="t">AddScheme</span>&lt;<span class="t">AuthenticationSchemeOptions</span>, <span class="t">YapCookieAuthHandler</span>&gt;(<span class="t">YapCookieAuthHandler</span>.<span class="t">Scheme</span>, <span class="k">null</span>);
+builder.<span class="t">Services</span>.<span class="t">AddAuthorizationBuilder</span>()
+    .<span class="t">AddPolicy</span>(<span class="s">&quot;admin&quot;</span>, policy =&gt; policy.<span class="t">RequireRole</span>(<span class="s">&quot;admin&quot;</span>));</code></pre></figure>
+<div class="tablewrap"><table><thead><tr><th>Surface</th><th>Rule</th></tr></thead><tbody><tr><td><code>/hub</code></td><td><code>[Authorize]</code> on <code>ChatHub</code>. The cookie travels with the negotiate request and the WebSocket upgrade.</td></tr><tr><td><code>/api/...</code></td><td><code>MapGroup(&quot;/api&quot;).RequireAuthorization()</code>. Each area maps into this group.</td></tr><tr><td><code>/api/admin/...</code></td><td><code>MapGroup(&quot;/api/admin&quot;).RequireAuthorization(&quot;admin&quot;)</code>.</td></tr><tr><td>anonymous routes</td><td><code>.AllowAnonymous()</code> on the bootstrap (it answers both states), the sign-in routes, <code>/api/invite/{code}</code>, the VAPID key, <code>/api/push/delivered</code>, the beacon, the manifest, <code>/pwa-launch</code>, and the shell.</td></tr></tbody></table></div>
+<p>SignalR's <code>IUserIdProvider</code> reads <code>ClaimTypes.NameIdentifier</code> by default. <code>Clients.User(userId)</code> therefore reaches every connection of the account without a user group. <code>Context.User.Id()</code> gives the hub its user in every method.</p>
+<h3 id="the-client-s-address">The client's address</h3>
+<p><code>IpHelper.GetClientIp</code> is the one reader of the client's address. It returns <code>RemoteIpAddress</code>. The forwarded-headers middleware runs first in the pipeline with <code>TrustedProxies.Options</code>: for a connection from a proxy in <code>ChatSettings:TrustedProxies</code> (addresses or CIDR networks; loopback always) it rewrites <code>RemoteIpAddress</code> and <code>Request.Scheme</code> from <code>X-Forwarded-For</code> and <code>X-Forwarded-Proto</code>, and removes the entries it consumed. An <code>X-Forwarded-For</code> that is still on the request came from a peer the server does not trust; the address is then unknown (<code>null</code>). Smart login (AU-09), the memory of known addresses, the IPv4 beacon and the logs all take "unknown" over a value the caller chose. <code>CF-Connecting-IP</code> and <code>X-Real-IP</code> are never read. Without this rule a username and a guessed address were a sign-in. A deployment behind a proxy that is not listed keeps running; <code>ProxyWatch</code> records the first such request, the log warns (at start when the list is empty, and at that request), the bot tells the admin, and the admin page shows a red notice with the peer to add, until the proxy is listed and the server restarted.</p>
+<h3 id="the-cookie-helper">The cookie helper</h3>
+<p>One static class owns the cookie bytes. The sign-in routes, the bootstrap, sign-out, <code>/pwa-launch</code> and <code>/auth/refresh-token</code> call it. No other code writes the cookie. The same class owns the sign-out mark: a second cookie that <code>Clear</code> sets and <code>Set</code> removes, so <code>/pwa-launch</code> knows that this jar signed out since the install (AU-22).</p>
+<figure class="code"><span class="lang">cs</span><pre><code><span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="t">AuthCookie</span>
+{
+    <span class="k">public</span> <span class="k">const</span> <span class="k">string</span> <span class="t">Name</span> = <span class="s">&quot;yap_auth&quot;</span>;
+    <span class="k">static</span> <span class="k">readonly</span> <span class="t">CookieOptions</span> <span class="t">Options</span> = <span class="k">new</span>()
+    {
+        <span class="t">HttpOnly</span> = <span class="k">true</span>, <span class="t">Secure</span> = <span class="k">true</span>, <span class="t">SameSite</span> = <span class="t">SameSiteMode</span>.<span class="t">Lax</span>,        <span class="c">// Lax on purpose: PWA launches and notification taps</span>
+        <span class="t">MaxAge</span> = <span class="t">TimeSpan</span>.<span class="t">FromDays</span>(<span class="n">365</span>), <span class="t">Path</span> = <span class="s">&quot;/&quot;</span>, <span class="t">IsEssential</span> = <span class="k">true</span>,
+    };
+    <span class="k">public</span> <span class="k">static</span> <span class="k">void</span> <span class="t">Set</span>(<span class="t">HttpResponse</span> r, <span class="k">string</span> token) =&gt; r.<span class="t">Cookies</span>.<span class="t">Append</span>(<span class="t">Name</span>, token, <span class="t">Options</span>);
+    <span class="k">public</span> <span class="k">static</span> <span class="k">void</span> <span class="t">Clear</span>(<span class="t">HttpResponse</span> r) =&gt; r.<span class="t">Cookies</span>.<span class="t">Delete</span>(<span class="t">Name</span>, <span class="t">Options</span>);
+}</code></pre></figure>
+<p>The bootstrap sets the cookie again on every call. This slides the expiry (AU-18). Today every HTML GET does this. The bootstrap also records the known address for smart login (AU-09) and observes the public origin for links (AU-15).</p>
+<h3 id="sign-out-all-other-devices-au-20">Sign out all other devices (AU-20)</h3>
+<figure class="code"><span class="lang">cs</span><pre><code><span class="c">// Endpoints/AccountEndpoints.cs (sketch)</span>
+group.<span class="t">MapPost</span>(<span class="s">&quot;/devices/sign-out-others&quot;</span>, (<span class="t">ClaimsPrincipal</span> me, <span class="k">string</span> deviceId, <span class="k">string</span>? pushEndpoint, <span class="t">HttpResponse</span> response,
+                                           <span class="t">UserService</span> users, <span class="t">PresenceService</span> presence, <span class="t">PushSubscriptionStore</span> push,
+                                           <span class="t">IHubContext</span>&lt;<span class="t">ChatHub</span>&gt; hub) =&gt;
+{
+    <span class="k">var</span> token = users.<span class="t">RotateToken</span>(me.<span class="t">Id</span>());                  <span class="c">// old cookies fail the lookup from now on</span>
+    <span class="t">AuthCookie</span>.<span class="t">Set</span>(response, token);                         <span class="c">// the caller&#x27;s browser keeps its session; its other tabs share the cookie</span>
+    users.<span class="t">ForgetKnownIps</span>(me.<span class="t">Id</span>());
+    users.<span class="t">ReplacePassphraseIfAny</span>(me.<span class="t">Id</span>());
+    push.<span class="t">RemoveAllExcept</span>(me.<span class="t">Id</span>(), pushEndpoint);             <span class="c">// NT-24</span>
+    <span class="k">foreach</span> (<span class="k">var</span> session <span class="k">in</span> presence.<span class="t">SessionsOf</span>(me.<span class="t">Id</span>()).<span class="t">Where</span>(s =&gt; s.<span class="t">DeviceId</span> != deviceId))
+    {
+        _ = hub.<span class="t">Clients</span>.<span class="t">Client</span>(session.<span class="t">ConnectionId</span>).<span class="t">SendAsync</span>(<span class="s">&quot;signedOut&quot;</span>);
+        session.<span class="t">Abort</span>();                                     <span class="c">// HubCallerContext.Abort, captured at connect</span>
+        presence.<span class="t">Remove</span>(session.<span class="t">ConnectionId</span>);
+    }
+    <span class="k">return</span> <span class="t">Results</span>.<span class="t">Ok</span>(<span class="k">new</span> { passphrase = users.<span class="t">Passphrase</span>(me.<span class="t">Id</span>()) });
+});</code></pre></figure>
+<p>The session stores an <code>Abort</code> action at connect. The server closes the other devices' connections at once. Their next request fails in the handler. Their next bootstrap returns 401. The client then shows the login page and removes the local data of the account (AU-21, GEN-05). The link token of the installed app depends on the hash of the auth token, so a rotation also ends the automatic first-launch sign-in (AU-20).</p>
+<h2 id="program-cs">Program.cs</h2>
+<p><code>Program.cs</code> is the composition root and nothing else. Each area has one static class in <code>Endpoints/</code> with a <code>Map</code> method. Each service lives in its area folder. <code>Program.cs</code> stays short enough to read in one screen.</p>
+<figure class="code"><span class="lang">cs</span><pre><code><span class="c">// Program.cs (sketch, abridged)</span>
+<span class="k">var</span> builder = <span class="t">WebApplication</span>.<span class="t">CreateBuilder</span>(args);
+builder.<span class="t">Configuration</span>.<span class="t">UseDataFolderOverride</span>();                       <span class="c">// Data/appsettings.json replaces the built-in file (kept)</span>
+builder.<span class="t">WebHost</span>.<span class="t">ConfigureKestrel</span>(k =&gt; k.<span class="t">Limits</span>.<span class="t">MaxRequestBodySize</span> = <span class="k">null</span>);   <span class="c">// the TUS endpoint enforces the limit (kept)</span>
+
+builder.<span class="t">Services</span>.<span class="t">AddAuthentication</span>(<span class="t">YapCookieAuthHandler</span>.<span class="t">Scheme</span>)
+    .<span class="t">AddScheme</span>&lt;<span class="t">AuthenticationSchemeOptions</span>, <span class="t">YapCookieAuthHandler</span>&gt;(<span class="t">YapCookieAuthHandler</span>.<span class="t">Scheme</span>, <span class="k">null</span>);
+builder.<span class="t">Services</span>.<span class="t">AddAuthorizationBuilder</span>().<span class="t">AddPolicy</span>(<span class="s">&quot;admin&quot;</span>, p =&gt; p.<span class="t">RequireRole</span>(<span class="s">&quot;admin&quot;</span>));
+builder.<span class="t">Services</span>.<span class="t">AddSignalR</span>().<span class="t">AddHubOptions</span>&lt;<span class="t">ChatHub</span>&gt;(o =&gt; o.<span class="t">AddFilter</span>&lt;<span class="t">HubLatencyFilter</span>&gt;());
+builder.<span class="t">Services</span>.<span class="t">ConfigureHttpJsonOptions</span>(o =&gt; o.<span class="t">SerializerOptions</span>.<span class="t">Converters</span>.<span class="t">Add</span>(<span class="k">new</span> <span class="t">JsonStringEnumConverter</span>()));
+builder.<span class="t">Services</span>.<span class="t">AddResponseCompression</span>(o =&gt; { o.<span class="t">EnableForHttps</span> = <span class="k">true</span>; o.<span class="t">Providers</span>.<span class="t">Add</span>&lt;<span class="t">BrotliCompressionProvider</span>&gt;(); });
+builder.<span class="t">Services</span>.<span class="t">AddProblemDetails</span>();
+builder.<span class="t">Services</span>.<span class="t">AddCors</span>(<span class="t">TusUpload</span>.<span class="t">Policy</span>);                          <span class="c">// kept</span>
+
+builder.<span class="t">Services</span>.<span class="t">AddPersistence</span>(builder.<span class="t">Configuration</span>);             <span class="c">// DbContext factory and PersistenceWriter, only when enabled</span>
+builder.<span class="t">Services</span>.<span class="t">AddChat</span>();                                          <span class="c">// ChatService, ChatTexts, LinkPreview, MediaCache, SystemBot</span>
+builder.<span class="t">Services</span>.<span class="t">AddPresence</span>();                                      <span class="c">// PresenceService, also hosted for its sweep</span>
+builder.<span class="t">Services</span>.<span class="t">AddAccounts</span>();                                      <span class="c">// UserService, AccessLinks, LinkToken, RegistrationGate</span>
+builder.<span class="t">Services</span>.<span class="t">AddNotifications</span>();                                 <span class="c">// settings, push store, push service, audit</span>
+builder.<span class="t">Services</span>.<span class="t">AddMedia</span>(); builder.<span class="t">Services</span>.<span class="t">AddGifs</span>(); builder.<span class="t">Services</span>.<span class="t">AddEmoji</span>(); builder.<span class="t">Services</span>.<span class="t">AddAdmin</span>();
+builder.<span class="t">Services</span>.<span class="t">AddSingleton</span>&lt;<span class="t">ChatHubBroadcaster</span>&gt;();
+builder.<span class="t">Services</span>.<span class="t">AddHostedService</span>(sp =&gt; sp.<span class="t">GetRequiredService</span>&lt;<span class="t">ChatHubBroadcaster</span>&gt;());
+
+<span class="k">var</span> app = builder.<span class="t">Build</span>();
+<span class="k">await</span> app.<span class="t">Services</span>.<span class="t">LoadStateAsync</span>();                                 <span class="c">// the startup order of today: migrate, chat, users, links, GIFs, push, bot</span>
+
+app.<span class="t">UseExceptionHandler</span>();                                           <span class="c">// ProblemDetails; no /Error page</span>
+app.<span class="t">UseResponseCompression</span>();
+app.<span class="t">UseCors</span>();
+app.<span class="t">UseHttpsRedirection</span>();
+app.<span class="t">UseBrandingOverrides</span>();                                          <span class="c">// Data/branding/* ahead of wwwroot (kept)</span>
+app.<span class="t">UseYapStaticFiles</span>();                                             <span class="c">// /uploads, /emoji-packs, /custom-emojis, /welcome-content, /media-cache, /gif-cache (kept)</span>
+app.<span class="t">UseAuthentication</span>();
+app.<span class="t">UseAuthorization</span>();
+app.<span class="t">UseMiddleware</span>&lt;<span class="t">RequestLoggingMiddleware</span>&gt;();                       <span class="c">// kept; the skip list loses /_blazor and gains /hub</span>
+
+app.<span class="t">MapHub</span>&lt;<span class="t">ChatHub</span>&gt;(<span class="s">&quot;/hub&quot;</span>);
+app.<span class="t">MapShell</span>();                                                      <span class="c">// index.html with the build stamp, the welcome page</span>
+<span class="k">var</span> api = app.<span class="t">MapGroup</span>(<span class="s">&quot;/api&quot;</span>).<span class="t">RequireAuthorization</span>();
+api.<span class="t">MapBootstrap</span>(); api.<span class="t">MapAccount</span>(); api.<span class="t">MapMessages</span>(); api.<span class="t">MapRooms</span>(); api.<span class="t">MapGifs</span>(); api.<span class="t">MapPush</span>(); api.<span class="t">MapEmoji</span>();
+api.<span class="t">MapGroup</span>(<span class="s">&quot;/admin&quot;</span>).<span class="t">RequireAuthorization</span>(<span class="s">&quot;admin&quot;</span>).<span class="t">MapAdmin</span>();
+app.<span class="t">MapSignIn</span>(); app.<span class="t">MapTus</span>(); app.<span class="t">MapPwa</span>(); app.<span class="t">MapBeacon</span>();        <span class="c">// their own auth rules, as today</span>
+
+app.<span class="t">Run</span>();</code></pre></figure>
+<p>As built, Program.cs registers the services in one flat list (the per-area <code>AddX</code> methods of the sketch were not needed: the list is short and reads top to bottom). All services are singletons. No scoped service remains. The hub and the endpoints receive the user from the principal, not from a service.</p>
+<h3 id="removed-from-program-cs">Removed from Program.cs</h3>
+<div class="tablewrap"><table><thead><tr><th>Today</th><th>New</th></tr></thead><tbody><tr><td><code>AddRazorComponents().AddInteractiveServerComponents()</code>, <code>CircuitOptions</code>, <code>RegisterPersistentService</code></td><td>gone</td></tr><tr><td><code>AddCircuitHandler&lt;ChatCircuitHandler&gt;</code>, <code>CircuitTracker</code>, <code>CircuitIdentity</code></td><td>PresenceService</td></tr><tr><td>scoped <code>UserStateService</code>, <code>ChatNavigationState</code>, <code>ChatConfigService</code>, <code>EmojiService</code></td><td>principal, client state, <code>ChatTexts</code> singleton, <code>EmojiCatalog</code> singleton</td></tr><tr><td><code>UseAntiforgery</code></td><td>gone; the API is JSON with SameSite cookies, the kept form POSTs already opt out</td></tr><tr><td><code>UseExceptionHandler(&quot;/Error&quot;)</code>, <code>UseStatusCodePagesWithReExecute(&quot;/not-found&quot;)</code></td><td>ProblemDetails for the API; the client shows "Not Found" for an unknown app route (SH-42)</td></tr><tr><td><code>AuthMiddleware</code>, <code>DeviceDetectionMiddleware</code></td><td>the handler; one User-Agent check at hub connect</td></tr><tr><td><code>MapStaticAssets</code>, <code>MapRazorComponents&lt;App&gt;()</code></td><td>the shell endpoint with the build stamp</td></tr><tr><td><code>AddHttpContextAccessor</code></td><td>gone; nothing reads the context outside a request</td></tr></tbody></table></div>
+<h3 id="added">Added</h3>
+<ul><li><code>AddAuthentication</code> and <code>AddAuthorization</code> with one scheme and one policy.</li><li><code>AddSignalR</code> with the latency filter.</li><li><code>AddResponseCompression</code> with Brotli, HTTPS included.</li><li><code>AddProblemDetails</code>, so a refusal has one JSON shape (GEN-02).</li><li><code>JsonStringEnumConverter</code>, so a status travels as <code>&quot;away&quot;</code>, not <code>1</code>. The same converter goes into the SignalR JSON protocol options.</li><li><code>PersistenceWriter</code> as a hosted service, when persistence is enabled.</li><li><code>PresenceService</code> as a hosted service, for the 10 s sweep.</li><li><code>ChatHubBroadcaster</code> as a hosted service. It subscribes to the service events at start and unsubscribes at stop.</li></ul>
+<h2 id="the-layers-restated">The layers, restated</h2>
+<div class="tablewrap"><table><thead><tr><th>Layer</th><th>Holds</th><th>Does not hold</th></tr></thead><tbody><tr><td><code>Endpoints/</code></td><td>the hub, the broadcaster, one class per area with routes: bind, validate, call a service, map the result</td><td>rules</td></tr><tr><td><code>Services/&lt;area&gt;/</code></td><td>the rules, the memory, the events, the enqueue of writes</td><td>HTTP types, hub types</td></tr><tr><td><code>Models/&lt;area&gt;/</code></td><td>entities and wire DTOs with their <code>From</code> mappings</td><td>behaviour</td></tr><tr><td><code>Middleware/</code></td><td>request logging</td><td>authentication (it is a handler now)</td></tr><tr><td><code>Configuration/</code></td><td>settings classes bound from <code>appsettings.json</code></td><td></td></tr><tr><td><code>Data/</code></td><td><code>ChatDbContext</code>, migrations</td><td></td></tr></tbody></table></div>
+<p>A service never references <code>HttpContext</code>, <code>ClaimsPrincipal</code> or <code>Hub</code>. An endpoint never contains a rule that the spec names. This rule keeps the services testable without a web host.</p>
+<footer>Source: <code>docs/architecture/auth-and-program.md</code>. Edit the Markdown, then run <code>python3 docs/architecture/tools/build.py</code>.</footer>
+</main>
+</body>
+</html>

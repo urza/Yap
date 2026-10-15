@@ -240,7 +240,27 @@ app.example.com {
 }
 ```
 
-For apps with WebSockets / SignalR / long-polling (Blazor Server, etc.), make sure the proxy passes `Upgrade` / `Connection` headers — Caddy does this by default; Nginx needs explicit `proxy_set_header` directives.
+For apps with WebSockets / SignalR / long-polling (Yap's hub is SignalR), make sure the proxy passes `Upgrade` / `Connection` headers — Caddy does this by default; Nginx needs explicit `proxy_set_header` directives.
+
+### Tell Yap which proxy to trust (required behind a proxy)
+
+Yap reads the client's address from `X-Forwarded-For` only when the request comes from a proxy listed in
+`ChatSettings:TrustedProxies` in `Data/appsettings.json`. Without that entry the server runs, but every client
+address counts as unknown and smart login (sign-in by a known address) is off for everyone. Yap tells you in
+three places: the container log at start and at the first forwarded request, a message from the bot to the
+admin, and a red notice on the Admin page with the peer address to add.
+
+- Proxy on the host, container started with `-p 5221:8080`: the peer is the Docker bridge gateway, usually
+  `172.17.0.1`. Set `"TrustedProxies": ["172.17.0.1"]`.
+- Proxy in another container of the same compose network: list that network, for example
+  `"TrustedProxies": ["172.18.0.0/16"]`. `docker network inspect <network>` shows the subnet.
+- Cloudflare in front of the proxy: add Cloudflare's published ranges as well (https://www.cloudflare.com/ips/).
+  Otherwise the address Yap sees is Cloudflare's edge and the real client stays unknown.
+- Caddy forwards `X-Forwarded-For` and `X-Forwarded-Proto` by default. Nginx needs
+  `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` and `proxy_set_header X-Forwarded-Proto $scheme;`.
+
+Restart the container after the change; the list is read at start. Loopback is always trusted, which covers a
+bare-metal install with the proxy on the same machine; a container always sees the gateway or the proxy container.
 
 ---
 

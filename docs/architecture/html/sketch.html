@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architecture sketch: Yap without Blazor · Yap architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #f3f5f7; --surface: #ffffff; --surface-2: #e9edf1;
+  --fg: #182029; --muted: #56606e; --line: #d4dae2; --line-strong: #a9b3c0;
+  --accent: #0d6a87; --code-bg: #f8f9fb;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+    --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+  --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+main { max-width: 980px; margin: 0 auto; padding: 36px 16px 96px; display: flex; flex-direction: column; gap: 22px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.15; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 4.5vw, 2.8rem); font-weight: 700; }
+h2 { font-size: clamp(1.4rem, 2.6vw, 1.8rem); font-weight: 600; padding-top: 22px; margin-top: 14px; border-top: 1px solid var(--line-strong); }
+h3 { font-size: 1.12rem; font-weight: 600; margin-top: 6px; }
+p, ul, ol { margin: 0; max-width: 76ch; }
+ul, ol { padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
+li > ul, li > ol { margin-top: 6px; }
+a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 0.88em; background: var(--surface-2); padding: 0.05em 0.3em; border-radius: 3px; overflow-wrap: anywhere; }
+pre { margin: 0; padding: 12px 16px; overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--code-bg); font: 0.82rem/1.5 var(--mono); }
+pre code { background: none; padding: 0; font-size: inherit; }
+blockquote { margin: 0; padding: 10px 16px; border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; max-width: 76ch; }
+.eyebrow { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+nav.pages { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+nav.pages a, nav.pages span { display: inline-block; padding: 3px 10px; border: 1px solid var(--line); border-radius: 4px; text-decoration: none; color: var(--fg); background: var(--surface); font-size: 0.86rem; }
+nav.pages span { color: var(--muted); border-style: dashed; }
+nav.pages a[aria-current] { border-color: var(--accent); color: var(--accent); }
+.rule { border: 1px solid var(--line); border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; padding: 10px 14px; max-width: 76ch; scroll-margin-top: 16px; }
+.rule .id { font-family: var(--mono); font-size: 0.8rem; color: var(--accent); margin-right: 8px; }
+.rule .why { color: var(--muted); }
+figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+figcaption { font-size: 0.9rem; color: var(--muted); max-width: 80ch; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+th { font-family: var(--display); font-weight: 600; background: var(--surface-2); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+footer { font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; }
+
+figure.code { position: relative; }
+figure.code .lang { position: absolute; top: 6px; right: 10px; font: 0.7rem var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+pre .c { color: var(--muted); font-style: italic; }
+pre .s { color: #2f7d32; }
+pre .n { color: #a4541c; }
+pre .k { color: #7a3fb3; font-weight: 500; }
+pre .t { color: var(--accent); }
+pre .p { color: #0b5e8a; }
+pre .a { color: #8a6d00; }
+pre .v { color: #a4541c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) pre .s { color: #8fd18f; } :root:not([data-theme="light"]) pre .n, :root:not([data-theme="light"]) pre .v { color: #f0a86a; } :root:not([data-theme="light"]) pre .k { color: #c99af5; } :root:not([data-theme="light"]) pre .p { color: #7cc4ea; } :root:not([data-theme="light"]) pre .a { color: #e0c860; } }
+:root[data-theme="dark"] pre .s { color: #8fd18f; } :root[data-theme="dark"] pre .n, :root[data-theme="dark"] pre .v { color: #f0a86a; } :root[data-theme="dark"] pre .k { color: #c99af5; } :root[data-theme="dark"] pre .p { color: #7cc4ea; } :root[data-theme="dark"] pre .a { color: #e0c860; }
+/* Contract tables: a route or a method name never breaks across lines, so the first column grows to fit it.
+   Long lists of code spans still wrap between the spans. The wrapper scrolls sideways when a table is wider than the page. */
+.tablewrap code { white-space: nowrap; }
+.tablewrap td:first-child { min-width: 10rem; }
+figure.diagram { padding: 16px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+figure.diagram svg { display: block; max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">Yap · architecture</div>
+<nav class="pages" aria-label="Architecture pages"><a href="sketch.html" aria-current="page">Architecture sketch: Yap without Blazor</a><a href="plan.html">Plan of action</a><a href="message-path.html">Message path</a><a href="presence.html">Presence</a><a href="chat-hub.html">ChatHub and read state</a><a href="auth-and-program.html">Authentication and Program.cs</a><a href="sign-in.html">Sign-in flows</a><a href="bootstrap-and-events.html">Bootstrap and events</a><a href="client.html">The client</a><a href="wire-contract.html">Wire contract</a></nav>
+<h1 id="architecture-sketch-yap-without-blazor">Architecture sketch: Yap without Blazor</h1>
+<p>Written 2026-10-14, before any code. The brief is <code>docs/refactor-prompt-2026-10-14.md</code>. The wire contract is a separate page, <a href="wire-contract.html">Wire contract</a>. This page gives the two sides of the wire and the decisions behind them.</p>
+<h2 id="principles">Principles</h2>
+<p>The coding rules from the brief, and the rules this architecture adds. Every new part is checked against them.</p>
+<p><strong>Code.</strong></p>
+<ol><li>Minimal and elegant. No unnecessary parts. "The best part is no part." For each part: do we need it, is it the right thing, is it elegant?</li><li>Readable and maintainable on every level: the whole, the architecture, the parts, the details. Will the next person understand what it does and why it is here?</li><li>Modern .NET features and patterns where they do not conflict with 1 and 2.</li><li>Comments explain why: the constraint, the bug or the trade-off that shaped the code, written at the line where a clean-up would break it.</li></ol>
+<p><strong>Architecture.</strong></p>
+<ol><li>The spec is the acceptance test. Behaviour is traced to rule IDs. Where the spec and the old code disagree, the spec is right and the difference is reported.</li><li>Memory is the truth, in one instance. ChatService holds the chat, the other singletons hold accounts, links, GIFs and settings. Every write goes to memory and returns. The database is an optional copy, fed by one ordered background writer, never awaited on a request path. A failed write is logged.</li><li>The hub carries the live session. HTTP carries documents and forms. Nothing is carried both ways.</li><li>The client is local first. A view renders from the store. An action changes the store at once, then tells the server. The server confirms or corrects. Refusals carry a reason the user can read.</li><li>One round trip per user action, and one request to paint the frame. Users are far away.</li><li>Text is data. The client renders links, shortcodes and emoji. No HTML travels on the wire.</li><li>Offline is modest: an outbox and a snapshot, no replica, no merge. Connectivity events are the retry.</li><li>Events fan out through one broadcaster. Rooms are groups, people are users. Clients resolve names from one directory.</li><li>Running without a database stays a product mode. Every path works with memory alone.</li></ol>
+<h2 id="one-principle-for-the-split">One principle for the split</h2>
+<p>The hub carries the live chat session. Everything that happens <em>inside a connected conversation</em> is a hub method or a hub event: opening a conversation, reading messages, typing, presence, heartbeat, reactions, edits, deletes, mark-read, status. When the hub is not connected, these actions are exactly the ones the spec dims with "Needs a connection" (OF-12, MR-75). One rule, no per-feature decision.</p>
+<p>HTTP carries documents and forms: sending a message, uploads, sign-in, settings, administration, the GIF library, the emoji catalogue, the bootstrap. Sending a message is HTTP because the offline outbox and the optional Background Sync handler in the service worker must send without a hub (design notes, "The sender").</p>
+<h2 id="side-1-the-server-seen-from-chatservice">Side 1: the server, seen from ChatService</h2>
+<p>ChatService stays the singleton source of truth. Its collections, its lock, its persistence calls and its synchronous <code>Action</code> events stay. Four things change around it.</p>
+<p><strong>1. Sessions are hub connections, grouped by device.</strong> A <code>UserSession</code> is created in <code>ChatHub.OnConnectedAsync</code> and keyed by the SignalR connection id. The client sends a <code>deviceId</code> (a random id in local storage, a device convenience under GEN-23) as a query parameter at connect. Settings lists sessions per device (AU-19), the diagnostics table lists them per connection (AD-25). "Sign out all other devices" signs out every connection whose device differs from the caller's.</p>
+<p><strong>2. Presence moves out of ChatService into <code>Services/Presence/PresenceService</code>.</strong> It owns sessions, statuses, auto-away, typing and per-connection latency stats. This replaces <code>ChatCircuitHandler</code>, <code>CircuitTracker</code> and <code>CircuitIdentity</code>. The Blazor circuit had a "down but alive" state with a timer per circuit. SignalR has no such state, so a disconnect marks the session disconnected with a time stamp, and <strong>one sweep every 10 seconds</strong> applies the spec: disconnected for 30 s and no other visible session, away (PR-15); disconnected for 5 min, removed, which is the leave (PR-16, PR-17); idle 5 min on every session, auto-away (PR-10); no heartbeat for 90 s, treated as idle. A reconnect is a new connection for the same user and device, so the old session expires silently and no join or leave line appears (PR-17). The heartbeat is a hub method every 10 s visible, 60 s hidden, as today. ChatService keeps asking "who is connected" and "is any session visible" through PresenceService, for unread counting (NT-03) and push suppression (NT-26).</p>
+<p><strong>3. Events fan out through one broadcaster.</strong> <code>Endpoints/ChatHubBroadcaster</code> subscribes to the ChatService, PresenceService, GifService and UserService events once and sends hub events. Room events go to the SignalR group <code>channel:{id}</code>, which holds the connections that have that room open. Direct-message events go to both users with <code>Clients.User(...)</code>. Presence, rooms and profiles go to everyone. The system bot keeps its own subscriptions. Nothing else subscribes.</p>
+<p><strong>4. Text is data, not HTML.</strong> <code>EmojiService.Rendering</code> goes away. Messages, names and room names travel as plain text. The client renders links, <code>:shortcode:</code> images and emoji images itself. This fixes the stored-XSS that <code>ConvertEmojis</code> has today (it wraps unencoded text in <code>MarkupString</code>) and removes inline styles from the wire. The emoji catalogue (categories, keywords, custom packs, the fallback-image set) becomes one cacheable JSON document.</p>
+<p><strong>5. One writer between memory and the database.</strong> Today every service calls <code>ChatPersistenceService</code> and awaits a write-through to SQLite before it raises events or returns. In the new design a request path never touches Entity Framework. A service changes memory, then enqueues a write operation and returns. One hosted <code>PersistenceWriter</code> drains the queue in order, one transaction per drain, and is the only runtime code that knows the database besides the startup load. Decided 2026-10-14. What follows from it:</p>
+<ul><li>The HTTP response and the hub event mean the same thing: "it is in memory, everyone has it". The client deletes its outbox row on the 200. A crash between the memory change and the write loses that message, which the design notes accept ("a message lost once a month is acceptable"). Today's code already swallows failed writes and returns success, so no guarantee is lost that existed.</li><li>The queue is <strong>ordered</strong> and has <strong>one consumer</strong>. This is not optional. Independent fire-and-forget tasks would race: an edit's UPDATE could run before its INSERT, a DELETE before the row exists. One <code>System.Threading.Channels</code> channel, one reader, order kept. SQLite has one writer anyway.</li><li>Every database optimisation lives in one place: batching the drain into one transaction, coalescing the unread-counter updates that every message produces for many people, WAL mode, retries. The services know nothing of it.</li><li>Graceful shutdown drains the queue, with a timeout, so a normal restart or deploy loses nothing.</li><li>Without persistence the writer is not registered and <code>Enqueue</code> is a no-op. Memory-only mode is the same code with one service missing.</li><li>Admin logs, media logs and visitors are database-only features today (AD-03 says "Not available without persistence"). They keep writing through the same queue and reading from the database on the admin page. They are logs, not chat state.</li><li>The diagnostics page shows the queue depth and the last write error, so a stalled disk is visible (AD-24).</li><li>A queued write reads the row's values when it runs, not when it was queued. The database converges to memory, and the queue order keeps a delete after the insert it follows.</li></ul>
+<p>The writer in full, as a sketch. A <code>Channel</code> is a thread-safe queue with asynchronous waiting, a completion signal and optional bounds; nothing else is needed.</p>
+<figure class="code"><span class="lang">cs</span><pre><code><span class="c">// Services/Persistence/PersistenceWriter.cs (sketch)</span>
+<span class="k">public</span> <span class="k">sealed</span> <span class="k">class</span> <span class="t">PersistenceWriter</span>(<span class="t">IDbContextFactory</span>&lt;<span class="t">ChatDbContext</span>&gt; db, <span class="t">ILogger</span>&lt;<span class="t">PersistenceWriter</span>&gt; log) : <span class="t">BackgroundService</span>
+{
+    <span class="c">// One reader, so the runtime can use its cheapest implementation. Unbounded: a chat this size never</span>
+    <span class="c">// outruns SQLite; the depth is shown on the diagnostics page instead of enforced here.</span>
+    <span class="k">private</span> <span class="k">readonly</span> <span class="t">Channel</span>&lt;<span class="t">Func</span>&lt;<span class="t">ChatDbContext</span>, <span class="t">CancellationToken</span>, <span class="t">Task</span>&gt;&gt; _queue =
+        <span class="t">Channel</span>.<span class="t">CreateUnbounded</span>&lt;<span class="t">Func</span>&lt;<span class="t">ChatDbContext</span>, <span class="t">CancellationToken</span>, <span class="t">Task</span>&gt;&gt;(<span class="k">new</span>() { <span class="t">SingleReader</span> = <span class="k">true</span> });
+
+    <span class="k">public</span> <span class="k">int</span> <span class="t">Depth</span> =&gt; _queue.<span class="t">Reader</span>.<span class="t">Count</span>;
+
+    <span class="c">/// Called by the services after they changed memory. Never awaited by them.</span>
+    <span class="k">public</span> <span class="k">void</span> <span class="t">Enqueue</span>(<span class="t">Func</span>&lt;<span class="t">ChatDbContext</span>, <span class="t">CancellationToken</span>, <span class="t">Task</span>&gt; write) =&gt; _queue.<span class="t">Writer</span>.<span class="t">TryWrite</span>(write);
+
+    <span class="k">protected</span> <span class="k">override</span> <span class="k">async</span> <span class="t">Task</span> <span class="t">ExecuteAsync</span>(<span class="t">CancellationToken</span> stopping)
+    {
+        <span class="c">// Each pass drains everything that is queued right now into one transaction. Under load this</span>
+        <span class="c">// turns the many unread-counter updates of one message into one write.</span>
+        <span class="k">while</span> (<span class="k">await</span> _queue.<span class="t">Reader</span>.<span class="t">WaitToReadAsync</span>(stopping))
+        {
+            <span class="k">await</span> <span class="k">using</span> <span class="k">var</span> ctx = <span class="k">await</span> db.<span class="t">CreateDbContextAsync</span>(stopping);
+            <span class="k">await</span> <span class="k">using</span> <span class="k">var</span> tx = <span class="k">await</span> ctx.<span class="t">Database</span>.<span class="t">BeginTransactionAsync</span>(stopping);
+            <span class="k">while</span> (_queue.<span class="t">Reader</span>.<span class="t">TryRead</span>(<span class="k">out</span> <span class="k">var</span> write))
+                <span class="k">await</span> write(ctx, stopping);
+            <span class="k">await</span> ctx.<span class="t">SaveChangesAsync</span>(stopping);
+            <span class="k">await</span> tx.<span class="t">CommitAsync</span>(stopping);
+        }
+    }
+
+    <span class="k">public</span> <span class="k">override</span> <span class="k">async</span> <span class="t">Task</span> <span class="t">StopAsync</span>(<span class="t">CancellationToken</span> ct)
+    {
+        _queue.<span class="t">Writer</span>.<span class="t">Complete</span>();      <span class="c">// no new items; the loop above ends after the last one</span>
+        <span class="k">await</span> <span class="k">base</span>.<span class="t">StopAsync</span>(ct);      <span class="c">// the host gives it its shutdown timeout to drain</span>
+    }
+}</code></pre></figure>
+<p>The error handling is left out of the sketch: a failed pass logs the exception and the last error is shown on the diagnostics page. The services never see it.</p>
+<p>Smaller changes:</p>
+<ul><li><code>SendMessageAsync</code> takes a <code>clientId</code>, changes memory, enqueues the write and returns the message. A <code>(userId, clientId) → messageId</code> dictionary gives the idempotent POST from the design notes. <code>ClientId</code> is a nullable column on <code>ChatMessage</code>, one migration, so the dictionary is rebuilt at startup from the messages of the last day.</li><li>Paging cursors become <code>(timestamp, id)</code>. Today the cursor is a timestamp alone and equal timestamps can skip a message.</li><li>Authentication becomes a 30-line <code>AuthenticationHandler</code> for the <code>yap_auth</code> cookie. It builds a <code>ClaimsPrincipal</code> with the user id, name and an <code>admin</code> role. <code>[Authorize]</code> on the hub, <code>RequireAuthorization()</code> on endpoint groups and an admin policy replace <code>AuthMiddleware</code>, <code>AdminGate</code> and the scoped <code>UserStateService</code>. SignalR's <code>Clients.User(userId)</code> then works with no manual user groups. The cookie bytes, name, <code>SameSite=Lax</code> and lifetime do not change, so installed apps and existing sessions survive. The sliding re-issue and known-IP recording move from "every HTML GET" to the one bootstrap request.</li><li><code>UseResponseCompression</code> (Brotli) for JSON, JS and CSS. Users far away download less.</li><li><code>index.html</code> is served by a tiny endpoint that stamps the build time into asset URLs and into the service-worker cache name. This gives immutable caching and the "new version" strip (OF-04) without <code>MapStaticAssets</code>.</li><li>Blazor removed: <code>Components/</code>, <code>MapRazorComponents</code>, antiforgery, <code>CircuitOptions</code>, <code>ChatNavigationState</code>, <code>UserStateService</code>, <code>/Error</code> and <code>/not-found</code> pages, <code>BlazorDisableThrowNavigationException</code>. <code>DeviceDetectionMiddleware</code> becomes a one-line User-Agent check at hub connect.</li></ul>
+<p>Folder plan (namespaces follow folders):</p>
+<figure class="code"><pre><code>Endpoints/   ChatHub.cs, ChatHubBroadcaster.cs, HubLatencyFilter.cs, Me*, Auth*, Admin*, Rooms*, Gifs*, Push*, Tus*, Emoji*, Shell (index.html stamping)
+Services/Chat/           ChatService, LinkPreview*, MediaCache*, NetworkSecurityHelper, SystemBotService
+Configuration/           ServerConfig (the configured values and text lists; as built, in place of a ChatTexts service)
+Services/Persistence/    PersistenceWriter (the one ordered queue to the database), the startup load; cross-cutting, so not a spec area
+Services/Presence/       PresenceService (sessions, status, auto-away sweep, typing, connection stats)
+Services/Notifications/  NotificationSettingsService, Push*, NotificationAudit
+Services/Media/          ImageService, VideoService, MediaUploadLogService
+Services/Gifs/           as today
+Services/Emoji/          EmojiCatalog (data and packs, no rendering), CustomEmojiService
+Services/Accounts/       UserService, AccessLinkService, AccessLinkCodes, LinkTokenService, RegistrationGateService, LocaleResolver, GeoLocationService, ThemeRegistry, YapCookieAuthHandler, SignInService
+Services/Admin/          DiagnosticsCollectorService, UserActionLogService
+Models/&lt;same areas&gt;      entities and the wire DTOs</code></pre></figure>
+<h2 id="side-2-the-client">Side 2: the client</h2>
+<p>Plain HTML, CSS and ES modules. No build step. The browser loads the module graph; <code>index.html</code> lists <code>modulepreload</code> hints so a far-away user pays one round trip for the scripts, not one per file. The service worker caches the shell (HTML, JS, CSS, fonts, icons) so a reload works offline (OF-06). <code>lib/signalr.min.js</code> is the one vendored library.</p>
+<p><strong>How it looks.</strong> The same as today. The 25 scoped <code>.razor.css</code> files flatten into plain CSS files under <code>wwwroot/css/</code>, one per area, each under a root class (<code>.frame</code>, <code>.timeline</code>, <code>.composer</code>, <code>.pickers</code>, <code>.page-settings</code>, <code>.page-admin</code>, <code>.page-login</code>) to avoid the class collisions that scoping hid (<code>.back-button</code>, <code>.form-group</code>, <code>.status-dot</code>, <code>.dot</code>). <code>themes.css</code> and <code>teahouse.css</code> stay as they are. Theme and text size are cached in local storage and applied by an inline script before first paint; the bootstrap corrects them.</p>
+<p><strong>How it is organised.</strong></p>
+<figure class="code"><pre><code>wwwroot/
+  index.html              shell, templates, inline theme bootstrap
+  css/                    app, frame, timeline, message, composer, pickers, settings, admin, login, themes, teahouse
+  js/
+    main.js               boot: bootstrap request and hub start in parallel, router, page mount
+    router.js             the routes of SH-42, history, last-route (SH-43)
+    store.js              one state object plus subscribe(); every view renders from it
+    api.js                fetch wrapper: JSON, credentials, ProblemDetails → reason text
+    hub.js                SignalR connection, reconnect policy (OF-13), connection state for the header
+    render/text.js        links (MR-12), :shortcode:, emoji images, emoji-only size (MR-15..17)
+    render/time.js        Intl with the account&#x27;s zone, clock and date order (MR-05, MR-06)
+    render/dom.js         el() helper and template cloning
+    ui/frame.js           header, status chip and menu, connection dot, notice strip, sidebar, profile card
+    ui/timeline.js        list, follow flag, pill, older pages, scroll anchoring (TL-*)
+    ui/message.js         one row: header grouping, content, reactions, action bar, editor, menus
+    ui/composer.js        input box, drafts, reply bar, typing, drop and paste, uploads (IB-*)
+    ui/emoji-picker.js    both uses: composer and reaction (PK-01..12, PK-43)
+    ui/gif-picker.js      tabs, search, folders, upload (PK-13..42)
+    ui/gallery.js         viewer (TL-22..29)
+    ui/overlays.js        sheets, menus, dialogs, confirm, Escape stack (GEN-17, GEN-18)
+    pages/chat.js         room and DM page: open, receive, mark-read, title, sound
+    pages/settings.js  pages/channel-settings.js  pages/admin.js  pages/login.js  pages/invite.js  pages/verify.js
+    offline/outbox.js     IndexedDB store, one row per unsent message
+    offline/sender.js     the event-driven loop under a Web Lock
+    offline/snapshot.js   the tail of each opened conversation, for offline reloads
+    push.js  pwa.js  upload.js (tus protocol, small)  notify.js (sound, title, badge)
+  lib/signalr.min.js
+  service-worker.js       shell cache, media cache, push, notification click, optional background sync</code></pre></figure>
+<p><strong>How it works, in one sentence.</strong> Views render from the store; a user action changes the store at once and then tells the server; the server's answer or event confirms or corrects the store (GEN-01, GEN-02).</p>
+<p>Examples of local first:</p>
+<ul><li>Send: append to the outbox, add a pending row, clear the draft. The sender posts. The <code>message</code> event with our <code>clientId</code> replaces the pending row in place. Send-to-appear is measured from tap to that replacement.</li><li>Reaction: flip the pill, invoke <code>react</code>. On failure, flip back and show the reason for two seconds.</li><li>Status pick: recolour the chip, invoke <code>setStatus</code>. The <code>me</code> event confirms on every device.</li><li>Edit and delete: apply to the row, invoke, revert on failure.</li><li>Open conversation: paint the snapshot from IndexedDB at once, invoke <code>open</code>, replace with the answer.</li></ul>
+<p>Carried over from <code>chat.js</code> almost unchanged: scroll-to-bottom with the media wait, near-bottom check, restore position on prepend, scroll-to-message, gallery gestures, drop zone, autosize, Enter handling, send-button focus guard, emoji toggle sprite, caret insertion, typing tracker, mobile action-bar dismiss, paste upload, video overlay, theme and font application, GIF autoplay recovery, picker positioning, push helpers, PWA helpers. Removed: every <code>.NET</code> callback, synthetic <code>change</code> events, <code>PickerPane</code>, ghost reconciliation by DOM observation (the <code>clientId</code> replaces it).</p>
+<p><strong>What the client needs from the server.</strong> One bootstrap document (<code>GET /api/bootstrap</code>) that paints the whole frame in one round trip, fetched every time the hub connects so a reconnect and a cold start are one code path (user, config, text lists, rooms, people directory, unread counts, mutes, recent emoji, quick reactions, favourite GIF ids). A hub that returns the conversation tail from <code>open</code> so a switch costs one round trip and has no race between the history read and the group join. Events small enough to apply directly to the store. Plain text everywhere. Reasons in refusals.</p>
+<h2 id="decisions">Decisions</h2>
+<p>Taken on 2026-10-14 with the user.</p>
+<ol><li><strong>PresenceService is extracted from ChatService.</strong> ChatService keeps channels, messages, reactions and read state. Consequences:<ul><li>One dependency direction. ChatService asks PresenceService "who is connected", "is this person online and visible" (NT-03, NT-26). PresenceService never references ChatService.</li><li>The chosen status becomes account data. PR-01 and PR-02 say the status belongs to the account and survives a server restart. Today it lives in memory and is re-sent by the Blazor client. It moves onto <code>User</code> and UserService persists it. PresenceService computes the effective state (online, away, offline, automatic away) from the chosen status and the sessions.</li><li>The events split. Join, leave, status, typing and kicked move to PresenceService. The broadcaster and the system bot subscribe to both services.</li><li>The bot's permanent session (PR-09) is registered in PresenceService at startup, as today.</li><li>Smart login's "a connected device on this address" (AU-09), the admin status pills (AD-04) and the two diagnostics tables (AD-25, AD-26) read PresenceService.</li><li>The hub talks to PresenceService for connect, disconnect, heartbeat, typing and status, and to ChatService for open, older, react, edit, delete and mark-read.</li><li>The message path clears the sender's typing entry through PresenceService (IB-59).</li></ul></li><li><strong>tus-js-client is vendored</strong>, one file in <code>wwwroot/lib/</code>, like the SignalR client (corrected 2026-10-14). The outbox sender must upload after an offline reload, so the script is part of the app shell. A same-origin file is cached by the service worker with the rest of the shell, with no special case. A CDN script would need CORS mode to be cacheable without the browser's opaque-response quota padding, a separate precache step, and an availability dependency at the moment the connection returns.</li><li><strong>Chart.js stays on the CDN.</strong> It loads on the admin page only, and Admin needs a connection anyway (OF-07). The install-guide library (decision 4) is the same case. If a strict <code>script-src &#x27;self&#x27;</code> content security policy is wanted later, these two are vendored too; nothing else changes.</li><li><strong>Install guide.</strong> Our own dialog for SH-40, because the spec fixes its texts and buttons. Behind "Install app": the native browser prompt where it exists, otherwise the add-to-homescreen library's guide, loaded from the CDN on tap, as today. The library tracks browser and OS changes (in-app browsers, iOS share sheet changes); that is the part worth not owning.</li><li><strong>Emoji images stay on the jsDelivr image CDN with the local fallback set.</strong> For offline, the service worker caches emoji images cache-first in their own cache group, which ST-25 already names ("Emoji — downloaded artwork"). The images are requested with <code>crossorigin=&quot;anonymous&quot;</code>, so the cached responses are not opaque; an opaque response is padded in the browser's quota accounting, and a few hundred cached emoji would count as gigabytes. An emoji seen once shows offline. An emoji never seen falls back to the alt text, which is the device's own glyph. No sprite sheet and no self-hosted set, unless latency measurements say otherwise.</li><li><strong>Transition path.</strong> A clean rewrite. Blazor comes out first, and the new app is built from the spec. No coexistence under a prefix, no additive API on the Blazor app. The tree may not run between steps. Nothing is pushed until a coherent whole works.</li></ol>
+<h2 id="spec-versus-code-differences-met-so-far">Spec versus code: differences met so far</h2>
+<p>The spec is right. Listed so the user sees them.</p>
+<div class="tablewrap"><table><thead><tr><th>Rule</th><th>Spec</th><th>Code today</th></tr></thead><tbody><tr><td>AU-19</td><td>One session row per device; tabs share a row</td><td>One row per circuit (tab)</td></tr><tr><td>TL-10..12</td><td>The view follows only while at the bottom; otherwise it holds</td><td>Every received message scrolls to the bottom</td></tr><tr><td>TL-06</td><td>The next page loads when within 100 px of the top</td><td>Same, plus an artificial 500 ms delay on the server</td></tr><tr><td>TL-07</td><td>"Load earlier messages" link in a conversation too short to scroll</td><td>Not present; infinite scroll only</td></tr><tr><td>IB-36</td><td>An upload during a reply is sent as a reply</td><td>Media messages never carry the reply target</td></tr><tr><td>OF-06, TL-02</td><td>Last known messages show after an offline reload</td><td>No snapshot cache; Blazor needed a live circuit</td></tr><tr><td>OF-08</td><td>Sending works offline and after the app was closed</td><td>No outbox; a send without a circuit is lost</td></tr><tr><td>SH-20, OF-04</td><td>A new version shows a notice strip with Reload</td><td>Blazor reconnect banner</td></tr><tr><td>MR-10, MR-12</td><td>Text shows as typed; only links and emoji are transformed</td><td>True, but the text is injected as unencoded HTML (stored XSS)</td></tr><tr><td>NT-05</td><td>Counts stay after a server restart</td><td>The first unread row of a user and channel is not inserted until a mark-read persists it</td></tr><tr><td>PR-17</td><td>A leave is 5 min after the last connection drops</td><td>Tied to Blazor circuit retention, about 3 min</td></tr></tbody></table></div>
+<p>Differences that remain in the rewrite, by decision (2026-10-15, after the walk of every spec page). Two rows left the table with the review fixes of 2026-10-15: OF-08 for a direct message never opened (the outbox addresses it by its partner) and PR-16/PR-24 (the automatic read checks the chosen and the effective status too).</p>
+<div class="tablewrap"><table><thead><tr><th>Rule</th><th>The spec</th><th>The rewrite</th></tr></thead><tbody><tr><td>SH-20, GEN-11</td><td>"Sign in to continue." strip when signed out without a connection</td><td>Not shown: a sign-out reaches the device only with a connection, and then the login page opens</td></tr><tr><td>AD-12</td><td>The link preview switch applies at once to open chats</td><td>New answers follow the switch; open chats keep their cards until a reload</td></tr><tr><td>AD-02</td><td>Users, Bot, Invites and Settings load with the page</td><td>Each tab loads when it opens</td></tr><tr><td>AD-09</td><td>The bot's display name is saved</td><td>Saved in memory and on the user record; <code>ChatSettings:Bot:DisplayName</code> wins again at the next start</td></tr><tr><td>OF-06</td><td>Media not seen before shows "Needs a connection"</td><td>The browser's broken-image state shows instead</td></tr><tr><td>MR-51</td><td>The touch bar hides after a 50 px scroll</td><td>It hides after 5 s only</td></tr><tr><td>TL-12</td><td>Changes above the view never move the row the reader reads</td><td>Older pages are compensated; edits and loads above rely on the browser's scroll anchoring (not in Safari)</td></tr><tr><td>MR-59 vs GEN-03</td><td>A closed phone keyboard stays closed on Edit (MR-59); Edit may open it (GEN-03)</td><td>The editor takes the focus, so the keyboard opens (GEN-03)</td></tr></tbody></table></div>
+<h2 id="phases">Phases</h2>
+<p>Each step is explained first and built after the user agrees.</p>
+<ol><li>Server spine: remove Blazor (<code>Components/</code>, circuit services, Razor mapping, antiforgery), cookie authentication handler, PresenceService, ChatHub, broadcaster, bootstrap, message POST with <code>clientId</code>, emoji catalogue, response compression, shell endpoint. Move services into area folders as they are touched.</li><li>Client shell: frame, timeline, message row, composer, pickers, gallery, text and time rendering, hub and store. The chat works again at the end of this step.</li><li>Offline: outbox, sender, snapshot cache, service-worker shell cache, new-version strip.</li><li>Pages: login, verify, invite, settings, channel settings, admin with its API.</li><li>Clean-up: csproj, Program, request logging, service worker, docs.</li><li>Playwright for .NET: screenshots for the spec and checks for the rule IDs that matter most.</li></ol>
+<footer>Source: <code>docs/architecture/sketch.md</code>. Edit the Markdown, then run <code>python3 docs/architecture/tools/build.py</code>.</footer>
+</main>
+</body>
+</html>

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Presence · Yap spec</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #f3f5f7; --surface: #ffffff; --surface-2: #e9edf1;
+  --fg: #182029; --muted: #56606e; --line: #d4dae2; --line-strong: #a9b3c0;
+  --accent: #0d6a87; --code-bg: #f8f9fb;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+    --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+  --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+main { max-width: 980px; margin: 0 auto; padding: 36px 16px 96px; display: flex; flex-direction: column; gap: 22px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.15; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 4.5vw, 2.8rem); font-weight: 700; }
+h2 { font-size: clamp(1.4rem, 2.6vw, 1.8rem); font-weight: 600; padding-top: 22px; margin-top: 14px; border-top: 1px solid var(--line-strong); }
+h3 { font-size: 1.12rem; font-weight: 600; margin-top: 6px; }
+p, ul, ol { margin: 0; max-width: 76ch; }
+ul, ol { padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
+li > ul, li > ol { margin-top: 6px; }
+a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 0.88em; background: var(--surface-2); padding: 0.05em 0.3em; border-radius: 3px; overflow-wrap: anywhere; }
+pre { margin: 0; padding: 12px 16px; overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--code-bg); font: 0.82rem/1.5 var(--mono); }
+pre code { background: none; padding: 0; font-size: inherit; }
+blockquote { margin: 0; padding: 10px 16px; border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; max-width: 76ch; }
+.eyebrow { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+nav.pages { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+nav.pages a, nav.pages span { display: inline-block; padding: 3px 10px; border: 1px solid var(--line); border-radius: 4px; text-decoration: none; color: var(--fg); background: var(--surface); font-size: 0.86rem; }
+nav.pages span { color: var(--muted); border-style: dashed; }
+nav.pages a[aria-current] { border-color: var(--accent); color: var(--accent); }
+.rule { border: 1px solid var(--line); border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; padding: 10px 14px; max-width: 76ch; scroll-margin-top: 16px; }
+.rule .id { font-family: var(--mono); font-size: 0.8rem; color: var(--accent); margin-right: 8px; }
+.rule .why { color: var(--muted); }
+figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+figcaption { font-size: 0.9rem; color: var(--muted); max-width: 80ch; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+th { font-family: var(--display); font-weight: 600; background: var(--surface-2); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+footer { font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; }
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">Yap · product specification</div>
+<nav class="pages" aria-label="Spec pages"><a href="index.html">Index</a><a href="yap.html">Yap</a><a href="general-rules.html">General rules</a><a href="input-box.html">Input box</a><a href="message-row.html">Message row and actions</a><a href="pickers.html">Emoji and GIF pickers</a><a href="timeline.html">Timeline and media</a><a href="frame.html">Header, sidebar and overlays</a><a href="settings.html">Settings</a><a href="admin.html">Administration</a><a href="presence.html" aria-current="page">Presence</a><a href="notifications.html">Notifications and unread</a><a href="sessions.html">Sign-in and sessions</a><a href="offline.html">Offline and installation</a></nav>
+<h1 id="presence">Presence</h1>
+<p>Presence is the information that Yap shows about the current state of each person. It shows who is online, away or invisible, when people join and leave, and who types in the open conversation. Presence appears in the people list in the sidebar, in the status chip and the online count in the header, and in the profile card. It also appears in the typing strip above the input box and in the join and leave lines in the lobby. The rules on this page specify what each of these places shows.</p>
+<figure><img src="../img/presence-desktop-list.png" alt="People list, desktop. A green dot for an online person, orange for an away person, grey for an invisible or offline one; the admin crown; the bot; the user&#x27;s own row with &quot;(you)&quot;." loading="lazy"><figcaption>People list, desktop. A green dot for an online person, orange for an away person, grey for an invisible or offline one; the admin crown; the bot; the user's own row with "(you)".</figcaption></figure>
+<h2 id="rules">Rules</h2>
+<h3 id="status">Status</h3>
+<p class="rule" id="PR-01"><span class="id">PR-01</span>An account has one status: online, away or invisible. "Offline" is not a status. It means that the person has no connection. The status belongs to the account. A status pick on one device applies to all devices of the account at once.</p>
+<p class="rule" id="PR-02"><span class="id">PR-02</span>The user chooses the status in the status menu. The status of a new account is online. Yap keeps the chosen status until the user changes it. A reload, a new start of the app and a server restart do not change it.</p>
+<p class="rule" id="PR-03"><span class="id">PR-03</span>The status colours are fixed. Online is green, away is orange, and invisible and offline are grey. Themes never change these colours.</p>
+<p class="rule" id="PR-04"><span class="id">PR-04</span>Away is either chosen or automatic. Other people see the same orange for both. An automatic away does not change the chosen status. During an automatic away, the chip shows orange and the menu still marks "Online". A chosen away ends only with a new pick.</p>
+<p class="rule" id="PR-05"><span class="id">PR-05</span>An invisible person appears offline to everyone else. Other people see a grey dot, "Offline" on the profile card, and the person among the offline people. No line appears when the person joins, leaves, turns invisible or turns visible again. The online count does not include the person. The invisible person can still use all of the chat and sees the real status of everyone else. The person's own chip, row and card show the person as grey and "Offline". Admins see "Invisible" on the administration page. When an invisible person types in a conversation, that conversation shows the person as typing.</p>
+<h3 id="who-is-online">Who is online</h3>
+<p class="rule" id="PR-06"><span class="id">PR-06</span>A person is online while at least one of their devices has Yap open and connected. All tabs and devices of one person show as one entry in the list. The count includes the person once.</p>
+<p class="rule" id="PR-07"><span class="id">PR-07</span>The online count is the number of people who are online or away. The count includes the bot. The count does not include invisible people, also not in their own view. For everyone else, the count in their own view includes themselves.</p>
+<p class="rule" id="PR-08"><span class="id">PR-08</span>Presence changes show to everyone at once, within a second. A person who joins appears in every open list. A person who leaves disappears from every open list. A person who changes status changes colour in every open list.</p>
+<p class="rule" id="PR-09"><span class="id">PR-09</span>The bot is always online.</p>
+<h3 id="automatic-away">Automatic away</h3>
+<p class="rule" id="PR-10"><span class="id">PR-10</span>A person becomes away after 5 minutes without input on any of their devices. Input is a key press, a tap, a pointer move, a wheel movement or a return to the tab. Incoming messages are not input. Other people see the change within 10 seconds after the 5 minutes. When every tab of the person is hidden, the change can show up to a minute later.</p>
+<p class="rule" id="PR-11"><span class="id">PR-11</span>A hidden tab alone does not make a person away. The rule of 5 minutes without input applies. A person who watches a video for 5 minutes without input shows as away. Both behaviours are accepted.</p>
+<p class="rule" id="PR-12"><span class="id">PR-12</span>Automatic away applies only when the chosen status is online. A chosen away or a chosen invisible never changes automatically.</p>
+<p class="rule" id="PR-13"><span class="id">PR-13</span>Any input on any device ends an automatic away within 10 seconds. A return to the tab or a pick in the status menu ends it at once.</p>
+<h3 id="leaving">Leaving</h3>
+<p class="rule" id="PR-14"><span class="id">PR-14</span>When a person closes the last tab or signs out of the last device, the person shows as offline 30 seconds later, without an away phase. A return within that time shows nothing. The person leaves the list, or turns grey when the person shares a direct message with the viewer. "Sign out all other devices" has the same effect for the other devices. The leave line follows PR-17.</p>
+<p class="rule" id="PR-15"><span class="id">PR-15</span>When a connection drops and the tab stays open, the person shows as away after 30 seconds. Examples are a network loss, a phone that sleeps and a closed laptop. When another device of the person is visible, with or without input, the change does not occur. Thus a locked phone does not turn a person orange while the person uses a desktop.</p>
+<p class="rule" id="PR-16"><span class="id">PR-16</span>When all connections of a person are gone for 5 minutes, the person shows as offline. The person leaves the list, or turns grey as a direct message partner. A connection that returns within the 5 minutes keeps the chosen status. Yap announces nothing.</p>
+<p class="rule" id="PR-17"><span class="id">PR-17</span>A join is the first connection of a person. A leave is the moment when the person shows as offline. This is 30 seconds after the person closes the last tab or signs out, or 5 minutes after the last connection drops. A return before that moment cancels the leave. Thus a reload shows nothing. The lobby shows a join or leave line to the people who have the lobby open at that moment. The <a href="message-row.html#MR-73">message row page</a> gives the line texts.</p>
+<p class="rule" id="PR-18"><span class="id">PR-18</span>When a new account joins for the first time, the bot sends a direct message to the admin: "👋 {display name} just joined the chat!".</p>
+<h3 id="typing">Typing</h3>
+<p class="rule" id="PR-19"><span class="id">PR-19</span>"X is typing" shows only in the typing strip of the open conversation, to the people who have that conversation open. It never appears in the sidebar, the header, the tab title or a notification. In a direct message, only the other person sees it.</p>
+<p class="rule" id="PR-20"><span class="id">PR-20</span>The indicator appears within about a second after the first keystroke. It disappears 3 seconds after the last keystroke. It disappears at once on send, when the draft becomes blank, when the typist leaves the conversation, and when the typist's tab becomes hidden. A dropped connection ends it like a last keystroke.</p>
+<p class="rule" id="PR-21"><span class="id">PR-21</span>When several people type, Yap shows one of the configured texts for two, or for three or more. The display names are in the order in which the people started to type. Yap first leaves out the viewer and then chooses the text for the people who remain. The text changes only when the set of typists changes.</p>
+<p class="rule" id="PR-22"><span class="id">PR-22</span>Typing also shows in a read-only room, because people with permission can write there. An edit of a message does not count as typing.</p>
+<h3 id="what-presence-is-not">What presence is not</h3>
+<p class="rule" id="PR-23"><span class="id">PR-23</span>Other people see no last-seen time. The card of an offline person shows "Offline". Admins see last-action times on the administration page.</p>
+<p class="rule" id="PR-24"><span class="id">PR-24</span>Status has no effect on delivery, sending, reactions or access. Away has no automatic reply. A visible session of an online person suppresses notifications to the other devices of that person. Away (chosen or automatic) and invisible do not suppress them. As a result, an idle desktop never suppresses the notifications on the phone. Away also stops the automatic read in the open conversation. See <a href="notifications.html">Notifications and unread</a>.</p>
+<p class="rule" id="PR-25"><span class="id">PR-25</span>The device type of a person shows only to that person, in Settings, and to admins. Other people never see it.</p>
+<h2 id="states">States</h2>
+<div class="tablewrap"><table><thead><tr><th>State or trigger</th><th>Input</th><th>What the user sees</th></tr></thead><tbody><tr><td>Status pick</td><td>mouse, touch</td><td>Chip and own dot change at once on every device; the menu marks the pick.</td></tr><tr><td>5 min without input on every device</td><td>all</td><td>Others see orange; the own chip turns orange; the menu still marks Online.</td></tr><tr><td>Any input while automatically away</td><td>keyboard, mouse, touch</td><td>Green again within 10 seconds; at once on tab return.</td></tr><tr><td>Chosen Away, input</td><td>all</td><td>Stays orange.</td></tr><tr><td>Invisible</td><td>all</td><td>Grey to others and to themselves, "Offline" on the card, not counted.</td></tr><tr><td>Second device joins</td><td>all</td><td>Same status everywhere; the count does not change.</td></tr><tr><td>Last tab closed or sign out</td><td>all</td><td>Gone from the list, or grey as a direct message partner; leave line after 30 s unless the person returns.</td></tr><tr><td>Connection drops, tab open</td><td>all</td><td>Orange after 30 s unless another device is visible; offline and the leave line after 5 min.</td></tr><tr><td>Connection returns within 5 min</td><td>all</td><td>Chosen status again; no join line.</td></tr><tr><td>First keystroke in a conversation</td><td>keyboard, touch</td><td>Others in it see the typing text within a second.</td></tr><tr><td>3 s without typing, send, empty draft, leave, hidden tab</td><td>all</td><td>Typing text gone.</td></tr><tr><td>Two or more typing</td><td>all</td><td>The viewer is left out first; the text matches the people who remain.</td></tr><tr><td>New account's first join</td><td>all</td><td>Join line in the lobby; bot message to the admin.</td></tr></tbody></table></div>
+<h2 id="wording">Wording</h2>
+<div class="tablewrap"><table><thead><tr><th>Where</th><th>Text</th></tr></thead><tbody><tr><td>Status menu</td><td>"Online"; "Away"; "Invisible"</td></tr><tr><td>Profile card status</td><td>"Online"; "Away"; "Offline"</td></tr><tr><td>People section title (configured; defaults)</td><td>"the gang ({0})", "squad check ({0})", "main characters ({0})", "{0} legends present", "chat fam ({0})"; fallback "Online Users ({0})"</td></tr><tr><td>Typing, direct message</td><td>"{name} is typing..."</td></tr><tr><td>Typing, room (configured lists for one, two, three or more)</td><td>see the <a href="input-box.html#wording">input box page</a></td></tr><tr><td>Bot to the admin</td><td>"👋 {display name} just joined the chat!"</td></tr><tr><td>Settings, sessions</td><td>"Active Sessions"; "This device"; "Active {time}" with "just now", "{n}s ago", "{n}m ago", "{n}h ago", "{n}d ago"</td></tr><tr><td>Administration, status pills</td><td>"Online"; "Away"; "Invisible"; "Offline"</td></tr></tbody></table></div>
+<h2 id="related">Related</h2>
+<ul><li><a href="frame.html">Header, sidebar and overlays</a> for the chip, the menu, the count and the people list.</li><li><a href="input-box.html">Input box</a> for the typing strip and what starts typing.</li><li><a href="message-row.html">Message row and actions</a> for the lobby join and leave lines.</li><li><a href="notifications.html">Notifications and unread</a> for what a visible session suppresses.</li><li><a href="settings.html">Settings</a> for the list of the user's own sessions.</li><li><a href="admin.html">Administration</a> for the sessions table admins see.</li></ul>
+<footer>Source: <code>docs/spec/presence.md</code>. Edit the Markdown, then run <code>python3 docs/spec/tools/build.py</code>.</footer>
+</main>
+</body>
+</html>

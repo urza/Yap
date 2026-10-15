@@ -1,0 +1,201 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.SignalR;
+using Yap.Helpers;
+using Yap.Models.Accounts;
+using Yap.Models.Notifications;
+using Yap.Services.Accounts;
+using Yap.Services.Media;
+using Yap.Services.Notifications;
+using Yap.Services.Presence;
+
+namespace Yap.Endpoints;
+
+/// <summary>
+/// The signed-in person's own account: everything the Settings page edits (ST-04 to ST-20), the devices (AU-19,
+/// AU-20), the login link and the secret code (AU-11, AU-13), and the mutes (NT-16 to NT-22). Every change saves at
+/// once (ST-02) and reaches the person's other devices through the <c>me</c> hub message.
+/// </summary>
+public static class AccountEndpoints
+{
+    private const long MaxAvatarBytes = 10 * 1024 * 1024;   // ST-04
+
+    public static void MapAccount(this RouteGroupBuilder api)
+    {
+        var account = api.MapGroup("/account");
+
+        // ---- profile and appearance -----------------------------------------------------------------------
+
+        account.MapPatch("", (AccountPatch body, ClaimsPrincipal me, UserService users) =>
+        {
+            var user = users.GetById(me.Id());
+            if (user is null) return Results.Unauthorized();
+            // A field that is absent from the body keeps its value; a blank string clears it. The limits are the services' (ST-05 to ST-10).
+            string? error = null;
+            if (body.DisplayName is not null || body.Bio is not null || body.Location is not null)
+                error ??= users.UpdateProfile(user.Id, body.DisplayName is null ? user.DisplayName : Blank(body.DisplayName), user.ProfilePictureUrl,
+                    body.Bio is null ? user.Bio : Blank(body.Bio), body.Location is null ? user.Country : Blank(body.Location));
+            if (body.Theme is not null) error ??= users.UpdateTheme(user.Id, body.Theme);
+            if (body.FontSize is not null) error ??= users.UpdateFontSize(user.Id, body.FontSize);
+            if (body.TimeZone is not null || body.Locale is not null || body.DateFormat is not null)
+                users.UpdateLocale(user.Id, body.TimeZone ?? user.TimeZone, body.Locale ?? user.Locale, body.DateFormat ?? user.DateFormat);
+            if (body.SmartLoginOptOut is { } optOut) users.SetSmartLoginOptOut(user.Id, optOut);
+            return error is null ? Results.NoContent() : Results.Problem(error, statusCode: 400);
+        });
+
+        // Lax cookies are not sent on cross-site form posts, which is the protection a form upload needs here.
+        account.MapPut("/avatar", async (IFormFile file, ClaimsPrincipal me, UserService users, ImageService images) =>
+        {
+            if (file.Length is 0 or > MaxAvatarBytes || !file.ContentType.StartsWith("image/"))
+                return Results.Problem("Choose an image up to 10 MB", statusCode: 400);
+            var user = users.GetById(me.Id());
+            if (user is null) return Results.Unauthorized();
+            await using var stream = file.OpenReadStream();
+            var url = await images.GenerateProfilePictureAsync(stream, user.Id);
+            if (url is null) return Results.Problem("Choose an image up to 10 MB", statusCode: 400);
+            users.UpdateProfile(user.Id, user.DisplayName, url, user.Bio, user.Country);
+            return Results.Ok(new { avatarUrl = url });
+        }).DisableAntiforgery();
+
+        account.MapDelete("/avatar", (ClaimsPrincipal me, UserService users, ImageService images) =>
+        {
+            var user = users.GetById(me.Id());
+            if (user is null) return Results.Unauthorized();
+            images.DeleteProfilePicture(user.Id);
+            users.UpdateProfile(user.Id, user.DisplayName, null, user.Bio, user.Country);
+            return Results.NoContent();
+        });
+
+        account.MapGet("/location", (HttpContext http, GeoLocationService geo) =>
+            geo.Lookup(IpHelper.GetClientIp(http)) is { Country.Length: > 0 } info
+                ? Results.Ok(new { location = info.Country })
+                : Results.NoContent());   // ST-06: Detect only when the server can find the country
+
+        // The Time & Date cards: the orders and clocks with the language's guess first, and the cultures whose
+        // separators the person can pick when the language and the zone's country differ (ST-19, ST-20).
+        account.MapGet("/locale-options", (ClaimsPrincipal me, UserService users) =>
+        {
+            var user = users.GetById(me.Id());
+            if (user is null) return Results.Unauthorized();
+            var (order, clock, culture) = LocaleResolver.ParseDateFormat(user.DateFormat);
+            var cultures = LocaleResolver.GetAvailableCultures(user.Locale, user.TimeZone);
+            return Results.Ok(new
+            {
+                dateOrders = LocaleResolver.GetOrderedDateOrders(user.Locale).Select(o => o.Id),
+                clocks = LocaleResolver.GetOrderedClockStyles(user.Locale).Select(c => c.Id),
+                cultures = cultures.Select(c => new { name = c.Name, nativeName = c.NativeName }),
+                current = new { order, clock, culture = culture ?? cultures.FirstOrDefault()?.Name },
+            });
+        });
+
+        // ---- devices (AU-19, AU-20) --------------------------------------------------------------------------
+
+        account.MapGet("/devices", (ClaimsPrincipal me, string? device, PresenceService presence) =>
+            Results.Ok(presence.SessionsOf(me.Id())
+                .GroupBy(s => s.DeviceId)
+                .Select(g => new DeviceDto(g.Key, g.Any(s => s.IsMobile), g.First().ClientIp, g.Max(s => s.LastHeartbeatAt), g.Key == device))
+                .OrderByDescending(d => d.Current).ThenByDescending(d => d.LastActiveAt)
+                .ToList()));
+
+        account.MapPost("/devices/sign-out-others", async (SignOutOthersRequest body, ClaimsPrincipal me, HttpResponse response,
+            UserService users, PresenceService presence, PushSubscriptionStore push, IHubContext<ChatHub> hub) =>
+        {
+            var user = users.GetById(me.Id());
+            if (user is null) return Results.Unauthorized();
+
+            var token = users.RotateToken(user.Id);                    // every other cookie fails the lookup from now on
+            if (token is null) return Results.Problem("Failed", statusCode: 500);
+            AuthCookie.Set(response, token);                            // this browser keeps its session; its other tabs share the cookie
+            users.ForgetKnownIps(user.Id);
+            string? passphrase = null;
+            if (users.HasPassword(user.Username))                       // a leaked code dies with the other devices
+            {
+                passphrase = UserService.GeneratePassphrase();
+                users.SetPassword(user.Id, passphrase);
+            }
+            foreach (var sub in push.GetSubscriptions(user.Username).Where(s => s.Endpoint != body.PushEndpoint).ToList())
+                await push.RemoveOwnAsync(user.Username, sub.Endpoint);     // NT-24
+
+            foreach (var session in presence.SessionsOf(user.Id).Where(s => s.DeviceId != body.DeviceId))
+            {
+                await hub.Clients.Client(session.ConnectionId).SendAsync("signedOut");
+                presence.End(session);
+            }
+            return Results.Ok(new { passphrase });
+        });
+
+        // ---- the login link (AU-11, ST-12) -------------------------------------------------------------------
+
+        account.MapGet("/link", (ClaimsPrincipal me, AccessLinkService links) =>
+            links.GetActiveForUser(me.Id()) is { } link ? Results.Ok(LinkDto.From(link, links, me.Id())) : Results.NoContent());
+
+        account.MapPost("/link", (ClaimsPrincipal me, AccessLinkService links) =>
+            Results.Ok(LinkDto.From(links.CreateForUser(me.Id(), me.Id()), links, me.Id())));   // a new link revokes the old one
+
+        account.MapDelete("/link", (ClaimsPrincipal me, AccessLinkService links) =>
+        {
+            if (links.GetActiveForUser(me.Id()) is { } link) links.Revoke(link.Id);
+            return Results.NoContent();
+        });
+
+        account.MapPut("/link/expiry", (ExpiryRequest body, ClaimsPrincipal me, AccessLinkService links) =>
+        {
+            if (links.GetActiveForUser(me.Id()) is not { } link) return Results.NotFound();
+            links.SetExpiry(link.Id, body.ExpiresAt);
+            return Results.NoContent();
+        });
+
+        // ---- the secret code (AU-13, ST-14) ------------------------------------------------------------------
+
+        account.MapGet("/passphrase", (ClaimsPrincipal me, UserService users) =>
+            users.GetPassword(me.Id()) is { } code ? Results.Ok(new { passphrase = code }) : Results.NoContent());
+
+        account.MapPost("/passphrase", (ClaimsPrincipal me, UserService users) =>
+        {
+            var code = UserService.GeneratePassphrase();
+            users.SetPassword(me.Id(), code);
+            return Results.Ok(new { passphrase = code });
+        });
+
+        account.MapDelete("/passphrase", (ClaimsPrincipal me, UserService users) =>
+        {
+            users.SetPassword(me.Id(), null);
+            return Results.NoContent();
+        });
+
+        // ---- mutes (NT-16 to NT-22) --------------------------------------------------------------------------
+
+        account.MapPut("/mutes", (MutesPatch body, ClaimsPrincipal me, NotificationSettingsService mutes) =>
+        {
+            var id = me.Id();
+            if (body.Server is { } server) mutes.SetServerMute(id, server.Muted, server.Muted ? server.Until : null);
+            if (body.DmMode is { } dm) mutes.SetDmMode(id, dm);
+            if (body.RoomMode is { } room) mutes.SetRoomMode(id, room);
+            if (body.NewDmsMuted is { } newDms) mutes.SetNewDmsMuted(id, newDms);
+            if (body.Channel is { } channel) mutes.SetChannelMuted(id, channel.ChannelId, channel.Muted);
+            return Results.NoContent();
+        });
+    }
+
+    private static string? Blank(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+}
+
+/// <summary>Only the fields present are changed. A present empty string clears a profile field.</summary>
+public sealed record AccountPatch(string? DisplayName, string? Bio, string? Location, string? Theme, int? FontSize,
+    string? TimeZone, string? Locale, string? DateFormat, bool? SmartLoginOptOut);
+
+public sealed record DeviceDto(string DeviceId, bool IsMobile, string? Ip, DateTime LastActiveAt, bool Current);
+
+public sealed record SignOutOthersRequest(string DeviceId, string? PushEndpoint);
+
+public sealed record LinkDto(string Code, string Url, DateTime CreatedAt, DateTime? ExpiresAt)
+{
+    public static LinkDto From(AccessLink link, AccessLinkService links, Guid viewerId) => new(link.Code, links.BuildUrl(link.Code, viewerId), link.CreatedAt, link.ExpiresAt);
+}
+
+public sealed record ExpiryRequest(DateTime? ExpiresAt);
+
+public sealed record MutesPatch(ServerMutePatch? Server, NotificationMode? DmMode, NotificationMode? RoomMode, bool? NewDmsMuted, ChannelMutePatch? Channel);
+
+public sealed record ServerMutePatch(bool Muted, DateTime? Until);
+
+public sealed record ChannelMutePatch(Guid ChannelId, bool Muted);

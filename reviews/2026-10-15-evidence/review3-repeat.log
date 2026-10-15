@@ -1,0 +1,4 @@
+server: /d/PROJECTS/d3mnjx/repos/urza/Yap-r2/Yap/bin/Debug/net10.0/Yap.dll on http://127.0.0.1:5104, root /tmp/yap-browser-tests/root-pNdItF
+{"name":"Slow route module completes after a later navigation","bug":false,"url":"http://127.0.0.1:5104/dm/reviewbob","settings":0,"composer":1,"content":"R\nreviewbob\nreviewadmin\n1\n3\nThis is the beginning of your direct message history with reviewbob.\nGIF\nROOMS\n#\nlobby\n+\nAdd Room\nMAIN CHARACTERS (3)\nreviewadmin (you)\nPing\n1\nreviewbob"}
+{"name":"Account switch updates other tabs identity","bug":true,"tabUser":"reviewadmin","authenticatedUser":"reviewbob","actualAuthor":"reviewbob"}
+SERVER_ISSUES []

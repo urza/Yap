@@ -376,8 +376,16 @@ uploads/
 /Yap/Data/custom-emojis/*
 /Yap/Data/ip2location/*
 /Yap/Data/appsettings.json
+/Yap/Data/push-subscriptions.json
+/Yap/Data/gif-settings.json
+/Yap/Data/crash-*.log
+/Yap/Data/uploads/
 /Yap/Data/media-cache/*
 /Yap/Data/gif-cache/*
 
 # Local Claude instructions (machine-specific, not shared)
 CLAUDE.local.md
+/Yap/Data/link-token.key
+
+# Review evidence logs are part of the record, not runtime output.
+!reviews/**/*.log

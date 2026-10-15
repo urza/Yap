@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Offline and installation · Yap spec</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #f3f5f7; --surface: #ffffff; --surface-2: #e9edf1;
+  --fg: #182029; --muted: #56606e; --line: #d4dae2; --line-strong: #a9b3c0;
+  --accent: #0d6a87; --code-bg: #f8f9fb;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+    --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+  --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+main { max-width: 980px; margin: 0 auto; padding: 36px 16px 96px; display: flex; flex-direction: column; gap: 22px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.15; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 4.5vw, 2.8rem); font-weight: 700; }
+h2 { font-size: clamp(1.4rem, 2.6vw, 1.8rem); font-weight: 600; padding-top: 22px; margin-top: 14px; border-top: 1px solid var(--line-strong); }
+h3 { font-size: 1.12rem; font-weight: 600; margin-top: 6px; }
+p, ul, ol { margin: 0; max-width: 76ch; }
+ul, ol { padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
+li > ul, li > ol { margin-top: 6px; }
+a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 0.88em; background: var(--surface-2); padding: 0.05em 0.3em; border-radius: 3px; overflow-wrap: anywhere; }
+pre { margin: 0; padding: 12px 16px; overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--code-bg); font: 0.82rem/1.5 var(--mono); }
+pre code { background: none; padding: 0; font-size: inherit; }
+blockquote { margin: 0; padding: 10px 16px; border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; max-width: 76ch; }
+.eyebrow { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+nav.pages { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+nav.pages a, nav.pages span { display: inline-block; padding: 3px 10px; border: 1px solid var(--line); border-radius: 4px; text-decoration: none; color: var(--fg); background: var(--surface); font-size: 0.86rem; }
+nav.pages span { color: var(--muted); border-style: dashed; }
+nav.pages a[aria-current] { border-color: var(--accent); color: var(--accent); }
+.rule { border: 1px solid var(--line); border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; padding: 10px 14px; max-width: 76ch; scroll-margin-top: 16px; }
+.rule .id { font-family: var(--mono); font-size: 0.8rem; color: var(--accent); margin-right: 8px; }
+.rule .why { color: var(--muted); }
+figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+figcaption { font-size: 0.9rem; color: var(--muted); max-width: 80ch; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+th { font-family: var(--display); font-weight: 600; background: var(--surface-2); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+footer { font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; }
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">Yap · product specification</div>
+<nav class="pages" aria-label="Spec pages"><a href="index.html">Index</a><a href="yap.html">Yap</a><a href="general-rules.html">General rules</a><a href="input-box.html">Input box</a><a href="message-row.html">Message row and actions</a><a href="pickers.html">Emoji and GIF pickers</a><a href="timeline.html">Timeline and media</a><a href="frame.html">Header, sidebar and overlays</a><a href="settings.html">Settings</a><a href="admin.html">Administration</a><a href="presence.html">Presence</a><a href="notifications.html">Notifications and unread</a><a href="sessions.html">Sign-in and sessions</a><a href="offline.html" aria-current="page">Offline and installation</a></nav>
+<h1 id="offline-and-installation">Offline and installation</h1>
+<p>Yap runs in the browser and can also be installed as an app on a phone or a desktop. Without a connection, the user can still read conversations, and Yap keeps what the user writes. This page specifies what the installed app is, what works without a connection, and what happens to messages written offline. The design is in <code>docs/offline-design-notes.md</code>. The promise on this page is intentionally limited. Yap is not a critical system. The loss of a message on rare occasions is acceptable. A delay of one second on every tap is not acceptable.</p>
+<figure><img src="../img/offline-phone-pending.png" alt="Phone, offline. The grey connection ring in the header, the last messages readable, a faded pending message at the bottom." loading="lazy"><figcaption>Phone, offline. The grey connection ring in the header, the last messages readable, a faded pending message at the bottom.</figcaption></figure>
+<h2 id="rules">Rules</h2>
+<h3 id="installation">Installation</h3>
+<p class="rule" id="OF-01"><span class="id">OF-01</span>The user can install Yap from the bot's welcome message ("install it"), from Settings ("Install Yap"), or from the browser's own install control. The install dialog first explains how to replace an older install. Then it starts the browser's install or shows the add-to-home-screen guide. When Yap is already installed, the dialog says so.</p>
+<p class="rule" id="OF-02"><span class="id">OF-02</span>The installed app opens full screen, with the Yap icon, name and colours. It starts on the user's last conversation, or on the lobby if there is none.</p>
+<p class="rule" id="OF-03"><span class="id">OF-03</span>When the app is installed from a signed-in browser, it signs in automatically on its first launch, within 72 hours after the install. An app that still starts signed out shows the login page, as the <a href="sessions.html#AU-24">sign-in page</a> says. After its first sign-in, the app keeps its own session, like any device.</p>
+<p class="rule" id="OF-04"><span class="id">OF-04</span>The notice strip announces a new version of Yap with "Reload". Yap never reloads automatically. A reload keeps drafts and unsent messages.</p>
+<h3 id="without-a-connection">Without a connection</h3>
+<p class="rule" id="OF-05"><span class="id">OF-05</span>The header shows the connection state. It shows a grey ring while the device is offline and a pulsing orange dot while it reconnects. No banner covers the content. Other people see the person as away after 30 seconds and as offline after 5 minutes, as the <a href="presence.html#PR-15">presence page</a> says. A device that is signed out from elsewhere receives the sign-out when the connection returns.</p>
+<p class="rule" id="OF-06"><span class="id">OF-06</span>Every conversation that the user opened on this device shows its last messages. The user can read and scroll it, also after a reload. When older messages were not loaded, the top of the list shows "Needs a connection". Media that was seen before shows. Media that was not seen before shows "Needs a connection" in its place.</p>
+<p class="rule" id="OF-07"><span class="id">OF-07</span>Typing, drafts, emoji, the emoji picker, the GIF picker's own lists, a switch between conversations and reading all work without a connection. Settings and Administration need a connection.</p>
+<p class="rule" id="OF-08"><span class="id">OF-08</span>Sending works without a connection, also in a conversation that the user never opened on the device. Send accepts the message, shows it as pending in the conversation and keeps it on the device. Yap sends the message when the connection returns, also after the app was closed and opened again.</p>
+<p class="rule" id="OF-09"><span class="id">OF-09</span>Without a connection, Yap accepts a pick of files up to 25 MB in total. Yap refuses a larger pick, and the input box shows "Needs a connection".</p>
+<p class="rule" id="OF-10"><span class="id">OF-10</span>Yap sends pending messages in the order in which the user wrote them, as soon as a connection exists. The user sees each one change into a normal message. The user does not have to do anything.</p>
+<p class="rule" id="OF-11"><span class="id">OF-11</span>When the server refuses a pending message, the message shows as failed, with the reason, "Retry" and "Remove". A pending message that waits for more than one day also shows as failed. Remove deletes the message from the device only.</p>
+<p class="rule" id="OF-12"><span class="id">OF-12</span>Reactions, edits and deletions of sent messages, the GIF star, GIF uploads, search and trending need a connection. When the user tries one of them, Yap shows "Needs a connection" there, and nothing changes. A GIF pick is queued like a message. The user can still edit and remove a pending message on the device. The status items in the status menu are dimmed.</p>
+<p class="rule" id="OF-13"><span class="id">OF-13</span>Yap reconnects automatically when the network returns and when the tab becomes visible again. It also reconnects when the user taps the connection dot. The tap also shows the bubble of the dot. Yap then refreshes the newest messages and corrects the unread counts. The view keeps its position.</p>
+<h3 id="the-promise-and-its-limits">The promise and its limits</h3>
+<p class="rule" id="OF-14"><span class="id">OF-14</span>Reading without a connection shows what the device already has. Yap does not download in advance any conversation that the user did not open.</p>
+<p class="rule" id="OF-15"><span class="id">OF-15</span>Sending later is best effort. A message is lost with no indication when the device loses its storage or when another account signs in on the device. In every other case, a message that cannot be sent shows as failed.</p>
+<p class="rule" id="OF-16"><span class="id">OF-16</span>A sign-out removes every draft, pending message, cached conversation and notification subscription of the previous account. A sign-in of a different account on the device does the same.</p>
+<h2 id="states">States</h2>
+<div class="tablewrap"><table><thead><tr><th>State or trigger</th><th>Input</th><th>What the user sees</th></tr></thead><tbody><tr><td>"install it" or "Install Yap"</td><td>touch, mouse</td><td>Install dialog; then the browser's install or the guide.</td></tr><tr><td>Installed app launched</td><td>touch</td><td>Full screen, last conversation; signed in when installed from a signed-in browser within 72 hours, else the login page.</td></tr><tr><td>New version</td><td>all</td><td>Notice strip with "Reload"; nothing changes until the tap.</td></tr><tr><td>Connection lost</td><td>all</td><td>Grey ring; everything readable.</td></tr><tr><td>Open a conversation seen before</td><td>all</td><td>Its last messages at once.</td></tr><tr><td>Open a conversation never seen</td><td>all</td><td>Header and empty list with "Needs a connection".</td></tr><tr><td>Send a text</td><td>keyboard, touch</td><td>Pending row at the end at once.</td></tr><tr><td>Files picked without a connection, under 25 MB</td><td>touch, mouse</td><td>Pending row with the files.</td></tr><tr><td>Files picked without a connection, over 25 MB</td><td>touch, mouse</td><td>The pick is refused; "Needs a connection" in the input box.</td></tr><tr><td>Reaction, edit or delete on a sent message</td><td>touch, mouse</td><td>"Needs a connection" at the row.</td></tr><tr><td>Connection returns</td><td>all</td><td>Pending rows become normal rows in order; counts corrected; view unchanged.</td></tr><tr><td>Server refuses a pending message</td><td>all</td><td>"Failed", reason, "Retry", "Remove".</td></tr><tr><td>Pending for more than a day</td><td>all</td><td>Shown as failed.</td></tr><tr><td>App closed with pending messages, reopened online</td><td>touch</td><td>They are sent.</td></tr><tr><td>Sign out</td><td>touch, mouse</td><td>Device data removed; a confirmation first when pending messages exist.</td></tr></tbody></table></div>
+<h2 id="wording">Wording</h2>
+<div class="tablewrap"><table><thead><tr><th>Where</th><th>Text</th></tr></thead><tbody><tr><td>Install dialog</td><td>see the <a href="frame.html#SH-40">frame page</a></td></tr><tr><td>Settings, install section</td><td>"Install as App"; "Install Yap to your home screen for a full-screen experience with push notifications and quick access."; "Install Yap"; "Yap is installed as an app on this device."</td></tr><tr><td>Bot welcome, phones</td><td>"📱 I noticed you're on a phone. It's a much better experience if you install it to your homescreen — it will look and feel like a normal app. Please also allow notifications when prompted so you don't miss messages. You can change this anytime in Settings."</td></tr><tr><td>New version</td><td>"You are awesome and so is the new version of this app. Please refresh."; "Reload"</td></tr><tr><td>Connection bubble</td><td>"Offline. Messages are sent when the connection returns."; "Reconnecting…"</td></tr><tr><td>Top of the list without older messages</td><td>"Needs a connection"</td></tr><tr><td>Row actions and media not seen before, without a connection</td><td>"Needs a connection"</td></tr><tr><td>Input box, too much to queue</td><td>"Needs a connection"</td></tr><tr><td>Failed message</td><td>"Failed"; "Retry"; "Remove"</td></tr></tbody></table></div>
+<h2 id="related">Related</h2>
+<ul><li><a href="input-box.html">Input box</a> for sending and the pending row.</li><li><a href="message-row.html">Message row and actions</a> for the pending and failed rows.</li><li><a href="timeline.html">Timeline and media</a> for what the list shows without a connection.</li><li><a href="frame.html">Header, sidebar and overlays</a> for the connection state and the install dialog.</li><li><a href="notifications.html">Notifications and unread</a> for notifications on the installed app.</li><li><a href="sessions.html">Sign-in and sessions</a> for the installed app's session.</li></ul>
+<footer>Source: <code>docs/spec/offline.md</code>. Edit the Markdown, then run <code>python3 docs/spec/tools/build.py</code>.</footer>
+</main>
+</body>
+</html>

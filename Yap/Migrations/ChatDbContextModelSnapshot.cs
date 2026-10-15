@@ -3,7 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using Yap.Data;
+using Yap.Services.Persistence;
 
 #nullable disable
 
@@ -17,7 +17,7 @@ namespace Yap.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.10");
 
-            modelBuilder.Entity("Yap.Models.AccessLink", b =>
+            modelBuilder.Entity("Yap.Models.Accounts.AccessLink", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -66,7 +66,193 @@ namespace Yap.Migrations
                     b.ToTable("AccessLinks");
                 });
 
-            modelBuilder.Entity("Yap.Models.Channel", b =>
+            modelBuilder.Entity("Yap.Models.Accounts.User", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Bio")
+                        .HasMaxLength(150)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Country")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DateFormat")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EmojiCounts")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("FontSize")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsAdmin")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("KnownIps")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastSeenAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Locale")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("NotifDmMode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("NotifNewDmsMuted")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("NotifRoomMode")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(1);
+
+                    b.Property<DateTime?>("NotifServerMuteUntil")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("NotifServerMuted")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Password")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProfilePictureUrl")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("PushMuted")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("PwaInstalledAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RecentEmojis")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RecentGifs")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("SmartLoginOptOut")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Theme")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TimeZone")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.HasIndex("Username")
+                        .IsUnique();
+
+                    b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("Yap.Models.Accounts.UserNote", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("AuthorId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TargetId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorId", "TargetId")
+                        .IsUnique();
+
+                    b.ToTable("UserNotes");
+                });
+
+            modelBuilder.Entity("Yap.Models.Admin.UserActionLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("IP")
+                        .HasMaxLength(45)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Info")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Url")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserUid")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Action");
+
+                    b.HasIndex("Date");
+
+                    b.HasIndex("UserUid");
+
+                    b.ToTable("UserActionLogs");
+                });
+
+            modelBuilder.Entity("Yap.Models.Chat.Channel", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -132,25 +318,7 @@ namespace Yap.Migrations
                     b.ToTable("Channels");
                 });
 
-            modelBuilder.Entity("Yap.Models.ChannelNotificationSetting", b =>
-                {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("ChannelId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("Muted")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("UserId", "ChannelId");
-
-                    b.HasIndex("ChannelId");
-
-                    b.ToTable("ChannelNotificationSettings");
-                });
-
-            modelBuilder.Entity("Yap.Models.ChannelReadState", b =>
+            modelBuilder.Entity("Yap.Models.Chat.ChannelReadState", b =>
                 {
                     b.Property<Guid>("UserId")
                         .HasColumnType("TEXT");
@@ -171,13 +339,16 @@ namespace Yap.Migrations
                     b.ToTable("ChannelReadStates");
                 });
 
-            modelBuilder.Entity("Yap.Models.ChatMessage", b =>
+            modelBuilder.Entity("Yap.Models.Chat.ChatMessage", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("ChannelId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ClientId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Content")
@@ -225,7 +396,37 @@ namespace Yap.Migrations
                     b.ToTable("Messages");
                 });
 
-            modelBuilder.Entity("Yap.Models.FavoriteGif", b =>
+            modelBuilder.Entity("Yap.Models.Chat.Reaction", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Emoji")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("MessageId", "Emoji", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("Reactions");
+                });
+
+            modelBuilder.Entity("Yap.Models.Gifs.FavoriteGif", b =>
                 {
                     b.Property<Guid>("UserId")
                         .HasColumnType("TEXT");
@@ -247,7 +448,7 @@ namespace Yap.Migrations
                     b.ToTable("FavoriteGifs");
                 });
 
-            modelBuilder.Entity("Yap.Models.GifEntry", b =>
+            modelBuilder.Entity("Yap.Models.Gifs.GifEntry", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -352,7 +553,7 @@ namespace Yap.Migrations
                     b.ToTable("GifEntries");
                 });
 
-            modelBuilder.Entity("Yap.Models.MediaUploadLog", b =>
+            modelBuilder.Entity("Yap.Models.Media.MediaUploadLog", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -406,7 +607,25 @@ namespace Yap.Migrations
                     b.ToTable("MediaUploadLogs");
                 });
 
-            modelBuilder.Entity("Yap.Models.PushSubscription", b =>
+            modelBuilder.Entity("Yap.Models.Notifications.ChannelNotificationSetting", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ChannelId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Muted")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("UserId", "ChannelId");
+
+                    b.HasIndex("ChannelId");
+
+                    b.ToTable("ChannelNotificationSettings");
+                });
+
+            modelBuilder.Entity("Yap.Models.Notifications.PushSubscription", b =>
                 {
                     b.Property<string>("Endpoint")
                         .HasMaxLength(2048)
@@ -434,240 +653,27 @@ namespace Yap.Migrations
                     b.ToTable("PushSubscriptions");
                 });
 
-            modelBuilder.Entity("Yap.Models.Reaction", b =>
+            modelBuilder.Entity("Yap.Models.Accounts.AccessLink", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Emoji")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("MessageId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Username")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("MessageId", "Emoji", "UserId")
-                        .IsUnique();
-
-                    b.ToTable("Reactions");
-                });
-
-            modelBuilder.Entity("Yap.Models.User", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Bio")
-                        .HasMaxLength(150)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Country")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DateFormat")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DisplayName")
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("EmojiCounts")
-                        .HasMaxLength(2048)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int?>("FontSize")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("IsAdmin")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("KnownIps")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("LastSeenAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Locale")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("NotifDmMode")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("NotifNewDmsMuted")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("NotifRoomMode")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasDefaultValue(1);
-
-                    b.Property<DateTime?>("NotifServerMuteUntil")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("NotifServerMuted")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Password")
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ProfilePictureUrl")
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("PushMuted")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime?>("PwaInstalledAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("RecentEmojis")
-                        .HasMaxLength(2048)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("RecentGifs")
-                        .HasMaxLength(2048)
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("SmartLoginOptOut")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Theme")
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("TimeZone")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Token")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Username")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Token")
-                        .IsUnique();
-
-                    b.HasIndex("Username")
-                        .IsUnique();
-
-                    b.ToTable("Users");
-                });
-
-            modelBuilder.Entity("Yap.Models.UserActionLog", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Action")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("Date")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("IP")
-                        .HasMaxLength(45)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Info")
-                        .HasMaxLength(1024)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Url")
-                        .HasMaxLength(2048)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UserAgent")
-                        .HasMaxLength(512)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UserUid")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Action");
-
-                    b.HasIndex("Date");
-
-                    b.HasIndex("UserUid");
-
-                    b.ToTable("UserActionLogs");
-                });
-
-            modelBuilder.Entity("Yap.Models.UserNote", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<Guid>("AuthorId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TargetId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Text")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AuthorId", "TargetId")
-                        .IsUnique();
-
-                    b.ToTable("UserNotes");
-                });
-
-            modelBuilder.Entity("Yap.Models.AccessLink", b =>
-                {
-                    b.HasOne("Yap.Models.User", null)
+                    b.HasOne("Yap.Models.Accounts.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade);
                 });
 
-            modelBuilder.Entity("Yap.Models.Channel", b =>
+            modelBuilder.Entity("Yap.Models.Chat.Channel", b =>
                 {
-                    b.HasOne("Yap.Models.User", "Creator")
+                    b.HasOne("Yap.Models.Accounts.User", "Creator")
                         .WithMany()
                         .HasForeignKey("CreatedById")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("Yap.Models.User", "Participant1User")
+                    b.HasOne("Yap.Models.Accounts.User", "Participant1User")
                         .WithMany()
                         .HasForeignKey("Participant1Id")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("Yap.Models.User", "Participant2User")
+                    b.HasOne("Yap.Models.Accounts.User", "Participant2User")
                         .WithMany()
                         .HasForeignKey("Participant2Id")
                         .OnDelete(DeleteBehavior.SetNull);
@@ -679,26 +685,15 @@ namespace Yap.Migrations
                     b.Navigation("Participant2User");
                 });
 
-            modelBuilder.Entity("Yap.Models.ChannelNotificationSetting", b =>
+            modelBuilder.Entity("Yap.Models.Chat.ChannelReadState", b =>
                 {
-                    b.HasOne("Yap.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Yap.Models.ChannelReadState", b =>
-                {
-                    b.HasOne("Yap.Models.Channel", "Channel")
+                    b.HasOne("Yap.Models.Chat.Channel", "Channel")
                         .WithMany("ReadStates")
                         .HasForeignKey("ChannelId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Yap.Models.User", "User")
+                    b.HasOne("Yap.Models.Accounts.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -709,15 +704,15 @@ namespace Yap.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Yap.Models.ChatMessage", b =>
+            modelBuilder.Entity("Yap.Models.Chat.ChatMessage", b =>
                 {
-                    b.HasOne("Yap.Models.Channel", "Channel")
+                    b.HasOne("Yap.Models.Chat.Channel", "Channel")
                         .WithMany("Messages")
                         .HasForeignKey("ChannelId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Yap.Models.User", "User")
+                    b.HasOne("Yap.Models.Accounts.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -728,44 +723,15 @@ namespace Yap.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Yap.Models.FavoriteGif", b =>
+            modelBuilder.Entity("Yap.Models.Chat.Reaction", b =>
                 {
-                    b.HasOne("Yap.Models.GifEntry", "GifEntry")
-                        .WithMany()
-                        .HasForeignKey("GifEntryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Yap.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("GifEntry");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Yap.Models.GifEntry", b =>
-                {
-                    b.HasOne("Yap.Models.User", "UploadedByUser")
-                        .WithMany()
-                        .HasForeignKey("UploadedByUserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("UploadedByUser");
-                });
-
-            modelBuilder.Entity("Yap.Models.Reaction", b =>
-                {
-                    b.HasOne("Yap.Models.ChatMessage", "Message")
+                    b.HasOne("Yap.Models.Chat.ChatMessage", "Message")
                         .WithMany("Reactions")
                         .HasForeignKey("MessageId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Yap.Models.User", "User")
+                    b.HasOne("Yap.Models.Accounts.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -776,14 +742,54 @@ namespace Yap.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Yap.Models.Channel", b =>
+            modelBuilder.Entity("Yap.Models.Gifs.FavoriteGif", b =>
+                {
+                    b.HasOne("Yap.Models.Gifs.GifEntry", "GifEntry")
+                        .WithMany()
+                        .HasForeignKey("GifEntryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Yap.Models.Accounts.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("GifEntry");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Yap.Models.Gifs.GifEntry", b =>
+                {
+                    b.HasOne("Yap.Models.Accounts.User", "UploadedByUser")
+                        .WithMany()
+                        .HasForeignKey("UploadedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("UploadedByUser");
+                });
+
+            modelBuilder.Entity("Yap.Models.Notifications.ChannelNotificationSetting", b =>
+                {
+                    b.HasOne("Yap.Models.Accounts.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Yap.Models.Chat.Channel", b =>
                 {
                     b.Navigation("Messages");
 
                     b.Navigation("ReadStates");
                 });
 
-            modelBuilder.Entity("Yap.Models.ChatMessage", b =>
+            modelBuilder.Entity("Yap.Models.Chat.ChatMessage", b =>
                 {
                     b.Navigation("Reactions");
                 });

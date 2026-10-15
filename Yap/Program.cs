@@ -1,17 +1,30 @@
-using Microsoft.AspNetCore.Components.Server;
-using Microsoft.AspNetCore.Components.Server.Circuits;
-using Microsoft.AspNetCore.Components.Web;
+using Microsoft.AspNetCore.ResponseCompression;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.FileProviders;
-using Yap.Components;
+using Yap.Configuration;
 using Yap.Endpoints;
+using Yap.Helpers;
 using Yap.Extensions;
 using Yap.Middleware;
 using Yap.Services;
 using Yap.Services.Gifs;
+using Yap.Services.Accounts;
+using Yap.Services.Admin;
+using Yap.Services.Chat;
+using Yap.Services.Emoji;
+using Yap.Services.Media;
+using Yap.Services.Notifications;
+using Yap.Services.Presence;
+
+// The composition root: configuration, the singleton services, the middleware, the hub and the routes.
+// The design is in docs/architecture/ (auth-and-program.md for this file).
 
 var builder = WebApplication.CreateBuilder(args);
 
-// No framework-level size limits — actual limit enforced in upload endpoint via ChatSettings:MaxUploadSizeMB
+// No framework-level size limits: the real limit is enforced in the upload endpoint via ChatSettings:MaxUploadSizeMB.
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.Limits.MaxRequestBodySize = null;
@@ -21,89 +34,60 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(optio
     options.MultipartBodyLengthLimit = long.MaxValue;
 });
 
-// Load config from Data folder if exists (for Docker deployment)
-// Replaces the default appsettings.json entirely to avoid .NET's array merge behavior
+// Load config from the Data folder if it exists (Docker deployment).
+// It replaces the default appsettings.json entirely, to avoid .NET's array merge behaviour.
 var dataConfigPath = Path.Combine(builder.Environment.ContentRootPath, "Data", "appsettings.json");
 var dataDir = Path.GetDirectoryName(dataConfigPath)!;
+
+// A fatal error leaves a trace next to the data, because the console is gone with the process. A Windows
+// dev machine lost the process during uploads (2026-10-15) and no log survived it.
+AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+{
+    try { File.AppendAllText(Path.Combine(dataDir, $"crash-{DateTime.UtcNow:yyyy-MM-dd}.log"), $"{DateTime.UtcNow:O} terminating={e.IsTerminating}\n{e.ExceptionObject}\n\n"); }
+    catch { /* nothing left to do */ }
+};
 if (Directory.Exists(dataDir) && !File.Exists(dataConfigPath))
 {
-    // Seed the Data folder with default config so deployers have a template to edit
+    // Seed the Data folder with the default config so deployers have a template to edit.
     var defaultPath = Path.Combine(builder.Environment.ContentRootPath, "appsettings.json");
     if (File.Exists(defaultPath))
         File.Copy(defaultPath, dataConfigPath);
 }
 if (File.Exists(dataConfigPath))
 {
-    var defaultSource = builder.Configuration.Sources
-        .OfType<Microsoft.Extensions.Configuration.Json.JsonConfigurationSource>()
-        .FirstOrDefault(s => s.Path == "appsettings.json");
-    if (defaultSource != null)
-        builder.Configuration.Sources.Remove(defaultSource);
-
-    builder.Configuration.AddJsonFile(dataConfigPath, optional: false, reloadOnChange: true);
+    // The Data file takes the built-in file's place in the stack, not the top of it: environment
+    // variables and the command line stay above it, so a deployment or a test can still override a key.
+    var sources = builder.Configuration.Sources;
+    var index = sources.ToList().FindIndex(s => s is Microsoft.Extensions.Configuration.Json.JsonConfigurationSource { Path: "appsettings.json" });
+    var dataSource = new Microsoft.Extensions.Configuration.Json.JsonConfigurationSource { Path = dataConfigPath, Optional = false, ReloadOnChange = true };
+    dataSource.ResolveFileProvider();
+    if (index >= 0) { sources.RemoveAt(index); sources.Insert(index, dataSource); }
+    else sources.Add(dataSource);
 }
 
-// =============================================================================
-// BLAZOR SERVER CIRCUIT CONFIGURATION (.NET 10)
-// =============================================================================
-// Blazor Server uses "circuits" to maintain state for each connected user.
-// When the WebSocket connection drops (e.g., user closes laptop), the circuit
-// becomes "disconnected" but is kept alive for a grace period.
-//
-// There are TWO retention periods to understand:
-// 1. DisconnectedCircuitRetentionPeriod - How long the circuit stays "warm"
-//    waiting for the SAME WebSocket to reconnect (default: 3 minutes)
-// 2. PersistedCircuitInMemoryRetentionPeriod - How long the STATE is kept
-//    AFTER the circuit is evicted, allowing a NEW circuit to restore it
-//    via Blazor.resumeCircuit() (default: 2 hours)
-// =============================================================================
+builder.Services.AddProblemDetails();
 
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents(options =>
-    {
-        // Keep disconnected circuits alive for 4 hours instead of 3 minutes.
-        // This allows seamless reconnection if user returns within 4 hours
-        // (e.g., laptop sleep, switching apps on phone).
-        // Tradeoff: Each retained circuit uses server memory.
-        options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromHours(4);
-        //for debugging evictions, set a short time:
-        //options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromSeconds(10);
+// Enums travel as camelCase strings on both JSON surfaces, the API and the hub ("away", not 1).
+builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
+builder.Services.AddSignalR()
+    .AddJsonProtocol(o => o.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)))
+    .AddHubOptions<ChatHub>(o => o.AddFilter<HubLatencyFilter>());
+builder.Services.AddSingleton<HubLatencyFilter>();
 
-        // Maximum number of disconnected circuits to retain (default: 100).
-        // Increase this if you expect many concurrent users going idle.
-        options.DisconnectedCircuitMaxRetained = 1000;
-
-        // Show detailed errors in browser console (useful for debugging)
-        options.DetailedErrors = builder.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("DetailedErrors");
-    })
-    // =============================================================================
-    // PERSISTENT SERVICES (.NET 10)
-    // =============================================================================
-    // RegisterPersistentService tells Blazor to automatically persist properties
-    // marked with [PersistentState] when a circuit is evicted. When the user
-    // reconnects and calls Blazor.resumeCircuit(), these properties are restored.
-    // This allows users to "resume" their session even after long disconnections.
-    // =============================================================================
-    .RegisterPersistentService<UserStateService>(RenderMode.InteractiveServer)
-    .RegisterPersistentService<ChatNavigationState>(RenderMode.InteractiveServer);
-
-// =============================================================================
-// PERSISTED CIRCUIT STATE RETENTION (.NET 10)
-// =============================================================================
-// After a circuit is evicted (disconnected longer than DisconnectedCircuitRetentionPeriod),
-// the [PersistentState] data is still kept in memory for this duration.
-// This is separate from the circuit itself - it's just the serialized state.
-// =============================================================================
-builder.Services.Configure<CircuitOptions>(options =>
+// Brotli or gzip for the shell, the scripts, the CSS and the JSON documents. On for https too: the
+// pages carry no secret that a compression attack could read, and the deployment publishes Kestrel
+// directly (docker-compose.yml), so no proxy compresses in its place.
+builder.Services.AddResponseCompression(o =>
 {
-    // Keep persisted state for 24 hours (default: 2 hours).
-    // This means a user can close their browser, come back the next day,
-    // and still have their username/navigation state restored.
-    options.PersistedCircuitInMemoryRetentionPeriod = TimeSpan.FromHours(48);
-
-    // Maximum number of persisted states to keep (default: 1000).
-    options.PersistedCircuitInMemoryMaxRetained = 5000;
+    o.EnableForHttps = true;
+    o.MimeTypes = [.. ResponseCompressionDefaults.MimeTypes, "image/svg+xml", "application/manifest+json"];
 });
+
+// The sign-in cookie becomes a principal with the account id, the username and the admin role.
+builder.Services.AddAuthentication(YapCookieAuthHandler.SchemeName)
+    .AddScheme<AuthenticationSchemeOptions, YapCookieAuthHandler>(YapCookieAuthHandler.SchemeName, null);
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy(YapCookieAuthHandler.AdminPolicy, policy => policy.RequireRole(YapCookieAuthHandler.AdminRole));
 
 // Persistence (optional database support)
 builder.Services.AddChatPersistence(builder.Configuration);
@@ -130,7 +114,7 @@ builder.Services.AddHttpClient("LinkPreview", client =>
 // A scraper must not keep cookies. YouTube sets a pending-consent cookie (SOCS) on the redirect
 // hop of /shorts and youtu.be links; seeing it on the final request, it serves the "Before you
 // continue" interstitial (no og: tags, wrong title) instead of the video page.
-.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { UseCookies = false });
+.FetchesPublicAddressesOnly(useCookies: false);
 
 // Named HttpClient for pulling media files (TikTok slideshow images) straight from a CDN.
 // The browser UA matters: TikTok's CDN rejects bare clients, and the caller adds the Referer.
@@ -139,64 +123,60 @@ builder.Services.AddHttpClient("MediaFetch", client =>
     client.Timeout = TimeSpan.FromSeconds(30);
     client.DefaultRequestHeaders.UserAgent.ParseAdd(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
-});
+}).FetchesPublicAddressesOnly();
 
 // Named HttpClient for the GIF provider (Klipy today). Shared for API requests + CDN downloads.
 builder.Services.AddHttpClient("Klipy", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(15);
     client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (compatible; YapBot/1.0)");
-});
+}).FetchesPublicAddressesOnly();   // the provider's item URLs are the client's words
 
 // Chat services
 builder.Services.AddSingleton<LinkPreviewSettingsService>();
 builder.Services.AddSingleton<LinkPreviewService>();
 builder.Services.AddSingleton<MediaCacheService>();
-// GIF feature — registered before ChatService since ChatService depends on GifService.
+// GIF feature: registered before ChatService since ChatService depends on GifService.
 builder.Services.AddSingleton<GifAdminSettingsService>();
 builder.Services.AddSingleton<GifFfmpegHelper>();
 builder.Services.AddSingleton<IGifSourceProvider, KlipyGifProvider>();
 builder.Services.AddSingleton<GifService>();
 builder.Services.AddSingleton<GeoLocationService>();
 builder.Services.AddSingleton<CustomEmojiService>();
+builder.Services.AddSingleton<EmojiCatalog>();
+builder.Services.AddSingleton<UploadPaths>();
 builder.Services.AddSingleton<ImageService>();
 builder.Services.AddSingleton<VideoService>();
 builder.Services.AddSingleton<PushSubscriptionStore>();
 builder.Services.AddSingleton<PushNotificationService>();
-builder.Services.AddSingleton<CircuitTracker>();  // Circuit diagnostics
+builder.Services.AddSingleton<PresenceService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<PresenceService>());   // the 10 s presence sweep
 builder.Services.AddSingleton<NotificationAudit>();  // Push + unread audit trails (admin diagnostics)
 builder.Services.AddSingleton<UserService>();     // User management with token auth
 builder.Services.AddSingleton<LinkTokenService>(); // PWA start_url login link tokens
 builder.Services.AddSingleton<AccessLinkService>(); // invite / login links (/invite/{code})
 builder.Services.AddSingleton<NotificationSettingsService>();  // per-channel mute rules (read by ChatService)
 builder.Services.AddSingleton<ChatService>();
+builder.Services.AddSingleton<MessageMapper>();   // the one mapping from a message to its wire shape
+builder.Services.AddSingleton<ChatHubBroadcaster>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ChatHubBroadcaster>());   // service events -> hub messages
 builder.Services.AddSingleton<SystemBotService>();
 builder.Services.AddSingleton<RegistrationGateService>();
-builder.Services.AddScoped<ChatConfigService>();
-builder.Services.AddScoped<EmojiService>();
-builder.Services.AddScoped<UserStateService>();
-builder.Services.AddScoped<ChatNavigationState>();
-builder.Services.AddScoped<CircuitHandler, ChatCircuitHandler>();
-builder.Services.AddScoped<CircuitIdentity>();    // circuit-id bridge so components can report per-circuit telemetry
-
-// HTTP context accessor (for device detection in Blazor components)
-builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<SignInService>();
+builder.Services.AddSingleton<ServerConfig>();
 
 // Request logging
 builder.Services.AddSingleton<RequestLogQueue>();
 builder.Services.AddHostedService<RequestLogWriter>();
 
-// User action logging (queued, flushed to database periodically)
 builder.Services.AddSingleton<UserActionLogService>();
-builder.Services.AddHostedService(sp => sp.GetRequiredService<UserActionLogService>());
-
-// Media upload logging (queued, flushed to database periodically)
 builder.Services.AddSingleton<MediaUploadLogService>();
-builder.Services.AddHostedService(sp => sp.GetRequiredService<MediaUploadLogService>());
 
 // Diagnostics collector (captures snapshots every 30s for admin charts)
 builder.Services.AddSingleton<DiagnosticsCollectorService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DiagnosticsCollectorService>());
+builder.Services.AddHostedService<TusCleanupService>();   // expired unfinished uploads leave the disk
+builder.Services.AddSingleton<ProxyWatch>();              // the notice about a proxy that is not trusted
 
 // CORS for upload subdomain (tus uploads may come from a different origin)
 builder.Services.AddCors(options =>
@@ -213,31 +193,27 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Initialize persistence (migrations + load data) if enabled
-await app.Services.InitializePersistenceAsync();
-
-// Initialize users from database (must be before ChatService.InitializeAsync)
+// Fill memory from the database, in dependency order: users first (channels and links point at them),
+// mute rules before the chat (unread counting reads them), the bot last (it subscribes to the others).
+await app.Services.InitializePersistenceAsync();   // migrations
 await app.Services.GetRequiredService<UserService>().LoadUsersAsync();
-
-// Invite / login links (after users, which the rows point at; before the bot, which subscribes to the brake)
 await app.Services.GetRequiredService<AccessLinkService>().LoadAsync();
-
-// Initialize GIF library (warm in-memory index from DB)
+await app.Services.GetRequiredService<NotificationSettingsService>().InitializeAsync();
+await app.Services.GetRequiredService<ChatService>().InitializeAsync();
+app.Services.GetRequiredService<VideoService>();   // the ffmpeg probe (a child process, up to 3 s) runs here, not inside the first upload
 await app.Services.GetRequiredService<GifService>().InitializeAsync();
-
-// Load push subscriptions from database
 await app.Services.GetRequiredService<PushSubscriptionStore>().InitializeAsync();
-
-// Initialize system bot (must be after UserService + ChatService)
 await app.Services.GetRequiredService<SystemBotService>().InitializeAsync();
 
 // Clean up old action logs (keep last 100 per user, delete older than 6 months)
 await app.Services.GetRequiredService<UserActionLogService>().CleanupAsync();
 
+var uploads = app.Services.GetRequiredService<UploadPaths>();
+
 // Clear uploads folder on start if configured
 if (builder.Configuration.GetValue<bool>("ChatSettings:ClearUploadsOnStart", true))
 {
-    var uploadsPath = Path.Combine(app.Environment.WebRootPath, "uploads");
+    var uploadsPath = uploads.Root;
     if (Directory.Exists(uploadsPath))
     {
         foreach (var file in Directory.GetFiles(uploadsPath))
@@ -248,21 +224,36 @@ if (builder.Configuration.GetValue<bool>("ChatSettings:ClearUploadsOnStart", tru
 }
 
 // Configure the HTTP request pipeline.
+// First: the proxies in ChatSettings:TrustedProxies may say who the client is and which scheme it used. A forwarded
+// header from any other peer stays on the request, and IpHelper then reports the address as unknown (AU-09).
+app.UseForwardedHeaders(TrustedProxies.Options(builder.Configuration));
+var proxyWatch = app.Services.GetRequiredService<ProxyWatch>();
+if (proxyWatch.Trusted.Count > 0) app.Logger.LogInformation("Trusted proxies: {Proxies}", string.Join(", ", proxyWatch.Trusted));
+else app.Logger.LogWarning("Trusted proxies: none. Behind a reverse proxy (Caddy, nginx, Cloudflare) list it in ChatSettings:TrustedProxies; until then every client address counts as unknown and smart login is off");
+// The notice reaches the admin in three places: this log, the bot's message, and the admin page (ProxyWatch).
+app.Use(async (context, next) =>
+{
+    if (proxyWatch.Note(context))   // the first request with a forwarded header from a peer that is not trusted
+    {
+        app.Logger.LogWarning("A request from {Peer} carries X-Forwarded-For {ForwardedFor}, and that peer is not in ChatSettings:TrustedProxies. Client addresses count as unknown and smart login is off until the proxy is listed", proxyWatch.UntrustedPeer, proxyWatch.ForwardedFor);
+        app.Services.GetRequiredService<SystemBotService>().NotifyAdminOfUntrustedProxy();
+    }
+    await next();
+});
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
+    app.UseExceptionHandler();   // ProblemDetails; there is no error page any more
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
-app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseCors();
 app.UseHttpsRedirection();
-app.UseAntiforgery();
+app.UseResponseCompression();
 
 // Serve custom branding overrides from Data/branding/ (favicon, PWA icons, etc.)
-// Files here override same-named files from wwwroot — no rebuild needed.
-// Uses raw middleware to guarantee priority over MapStaticAssets in production.
-// Exception: manifest.webmanifest is never served raw — see the skip below.
+// Files here override same-named files from wwwroot, no rebuild needed.
+// Registered before every static file handler so it wins.
+// Exception: manifest.webmanifest is never served raw, see the skip below.
 var brandingPath = Path.Combine(app.Environment.ContentRootPath, "Data", "branding");
 Directory.CreateDirectory(brandingPath);
 var brandingProvider = new PhysicalFileProvider(brandingPath);
@@ -270,8 +261,8 @@ var brandingContentTypes = new Microsoft.AspNetCore.StaticFiles.FileExtensionCon
 app.Use(async (context, next) =>
 {
     // The manifest is exempt: it's generated by MapPwaEndpoints (tokenized start_url for
-    // the PWA login hand-off), which merges Data/branding/manifest.webmanifest itself —
-    // serving the raw file from here would strip the token.
+    // the PWA login hand-off), which merges Data/branding/manifest.webmanifest itself.
+    // Serving the raw file from here would strip the token.
     if (context.Request.Path != "/manifest.webmanifest")
     {
         var fileInfo = brandingProvider.GetFileInfo(context.Request.Path.Value ?? "");
@@ -287,15 +278,22 @@ app.Use(async (context, next) =>
     await next();
 });
 
-// Content-addressed uploads use GUID/hash filenames that are never reused → safe to cache forever.
-// immutable = the browser never revalidates; max-age is the fallback for browsers that don't
-// support immutable (the same policy .NET applies to its own fingerprinted assets).
+// Content-addressed uploads use GUID/hash filenames that are never reused, so they are safe to cache forever.
+// immutable = the browser never revalidates; max-age is the fallback for browsers that don't support immutable.
 Action<Microsoft.AspNetCore.StaticFiles.StaticFileResponseContext> cacheImmutable = ctx =>
     ctx.Context.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
 
-var uploadsRoot = Path.Combine(app.Environment.WebRootPath, "uploads");
-var profilesRoot = Path.Combine(uploadsRoot, "profiles");
+var uploadsRoot = uploads.Root;
+var profilesRoot = uploads.Profiles;
 Directory.CreateDirectory(profilesRoot); // PhysicalFileProvider throws if the root is missing
+
+// The unfinished uploads of tus live under the uploads root (tus-temp); nothing there is ever a public file.
+app.Use((context, next) =>
+{
+    if (!context.Request.Path.StartsWithSegments("/uploads/" + UploadPaths.TusTempFolder)) return next();
+    context.Response.StatusCode = StatusCodes.Status404NotFound;
+    return Task.CompletedTask;
+});
 
 // Profile pictures live at a STABLE url (/uploads/profiles/{userId}.webp) that's overwritten when
 // the avatar changes, so they must NOT be immutable. Short max-age = fast reuse + quick propagation.
@@ -318,8 +316,8 @@ app.UseStaticFiles(new StaticFileOptions
 });
 
 // Built-in emoji packs (wwwroot/emoji-packs/{pack}/) ship in the build output at a STABLE url, so
-// they must NOT be immutable — redrawing one has to propagate on the next deploy. A day of max-age
-// still kills the per-image revalidation that every picker render would otherwise trigger.
+// they must NOT be immutable: redrawing one has to propagate on the next deploy. A day of max-age
+// still stops the per-image revalidation that every picker render would otherwise trigger.
 var emojiPacksPath = Path.Combine(app.Environment.WebRootPath, "emoji-packs");
 Directory.CreateDirectory(emojiPacksPath); // PhysicalFileProvider throws if the root is missing
 app.UseStaticFiles(new StaticFileOptions
@@ -330,7 +328,16 @@ app.UseStaticFiles(new StaticFileOptions
         ctx.Context.Response.Headers.CacheControl = "public, max-age=86400"
 });
 
-app.UseStaticFiles();
+// Scripts and stylesheets revalidate on every load (an ETag round trip, 304 when unchanged), so a new
+// build is never served stale from the HTTP cache. The service worker serves them offline.
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        if (ctx.File.Name.EndsWith(".js") || ctx.File.Name.EndsWith(".css"))
+            ctx.Context.Response.Headers.CacheControl = "no-cache";
+    }
+});
 
 // Serve custom emojis from Data/custom-emojis/ folder
 var customEmojisPath = Path.Combine(app.Environment.ContentRootPath, "Data", "custom-emojis");
@@ -374,25 +381,31 @@ app.UseStaticFiles(new StaticFileOptions
     OnPrepareResponse = cacheImmutable
 });
 
-// Custom middlewares - positioned after UseStaticFiles() to skip static file requests
-app.UseMiddleware<AuthMiddleware>();
-app.UseMiddleware<DeviceDetectionMiddleware>();
+// Custom middlewares, positioned after UseStaticFiles() to skip static file requests
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseMiddleware<RequestLoggingMiddleware>();
 
-app.MapStaticAssets();
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+app.MapHub<ChatHub>("/hub");
+app.MapSignIn();
 
-// =============================================================================
-// API ENDPOINTS (organized in Yap/Endpoints/)
-// =============================================================================
+var api = app.MapGroup("/api").RequireAuthorization();
+api.MapBootstrap();   // anonymous inside: it answers both states
+api.MapRooms();
+api.MapMessages();
+api.MapAccount();
+api.MapEmoji();
+api.MapGifs();
+
+// Routes kept from before the rewrite.
 app.MapTusEndpoints();
 app.MapPushEndpoints();
-app.MapAuthEndpoints();
 app.MapPwaEndpoints();
 app.MapAdminEndpoints();
-app.MapDiagnosticsEndpoints();
-app.MapGifLibraryEndpoints();
 app.MapBeaconEndpoints();
+app.MapShell();   // last: the client routes, every one answering index.html
 
 app.Run();
+
+// The test project hosts the app through WebApplicationFactory<Program>, which needs this type to be public.
+public partial class Program { }

@@ -464,7 +464,7 @@
 
 /* Mobile: the sidebar overlays the chat rather than sitting beside it,
    so it needs more body behind the names. Breakpoint matches
-   ChatSidebar.razor.css's own slide-in media query. */
+   the sidebar's own slide-in media query in frame.css. */
 @media (max-width: 768px) {
     [data-theme="teahouse"][data-scene="midnight"] { --bg-sidebar: hsl(0 0% 16% / 0.93); }
     [data-theme="teahouse"][data-scene="2am"] { --bg-sidebar: hsl(0 0% 9% / 0.93); }

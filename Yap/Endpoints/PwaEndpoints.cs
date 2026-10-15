@@ -1,9 +1,12 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Yap.Helpers;
-using Yap.Middleware;
 using Yap.Models;
 using Yap.Services;
+using Yap.Services.Accounts;
+using Yap.Services.Admin;
+using Yap.Configuration;
+using Yap.Models.Admin;
 
 namespace Yap.Endpoints;
 
@@ -25,12 +28,11 @@ public static class PwaEndpoints
         // Replaces the old static wwwroot/manifest.webmanifest (deleted — it would shadow
         // this route). The branding middleware in Program.cs also skips this path.
         app.MapGet("/manifest.webmanifest", (HttpContext context, UserService userService,
-            LinkTokenService linkTokens, ChatConfigService chatConfig, IWebHostEnvironment env) =>
+            LinkTokenService linkTokens, ServerConfig config, IWebHostEnvironment env) =>
         {
-            var manifest = LoadBaseManifest(env, chatConfig.ProjectName);
+            var manifest = LoadBaseManifest(env, config.ProjectName);
 
-            var cookie = context.Request.Cookies[AuthMiddleware.CookieName];
-            var user = string.IsNullOrEmpty(cookie) ? null : userService.AuthenticateByToken(cookie);
+            var user = context.User.IsSignedIn() ? userService.GetById(context.User.Id()) : null;
             manifest["start_url"] = user is null ? "/" : $"/pwa-launch?lt={linkTokens.Mint(user)}";
             // Explicit scope: the default would derive from start_url's directory, and a
             // "/pwa-launch?..." start_url must not narrow the app's scope.
@@ -51,8 +53,13 @@ public static class PwaEndpoints
         {
             // Every launch after the first: the PWA already owns a cookie — it wins and
             // the token (possibly long expired) is simply ignored.
-            var cookie = context.Request.Cookies[AuthMiddleware.CookieName];
-            if (!string.IsNullOrEmpty(cookie) && userService.AuthenticateByToken(cookie) is not null)
+            if (context.User.IsSignedIn())
+                return Results.Redirect("/");
+
+            // The person signed out on this device after the install. The token in the start URL is still
+            // valid for days, but a sign-out ends the automatic first-launch sign-in too (AU-22): the login
+            // page, where the login link or the code signs the person in again on purpose.
+            if (AuthCookie.SignedOut(context.Request))
                 return Results.Redirect("/");
 
             if (!string.IsNullOrEmpty(lt) && linkTokens.Validate(lt) is { } user)
@@ -60,7 +67,7 @@ public static class PwaEndpoints
                 // First launch with an empty jar: plant the auth cookie *inside the PWA's
                 // cookie jar* — every subsequent launch then rides it like a normal browser.
                 var ip = IpHelper.GetClientIp(context);
-                AuthMiddleware.SetAuthCookie(context, user.Token);
+                AuthCookie.Set(context.Response, user.Token);
                 userService.RecordKnownIp(user.Id, ip);
                 actionLog.Log(user.Id.ToString(), UserActionLog.KnownActions.LOGIN,
                     info: $"pwa_handoff:{user.Username}", ip: ip ?? "unknown",

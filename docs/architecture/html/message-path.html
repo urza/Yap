@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Message path · Yap architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #f3f5f7; --surface: #ffffff; --surface-2: #e9edf1;
+  --fg: #182029; --muted: #56606e; --line: #d4dae2; --line-strong: #a9b3c0;
+  --accent: #0d6a87; --code-bg: #f8f9fb;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+    --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+  --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+main { max-width: 980px; margin: 0 auto; padding: 36px 16px 96px; display: flex; flex-direction: column; gap: 22px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.15; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 4.5vw, 2.8rem); font-weight: 700; }
+h2 { font-size: clamp(1.4rem, 2.6vw, 1.8rem); font-weight: 600; padding-top: 22px; margin-top: 14px; border-top: 1px solid var(--line-strong); }
+h3 { font-size: 1.12rem; font-weight: 600; margin-top: 6px; }
+p, ul, ol { margin: 0; max-width: 76ch; }
+ul, ol { padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
+li > ul, li > ol { margin-top: 6px; }
+a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 0.88em; background: var(--surface-2); padding: 0.05em 0.3em; border-radius: 3px; overflow-wrap: anywhere; }
+pre { margin: 0; padding: 12px 16px; overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--code-bg); font: 0.82rem/1.5 var(--mono); }
+pre code { background: none; padding: 0; font-size: inherit; }
+blockquote { margin: 0; padding: 10px 16px; border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; max-width: 76ch; }
+.eyebrow { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+nav.pages { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+nav.pages a, nav.pages span { display: inline-block; padding: 3px 10px; border: 1px solid var(--line); border-radius: 4px; text-decoration: none; color: var(--fg); background: var(--surface); font-size: 0.86rem; }
+nav.pages span { color: var(--muted); border-style: dashed; }
+nav.pages a[aria-current] { border-color: var(--accent); color: var(--accent); }
+.rule { border: 1px solid var(--line); border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; padding: 10px 14px; max-width: 76ch; scroll-margin-top: 16px; }
+.rule .id { font-family: var(--mono); font-size: 0.8rem; color: var(--accent); margin-right: 8px; }
+.rule .why { color: var(--muted); }
+figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+figcaption { font-size: 0.9rem; color: var(--muted); max-width: 80ch; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+th { font-family: var(--display); font-weight: 600; background: var(--surface-2); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+footer { font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; }
+
+figure.code { position: relative; }
+figure.code .lang { position: absolute; top: 6px; right: 10px; font: 0.7rem var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+pre .c { color: var(--muted); font-style: italic; }
+pre .s { color: #2f7d32; }
+pre .n { color: #a4541c; }
+pre .k { color: #7a3fb3; font-weight: 500; }
+pre .t { color: var(--accent); }
+pre .p { color: #0b5e8a; }
+pre .a { color: #8a6d00; }
+pre .v { color: #a4541c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) pre .s { color: #8fd18f; } :root:not([data-theme="light"]) pre .n, :root:not([data-theme="light"]) pre .v { color: #f0a86a; } :root:not([data-theme="light"]) pre .k { color: #c99af5; } :root:not([data-theme="light"]) pre .p { color: #7cc4ea; } :root:not([data-theme="light"]) pre .a { color: #e0c860; } }
+:root[data-theme="dark"] pre .s { color: #8fd18f; } :root[data-theme="dark"] pre .n, :root[data-theme="dark"] pre .v { color: #f0a86a; } :root[data-theme="dark"] pre .k { color: #c99af5; } :root[data-theme="dark"] pre .p { color: #7cc4ea; } :root[data-theme="dark"] pre .a { color: #e0c860; }
+/* Contract tables: a route or a method name never breaks across lines, so the first column grows to fit it.
+   Long lists of code spans still wrap between the spans. The wrapper scrolls sideways when a table is wider than the page. */
+.tablewrap code { white-space: nowrap; }
+.tablewrap td:first-child { min-width: 10rem; }
+figure.diagram { padding: 16px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+figure.diagram svg { display: block; max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">Yap · architecture</div>
+<nav class="pages" aria-label="Architecture pages"><a href="sketch.html">Architecture sketch: Yap without Blazor</a><a href="plan.html">Plan of action</a><a href="message-path.html" aria-current="page">Message path</a><a href="presence.html">Presence</a><a href="chat-hub.html">ChatHub and read state</a><a href="auth-and-program.html">Authentication and Program.cs</a><a href="sign-in.html">Sign-in flows</a><a href="bootstrap-and-events.html">Bootstrap and events</a><a href="client.html">The client</a><a href="wire-contract.html">Wire contract</a></nav>
+<h1 id="message-path">Message path</h1>
+<p>How one text message travels from the sender's tap to every screen. This is the most used path in Yap, so it sets the pattern for every other action. The <a href="sketch.html">sketch</a> gives the principles, the <a href="wire-contract.html">wire contract</a> the exact shapes.</p>
+<h2 id="the-path-in-one-picture">The path in one picture</h2>
+<figure class="diagram">
+<svg viewBox="0 0 860 560" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, system-ui, sans-serif" font-size="13">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="var(--accent)"/>
+    </marker>
+    <marker id="arr-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="var(--muted)"/>
+    </marker>
+  </defs>
+  <style>
+    .lane { stroke: var(--line-strong); stroke-dasharray: 4 4; }
+    .head { fill: currentColor; font-weight: 600; font-size: 14px; text-anchor: middle; }
+    .msg { stroke: var(--accent); stroke-width: 1.6; marker-end: url(#arr); fill: none; }
+    .bg { stroke: var(--muted); stroke-width: 1.4; stroke-dasharray: 5 4; marker-end: url(#arr-muted); fill: none; }
+    .lbl { fill: currentColor; text-anchor: middle; }
+    .lbl tspan.mono { font-family: IBM Plex Mono, ui-monospace, monospace; font-size: 12px; }
+    .note { fill: var(--surface-2); stroke: var(--line); rx: 4; }
+    .note-t { fill: currentColor; font-size: 12px; }
+    .step { fill: var(--accent); font-weight: 600; font-size: 12px; }
+  </style>
+
+  <text x="130" y="28" class="head">Client A (sender)</text>
+  <text x="430" y="28" class="head">Server</text>
+  <text x="730" y="28" class="head">Client B (reader)</text>
+  <line x1="130" y1="40" x2="130" y2="540" class="lane"/>
+  <line x1="430" y1="40" x2="430" y2="540" class="lane"/>
+  <line x1="730" y1="40" x2="730" y2="540" class="lane"/>
+
+  <!-- 1 local send -->
+  <rect x="40" y="56" width="180" height="46" class="note"/>
+  <text x="48" y="72" class="step">1</text>
+  <text x="62" y="72" class="note-t">Tap Send. Outbox row written,</text>
+  <text x="62" y="88" class="note-t">pending row painted, draft cleared.</text>
+
+  <!-- 2 POST -->
+  <path d="M130 130 H 424" class="msg"/>
+  <text x="277" y="124" class="lbl"><tspan class="step">2 </tspan><tspan class="mono">POST /api/channels/{id}/messages</tspan></text>
+  <text x="277" y="146" class="lbl"><tspan class="mono">{ clientId, text, replyToId }</tspan></text>
+
+  <!-- 3 ChatService -->
+  <rect x="340" y="166" width="180" height="62" class="note"/>
+  <text x="348" y="182" class="step">3</text>
+  <text x="362" y="182" class="note-t">ChatService.SendAsync</text>
+  <text x="362" y="198" class="note-t">permission, dedupe by clientId,</text>
+  <text x="362" y="214" class="note-t">append, unread deltas, stop typing.</text>
+
+  <!-- 4 message events -->
+  <path d="M436 262 H 724" class="msg"/>
+  <path d="M424 262 H 136" class="msg"/>
+  <text x="580" y="256" class="lbl"><tspan class="step">4 </tspan><tspan class="mono">message</tspan> (hub, room group or both DM users)</text>
+  <text x="277" y="256" class="lbl"><tspan class="mono">message</tspan> with our clientId</text>
+
+  <!-- 5 unread -->
+  <path d="M436 300 H 724" class="msg"/>
+  <text x="580" y="294" class="lbl"><tspan class="step">5 </tspan><tspan class="mono">unread</tspan> (channelId, count) to each affected user</text>
+  <text x="277" y="294" class="lbl" fill="var(--muted)">nothing: own messages never count (NT-02)</text>
+
+  <!-- 6 persist -->
+  <rect x="340" y="318" width="180" height="46" class="note"/>
+  <text x="348" y="334" class="step">6</text>
+  <text x="362" y="334" class="note-t">Enqueue message and read states for the</text>
+  <text x="362" y="350" class="note-t">one background writer. Nobody waits.</text>
+
+  <!-- 7 response -->
+  <path d="M424 396 H 136" class="msg"/>
+  <text x="277" y="390" class="lbl"><tspan class="step">7 </tspan><tspan class="mono">200 Message</tspan> (in memory; the outbox row can go)</text>
+
+  <!-- 8 A reconciles -->
+  <rect x="40" y="414" width="180" height="62" class="note"/>
+  <text x="48" y="430" class="step">8</text>
+  <text x="62" y="430" class="note-t">Outbox row deleted on 200.</text>
+  <text x="62" y="446" class="note-t">Pending row became the real row</text>
+  <text x="62" y="462" class="note-t">at 4 or 7, whichever came first.</text>
+
+  <!-- 9 B reads -->
+  <rect x="640" y="318" width="180" height="62" class="note"/>
+  <text x="648" y="334" class="step">9</text>
+  <text x="662" y="334" class="note-t">Open room: row appended, view</text>
+  <text x="662" y="350" class="note-t">follows or pill shows (TL-10, TL-16).</text>
+  <text x="662" y="366" class="note-t">Other room: badge from 5 (NT-09).</text>
+  <path d="M724 430 H 436" class="msg"/>
+  <text x="580" y="424" class="lbl"><tspan class="step">10 </tspan><tspan class="mono">markRead</tspan> if visible, not away, at bottom (NT-07)</text>
+  <path d="M436 462 H 724" class="msg"/>
+  <text x="580" y="456" class="lbl"><tspan class="mono">unread</tspan> (channelId, 0) to all of B's devices</text>
+
+  <!-- background -->
+  <path d="M430 480 V 500" class="bg"/>
+  <rect x="300" y="500" width="260" height="40" class="note"/>
+  <text x="310" y="516" class="note-t">Background, after the response: link previews</text>
+  <text x="310" y="532" class="note-t">(then a <tspan class="mono">previews</tspan> event), push to offline readers.</text>
+</svg>
+<figcaption>One HTTP request, one hub event per reader, one unread event per affected person. The reader makes no request to receive. The only reader request is the optional mark-read.</figcaption>
+</figure>
+<h2 id="step-by-step">Step by step</h2>
+<h3 id="1-the-tap-on-the-sender-s-device">1. The tap, on the sender's device</h3>
+<p>Send acts locally (GEN-01, IB-24). The composer builds the row, stores it, paints it and clears the draft, all before any network call. The outbox is the only write path, online or offline (design notes, "The outbox"). The row carries a <code>clientId</code> that the server uses to deduplicate, and the client uses to match the echo.</p>
+<figure class="code"><span class="lang">js</span><pre><code><span class="c">// composer.js (sketch)</span>
+<span class="k">async</span> <span class="k">function</span> send(channelId, text, replyToId) {
+  <span class="k">const</span> row = { clientId: crypto.randomUUID(), channelId, text, replyToId,
+                attachments: [], createdAt: <span class="t">Date</span>.now(), state: <span class="s">&#x27;queued&#x27;</span> };
+  timeline.addPending(row);          <span class="c">// faded full row at the end, view to bottom (IB-25, TL-14)</span>
+  composer.clear();                  <span class="c">// one line again, reply bar closed (IB-05, IB-27)</span>
+  <span class="k">await</span> outbox.add(row);             <span class="c">// IndexedDB; survives reload and app close (OF-08)</span>
+  sender.wake();                     <span class="c">// the loop runs in the one tab that holds the Web Lock</span>
+}</code></pre></figure>
+<h3 id="2-the-request">2. The request</h3>
+<p>The sender loop takes the oldest queued row and posts it. Attachments are uploaded first; a text message has none. The request is the same with or without an open hub connection, so there is one code path for online, offline and after a restart. A room is addressed by its id and a direct message by its partner (<code>POST /api/dm/{username}/messages</code>): a message queued offline for a person whose direct message was never opened on the device has no channel id (OF-08), and the server finds or creates the channel. On a network error the loop stops until a wake-up: <code>online</code>, hub reconnected, tab visible, new row. On a 4xx the row is marked failed with the server's reason (GEN-02, MR-71).</p>
+<figure class="code"><span class="lang">js</span><pre><code><span class="c">// sender.js (sketch)</span>
+<span class="k">async</span> <span class="k">function</span> sendOne(row) {
+  <span class="k">const</span> res = <span class="k">await</span> api.post(<span class="s">`/api/channels/${row.channelId}/messages`</span>,
+                             { clientId: row.clientId, text: row.text, replyToId: row.replyToId });
+  <span class="k">if</span> (res.ok) { <span class="k">await</span> outbox.remove(row.clientId); timeline.confirm(<span class="k">await</span> res.json()); <span class="k">return</span> <span class="s">&#x27;sent&#x27;</span>; }
+  <span class="k">if</span> (res.status &gt;= <span class="n">400</span> &amp;&amp; res.status &lt; <span class="n">500</span>) { <span class="k">await</span> outbox.fail(row.clientId, <span class="k">await</span> api.reason(res)); <span class="k">return</span> <span class="s">&#x27;failed&#x27;</span>; }
+  <span class="k">return</span> <span class="s">&#x27;stop&#x27;</span>;                      <span class="c">// network error or 5xx: wait for a wake-up</span>
+}</code></pre></figure>
+<h3 id="3-the-server-accepts">3. The server accepts</h3>
+<p>The endpoint is thin. It reads the user from the cookie principal, validates the body, and hands the work to ChatService. ChatService does, in this order and under the channel lock only for the append: the permission check (IB-62, 403 with the reason), the dedupe lookup (a repeat <code>clientId</code> returns the existing message, 200), the append, the unread deltas (NT-03: connected people and people with the room unmuted, minus the sender; the other person for a DM), and the typing clear through PresenceService (IB-59).</p>
+<figure class="code"><span class="lang">cs</span><pre><code><span class="c">// Endpoints/MessagesEndpoints.cs (sketch)</span>
+group.<span class="t">MapPost</span>(<span class="s">&quot;/api/channels/{channelId:guid}/messages&quot;</span>,
+    <span class="k">async</span> (<span class="t">Guid</span> channelId, <span class="t">SendMessageRequest</span> body, <span class="t">ClaimsPrincipal</span> user, <span class="t">ChatService</span> chat) =&gt;
+{
+    <span class="k">if</span> (body.<span class="t">Text</span> <span class="k">is</span> { <span class="t">Length</span>: &gt; <span class="n">4000</span> }) <span class="k">return</span> <span class="t">Results</span>.<span class="t">Problem</span>(<span class="s">&quot;Message is too long.&quot;</span>, statusCode: <span class="n">400</span>);
+    <span class="k">var</span> result = <span class="k">await</span> chat.<span class="t">SendAsync</span>(channelId, user.<span class="t">Id</span>(), body);   <span class="c">// dedupes by (user, clientId)</span>
+    <span class="k">return</span> result.<span class="t">Match</span>(
+        message =&gt; <span class="t">Results</span>.<span class="t">Ok</span>(<span class="t">MessageDto</span>.<span class="t">From</span>(message)),
+        refusal =&gt; <span class="t">Results</span>.<span class="t">Problem</span>(refusal.<span class="t">Reason</span>, statusCode: refusal.<span class="t">Status</span>));
+});</code></pre></figure>
+<h3 id="4-and-5-the-events">4 and 5. The events</h3>
+<p>ChatService raises <code>OnMessageReceived</code> and one <code>OnUnreadChanged</code> per affected person as soon as memory is updated. The broadcaster maps the message to its wire shape once and sends it to the room's group, or to both people of a direct message. Then it sends each person their new count.</p>
+<figure class="code"><span class="lang">cs</span><pre><code><span class="c">// Endpoints/ChatHubBroadcaster.cs (sketch)</span>
+chat.<span class="t">OnMessageReceived</span> += message =&gt;
+{
+    <span class="k">var</span> dto = <span class="t">MessageDto</span>.<span class="t">From</span>(message);
+    _ = channel.<span class="t">IsDm</span>
+        ? hub.<span class="t">Clients</span>.<span class="t">Users</span>(channel.<span class="t">ParticipantIds</span>).<span class="t">SendAsync</span>(<span class="s">&quot;message&quot;</span>, dto)
+        : hub.<span class="t">Clients</span>.<span class="t">Group</span>(<span class="s">$&quot;channel:{message.ChannelId}&quot;</span>).<span class="t">SendAsync</span>(<span class="s">&quot;message&quot;</span>, dto);
+};
+chat.<span class="t">OnUnreadChanged</span> += (userId, channelId, count) =&gt;
+    _ = hub.<span class="t">Clients</span>.<span class="t">User</span>(userId.<span class="t">ToString</span>()).<span class="t">SendAsync</span>(<span class="s">&quot;unread&quot;</span>, channelId, count);</code></pre></figure>
+<h3 id="6-and-7-the-queued-write-and-the-response">6 and 7. The queued write, and the response</h3>
+<p>Yap has two places where a message exists. The first is ChatService's memory: the list per channel, in the one running server process. This is the source of truth. Every reader is served from it, every event comes from it, and the server runs without a database at all when persistence is off (AU-06, AD-03). The second is the SQLite database, when persistence is on. It is a copy of the memory, written after the memory changes, and read only once, at startup, to refill the memory.</p>
+<p>ChatService does not write that copy itself and does not wait for it. It enqueues the message and the read-state deltas on the one ordered persistence queue and returns at once. The endpoint answers 200 with the message. One background writer drains the queue, in order, one transaction per drain. The request path never touches the database, so the response is as fast as the event, and every database concern lives in the writer.</p>
+<p>So the event and the response mean the same thing: the message is in memory and everyone has it. The sender's client turns the pending row into a real row on the first of the two, and deletes its outbox row on the 200. A crash between the memory change and the drain loses that message. The design notes accept this. Today's code already swallows failed writes and returns success, so no guarantee that existed is lost. When persistence is off, the queue is a no-op.</p>
+<h3 id="8-the-sender-s-screen">8. The sender's screen</h3>
+<p>Client A receives the <code>message</code> event with its own <code>clientId</code>, usually before the 200. The pending row becomes the real row in place: no jump, no flicker, same position (MR-69). Send-to-appear is the time from step 1 to this moment, and it goes out with the next heartbeat (AD-26). When the 200 arrives, the outbox row is deleted. Both the event and the response carry the message, and both are handled by the same <code>timeline.confirm(message)</code>, which is idempotent on <code>clientId</code>. This order independence matters: when the hub is reconnecting, the event is lost but the response still arrives; when the request is slow, the event is faster.</p>
+<p>The sender's other devices receive the message like any reader. They receive no <code>unread</code> for it (NT-02).</p>
+<h3 id="9-and-10-the-reader-s-screen">9 and 10. The reader's screen</h3>
+<p>Client B receives the <code>message</code> event only when it has that room open, or when it is one of the two people of a direct message. The timeline appends the row, groups it under the previous header when the rules allow (MR-01), and follows the bottom or shows the pill (TL-10, TL-16). For a room B has not open, B receives only <code>unread</code>, and the sidebar row, the mailbox, the tab title and the app badge all derive from that one event (NT-09 to NT-12).</p>
+<p>When the page is visible, the person is not away and the view is at the bottom, B invokes <code>markRead</code> (NT-07). The server clears the count and sends <code>unread 0</code> to all of B's devices. Between the two events, another device of B shows the count for a moment. NT-07 says the message never shows a count on any device; the server cannot know "at the bottom", so this short flash is the accepted simplification.</p>
+<h3 id="background">Background</h3>
+<p>After the response, the server queues link previews for a message without media (MR-19), and a <code>previews</code> event follows when a card is ready (MR-22). It also dispatches push notifications to people who are not online and visible (NT-25, NT-26). Neither is on the latency path.</p>
+<h2 id="what-is-on-the-path">What is on the path</h2>
+<div class="tablewrap"><table><thead><tr><th>Side</th><th>Part</th><th>Role</th></tr></thead><tbody><tr><td>client</td><td><code>ui/composer.js</code></td><td>builds the row, paints pending, clears the draft</td></tr><tr><td>client</td><td><code>offline/outbox.js</code>, <code>offline/sender.js</code></td><td>the one write path and its loop</td></tr><tr><td>client</td><td><code>api.js</code></td><td>fetch, credentials, reason text</td></tr><tr><td>server</td><td><code>Endpoints/MessagesEndpoints.cs</code></td><td>validate, call, map the result</td></tr><tr><td>server</td><td><code>Services/Chat/ChatService.cs</code></td><td>permission, dedupe, append, unread, events, persist</td></tr><tr><td>server</td><td><code>Services/Presence/PresenceService.cs</code></td><td>who is connected (NT-03), stop typing</td></tr><tr><td>server</td><td><code>Services/Persistence/PersistenceWriter.cs</code></td><td>drains the ordered write queue to SQLite, off the request path</td></tr><tr><td>server</td><td><code>Endpoints/ChatHubBroadcaster.cs</code></td><td>events to groups and users</td></tr><tr><td>server</td><td><code>Models/Chat/MessageDto.cs</code></td><td>the one mapping to the wire shape, also used by <code>open</code> and <code>older</code></td></tr><tr><td>client</td><td><code>hub.js</code>, <code>store.js</code></td><td>receive, apply</td></tr><tr><td>client</td><td><code>ui/timeline.js</code>, <code>ui/message.js</code>, <code>ui/frame.js</code></td><td>append, confirm, badge</td></tr></tbody></table></div>
+<h2 id="latency-budget">Latency budget</h2>
+<p>For a reader on the other side of the globe, the message appears after half of A's round trip to the server, plus the server's work, plus half of B's round trip. The server's work is a dictionary lookup, a list append, a few counter updates, one enqueue and one JSON serialisation. The database is not on the path. For the sender, the message becomes real after one round trip. Nothing on this path waits for the disk, for a lock held during I/O, or for a second request.</p>
+<footer>Source: <code>docs/architecture/message-path.md</code>. Edit the Markdown, then run <code>python3 docs/architecture/tools/build.py</code>.</footer>
+</main>
+</body>
+</html>

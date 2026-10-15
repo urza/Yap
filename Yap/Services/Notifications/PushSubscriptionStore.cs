@@ -1,0 +1,170 @@
+using System.Collections.Concurrent;
+using Yap.Models;
+using Yap.Models.Notifications;
+
+namespace Yap.Services.Notifications;
+
+/// <summary>
+/// In-memory storage for push subscriptions with pluggable persistence.
+/// Uses endpoint as unique key.
+/// </summary>
+public class PushSubscriptionStore
+{
+    private readonly IPushSubscriptionPersistence _persistence;
+    private readonly ILogger<PushSubscriptionStore> _logger;
+
+    // Endpoint -> Subscription (endpoint is unique per device/browser)
+    private readonly ConcurrentDictionary<string, PushSubscription> _subscriptions = new();
+
+    // Endpoint -> last time that device's service worker confirmed it received a push.
+    // In-memory only ("since restart") — the honest, migration-free version of delivery status.
+    private readonly ConcurrentDictionary<string, DateTime> _lastDelivered = new();
+
+    public PushSubscriptionStore(IPushSubscriptionPersistence persistence, ILogger<PushSubscriptionStore> logger)
+    {
+        _persistence = persistence;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Loads subscriptions from persistence. Call during app startup.
+    /// </summary>
+    public async Task InitializeAsync()
+    {
+        try
+        {
+            var entries = await _persistence.LoadAllAsync();
+            foreach (var entry in entries)
+            {
+                _subscriptions[entry.Endpoint] = entry;
+            }
+            _logger.LogInformation("Loaded {Count} push subscriptions", entries.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load push subscriptions");
+        }
+    }
+
+    /// <summary>False when another account holds the endpoint. An endpoint is one device's subscription; a second
+    /// account taking it over would stop the first account's notifications and send its own to a device that is not
+    /// its own.</summary>
+    public async Task<bool> SaveSubscriptionAsync(string username, PushSubscriptionInfo subscription)
+    {
+        var existing = _subscriptions.GetValueOrDefault(subscription.Endpoint);
+        if (existing is not null && !existing.Username.Equals(username, StringComparison.OrdinalIgnoreCase)) return false;
+        var isNew = existing == null;
+
+        var entry = new PushSubscription
+        {
+            Username = username,
+            Endpoint = subscription.Endpoint,
+            P256dh = subscription.P256dh,
+            Auth = subscription.Auth,
+            // Preserve the original subscribe time on re-save (e.g. the silent re-subscribe that runs
+            // on every load) so the Settings "Added X ago" stays stable instead of resetting each time.
+            CreatedAt = existing?.CreatedAt ?? DateTime.UtcNow
+        };
+
+        _subscriptions[subscription.Endpoint] = entry;
+
+        _logger.LogDebug("SaveSubscription: {Action} subscription for {Username}, endpoint={Endpoint}, total={Total}",
+            isNew ? "new" : "updated", username, subscription.Endpoint[..Math.Min(50, subscription.Endpoint.Length)], _subscriptions.Count);
+
+        try
+        {
+            await _persistence.SaveAsync(entry);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to persist push subscription for {Username}", username);
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Stamps a service-worker delivery receipt — proof the device actually received a push, not
+    /// just that the push service accepted it. False when the endpoint is unknown.
+    /// </summary>
+    public bool MarkDelivered(string endpoint)
+    {
+        if (!_subscriptions.ContainsKey(endpoint)) return false;
+        _lastDelivered[endpoint] = DateTime.UtcNow;
+        _logger.LogDebug("Push delivery confirmed, endpoint={Endpoint}", endpoint[..Math.Min(50, endpoint.Length)]);
+        return true;
+    }
+
+    /// <summary>Last confirmed delivery for a device, if any since restart.</summary>
+    public DateTime? GetLastDelivered(string endpoint) =>
+        _lastDelivered.TryGetValue(endpoint, out var at) ? at : null;
+
+    /// <summary>Removes one of the account's own subscriptions. False when the endpoint is unknown or another
+    /// account's: the Settings card, unsubscribe and sign-out all go through here (NT-24).</summary>
+    public async Task<bool> RemoveOwnAsync(string username, string endpoint)
+    {
+        if (!_subscriptions.TryGetValue(endpoint, out var existing) || !existing.Username.Equals(username, StringComparison.OrdinalIgnoreCase)) return false;
+        await RemoveSubscriptionAsync(endpoint);
+        return true;
+    }
+
+    /// <summary>Removes a subscription whatever its account: for the push sender, when the push service says the
+    /// endpoint is gone. Routes that act for a person use <see cref="RemoveOwnAsync"/>.</summary>
+    public async Task RemoveSubscriptionAsync(string endpoint)
+    {
+        if (_subscriptions.TryRemove(endpoint, out var removed))
+        {
+            _lastDelivered.TryRemove(endpoint, out _);
+            _logger.LogDebug("RemoveSubscription: removed for {Username}, endpoint={Endpoint}, remaining={Total}",
+                removed.Username, endpoint[..Math.Min(50, endpoint.Length)], _subscriptions.Count);
+
+            try
+            {
+                await _persistence.RemoveAsync(endpoint);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to remove push subscription");
+            }
+        }
+        else
+        {
+            _logger.LogDebug("RemoveSubscription: endpoint not found, endpoint={Endpoint}", endpoint[..Math.Min(50, endpoint.Length)]);
+        }
+    }
+
+    public IEnumerable<PushSubscriptionInfo> GetSubscriptions(string username)
+    {
+        var subs = _subscriptions.Values
+            .Where(e => e.Username.Equals(username, StringComparison.OrdinalIgnoreCase))
+            .Select(e => new PushSubscriptionInfo
+            {
+                Endpoint = e.Endpoint,
+                P256dh = e.P256dh,
+                Auth = e.Auth
+            })
+            .ToList();
+
+        _logger.LogDebug("GetSubscriptions: {Count} subscriptions for {Username}", subs.Count, username);
+        return subs;
+    }
+
+    /// <summary>
+    /// Gets the full subscription records for a user (including Endpoint and CreatedAt),
+    /// ordered oldest-first. Used by the Settings page to list a user's notification devices.
+    /// </summary>
+    public IReadOnlyList<PushSubscription> GetSubscriptionsDetailed(string username) =>
+        _subscriptions.Values
+            .Where(e => e.Username.Equals(username, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(e => e.CreatedAt)
+            .ToList();
+}
+
+/// <summary>
+/// Push subscription info from browser (without username).
+/// </summary>
+public record PushSubscriptionInfo
+{
+    public string Endpoint { get; init; } = "";
+    public string P256dh { get; init; } = "";
+    public string Auth { get; init; } = "";
+}

@@ -7,6 +7,8 @@ services:
       - "5221:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
+      # Behind a reverse proxy: list it in Data/appsettings.json ("TrustedProxies"), or here, e.g.
+      # - ChatSettings__TrustedProxies__0=172.17.0.1
     volumes:
       - ./uploads:/app/wwwroot/uploads
       - ./data:/app/Data

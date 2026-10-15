@@ -1,0 +1,125 @@
+server: /tmp/yap-user-review-20261015/Yap/bin/Debug/net10.0/Yap.dll on http://127.0.0.1:5300, root /tmp/yap-user-review-20261015/scratch-offline/root-aeWAnm
+[PASS] 1. Service worker
+    path /lobby
+    controller before reload: true; ready -> /service-worker.js?v=2026-10-15%2007%3A59%20UTC (6 ms)
+    controller after one reload: /service-worker.js?v=2026-10-15%2007%3A59%20UTC
+    caches.keys(): ["yap-shell-2026-10-15 07:59 UTC","yap-emoji-v1"]; yap-shell-2026-10-15 07:59 UTC holds 65 entries
+    log entries in step 1: 1 — A requestfailed: PATCH /api/account net::ERR_ABORTED
+[PASS] 2. Online send, B receives
+    A row normal: true (class "message-group has-header")
+    B path /lobby, sees "first online": true
+[PASS] 3. Go offline: dot, bubble, status menu
+    dot shown: true after 12 ms (limit 3 s); class "connection-dot offline", display block; navigator.onLine=false
+    bubble on hover: "Offline. Messages are sent when the connection returns."; after click: "Offline. Messages are sent when the connection returns."
+    status items online:true, away:true, invisible:true
+    Escape closes the menu: true
+[PASS] 4. Offline send stays pending
+    pending row: true, still pending after 3 s: true, pending-status ""
+[PASS] 5. Offline send into a direct message never opened here (OF-08)
+    DM opened offline true; pending row true; store open {"channelId":null,"partner":"guest"}, pending 1, draft ""
+    back on /lobby from the stored tail: true; pending rows shown here 1 (the lobby's own)
+[PASS] 6. Offline reload
+    document status 200, fromServiceWorker true
+    frame shown: true, path /lobby
+    "first online" from snapshot: true
+    guest row in people list: true (boss (you) | Ping
+1 | guest)
+    "sent offline" row class: message-group pending
+    top note(s): ["This is the beginning of #lobby"]; dot hidden=false display=block class "connection-dot offline"
+    page-level non-API failures 0; all failed requests during offline reload (47; /sw = the worker's network try before its cache): A/sw GET /lobby net::ERR_INTERNET_DISCONNECTED ; A/sw GET /app.css?v=2026-10-15%2007:59%20UTC net::ERR_INTERNET_DISCONNECTED ; A/sw GET /themes.css?v=2026-10-15%2007:59%20UTC net::ERR_INTERNET_DISCONNECTED ; A/sw GET /themes/teahouse.css?v=2026-10-15%2007:59%20UTC net::ERR_INTERNET_DISCONNECTED ; A/sw GET /css/frame.css?v=2026-10-15%2007:59%20UTC net::ERR_INTERNET_DISCONNECTED ; A/sw GET /css/pickers.css?v=2026-10-15%2007:59%20UTC net::ERR_INTERNET_DISCONNECTED ; A/sw GET /css/timeline.css?v=2026-10-15%2007:59%20UTC net::ERR_INTERNET_DISCONNECTED ; A/sw GET /css/composer.css?v=2026-10-15%2007:59%20UTC net::ERR_INTERNET_DISCONNECTED ; A/sw GET /css/message.css?v=2026-10-15%2007:59%20UTC net::ERR_INTERNET_DISCONNECTED ; A/sw GET /css/pages.css?v=2026-10-15%2007:59%20UTC net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/main.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/store.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/api.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/hub.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/router.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/session.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/sender.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/upload.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/notify.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/render/avatar.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/offline/db.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/offline/snapshot.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/offline/outbox.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/render/dom.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/render/text.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/render/time.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/ui/frame.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/ui/timeline.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/ui/message.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/ui/composer.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/ui/overlays.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/ui/emoji-picker.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/ui/gif-picker.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/ui/gallery.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/pages/chat.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/pages/login.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/pages/verify.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/pages/invite.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/pages/channel-settings.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/pages/settings.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/pages/admin.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/push.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/pwa.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /js/ui/gif-library.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /lib/signalr.min.js net::ERR_INTERNET_DISCONNECTED ; A/sw GET /lib/tus.min.js net::ERR_INTERNET_DISCONNECTED ; A GET /api/bootstrap net::ERR_INTERNET_DISCONNECTED
+    console/page entries: A console.error: Failed to load resource: net::ERR_INTERNET_DISCONNECTED @ /api/bootstrap:0
+[PASS] 7. Back online: outbox posts
+    A row normal: true after 108 ms (rows with the text: 1)
+    B received: true after 110 ms (rows: 1)
+    dot after reconnect: hidden=true class "connection-dot"
+    B /dm/boss shows the message queued for the never-opened DM: true
+[PASS] 8. Reconnect after more than a page arrived (TL-35)
+    B posted 60 while A was offline; A reconnected true; A rows before 2
+    after the reconnect: 50 rows, hasMore true, first "gap-11", gap-60 true, gap-1 false (the tail replaces the rows before the gap)
+    scrolling up fills the gap: gap-1 and "first online" loaded true, rows 62
+[PASS] 9. Repeat POST with the same clientId
+    statuses 200, 200
+    ids 722f248f-a5cb-4e10-aaea-3fb47a9483a6 / 722f248f-a5cb-4e10-aaea-3fb47a9483a6
+    rows "twice" in B: 1, in A: 1
+[PASS] 10. File upload offline, then online
+    pending row: true; {"cls":"message-group pending","files":"tiny.png","status":"","cancel":true,"retry":false,"track":true}; warning modal: false
+    normal row with img.gallery-image: true after 210 ms; pending rows left 0
+    img src /uploads/860cb1ca-cd9a-4cc9-9e6a-2b3a317cc6ea_800px.webp; B has image: true
+[PASS] 11. Upload while the server cannot be reached stays pending (OF-08)
+    pending row after the attempts: true; {"cls":"message-group pending","status":"","reason":""}
+    sent after the server is back: true after 210 ms; pending rows left 0; statuses []
+[PASS] 12. New-version strip
+    method 1 (dataset.build = 'other', then offline/online; hub dropped true (10 ms), reconnected true): #notice visible false
+    method 2 (route rewrites config.buildStamp of /api/bootstrap, then offline/online; hub dropped true (13 ms), reconnected true; rewritten responses 1): #notice visible true
+    text "You are awesome and so is the new version of this app. Please refresh.", button "Reload"
+    chat-container bottom 800 <= innerHeight 800: true (strip height 36)
+[PASS] 13. Sign out without a connection does not sign out (AU-22)
+    offline true; "Needs a connection" shown true; still signed in as boss; login page 0
+    after the network returns and a reload: user boss
+[PASS] 14. Sign out clears IndexedDB
+    login page: true, path /login; dialogs []
+    databases before the check: ["yap@1"]; outbox+snapshots count: 0
+    page errors during sign-out: none
+
+==== BROWSER LOG (deduplicated; [steps] where seen) ====
+1x [1] A|requestfailed|PATCH /api/account net::ERR_ABORTED
+1x [2] B|requestfailed|PATCH /api/account net::ERR_ABORTED
+1x [6] A/sw|requestfailed|GET /lobby net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /app.css?v=2026-10-15%2007:59%20UTC net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /themes.css?v=2026-10-15%2007:59%20UTC net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /themes/teahouse.css?v=2026-10-15%2007:59%20UTC net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /css/frame.css?v=2026-10-15%2007:59%20UTC net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /css/pickers.css?v=2026-10-15%2007:59%20UTC net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /css/timeline.css?v=2026-10-15%2007:59%20UTC net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /css/composer.css?v=2026-10-15%2007:59%20UTC net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /css/message.css?v=2026-10-15%2007:59%20UTC net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /css/pages.css?v=2026-10-15%2007:59%20UTC net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/main.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/store.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/api.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/hub.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/router.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/session.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/sender.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/upload.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/notify.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/render/avatar.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/offline/db.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/offline/snapshot.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/offline/outbox.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/render/dom.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/render/text.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/render/time.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/ui/frame.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/ui/timeline.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/ui/message.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/ui/composer.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/ui/overlays.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/ui/emoji-picker.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/ui/gif-picker.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/ui/gallery.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/pages/chat.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/pages/login.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/pages/verify.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/pages/invite.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/pages/channel-settings.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/pages/settings.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/pages/admin.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/push.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/pwa.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /js/ui/gif-library.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /lib/signalr.min.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A/sw|requestfailed|GET /lib/tus.min.js net::ERR_INTERNET_DISCONNECTED
+1x [6] A|requestfailed|GET /api/bootstrap net::ERR_INTERNET_DISCONNECTED
+1x [6] A|console.error|Failed to load resource: net::ERR_INTERNET_DISCONNECTED @ /api/bootstrap:0
+5x [11] A|requestfailed|POST /api/tus net::ERR_CONNECTION_FAILED
+5x [11] A|console.error|Failed to load resource: net::ERR_CONNECTION_FAILED @ /api/tus:0
+1x [13] A/sw|requestfailed|GET /notif.mp3 net::ERR_INTERNET_DISCONNECTED
+1x [13] A|requestfailed|POST /api/auth/signout net::ERR_INTERNET_DISCONNECTED
+1x [13] A|console.error|Failed to load resource: net::ERR_INTERNET_DISCONNECTED @ /api/auth/signout:0
+1x [14] A|requestfailed|POST /api/auth/signout net::ERR_ABORTED
+
+==== SERVER LOG: fail/crit/exception lines ====
+(none)
+
+14 passed, 0 failed

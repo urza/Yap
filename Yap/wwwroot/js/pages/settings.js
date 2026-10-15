@@ -1,0 +1,442 @@
+// Settings (settings.md): every control saves at once (ST-02); the `me` hub message brings a change made on
+// another device back into the page. Inside the frame (ST-03).
+
+import { state, on, mergeMe, serverMuted, displayName } from '../store.js';
+import { api } from '../api.js';
+import { clone, el, replace, classes } from '../render/dom.js';
+import { inline } from '../render/text.js';
+import { avatar } from '../render/avatar.js';
+import { ago, timeOf, usePreferences } from '../render/time.js';
+import * as hub from '../hub.js';
+import * as frame from '../ui/frame.js';
+import * as push from '../push.js';
+import { openInstallDialog } from '../pwa.js';
+import { GifLibrary, size } from '../ui/gif-library.js';
+import { setTitle } from '../notify.js';
+import { deviceId } from '../hub.js';
+
+const FONT_SIZES = [14, 15, 16, 17, 18, 20];   // ST-10
+const BELL = '<svg class="seg-icon" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>';
+const BELL_OFF = '<svg class="seg-icon" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm0-15.5c2.49 0 4 2.02 4 4.5v5h2v1H6v-1h2v-5c0-3.07 1.63-5.64 4.5-6.32V4c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5v.68c-.17.04-.33.09-.5.14zM5.41 3.35L4 4.76l2.81 2.81C6.29 8.57 6 9.74 6 11v5l-2 2v1h14.24l1.35 1.35 1.41-1.41L5.41 3.35z"/></svg>';
+const SLIDERS = '<svg class="seg-icon" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>';
+const EYE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+const COPY = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+const CHECK = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
+
+// Fixed icons of this page: the strings above are ours, not the server's, so a template is safe here.
+const icon = svg => { const t = document.createElement('template'); t.innerHTML = svg; return t.content.firstElementChild; };
+
+export function mount(root, route) {
+  const page = clone('t-settings');
+  const me = state.user;
+  const aborter = new AbortController();
+  const offs = [];
+  const timers = [];
+  frame.setTitle('page', { text: 'Settings' });
+  setTitle('Settings');
+
+  const $ = sel => page.querySelector(sel);
+  const status = $('.save-status');
+  let statusTimer = 0;
+  function saved(node = status, text = 'Saved', cls = 'saved') {
+    node.hidden = false; node.textContent = text;
+    node.classList.remove('saved', 'saving', 'error'); node.classList.add(cls);   // the other classes of the node stay
+    clearTimeout(node._timer); node._timer = setTimeout(() => { node.hidden = true; }, node === status ? 2000 : 3000);   // the chip 2 s, a card's line 3 s (ST-02, ST-14)
+  }
+  function saving() { status.hidden = false; status.textContent = 'Saving...'; status.classList.remove('saved', 'error'); status.classList.add('saving'); }
+  async function patch(body) {
+    saving();
+    try { await api.patch('/api/account', body); saved(); $('.save-error').hidden = true; return true; }
+    catch (e) { saved(status, 'Could not save. Try again.', 'error'); $('.save-error').hidden = false; return false; }   // next to the control too (ST-02)
+  }
+
+  // ---- Profile (ST-04 to ST-07) ----
+  const avatarHost = $('.profile-avatar');
+  const drawAvatar = () => replace(avatarHost, [avatar(me.username, state.user.avatarUrl, 'large')]);
+  drawAvatar();
+  const uploadLabel = $('.upload-label'), removePicture = $('.remove-picture'), pictureError = $('.picture-error');
+  const drawPicture = () => { uploadLabel.textContent = state.user.avatarUrl ? 'Change Picture' : 'Upload Picture'; removePicture.hidden = !state.user.avatarUrl; drawAvatar(); };
+  drawPicture();
+  $('#profile-upload').addEventListener('change', async e => {
+    const file = e.target.files?.[0]; e.target.value = '';
+    if (!file) return;
+    pictureError.hidden = true;
+    if (!file.type.startsWith('image/') || file.size > 10 * 1024 * 1024) { pictureError.textContent = 'Choose an image up to 10 MB'; pictureError.hidden = false; return; }   // ST-04
+    uploadLabel.textContent = 'Uploading...';
+    const form = new FormData(); form.append('file', file);
+    saving();
+    try { await api.put('/api/account/avatar', form); saved(); }
+    catch (err) { pictureError.textContent = err.message; pictureError.hidden = false; saved(status, 'Could not save. Try again.', 'error'); }
+    drawPicture();
+  });
+  removePicture.addEventListener('click', async () => { saving(); try { await api.delete('/api/account/avatar'); saved(); } catch { saved(status, 'Could not save. Try again.', 'error'); } });
+
+  const name = $('#display-name'), bio = $('#bio'), country = $('#country'), bioCounter = $('.bio-counter');
+  name.placeholder = me.username;
+  $('.name-hint').textContent = `Your username is ${me.username}, but your display name can be more fun. It can contain symbols and emojis :) `;
+  name.value = me.displayName ?? ''; bio.value = me.bio ?? ''; country.value = me.location ?? '';
+  const drawCounter = () => { bioCounter.textContent = `${bio.value.length}/150`; };
+  drawCounter();
+  let profileTimer = 0, profileDirty = false;
+  const profileBody = () => ({ displayName: name.value, bio: bio.value, location: country.value });
+  const flushProfile = async () => { if (!profileDirty) return; profileDirty = false; await patch(profileBody()); };
+  for (const input of [name, bio, country]) input.addEventListener('input', () => { profileDirty = true; drawCounter(); saving(); clearTimeout(profileTimer); profileTimer = setTimeout(flushProfile, 800); });   // ST-02
+  const detect = $('.detect-location');
+  api.get('/api/account/location').then(found => { if (found?.location) { detect.hidden = false; detect.addEventListener('click', () => { country.value = found.location; profileDirty = true; flushProfile(); }); } }).catch(() => {});   // ST-06
+
+  // ---- Appearance and Text Size (ST-08, ST-10) ----
+  const grid = $('.theme-grid');
+  const drawThemes = () => replace(grid, (state.config?.themes ?? []).map(t => {
+    const card = clone('t-theme-card');
+    card.title = t.name;
+    card.querySelector('.theme-card-preview').style.background = t.previewBg;
+    card.querySelector('.theme-card-accent-dot').style.background = t.previewAccent;
+    card.querySelector('.theme-card-name').textContent = t.name;
+    const on = (state.user.theme || 'discord-dark') === t.id;
+    card.classList.toggle('selected', on); card.querySelector('.theme-card-check').hidden = !on;
+    card.addEventListener('click', () => { mergeMe({ theme: t.id }); patch({ theme: t.id }); });   // applies at once (GEN-01)
+    return card;
+  }));
+  const row = $('.font-size-row');
+  const drawSizes = () => replace(row, FONT_SIZES.map(px => {
+    const option = clone('t-font-size-option');
+    option.title = `${px}px`;
+    option.querySelector('.font-size-sample').style.fontSize = `${px}px`;
+    option.querySelector('.font-size-value').textContent = px === 16 ? 'Default' : `${px}px`;
+    option.classList.toggle('selected', (state.user.fontSize ?? 16) === px);
+    option.addEventListener('click', () => { mergeMe({ fontSize: px === 16 ? null : px }); patch({ fontSize: px }); });
+    return option;
+  }));
+  drawThemes(); drawSizes();
+
+  // ---- Login Link (ST-11 to ST-13) and Secret Code (ST-14) ----
+  const link = { value: null, shown: false };
+  const code = { value: null, shown: false };
+  function masked(node, text, shown, mask) { node.textContent = shown ? text : mask; }
+  function wireReveal(button, store, draw) { button.replaceChildren(icon(store.shown ? EYE_OFF : EYE)); button.title = store.shown ? 'Hide' : 'Reveal'; button.onclick = () => { store.shown = !store.shown; draw(); }; }
+  function wireCopy(button, text) {
+    button.replaceChildren(icon(COPY)); button.title = 'Copy';
+    button.onclick = async () => { try { await navigator.clipboard.writeText(text); } catch { /* no clipboard */ } button.replaceChildren(icon(CHECK)); button.title = 'Copied!'; setTimeout(() => { button.replaceChildren(icon(COPY)); button.title = 'Copy'; }, 2000); };
+  }
+  function drawLink() {
+    const has = !!link.value;
+    $('.link-present').hidden = !has; $('.link-absent').hidden = has;
+    const ways = [has ? 'your login link' : null, code.value ? 'your secret code' : null, state.config?.smartLoginAllowed && !state.user.smartLoginOptOut ? 'smart login from a network you used recently' : null].filter(Boolean);
+    $('.link-summary').textContent = ways.length ? `You can log in from other devices with ${ways.join(', ')}.` : 'This account is tied to this device only.';   // ST-11
+    if (has) {
+      $('.link-username').textContent = me.username;
+      masked($('.link-value'), link.value.url, link.shown, link.value.url.replace(/\/invite\/.*$/, '/invite/••••••••••••'));
+      wireReveal($('.link-reveal'), link, drawLink); wireCopy($('.link-copy'), link.value.url);
+      const select = $('.link-expiry');
+      const current = [...select.options].find(o => o.value === 'current');
+      if (link.value.expiresAt) { (current ?? select.insertBefore(el('option', { value: 'current' }), select.firstChild)).textContent = `Expires ${link.value.expiresAt.slice(0, 10)}`; select.value = 'current'; }
+      else { current?.remove(); select.value = 'never'; }
+    }
+    $('.smart-login').hidden = !state.config?.smartLoginAllowed;
+    $('.smart-login-toggle').checked = !state.user.smartLoginOptOut;
+  }
+  function drawCode() {
+    const has = !!code.value;
+    $('.code-present').hidden = !has; $('.code-absent').hidden = has;
+    if (has) { $('.code-username').textContent = me.username; masked($('.code-value'), code.value, code.shown, '••••••••••'); wireReveal($('.code-reveal'), code, drawCode); wireCopy($('.code-copy'), code.value); }
+    drawLink();
+  }
+  const linkStatus = $('.link-status'), codeStatus = $('.code-status');
+  api.get('/api/account/link').then(l => { link.value = l; drawLink(); }).catch(() => {});
+  api.get('/api/account/passphrase').then(p => { code.value = p?.passphrase ?? null; drawCode(); }).catch(() => {});
+  $('.link-create').addEventListener('click', async () => { try { link.value = await api.post('/api/account/link'); link.shown = true; drawLink(); saved(linkStatus, 'Login link created'); } catch (e) { saved(linkStatus, e.message, 'error'); } });
+  $('.link-new').addEventListener('click', async () => { try { link.value = await api.post('/api/account/link'); link.shown = true; drawLink(); saved(linkStatus, 'New link created. The old one no longer works.'); } catch (e) { saved(linkStatus, e.message, 'error'); } });
+  $('.link-revoke').addEventListener('click', async () => { try { await api.delete('/api/account/link'); link.value = null; drawLink(); saved(linkStatus, 'Login link revoked'); } catch (e) { saved(linkStatus, e.message, 'error'); } });
+  $('.link-expiry').addEventListener('change', async e => {
+    const v = e.target.value; if (v === 'current') return;
+    const expiresAt = v === 'never' ? null : new Date(Date.now() + Number(v) * 86_400_000).toISOString();
+    try { await api.put('/api/account/link/expiry', { expiresAt }); link.value = { ...link.value, expiresAt }; drawLink(); saved(linkStatus, expiresAt ? `Link expires ${expiresAt.slice(0, 10)}` : 'Link never expires'); }
+    catch (err) { saved(linkStatus, err.message, 'error'); }
+  });
+  $('.smart-login-toggle').addEventListener('change', e => { mergeMe({ smartLoginOptOut: !e.target.checked }); patch({ smartLoginOptOut: !e.target.checked }); drawLink(); });
+  $('.code-enable').addEventListener('click', async () => { try { code.value = (await api.post('/api/account/passphrase')).passphrase; code.shown = true; drawCode(); saved(codeStatus, 'Secret code enabled'); } catch (e) { saved(codeStatus, e.message, 'error'); } });
+  $('.code-new').addEventListener('click', async () => { try { code.value = (await api.post('/api/account/passphrase')).passphrase; code.shown = true; drawCode(); saved(codeStatus, 'Secret code changed'); } catch (e) { saved(codeStatus, e.message, 'error'); } });
+  $('.code-disable').addEventListener('click', async () => { try { await api.delete('/api/account/passphrase'); code.value = null; drawCode(); saved(codeStatus, 'Secret code disabled'); } catch (e) { saved(codeStatus, e.message, 'error'); } });
+
+  // ---- Active Sessions (ST-15, AU-19, AU-20) ----
+  const deviceList = $('.device-list');
+  async function drawDevices() {
+    let devices = [];
+    try { devices = await api.get(`/api/account/devices?device=${encodeURIComponent(deviceId())}`); } catch { /* keep what shows */ }
+    replace(deviceList, devices.map(d => {
+      const item = clone('t-session-item');
+      item.classList.toggle('current', d.current);
+      item.querySelector('.session-icon').textContent = d.isMobile ? '📱' : '🖥️';
+      item.querySelector('.session-badge').hidden = !d.current;
+      item.querySelector('.session-ip').textContent = d.ip ?? 'Unknown IP';
+      item.querySelector('.session-activity').textContent = `Active ${ago(d.lastActiveAt)}`;
+      return item;
+    }));
+    $('.no-sessions').hidden = devices.length > 0;
+    $('.sign-out-others-row').hidden = false;   // always available (AU-20)
+  }
+  drawDevices();
+  offs.push(on('presence', () => { clearTimeout(timers.devices); timers.devices = setTimeout(drawDevices, 500); }));
+  const signOutOthers = $('.sign-out-others'), sessionsStatus = $('.sessions-status');
+  signOutOthers.addEventListener('click', async () => {
+    signOutOthers.disabled = true; signOutOthers.textContent = 'Signing out...';
+    try {
+      const sub = await push.current();
+      const answer = await api.post('/api/account/devices/sign-out-others', { deviceId: deviceId(), pushEndpoint: sub?.endpoint ?? null });
+      saved(sessionsStatus, 'Other devices signed out');
+      const notice = $('.kicked-notice');
+      notice.hidden = false;
+      notice.querySelector('.kicked-detail').textContent = `${link.value ? 'Your login link keeps working. ' : ''}${answer?.passphrase ? 'Your secret code was automatically changed. See the new one below.' : ''}`;
+      if (answer?.passphrase) { code.value = answer.passphrase; code.shown = true; drawCode(); }
+      drawDevices();
+    } catch (e) { saved(sessionsStatus, 'Failed', 'error'); }
+    signOutOthers.disabled = false; signOutOthers.textContent = 'Sign out all other devices';
+  });
+  $('.kicked-notice-dismiss').addEventListener('click', () => { $('.kicked-notice').hidden = true; });
+
+  // ---- Install as App (ST-16) ----
+  if (push.installed()) { $('.pwa-installed-info').hidden = false; $('.pwa-not-installed').hidden = true; }
+  $('.install-app').addEventListener('click', openInstallDialog);
+
+  // ---- Device Push Notifications (ST-17, NT-23, NT-24, NT-30) ----
+  const pushStatus = $('.push-status');
+  async function drawPush() {
+    const supported = push.supported(), configured = !!state.config?.vapidPublicKey, permission = push.permission();
+    const sub = supported ? await push.current() : null;
+    let devices = [];
+    try { devices = await api.get('/api/push/devices'); } catch { /* keep */ }
+    const mine = sub && devices.find(d => d.endpoint === sub.endpoint);
+    const thisValue = $('.push-this');
+    const thisState = !supported ? ['Not Supported', 'status-unavailable'] : !configured ? ['Not Configured', 'status-unavailable'] : mine ? ['Subscribed', 'status-enabled'] : ['Not subscribed', 'status-disabled'];
+    thisValue.textContent = thisState[0]; thisValue.className = `notification-value ${thisState[1]}`;
+    $('.push-permission-row').hidden = !supported;
+    const perm = $('.push-permission'); perm.textContent = permission; perm.className = `notification-value ${permission === 'granted' ? 'status-enabled' : permission === 'denied' ? 'status-denied' : 'status-disabled'}`;
+    $('.push-count').textContent = `${devices.length} device(s)`;
+    replace($('.push-list'), devices.map(d => {
+      const item = clone('t-session-item');
+      const current = sub && d.endpoint === sub.endpoint;
+      item.classList.toggle('current', !!current);
+      item.querySelector('.session-icon').textContent = '🔔';
+      item.querySelector('.session-badge').hidden = !current;
+      item.querySelector('.session-ip').textContent = d.platform;
+      item.querySelector('.session-activity').textContent = `Added ${ago(d.addedAt)}`;
+      if (d.deliveredAt) { const extra = item.querySelector('.session-extra'); extra.hidden = false; extra.textContent = `Delivered ${ago(d.deliveredAt)}`; }
+      const remove = item.querySelector('.session-remove'); remove.hidden = false;
+      remove.addEventListener('click', async () => { try { await api.delete('/api/push/devices', { endpoint: d.endpoint }); if (current) await push.unsubscribe(); drawPush(); } catch (e) { saved(pushStatus, e.message, 'error'); } });
+      return item;
+    }));
+    const reason = $('.push-reason');
+    const text = !supported ? 'Push notifications are not supported in this browser.' : !configured ? 'Push notifications are not configured on this server.' : permission === 'denied' ? 'Notification permission was denied. Reset it in your browser settings to re-enable.' : null;
+    reason.hidden = !text; if (text) reason.textContent = text;
+    $('.push-off-row').hidden = !!text || !mine; $('.push-off-hint').hidden = !!text || !mine;
+    $('.push-on').hidden = !!text || !!mine; $('.push-on-hint').hidden = !!text || !!mine;
+    const canTest = configured && devices.length > 0;
+    $('.push-test-row').hidden = !canTest; $('.push-test-hint').hidden = !canTest;
+  }
+  drawPush();
+  $('.push-on').addEventListener('click', async e => {
+    e.target.disabled = true; e.target.textContent = 'Enabling...';
+    const result = await push.subscribe();
+    if (!result.ok) saved(pushStatus, result.reason, 'error');
+    e.target.disabled = false; e.target.textContent = 'Enable push on this device';
+    drawPush();
+  });
+  $('.push-off').addEventListener('click', async e => {
+    e.target.disabled = true; e.target.textContent = 'Turning off...';
+    await push.unsubscribe();
+    e.target.disabled = false; e.target.textContent = 'Turn off push on this device';
+    drawPush();
+  });
+  $('.push-test').addEventListener('click', async e => {
+    e.target.disabled = true; e.target.textContent = 'Sending...';
+    try {
+      const r = await api.post('/api/push/test', {});
+      saved(pushStatus, r.total === 0 ? 'No subscribed devices to notify.' : r.failed ? `Sent to ${r.sent}/${r.total} device(s); ${r.failed} failed (expired ones removed).` : `Sent to ${r.sent} device(s) — check them now.`);
+    } catch { saved(pushStatus, 'Failed to send test notification.', 'error'); }
+    e.target.disabled = false; e.target.textContent = 'Send a test to all devices';
+    drawPush();
+  });
+  $('.to-mutes').addEventListener('click', e => { e.preventDefault(); $('#notification-settings').scrollIntoView({ behavior: 'smooth' }); });
+
+  // ---- Allow / Mute Notifications (ST-18, NT-16 to NT-22) ----
+  function seg(host, items, selected, onPick) {
+    replace(host, items.map(([value, label, svg]) => {
+      const b = clone('t-seg-btn');
+      const on = value === selected;
+      b.classList.toggle('seg-selected', on); b.setAttribute('aria-checked', String(on));
+      replace(b.querySelector('.seg-icon-slot'), svg ? [icon(svg)] : []);
+      b.querySelector('.seg-text').textContent = label;
+      b.addEventListener('click', () => onPick(value));
+      return b;
+    }));
+  }
+  async function putMutes(body) { try { await api.put('/api/account/mutes', body); } catch (e) { saved(status, e.message, 'error'); } }
+  function muteHint() {
+    const until = state.mutes?.server?.until;
+    if (!until) return 'Muted until you turn notifications back on.';
+    const left = Math.max(0, new Date(until) - Date.now());
+    const m = Math.round(left / 60_000), h = Math.round(left / 3_600_000), d = Math.round(left / 86_400_000);
+    const text = left < 60_000 ? 'a moment' : m < 60 ? (m === 1 ? '1 minute' : `${m} minutes`) : h < 24 ? (h === 1 ? '1 hour' : `${h} hours`) : (d === 1 ? '1 day' : `${d} days`);
+    return `Muted for another ${text}.`;
+  }
+  function drawMutes() {
+    const mutes = state.mutes; if (!mutes) return;
+    const muted = serverMuted();
+    seg($('.server-seg'), [['allow', 'Allow', BELL], ['mute', 'Mute', BELL_OFF]], muted ? 'mute' : 'allow', v => {
+      if (v === 'mute') { mergeMe({ mutes: { ...mutes, server: { muted: true, until: null } } }); putMutes({ server: { muted: true, until: null } }); }
+      else { mergeMe({ mutes: { ...mutes, server: { muted: false, until: null } } }); putMutes({ server: { muted: false, until: null } }); }
+    });
+    $('.duration-row').hidden = !muted; $('.mute-hint').hidden = !muted; $('.modes').hidden = muted;
+    if (muted) {
+      const until = mutes.server.until ? new Date(mutes.server.until) - Date.now() : null;
+      const pick = until === null ? 'forever' : until <= 3_600_000 ? '1h' : until <= 86_400_000 ? '1d' : '1w';   // the shortest that covers the rest (NT-17)
+      seg($('.duration-seg'), [['1h', '1 hour'], ['1d', '1 day'], ['1w', '1 week'], ['forever', 'Until I turn it back on']], pick, v => {
+        const ms = { '1h': 3_600_000, '1d': 86_400_000, '1w': 7 * 86_400_000 }[v];
+        const untilIso = ms ? new Date(Date.now() + ms).toISOString() : null;
+        mergeMe({ mutes: { ...mutes, server: { muted: true, until: untilIso } } }); putMutes({ server: { muted: true, until: untilIso } });
+      });
+      $('.mute-hint').textContent = muteHint();
+      return;
+    }
+    const modes = [['allowAll', 'Allow all', BELL], ['individual', 'Individual', SLIDERS], ['muteAll', 'Mute all', BELL_OFF]];
+    seg($('.dm-seg'), modes, mutes.dmMode, v => { mergeMe({ mutes: { ...mutes, dmMode: v } }); putMutes({ dmMode: v }); });
+    seg($('.room-seg'), modes, mutes.roomMode, v => { mergeMe({ mutes: { ...mutes, roomMode: v } }); putMutes({ roomMode: v }); });
+    const dmList = $('.dm-list'), roomList = $('.room-list');
+    dmList.hidden = mutes.dmMode !== 'individual'; roomList.hidden = mutes.roomMode !== 'individual';
+    const toggle = (label, isMuted, onToggle) => {
+      const item = clone('t-notif-item');
+      replace(item.querySelector('.notif-item-name'), inline(label));
+      const b = item.querySelector('.notif-item-toggle');
+      b.classList.toggle('muted', isMuted); b.setAttribute('aria-pressed', String(isMuted));
+      b.title = isMuted ? 'Muted — click to allow' : 'Allowed — click to mute'; b.setAttribute('aria-label', isMuted ? 'Unmute' : 'Mute');
+      b.replaceChildren(icon(isMuted ? BELL_OFF : BELL));
+      b.addEventListener('click', () => onToggle(!isMuted));
+      return item;
+    };
+    const channelToggle = (channelId, label, fallback) => toggle(label, mutes.channels[channelId] ?? fallback, next => {
+      mergeMe({ mutes: { ...mutes, channels: { ...mutes.channels, [channelId]: next } } }); putMutes({ channel: { channelId, muted: next } });
+    });
+    if (!dmList.hidden) {
+      replace(dmList, [...state.dms.slice().sort((a, b) => (b.lastMessageAt ?? '').localeCompare(a.lastMessageAt ?? '')).map(d => channelToggle(d.channelId, displayName(d.partner), mutes.newDmsMuted)),
+        Object.assign(toggle('New DMs', mutes.newDmsMuted, next => { mergeMe({ mutes: { ...mutes, newDmsMuted: next } }); putMutes({ newDmsMuted: next }); }), { className: 'notif-item notif-item-default' })]);
+    }
+    if (!roomList.hidden) replace(roomList, state.rooms.map(r => channelToggle(r.id, `#${r.name}`, true)));
+  }
+  drawMutes();
+  offs.push(on('mutes', drawMutes), on('dms', drawMutes), on('rooms', drawMutes));
+  timers.hint = setInterval(() => { if (!$('.mute-hint').hidden) $('.mute-hint').textContent = muteHint(); }, 60_000);
+
+  // ---- Time & Date (ST-19, ST-20) ----
+  let options = null;   // from /api/account/locale-options
+  const clockNow = $('.current-time');
+  const drawClock = () => { clockNow.textContent = timeOf(new Date()); };
+  drawClock(); timers.clock = setInterval(drawClock, 10_000);
+  function offsetOf(zone) {   // the current offset of the zone, in hours
+    const fixed = /^UTC([+-]\d+)$/.exec(zone ?? '');
+    if (fixed) return Number(fixed[1]);   // a fixed offset chosen here before
+    try {
+      const parts = new Intl.DateTimeFormat('en', { timeZone: zone, timeZoneName: 'longOffset' }).formatToParts(new Date());
+      const m = /GMT([+-]\d{1,2})(?::(\d{2}))?/.exec(parts.find(p => p.type === 'timeZoneName')?.value ?? '');
+      return m ? Number(m[1]) + Math.sign(Number(m[1]) || 1) * Number(m[2] ?? 0) / 60 : 0;
+    } catch { return 0; }
+  }
+  function shiftZone(delta) {
+    const zone = state.user.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+    let hours = Math.round(offsetOf(zone)) + delta;
+    hours = Math.max(-14, Math.min(14, hours));                                                  // ST-19
+    const fixed = `UTC${hours >= 0 ? '+' : ''}${hours}`;
+    mergeMe({ timeZone: fixed }); usePreferences(state.user); drawClock(); patch({ timeZone: fixed });
+  }
+  $('.time-minus').addEventListener('click', () => shiftZone(-1));
+  $('.time-plus').addEventListener('click', () => shiftZone(1));
+  $('.time-detect').addEventListener('click', () => {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (!zone || zone === 'Etc/Unknown') return;   // a browser without a zone (headless) changes nothing
+    mergeMe({ timeZone: zone }); usePreferences(state.user); drawClock(); patch({ timeZone: zone });
+  });
+  function formatExample(order, clock, culture) {
+    const loc = culture || state.user.locale || navigator.language;
+    const now = new Date();
+    if (clock) return new Intl.DateTimeFormat(loc, clock === '12h' ? { hour: 'numeric', minute: '2-digit', hour12: true } : { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now);
+    const p = Object.fromEntries(new Intl.DateTimeFormat(loc, { day: '2-digit', month: '2-digit', year: 'numeric' }).formatToParts(now).map(x => [x.type, x.value]));
+    const sep = order === 'ymd' ? '-' : (p.literal ?? '/').trim() || '/';
+    return order === 'dmy' ? `${p.day}${sep}${p.month}${sep}${p.year}` : order === 'mdy' ? `${Number(p.month)}${sep}${Number(p.day)}${sep}${p.year}` : `${p.year}-${p.month}-${p.day}`;
+  }
+  function saveFormat() {
+    const { order, clock, culture } = options.current;
+    const value = `${order}-${clock}${culture && options.cultures.length > 1 ? `-${culture}` : ''}`;
+    mergeMe({ dateFormat: value }); usePreferences(state.user); drawClock(); patch({ dateFormat: value });
+  }
+  function drawFormats() {
+    if (!options) return;
+    const cards = (host, items, selected, name, onPick) => replace(host, items.map(([value, example, label]) => {
+      const card = clone('t-format-option');
+      const input = card.querySelector('input'); input.name = name; input.checked = value === selected;
+      card.classList.toggle('selected', value === selected);
+      card.querySelector('.format-example').textContent = example;
+      if (label) { const l = card.querySelector('.format-label'); l.hidden = false; l.textContent = label; }
+      input.addEventListener('change', () => onPick(value));
+      return card;
+    }));
+    const c = options.current;
+    cards($('.clock-options'), options.clocks.map(id => [id, formatExample(null, id, c.culture)]), c.clock, 'clock', v => { c.clock = v; saveFormat(); drawFormats(); });
+    cards($('.order-options'), options.dateOrders.map(id => [id, formatExample(id, null, c.culture)]), c.order, 'dateOrder', v => { c.order = v; saveFormat(); drawFormats(); });
+    const sepGroup = $('.separators-group');
+    sepGroup.hidden = options.cultures.length < 2;
+    if (!sepGroup.hidden) cards($('.separator-options'), options.cultures.map(cu => [cu.name, formatExample(c.order, null, cu.name), cu.nativeName]), c.culture, 'separators', v => { c.culture = v; saveFormat(); drawFormats(); });
+    $('.detected').textContent = `Detected: ${state.user.timeZone ?? '—'} · ${state.user.locale ?? '—'}`;
+  }
+  api.get('/api/account/locale-options').then(o => { options = o; drawFormats(); }).catch(() => {});
+
+  // ---- My GIFs (ST-21 to ST-24) ----
+  const unmountLibrary = GifLibrary($('.gif-library-host'), { server: false });
+
+  // ---- DEBUG INFO (ST-25) ----
+  $('.debug-info').addEventListener('toggle', e => { if (e.target.open) cacheReport(); }, { once: true });
+  async function cacheReport() {
+    const note = $('.cache-note'), report = $('.cache-report');
+    if (!('caches' in window)) { note.textContent = 'Cache Storage API is not available in this browser.'; return; }
+    try {
+      const names = await caches.keys();
+      const groups = [];
+      let totalCount = 0, totalBytes = 0;
+      for (const name of names) {
+        const cache = await caches.open(name);
+        const keys = await cache.keys();
+        const entries = [];
+        for (const req of keys.slice(0, 200)) {
+          const res = await cache.match(req);
+          const bytes = Number(res?.headers.get('content-length') ?? 0);
+          entries.push({ url: req.url, bytes });
+          totalBytes += bytes;
+        }
+        totalCount += keys.length;
+        groups.push({ name, count: keys.length, bytes: entries.reduce((s, e) => s + e.bytes, 0), entries });
+      }
+      $('.cache-total').textContent = `${totalCount === 1 ? '1 file' : `${totalCount} files`} · ${size(totalBytes)}`;   // ST-25 wording
+      if (navigator.storage?.estimate) { const est = await navigator.storage.estimate(); $('.cache-estimate-row').hidden = false; $('.cache-estimate').textContent = `${size(est.usage ?? 0)} of ${size(est.quota ?? 0)}`; }
+      replace($('.cache-groups'), groups.map(g => {
+        const node = clone('t-cache-group');
+        node.querySelector('.cache-group-name').textContent = g.name.startsWith('yap-media') ? 'Media — saved chat attachments' : g.name.startsWith('yap-shell') ? 'App — offline interface' : g.name.startsWith('yap-emoji') ? 'Emoji — downloaded artwork' : g.name;
+        node.querySelector('.cache-group-meta').textContent = `${g.count === 1 ? '1 file' : `${g.count} files`} · ${size(g.bytes)}`;
+        const list = node.querySelector('.cache-entry-list');
+        replace(list, g.entries.length ? g.entries.map(e => el('div', { class: 'cache-entry', title: e.url }, el('span', { class: 'cache-entry-name' }, e.url.split('/').pop() || e.url), el('span', { class: 'cache-entry-size' }, size(e.bytes)))) : [el('span', { class: 'form-hint' }, 'Empty')]);
+        if (g.name.startsWith('yap-media') && g.count) { const clear = node.querySelector('.cache-clear'); clear.hidden = false; clear.addEventListener('click', async () => { await caches.delete(g.name); cacheReport(); }); }
+        return node;
+      }));
+      note.hidden = true; report.hidden = false;
+    } catch { note.textContent = 'Cache report unavailable.'; }
+  }
+
+  // ---- the account's changes from elsewhere (ST-07, ST-10) ----
+  offs.push(on('user', () => { drawPicture(); drawThemes(); drawSizes(); drawLink(); drawClock(); drawFormats(); }));
+
+  root.replaceChildren(page);
+  if (route.hash === 'notification-settings') requestAnimationFrame(() => $('#notification-settings').scrollIntoView());   // ST-01
+  return () => {
+    clearTimeout(profileTimer); flushProfile();                                                  // a typed edit is saved on leaving (ST-02)
+    for (const t of Object.values(timers)) { clearInterval(t); clearTimeout(t); }
+    offs.forEach(off => off()); aborter.abort(); unmountLibrary(); page.remove();
+  };
+}

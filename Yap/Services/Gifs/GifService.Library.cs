@@ -1,14 +1,14 @@
 using System.IO.Compression;
 using System.Text.Json;
-using Microsoft.EntityFrameworkCore;
 using Yap.Models;
+using Yap.Models.Gifs;
+using Yap.Services.Persistence;
 
 namespace Yap.Services.Gifs;
 
 /// <summary>
 /// BYOG ("bring your own GIFs") surface of GifService: the admin-curated server library,
 /// per-user favorite folders, upload quota, entry deletion, and zip pack import/export.
-/// Split off the core file the same way EmojiService.Rendering.cs is.
 /// </summary>
 public partial class GifService
 {
@@ -30,8 +30,6 @@ public partial class GifService
 
     #region Server library
 
-    public bool HasServerGifs => _entries.Values.Any(e => e.IsServerGif && e.DeletedAt == null);
-
     public List<GifEntry> GetServerGifs(string? folder = null) =>
         _entries.Values
             .Where(e => e.IsServerGif && e.DeletedAt == null)
@@ -49,10 +47,9 @@ public partial class GifService
 
     /// <summary>
     /// Adds/removes an entry from the server library, optionally filing it in a folder.
-    /// Persisted immediately (an explicit admin action shouldn't be lost to a restart).
     /// Admin-only — enforced by callers, which all sit behind admin gates.
     /// </summary>
-    public async Task<bool> SetServerGifAsync(Guid entryId, bool isServer, string? folder = null)
+    public bool SetServerGif(Guid entryId, bool isServer, string? folder = null)
     {
         if (!_entries.TryGetValue(entryId, out var entry) || entry.DeletedAt != null) return false;
 
@@ -63,24 +60,8 @@ public partial class GifService
             entry.ServerFolder = isServer ? folder : null;
         }
 
-        if (_dbFactory != null)
-        {
-            try
-            {
-                await using var db = await _dbFactory.CreateDbContextAsync();
-                await db.GifEntries
-                    .Where(g => g.Id == entryId)
-                    .ExecuteUpdateAsync(s => s
-                        .SetProperty(g => g.IsServerGif, entry.IsServerGif)
-                        .SetProperty(g => g.ServerFolder, entry.ServerFolder));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to persist server-library change for GIF {Id}", entryId);
-            }
-        }
+        _writer.Enqueue(Writes.GifEntry(entry));
 
-        OnGifLibraryChanged?.Invoke(entry);
         return true;
     }
 
@@ -150,7 +131,7 @@ public partial class GifService
     /// actor's favorites. With force (admin): favorites are purged everywhere; message-referenced
     /// entries are soft-deleted (file kept so history renders), unreferenced ones fully removed.
     /// </summary>
-    public async Task<GifDeleteResult> DeleteEntryAsync(Guid actorUserId, Guid entryId, bool force)
+    public GifDeleteResult DeleteEntry(Guid actorUserId, Guid entryId, bool force)
     {
         if (!_entries.TryGetValue(entryId, out var entry) || entry.DeletedAt != null)
             return GifDeleteResult.NotFound;
@@ -160,17 +141,17 @@ public partial class GifService
 
         if (!force)
         {
-            if (entry.SourceProviderId != null || entry.UploadedByUserId != actorUserId)
+            if (!IsOwnUpload(entry, actorUserId))
                 return GifDeleteResult.NotAllowed;
 
             if (entry.ReferenceCount > 0 || CountOtherFavoriters(entryId, actorUserId) > 0)
             {
-                await SetFavoriteAsync(actorUserId, entryId, favorite: false);
+                SetFavorite(actorUserId, entryId, favorite: false);
                 return GifDeleteResult.UnstarredOnly;
             }
         }
 
-        // Purge from every user's favorites (memory now, DB below), remembering who to notify.
+        // Purge from every user's favorites, remembering who to notify.
         var affectedUsers = new List<Guid>();
         foreach (var (uid, map) in _favoritesByUser)
         {
@@ -207,29 +188,12 @@ public partial class GifService
             _entries.TryRemove(entryId, out _);
             DeleteLocalFiles(entry);
         }
-        _dirtyEntries.TryRemove(entryId, out _);
 
-        if (_dbFactory != null)
-        {
-            try
-            {
-                await using var db = await _dbFactory.CreateDbContextAsync();
-                await db.FavoriteGifs.Where(f => f.GifEntryId == entryId).ExecuteDeleteAsync();
-                if (softDelete)
-                    await db.GifEntries.Where(g => g.Id == entryId)
-                        .ExecuteUpdateAsync(s => s.SetProperty(g => g.DeletedAt, entry.DeletedAt));
-                else
-                    await db.GifEntries.Where(g => g.Id == entryId).ExecuteDeleteAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to persist deletion of GIF {Id}", entryId);
-            }
-        }
+        _writer.Enqueue(Writes.DeleteFavoritesOf(entryId));
+        _writer.Enqueue(softDelete ? Writes.GifEntry(entry) : Writes.DeleteGifEntry(entryId));
 
         foreach (var uid in affectedUsers)
             OnFavoritesChanged?.Invoke(uid);
-        OnGifLibraryChanged?.Invoke(entry);
 
         _logger.LogInformation("GIF {Id} {Mode}-deleted by {Actor} (refs: {Refs})",
             entryId, softDelete ? "soft" : "hard", actorUserId, entry.ReferenceCount);
@@ -270,8 +234,8 @@ public partial class GifService
 
     /// <summary>
     /// Kicks off a background import of an uploaded zip (owns and eventually deletes the file).
-    /// Progress arrives via <see cref="OnImportProgress"/> — the manager UI listens over the
-    /// circuit, so no HTTP polling is needed. Returns the id progress events carry.
+    /// Progress arrives via <see cref="OnImportProgress"/>, which the broadcaster sends to the actor as the
+    /// gifImport hub message, so no HTTP polling is needed. Returns the id progress events carry.
     /// </summary>
     public Guid StartPackImport(string zipPath, Guid actorUserId, bool serverTarget)
     {
@@ -364,14 +328,14 @@ public partial class GifService
                     {
                         foreach (var tag in item!.Tags!)
                             AppendTag(accepted, tag);
-                        _dirtyEntries.TryAdd(accepted.Id, 0);
+                        _writer.Enqueue(Writes.GifEntry(accepted));
                     }
 
                     var folder = item?.Folder ?? FirstPathSegment(entryPath);
                     if (serverTarget)
-                        await SetServerGifAsync(att.GifEntryId, isServer: true, folder);
+                        SetServerGif(att.GifEntryId, isServer: true, folder);
                     else
-                        await SetFavoriteAsync(actorUserId, att.GifEntryId, favorite: true, folder);
+                        SetFavorite(actorUserId, att.GifEntryId, favorite: true, folder);
 
                     done++;
                 }
@@ -563,7 +527,7 @@ public sealed record GifImportProgress(
     Guid ImportId, Guid ActorUserId, bool ServerTarget,
     int Done, int Total, int SkippedOrFailed, bool Completed, string? Error);
 
-/// <summary>Outcome of <see cref="GifService.DeleteEntryAsync"/>, for user-facing messaging.</summary>
+/// <summary>Outcome of <see cref="GifService.DeleteEntry"/>, for user-facing messaging.</summary>
 public enum GifDeleteResult { NotFound, NotAllowed, UnstarredOnly, SoftDeleted, Deleted }
 
 /// <summary>gifs.json pack manifest — the round-trip format shared by import and export.</summary>

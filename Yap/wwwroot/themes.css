@@ -1,6 +1,6 @@
 /*
  * Color themes. Each block overrides CSS variables from :root in app.css.
- * Activated by data-theme="..." on the <html> element (set in App.razor).
+ * Activated by data-theme="..." on the <html> element (set by index.html before the stylesheets load).
  *
  * Status colors (online/away/danger/success/warning): a THEME may re-tint them
  * to fit its palette (Terminal and Neon Glow do), but --color-danger must stay
@@ -281,7 +281,7 @@
    you at a glance whether you are in a room or a DM. Every theme gets a faint
    diagonal hairline in DMs; a theme can swap the shape for something of its own.
 
-   Scoped to .chat-container (not <html>) because Blazor sets data-context there.
+   Scoped to .chat-container (not <html>) because the frame sets data-context there.
    Deliberately limited to pattern and tint - never a status colour.
    ========================================================================== */
 .chat-container[data-context="dm"] {

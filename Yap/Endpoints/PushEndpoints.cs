@@ -1,6 +1,9 @@
-using Yap.Middleware;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Mvc;
 using Yap.Models;
 using Yap.Services;
+using Yap.Services.Accounts;
+using Yap.Services.Notifications;
 
 namespace Yap.Endpoints;
 
@@ -19,55 +22,56 @@ public static class PushEndpoints
                 : Results.NotFound(new { error = "VAPID not configured" });
         });
 
-        group.MapPost("/subscribe", async (HttpContext context, PushSubscriptionStore store, UserService userService, ILogger<Program> logger) =>
+        group.MapPost("/subscribe", async (HttpContext context, ClaimsPrincipal user, PushSubscriptionStore store, ILogger<Program> logger) =>
         {
-            var token = context.Request.Cookies[AuthMiddleware.CookieName];
-            var user = !string.IsNullOrEmpty(token) ? userService.AuthenticateByToken(token) : null;
-            if (user == null)
-            {
-                logger.LogDebug("Push subscribe rejected: no valid auth cookie");
-                return Results.Unauthorized();
-            }
-
             var body = await context.Request.ReadFromJsonAsync<PushSubscribeRequest>();
-            if (body == null || string.IsNullOrEmpty(body.Endpoint))
+            // A push endpoint is an https URL of a push service; the server posts to it later, so nothing else passes.
+            if (body == null || !Uri.TryCreate(body.Endpoint, UriKind.Absolute, out var endpoint) || endpoint.Scheme != Uri.UriSchemeHttps)
                 return Results.BadRequest(new { error = "Invalid subscription" });
 
-            logger.LogDebug("Push subscribe for {Username}, endpoint={Endpoint}", user.Username, body.Endpoint[..Math.Min(50, body.Endpoint.Length)]);
+            logger.LogDebug("Push subscribe for {Username}, endpoint={Endpoint}", user.Username(), body.Endpoint[..Math.Min(50, body.Endpoint.Length)]);
 
-            await store.SaveSubscriptionAsync(user.Username, new PushSubscriptionInfo
+            var saved = await store.SaveSubscriptionAsync(user.Username(), new PushSubscriptionInfo
             {
                 Endpoint = body.Endpoint,
                 P256dh = body.P256dh ?? "",
                 Auth = body.Auth ?? ""
             });
+            if (!saved) return Results.Problem("That subscription belongs to another account.", statusCode: 409);
 
             return Results.Ok(new { success = true });
-        });
+        }).RequireAuthorization();
 
-        group.MapPost("/unsubscribe", async (HttpContext context, PushSubscriptionStore store, UserService userService, ILogger<Program> logger) =>
+        group.MapPost("/unsubscribe", async (HttpContext context, ClaimsPrincipal user, PushSubscriptionStore store, ILogger<Program> logger) =>
         {
-            var token = context.Request.Cookies[AuthMiddleware.CookieName];
-            var user = !string.IsNullOrEmpty(token) ? userService.AuthenticateByToken(token) : null;
-            if (user == null)
-            {
-                logger.LogDebug("Push unsubscribe rejected: no valid auth cookie");
-                return Results.Unauthorized();
-            }
-
             var body = await context.Request.ReadFromJsonAsync<PushUnsubscribeRequest>();
             if (body == null || string.IsNullOrEmpty(body.Endpoint))
                 return Results.BadRequest(new { error = "Invalid request" });
 
-            logger.LogDebug("Push unsubscribe for {Username}, endpoint={Endpoint}", user.Username, body.Endpoint[..Math.Min(50, body.Endpoint.Length)]);
+            logger.LogDebug("Push unsubscribe for {Username}, endpoint={Endpoint}", user.Username(), body.Endpoint[..Math.Min(50, body.Endpoint.Length)]);
 
-            await store.RemoveSubscriptionAsync(body.Endpoint);
+            if (!await store.RemoveOwnAsync(user.Username(), body.Endpoint)) return Results.NotFound();   // one's own only
             return Results.Ok(new { success = true });
-        });
+        }).RequireAuthorization();
+
+        // The Settings card (ST-17, NT-30): the person's devices, Remove, and the test send that ignores every mute.
+        group.MapGet("/devices", (ClaimsPrincipal user, PushSubscriptionStore store) =>
+            Results.Ok(store.GetSubscriptionsDetailed(user.Username())
+                .Select(s => new PushDeviceDto(s.Endpoint, Platform(s.Endpoint), s.CreatedAt, store.GetLastDelivered(s.Endpoint))).ToList()))
+            .RequireAuthorization();
+
+        group.MapDelete("/devices", async (ClaimsPrincipal user, [FromBody] PushDeviceRequest body, PushSubscriptionStore store) =>   // a DELETE body is not inferred
+        {
+            if (!await store.RemoveOwnAsync(user.Username(), body.Endpoint)) return Results.NotFound();
+            return Results.NoContent();
+        }).RequireAuthorization();
+
+        group.MapPost("/test", async (ClaimsPrincipal user, PushNotificationService pushService) =>
+            Results.Ok(await pushService.SendTestAsync(user.Username()))).RequireAuthorization();
 
         // Delivery receipt from the service worker's push handler. Anonymous by design: it fires
         // while the app is closed, where the auth cookie may be absent or expired in SW context.
-        // The subscription endpoint URL is itself a high-entropy secret — presenting one proves
+        // The subscription endpoint URL is itself a high-entropy secret. Presenting one proves
         // the caller received a push for it; unknown endpoints get 404.
         group.MapPost("/delivered", async (HttpContext context, PushSubscriptionStore store) =>
         {
@@ -81,7 +85,17 @@ public static class PushEndpoints
         });
     }
 
+    // The push service behind an endpoint, for the device list's hint (NT wording: platform hints).
+    private static string Platform(string endpoint) =>
+        endpoint.Contains("push.apple.com") ? "Apple (Safari / iOS)"
+        : endpoint.Contains("fcm.googleapis.com") || endpoint.Contains("google") ? "Google (Chrome / Edge / Android)"
+        : endpoint.Contains("mozilla.com") ? "Mozilla (Firefox)"
+        : endpoint.Contains("notify.windows.com") ? "Microsoft (WNS)"
+        : "Notification device";
+
     private record PushSubscribeRequest(string Username, string Endpoint, string? P256dh, string? Auth);
+    private record PushDeviceRequest(string Endpoint);
+    public record PushDeviceDto(string Endpoint, string Platform, DateTime AddedAt, DateTime? DeliveredAt);
     private record PushUnsubscribeRequest(string Endpoint);
     private record PushDeliveredRequest(string Endpoint, string? Tag, bool? Shown);
 }

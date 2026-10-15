@@ -1,0 +1,218 @@
+[
+  {
+    "name": "Controls: direct DM reads sends edits deletes and reactions",
+    "older": {
+      "messages": [],
+      "hasMore": false
+    },
+    "send": {
+      "status": 404,
+      "data": {
+        "type": "https://tools.ietf.org/html/rfc9110#section-15.5.5",
+        "title": "Not Found",
+        "status": 404,
+        "detail": "Unknown conversation",
+        "traceId": "00-ee11a0365e8e2c9d64288928fbb959e1-33f7a970ca231d9c-00"
+      }
+    },
+    "edit": {
+      "error": "You can edit your own messages only."
+    },
+    "delete": {
+      "error": "You can delete your own messages only."
+    },
+    "react": {
+      "error": "Message not found."
+    },
+    "adminRoute": 404
+  },
+  {
+    "name": "History cutoff: reply quote and edit broadcast",
+    "initialMessages": 0,
+    "restricted": true,
+    "replyQuote": {
+      "id": "322394c8-5542-4525-b16e-68cb7ca7aa48",
+      "username": "secadmin",
+      "text": "HIDDEN_BEFORE_JOIN",
+      "hasMedia": false,
+      "unavailable": false
+    },
+    "hiddenEdit": {
+      "id": "322394c8-5542-4525-b16e-68cb7ca7aa48",
+      "channelId": "434c2218-67d0-49db-9512-129d95c5a009",
+      "clientId": "1aa21287-9da3-47d6-a071-e0dd4f9f4e21",
+      "username": "secadmin",
+      "text": "HIDDEN_EDITED_SECRET",
+      "timestamp": "2026-10-15T06:17:21.1053595Z",
+      "edited": true,
+      "replyTo": null,
+      "images": [],
+      "videos": [],
+      "gifs": [],
+      "reactions": [],
+      "previews": []
+    },
+    "bug": true
+  },
+  {
+    "name": "Private GIF: unrestricted send, tags, favorite and export",
+    "bug": true,
+    "privateId": "ffa6e067-713c-475e-80d4-b4b3e934edce",
+    "searchBefore": [],
+    "send": {
+      "status": 200,
+      "data": {
+        "id": "e5218823-a054-4445-ad72-7ca2f5d746c0",
+        "channelId": "a4c6c091-d602-4746-aac5-e5aa77a88f7f",
+        "clientId": "563436b0-311e-4081-bfb4-1429d25fb82f",
+        "username": "seceve",
+        "text": "",
+        "timestamp": "2026-10-15T06:17:21.6981166Z",
+        "edited": false,
+        "replyTo": null,
+        "images": [],
+        "videos": [],
+        "gifs": [
+          {
+            "entryId": "ffa6e067-713c-475e-80d4-b4b3e934edce",
+            "src": "/uploads/gifs/ffa6e067-713c-475e-80d4-b4b3e934edce.gif",
+            "isImage": true,
+            "width": 1,
+            "height": 1,
+            "uploader": "secalice"
+          }
+        ],
+        "reactions": [],
+        "previews": []
+      }
+    },
+    "tagStatus": 204,
+    "starStatus": 204,
+    "favorite": {
+      "id": "ffa6e067-713c-475e-80d4-b4b3e934edce",
+      "preview": "/uploads/gifs/ffa6e067-713c-475e-80d4-b4b3e934edce.gif",
+      "src": "/uploads/gifs/ffa6e067-713c-475e-80d4-b4b3e934edce.gif",
+      "isImage": true,
+      "width": 1,
+      "height": 1,
+      "favorite": true,
+      "folder": null,
+      "tags": [
+        "changed-by-stranger"
+      ],
+      "isServer": false,
+      "serverFolder": null,
+      "uploader": "secalice",
+      "mine": false,
+      "sizeBytes": 42
+    },
+    "exportStatus": 200,
+    "exportBytes": 444,
+    "deleteControl": 403
+  },
+  {
+    "name": "Upload completion info is anonymous and consumed by first reader",
+    "bug": true,
+    "anonymous": {
+      "status": 200,
+      "data": {
+        "type": "gif",
+        "gifEntryId": "ffa6e067-713c-475e-80d4-b4b3e934edce",
+        "width": 1,
+        "height": 1
+      }
+    },
+    "owner": {
+      "status": 404,
+      "data": {
+        "error": "File not found or still processing"
+      }
+    }
+  },
+  {
+    "name": "Other account can inspect and terminate unfinished upload",
+    "bug": true,
+    "anonymousStatus": 401,
+    "otherStatus": 200,
+    "metadata": "filename YWxpY2UtcHJpdmF0ZS1uYW1lLnBuZw==",
+    "deletionStatus": 204,
+    "ownerStatus": 404
+  },
+  {
+    "name": "Other account can unsubscribe a push endpoint",
+    "bug": true,
+    "registeredStatus": 200,
+    "protectedRouteStatus": 404,
+    "bypassStatus": 200,
+    "remaining": 0
+  },
+  {
+    "name": "Smart login trusts spoofed proxy IP headers",
+    "bug": true,
+    "denied": {
+      "status": 401,
+      "data": {
+        "type": "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+        "title": "Unauthorized",
+        "status": 401,
+        "detail": "Code required",
+        "traceId": "00-0061ead9f4fa8365e969e08280a21812-f4930b9bc159daaf-00"
+      }
+    },
+    "bypass": {
+      "status": 200,
+      "data": {
+        "username": "secalice"
+      }
+    },
+    "issuedCookie": true
+  },
+  {
+    "name": "Global login-link origin poisoning",
+    "bug": false,
+    "poisonStatus": 200,
+    "beforeUrl": "http://127.0.0.1:5121/invite/azure-trout-9871",
+    "afterUrl": "https://127.0.0.1:5121/invite/azure-trout-9871"
+  },
+  {
+    "name": "Approved registration can be claimed by another requester",
+    "bug": true,
+    "original": {
+      "status": 202,
+      "data": {
+        "state": "pending"
+      }
+    },
+    "stolen": {
+      "status": 200,
+      "data": {
+        "username": "approvedvictim"
+      }
+    },
+    "rightful": {
+      "status": 401,
+      "data": {
+        "type": "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+        "title": "Unauthorized",
+        "status": 401,
+        "detail": "Code required",
+        "traceId": "00-c72fc3f94bcb34039f4a0ebe467b0907-56b3c5364e12e526-00"
+      }
+    }
+  },
+  {
+    "name": "SSRF: direct loopback blocked, GIF redirect fetches private bytes",
+    "bug": false,
+    "directContacted": false,
+    "sendStatus": 200,
+    "cachedBody": null,
+    "privateHits": [],
+    "proxyHits": []
+  },
+  {
+    "name": "SSRF: link preview redirect discloses private service title",
+    "bug": false,
+    "preview": null,
+    "privateHits": []
+  }
+]

@@ -1,9 +1,12 @@
 using System.Collections.Concurrent;
+using System.Security.Claims;
 using System.Diagnostics;
 using System.Text;
 using Yap.Helpers;
 using Yap.Models;
 using Yap.Services;
+using Yap.Services.Admin;
+using Yap.Models.Admin;
 
 namespace Yap.Middleware;
 
@@ -17,7 +20,7 @@ public class RequestLoggingMiddleware
     private readonly RequestLogQueue _logQueue;
     private readonly UserActionLogService _actionLog;
 
-    private static readonly string[] SkipPrefixes = ["/_framework", "/_blazor", "/uploads"];
+    private static readonly string[] SkipPrefixes = ["/uploads", "/hub"];
     private static readonly string[] SkipExtensions = [".js", ".css", ".webp", ".png", ".jpg", ".jpeg", ".gif", ".webmanifest", ".mp4", ".webm", ".mov", ".avi", ".mkv"];
 
     public RequestLoggingMiddleware(RequestDelegate next, RequestLogQueue logQueue, UserActionLogService actionLog)
@@ -35,12 +38,12 @@ public class RequestLoggingMiddleware
     {
         if (path.StartsWith("/invite/", StringComparison.OrdinalIgnoreCase))
             return "/invite/REDACTED" + query;
+        if (path.StartsWith("/api/invite/", StringComparison.OrdinalIgnoreCase))
+            return "/api/invite/REDACTED" + query;
         if (!query.HasValue)
             return path;
         if (path.Equals("/pwa-launch", StringComparison.OrdinalIgnoreCase))
             return path + "?lt=REDACTED";
-        if (path.Equals("/auth/refresh-token", StringComparison.OrdinalIgnoreCase))
-            return path + "?token=REDACTED";
         return path + query;
     }
 
@@ -59,7 +62,7 @@ public class RequestLoggingMiddleware
             : uri.GetLeftPart(UriPartial.Authority) + redacted;
     }
 
-    public async Task InvokeAsync(HttpContext context, UserStateService userState)
+    public async Task InvokeAsync(HttpContext context)
     {
         var path = context.Request.Path.Value ?? "";
 
@@ -99,9 +102,9 @@ public class RequestLoggingMiddleware
 
             _logQueue.Enqueue(entry);
 
-            // Also log to database (UserStateService populated by AuthMiddleware upstream)
+            // Also log to the database. The principal is set because this runs after UseAuthentication.
             _actionLog.Log(
-                userState.UserId?.ToString(),
+                context.User.FindFirstValue(ClaimTypes.NameIdentifier),
                 UserActionLog.KnownActions.HTTP_REQUEST,
                 url: loggedUrl,
                 ip: clientIp,
@@ -212,7 +215,12 @@ public class RequestLogWriter : IHostedService, IDisposable
         return Task.CompletedTask;
     }
 
-    private void FlushCallback(object? state) => Flush();
+    // A timer callback has no caller to catch for it: an exception here would end the process.
+    private void FlushCallback(object? state)
+    {
+        try { Flush(); }
+        catch (Exception ex) { Console.WriteLine($"[RequestLog] Flush failed: {ex.Message}"); }
+    }
 
     private void Flush()
     {

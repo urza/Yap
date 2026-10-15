@@ -17,6 +17,19 @@ There are two volumes:
 
 Access at `http://localhost:5221` - it's up to you how to make this accessible for others. For example use some reverse proxy like nginx proxy manager  (https://nginxproxymanager.com/) or cloudflare tunnel.
 
+## Run from source
+
+```bash
+cd Yap && dotnet run
+```
+
+The addresses are in `Yap/Properties/launchSettings.json`. No database is needed; see `CONFIG_README.md` for the options.
+
+The launch profiles do not open a browser (`launchBrowser: false`). Open the address yourself. When Visual
+Studio starts the browser as part of an F5 session, it attaches its JavaScript debugger to it, and on one
+Windows machine (Brave, 2026-10-15) that session ended at the first picture upload and took the server
+with it, exit code -1. Start Without Debugging and `dotnet run` were never affected.
+
 ## Features
 
 - **No registration required** - Just log in with username, no passwords or social logins
@@ -26,7 +39,7 @@ Access at `http://localhost:5221` - it's up to you how to make this accessible f
 - **Emoji support** - Beautiful Twemoji rendering 
 - **Custom emojis** - Drop image files into `Data/custom-emojis/` (data volume) folder and they become available for your users
 - **Gifs** - gifs by Klipy + your own, server collections curated by server admin, user favs + customs, bulk import / export
-- **Themes** - Dark, Midnight, Nord, Ocean, Sunset, Aurora, Daylight
+- **Themes** - Discord Dark, Midnight, Nord, Ocean, Sunset, Aurora, Terminal, Neon Glow, Tea House, Daylight, Solarized Light
 - **Multiple rooms/channels** - admin can create new, nobody will come anyway
 - **Direct messages** - Private conversations between users, not encrypted, treat accordingly
 - **Message actions** - Discord-style hover popup with reactions, edit, delete
@@ -38,6 +51,14 @@ Access at `http://localhost:5221` - it's up to you how to make this accessible f
 - **Image/Video sharing** - Upload image(s) or videos and see them in inline gallery
 - **Social media previews/embeds** - Yap downloads that tiktok/youtube video so users dont need to go to these evil sites
 
+
+## Under the hood
+
+- The server is ASP.NET Core (.NET 10): a JSON API under `/api`, one SignalR hub at `/hub`, SQLite as an optional store. Without a database everything lives in memory until the next restart.
+- The client is static files in `Yap/wwwroot`: plain HTML, CSS and JavaScript modules, no framework and no build step. The SignalR and tus browser clients are vendored in `wwwroot/lib`.
+- Offline: a service worker keeps the shell, the emoji images and the media; the last messages and the unsent messages live in IndexedDB.
+- The product spec is in `docs/spec`, the design in `docs/architecture`.
+- Tests: `dotnet test Yap.Tests` for the server, and the Playwright scripts in `tests/browser` for the browser (node and npm are development tools only; see `tests/browser/README.md`).
 
 ## License
 

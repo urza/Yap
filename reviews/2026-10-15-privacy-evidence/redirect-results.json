@@ -1,0 +1,38 @@
+[
+  {
+    "name": "Global login-link origin poisoning",
+    "bug": true,
+    "poisonStatus": 200,
+    "beforeUrl": "http://127.0.0.1:5121/invite/cobalt-glowworm-4162",
+    "afterUrl": "https://attacker.invalid/invite/cobalt-glowworm-4162"
+  },
+  {
+    "name": "SSRF: direct loopback blocked, GIF redirect fetches private bytes",
+    "bug": true,
+    "directContacted": false,
+    "sendStatus": 200,
+    "cachedBody": "PRIVATE_INTERNAL_SECRET_BYTES",
+    "privateHits": [
+      "/secret.gif"
+    ],
+    "proxyHits": [
+      "http://example.com/review-redirect.gif"
+    ]
+  },
+  {
+    "name": "SSRF: link preview redirect discloses private service title",
+    "bug": true,
+    "preview": {
+      "url": "http://example.com/review-redirect.html",
+      "siteName": null,
+      "title": "PRIVATE_SERVICE_TITLE",
+      "description": "PRIVATE_SERVICE_SECRET",
+      "imageUrl": null,
+      "media": null
+    },
+    "privateHits": [
+      "/secret.gif",
+      "/secret.html"
+    ]
+  }
+]

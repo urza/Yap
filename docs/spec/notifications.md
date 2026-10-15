@@ -1,0 +1,130 @@
+# Notifications and unread
+
+Unread counts and notifications tell a person about new messages. This page specifies what is unread, when it becomes read and what the counts show. It specifies when a sound plays and what a mute silences. It also specifies when a device receives a notification while Yap is not visible. The [frame page](frame.md) shows where the numbers appear. This page gives the rules that produce the numbers.
+
+![Sidebar, desktop, with unread marks. A room with a red count, a muted room with a crossed bell and a dot, a person with a red count, a muted direct message with a crossed bell and a dot, the mailbox in the header with the total.](img/notifications-desktop-sidebar.png)
+
+## Rules
+
+### What is unread
+
+**NT-01** Every conversation has one unread count for each person. The count belongs to the account. Every device of the person shows the same number. A read on one device clears the count on all devices at once.
+
+**NT-02** Only a new message increases a count. Edits, deletions, reactions, typing and presence never change it. The sender's own messages never count, also when the sender uses another device. Bot messages count like the messages of a person.
+
+**NT-03** A direct message counts for the other person, online or not. A room message counts for every person who has Yap open on any device at that moment, whatever their status. It also counts for every person who has that room unmuted. A person who is offline and has the room muted gets nothing. That person gets no count and no dot. *Why:* a person who opens Yap again should not find many dots in the sidebar for rooms that the person never opened.
+
+**NT-04** A mute never stops the count for a person who receives it. A muted conversation shows a dot instead of its number. When the person unmutes the conversation, its true count appears.
+
+**NT-05** Counts stay after a reload and after a server restart. A sign-out does not clear them.
+
+### When a conversation becomes read
+
+**NT-06** Opening a conversation marks it read, whatever the status and the visibility. This includes a tap in the sidebar, a link, a notification tap and a switch from another conversation. Leaving a conversation for Settings or another page marks it read when the page was visible and the person was not away.
+
+**NT-07** A message that arrives in the open conversation is marked read at once when three conditions are true. The conditions are that the page is visible, the person is not away, and the view is at the bottom. Such a message never shows a count on any device. Otherwise the message stays unread until all three conditions are true again. A desktop window that is visible but not focused counts as visible.
+
+**NT-08** A read clears the whole conversation. Yap has no partial read, no divider and no "mark all as read".
+
+### Counts, total and badges
+
+**NT-09** A conversation's row shows its count when it is unmuted, a dot when it is muted, and nothing when it is the open conversation.
+
+**NT-10** The total in the mailbox is the sum of the counts of the unmuted conversations. It does not include the open conversation. It equals the sum of the numbers that the rows show.
+
+**NT-11** The icon badge of the installed app shows the sum of the unread counts of the unmuted conversations. The sum includes the open conversation. The badge updates while the app is open, and when a notification arrives while the app is closed. A suppressed or muted message does not change the badge. A read on another device corrects the badge at the next notification or the next open of the app.
+
+**NT-12** While the tab is hidden, the tab title starts with a number. The number counts the new messages that this tab received after it became hidden. The mute rules below apply to this number. The number resets when the tab becomes visible again. On a room page, every unmuted conversation counts. On a direct message page, only direct messages count.
+
+### Sound
+
+**NT-13** A sound plays when a direct message from another person arrives while the tab is hidden and a direct message page is open. No sound plays when the arriving direct message is muted. The sound never plays on a room page, while the tab is visible, or for the person's own messages. Status has no effect on the sound.
+
+**NT-14** One arrival plays one sound, whatever the number of tabs.
+
+**NT-15** The person cannot change the sound or turn it off. To silence the sound, the person uses a mute.
+
+### Mutes
+
+**NT-16** Mutes have three levels: the whole server, then all direct messages or all rooms, then one conversation. Yap checks the levels from the top down. The first level that decides applies.
+
+**NT-17** The server-wide mute has a duration of 1 hour, 1 day, 1 week, or until the person turns notifications back on. A new mute starts as "Until I turn it back on". A duration pick counts from the moment of the pick. The highlighted duration is the shortest one that still covers the remaining time. While the mute is on, the status menu shows a crossed bell. Settings then hides the direct message and room rows.
+
+**NT-18** Direct messages and rooms each have a mode: "Allow all", "Individual" or "Mute all". In Individual mode, every conversation has its own bell. New direct messages follow the "New DMs" bell. A new room is muted until the person allows it.
+
+**NT-19** A new account has these defaults: the server is allowed, direct messages are allowed, and rooms are muted.
+
+**NT-20** The conversation that receives a message decides. Its mute setting applies to the count, the total, the badge, the sound, the tab title and the notification. The setting of the open conversation has no effect.
+
+**NT-21** When something arrives in a muted conversation, the conversation shows a dot and nothing else. There is no number, no sound, no notification and no move to the top of the people list. The choices for each conversation stay after a switch of mode. They apply again when the person switches back.
+
+**NT-22** Mutes belong to the account and apply on every device. The person sets them only in Settings, under "Allow / Mute Notifications". A change applies from the next message.
+
+### Notifications on a device
+
+**NT-23** Any browser that supports notifications, and the installed app, can receive notifications while Yap is not open. A device subscribes in Settings, or from the "One more step" prompt in the installed app. Each device subscribes separately.
+
+**NT-24** The subscription of a device belongs to the account that is signed in on the device. A sign-out removes the subscription. "Sign out all other devices" also removes the subscriptions of the other devices. When a second account signs in on the device, the first account's subscription is removed, and the second account can make its own. When the person turns push off on a device, push stays off until the person enables it again. Yap never subscribes a device silently.
+
+**NT-25** For a direct message, Yap sends a notification to the other person. For a room message, Yap sends a notification to every person who has that room unmuted, except the sender.
+
+**NT-26** Yap sends no notification to a person who is online and has a visible Yap session on any device. Away, chosen or automatic, does not suppress notifications. When a person is away, the phone should show the notification, and an idle desktop tab must not suppress it. Invisible also does not suppress notifications. A hidden tab suppresses nothing.
+
+**NT-27** A direct message notification has the title "DM from {display name}". Its body is the message text as typed, including shortcodes. A room notification has the title "#{room}" and the body "{display name}: {text}". A message with a GIF shows "[GIF]". A message with images or videos shows "[Attachment]". A body longer than 100 characters is cut and ends with "...". A new notification of a conversation replaces the previous one and alerts again.
+
+**NT-28** A tap on a notification opens that conversation in an open Yap window, or in a new window. The notification contains the unread total for the icon badge. A read in the app does not remove a notification that is already shown.
+
+**NT-29** Yap sends a separate notification for every message at once. There is no delay for grouping and no summary message.
+
+**NT-30** "Send a test to all devices" in Settings sends a notification to every subscribed device. The test ignores every mute and does not change the badge.
+
+**NT-31** The notification prompt shows only in the installed app, and only while the browser is not yet asked for permission. It stops after three dismissals. A refusal in the browser stops it permanently. The person can still enable notifications in Settings when the browser allows it. See [frame page](frame.md#SH-38).
+
+## States
+
+| State or trigger | Input | What the user sees |
+| --- | --- | --- |
+| Message in an unmuted room, person online elsewhere | all | Red count on the row; the total increases; a notification only if the room is unmuted and no session is visible. |
+| Message in a muted room | all | Dot on the row for a person with Yap open; nothing for an offline person. |
+| Direct message, person offline | all | Count on the row when the person next opens Yap; notification on every subscribed device. |
+| Direct message, tab hidden on a direct message page | all | Sound; title "(1) …"; a count unless it is the open conversation; no notification if the person is online with a visible session elsewhere. |
+| Direct message, online with a visible session anywhere | all | No notification; sound and counts as in the rows above. |
+| Open conversation, visible, not away, at the bottom | all | The new message is read at once; no count on any device. |
+| Open conversation, away or hidden | all | Stays unread; read when the person returns. |
+| Open conversation, scrolled up | all | Stays unread until the view reaches the bottom; the pill shows. |
+| Read on the phone | all | Desktop row and mailbox clear at once. |
+| Tab becomes visible again | all | Title prefix gone; open conversation read if at the bottom and not away. |
+| Server mute on | all | Crossed bell in the status menu; no sounds or notifications; counts continue as dots. |
+| Timed mute ends | all | The settings of the lower levels apply again. |
+| Unmute a conversation | all | Its true count appears. |
+| Notification tap | touch, mouse | The conversation opens and is read. |
+| Test send | mouse, touch | Every device shows the test banner; the result line shows for 3 s. |
+
+## Wording
+
+| Where | Text |
+| --- | --- |
+| Direct message notification | "DM from {display name}"; body "{text}", "[GIF]" or "[Attachment]" |
+| Room notification | "#{room}"; body "{display name}: {text}" |
+| Notification when the content is missing | "New Message"; "You have a new message"; it opens the start page |
+| Test notification | "Yap test notification"; "If you can see this, push notifications work on this device." |
+| Tab title prefix | "({n}) " |
+| Mailbox tooltip | "{n} unread messages" |
+| Sidebar bell tooltip | "Notifications muted" |
+| Settings, device section | "Device Push Notifications"; "Push lets Yap notify a device even when the tab is closed. Each device subscribes separately."; "This device"; "Not Supported"; "Not Configured"; "Subscribed"; "Not subscribed"; "Browser Permission" with "default", "granted" or "denied"; "Subscribed Devices"; "{n} device(s)"; "Added {time}"; "Delivered {time}"; "Remove" (tooltip "Remove this device"); platform hints "Apple (Safari / iOS)", "Google (Chrome / Edge / Android)", "Mozilla (Firefox)", "Microsoft (WNS)", "Notification device"; times "just now", "{n}s ago", "{n}m ago", "{n}h ago", "{n}d ago" |
+| Settings, device actions | "Enable push on this device"; "Enabling..."; "Your browser will ask for permission. Yap can then notify this device even when the tab is closed."; "Turn off push on this device"; "Turning off..."; "Stops push for this device only. Other devices stay subscribed; remove them in the list above."; "Send a test to all devices"; "Sending..."; "Sends a notification to every subscribed device — the ones that buzz are alive."; "Push only makes delivery possible. What actually notifies you is set in Allow / Mute Notifications below." |
+| Settings, device hints | "Push notifications are not supported in this browser."; "Push notifications are not configured on this server."; "Notification permission was denied. Reset it in your browser settings to re-enable." |
+| Settings, results | "No subscribed devices to notify."; "Sent to {n} device(s) — check them now."; "Sent to {sent}/{total} device(s); {failed} failed (expired ones removed)."; "Failed to send test notification."; "The browser closed the permission prompt without granting."; "This browser could not reach its push service ({error}). A firewall or ad-block can cause this; in Brave, enable \"Use Google services for push messaging\"."; "Subscription failed in the browser: {error}." with "unknown error" when the browser gives none |
+| Settings, rules section | "Allow / Mute Notifications"; "Choose what actually notifies you. These rules follow your account on every device."; "Everything on this server"; "Allow"; "Mute"; "Mute for"; "1 hour"; "1 day"; "1 week"; "Until I turn it back on"; "Muted for another {time}."; "Muted until you turn notifications back on."; "Direct messages"; "Rooms"; "Allow all"; "Individual"; "Mute all"; "New DMs"; tooltips "Allowed — click to mute", "Muted — click to allow" |
+| Settings, footer | "A muted room or DM still shows a small dot in the sidebar when something arrives. It sends no notification, plays no sound, and adds nothing to the unread count." |
+| Prompt | "One more step"; "Please enable notifications so Yap can send you notifs about new DM messages / mentions when the app is not open. You can always change this later in Settings, and you can also disable notifications temporarily."; "Enable Notifications"; "Enabling..."; "Maybe Later" |
+| Accessible names in Settings | "Server notifications"; "Mute duration"; "Mute"; "Unmute" |
+
+## Related
+
+- [Header, sidebar and overlays](frame.md) for the rows, the mailbox, the title and the prompt.
+- [Timeline and media](timeline.md) for the view following the bottom and the New messages pill.
+- [Presence](presence.md) for away and visible sessions.
+- [Settings](settings.md) for the two notification sections.
+- [Administration](admin.md) for the notification audit admins see.
+- [Offline and installation](offline.md) for the installed app.

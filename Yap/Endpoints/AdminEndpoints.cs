@@ -1,56 +1,361 @@
-using Yap.Services;
+using System.Security.Claims;
+using Yap.Configuration;
+using Yap.Models.Accounts;
+using Yap.Models.Admin;
+using Yap.Models.Chat;
+using Yap.Models.Gifs;
+using Yap.Services.Accounts;
+using Yap.Services.Admin;
+using Yap.Services.Chat;
+using Yap.Services.Gifs;
+using Yap.Services.Media;
+using Yap.Services.Notifications;
+using Yap.Services.Persistence;
+using Yap.Services.Presence;
 
 namespace Yap.Endpoints;
 
+/// <summary>
+/// The administration page's data and actions (docs/spec/admin.md). Every route is behind the admin policy, which
+/// answers 404 to everyone else. Reads compose from the services; actions call one service each.
+/// </summary>
 public static class AdminEndpoints
 {
     public static void MapAdminEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/admin").RequireAdmin();
+        var admin = app.MapGroup("/api/admin").RequireAuthorization(YapCookieAuthHandler.AdminPolicy);
 
-        group.MapGet("/generate-thumbnails", (ImageService imageService, IWebHostEnvironment env) =>
+        // ---- Users (AD-04 to AD-07) ------------------------------------------------------------------------
+
+        admin.MapGet("/users", async (UserService users, PresenceService presence, SystemBotService bot, UserActionLogService log, GeoLocationService geo) =>
         {
-            var uploadsPath = Path.Combine(env.WebRootPath, "uploads");
-            if (!Directory.Exists(uploadsPath))
-                return Results.Ok(new { message = "No uploads folder" });
+            var lastActions = await log.GetLastActionPerUserAsync();
+            var recentIps = await log.GetRecentIPsPerUserAsync();
+            var all = users.GetAllUsers().OrderByDescending(u => u.LastSeenAt ?? u.CreatedAt).ToList();
+            var rows = all.Select(u => new AdminUserDto(u.Id,
+                u.Username, u.DisplayName, u.ProfilePictureUrl, users.IsAdmin(u.Id), bot.IsBotUser(u.Username),
+                presence.StatusPill(u.Id), u.PwaInstalledAt, u.CreatedAt,
+                lastActions.TryGetValue(u.Id.ToString(), out var last) ? new LastActionDto(last.Action, last.Date) : null,
+                u.TimeZone, u.Locale,
+                (recentIps.GetValueOrDefault(u.Id.ToString()) ?? []).Select(ip => new IpDto(ip, geo.Lookup(ip)?.Country, null)).ToList())).ToList();
 
-            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+            // Themes in order of use; a theme the registry no longer knows counts as the default (AD-07).
+            var effective = all.Select(u => ThemeRegistry.IsKnown(u.Theme) ? u.Theme! : ThemeRegistry.DefaultId).ToList();
+            var themes = ThemeRegistry.All
+                .Select(t => new ThemeUseDto(t.Id, t.Name, t.PreviewBg, t.PreviewAccent, effective.Count(id => id == t.Id)))
+                .OrderByDescending(t => t.Count).ToList();
+            return Results.Ok(new { users = rows, themes, total = all.Count });
+        });
 
-            var originalImages = Directory.GetFiles(uploadsPath)
-                .Where(f => allowedExtensions.Contains(Path.GetExtension(f).ToLowerInvariant()))
-                .Where(f => !Path.GetFileNameWithoutExtension(f).EndsWith("_800px"))
-                .Where(f => !Path.GetFileNameWithoutExtension(f).EndsWith("_1600px"))
+        admin.MapGet("/users/{username}", async (string username, UserService users, PushSubscriptionStore push, UserActionLogService log, GeoLocationService geo) =>
+        {
+            var user = users.GetByUsername(username);
+            if (user is null) return Results.NotFound();
+            var (ips, agents) = await log.GetUserConnectionDetailsAsync(user.Id.ToString());
+            var theme = ThemeRegistry.IsKnown(user.Theme) ? user.Theme! : ThemeRegistry.DefaultId;
+            return Results.Ok(new
+            {
+                pushSubscriptions = push.GetSubscriptions(user.Username).Count(),
+                pwaInstalledAt = user.PwaInstalledAt,
+                theme = new { chosen = user.Theme, effective = theme, name = ThemeRegistry.All.First(t => t.Id == theme).Name },
+                ips = ips.Select(i => new IpDto(i.IP, geo.Lookup(i.IP)?.Country, i.LastSeen)).ToList(),
+                userAgents = agents.Select(a => new { userAgent = a.UserAgent, lastSeen = a.LastSeen }).ToList(),
+            });
+        });
+
+        // ---- Debug (AD-08) ----------------------------------------------------------------------------------
+
+        admin.MapPost("/generate", (GenerateRequest body, ClaimsPrincipal me, ChatService chat) =>
+        {
+            var count = Math.Clamp(body.Count, 1, 5000);
+            var generated = chat.GenerateTestMessages(body.ChannelId, me.Id(), me.Username(), count, TimeSpan.FromHours(Math.Max(1, body.Hours)));
+            return generated == 0 ? Results.Problem("Unknown room", statusCode: 404) : Results.Ok(new { generated, hours = body.Hours });
+        });
+
+        // ---- Bot (AD-09) ------------------------------------------------------------------------------------
+
+        admin.MapGet("/bot", (SystemBotService bot, UserService users) => Results.Ok(new
+        {
+            username = bot.BotUsername,
+            displayName = bot.BotUserId is { } id ? users.GetById(id)?.DisplayName ?? bot.BotUsername : bot.BotUsername,
+            welcomeMessage = bot.WelcomeMessage,
+        }));
+
+        admin.MapPut("/bot", async (BotRequest body, SystemBotService bot) =>
+        {
+            if (body.DisplayName is { Length: > 32 }) return Results.Problem("A display name has at most 32 characters.", statusCode: 400);
+            if (body.WelcomeMessage is { Length: > 500 }) return Results.Problem("The welcome message has at most 500 characters.", statusCode: 400);
+            if (body.DisplayName is { } name) bot.UpdateDisplayName(name.Trim());
+            if (body.WelcomeMessage is { } welcome) await bot.UpdateWelcomeMessageAsync(welcome.Trim());
+            return Results.NoContent();
+        });
+
+        // ---- Settings (AD-10 to AD-14) ----------------------------------------------------------------------
+
+        admin.MapGet("/settings", (RegistrationGateService gate, LinkPreviewSettingsService previews, GifAdminSettingsService gifSettings, GifService gifs,
+            ServerConfig config, PersistenceWriter writer) => Results.Ok(new
+        {
+            registrationClosed = gate.RegistrationClosed,
+            requireApproval = gate.RequireApproval,
+            smartLogin = gate.SmartMode,
+            linkPreviews = previews.Enabled,
+            mediaCaching = previews.MediaCachingEnabled,
+            mediaCachingAvailable = MediaCacheService.IsAvailable,   // AD-12: the switch is disabled without yt-dlp
+            gifRating = gifSettings.KlipyRating,
+            gifProviderConfigured = gifs.IsConfigured,
+            uploadUrl = config.UploadUrl,
+            beaconUrl = config.Ipv4BeaconUrl,
+            persistence = writer.Enabled,                            // AD-03
+            pending = gate.GetPendingUsers().Select(p => new PendingDto(p.Username, p.RequestedAt)).ToList(),
+        }));
+
+        admin.MapPut("/settings", async (SettingsRequest body, RegistrationGateService gate, LinkPreviewSettingsService previews, GifAdminSettingsService gifSettings) =>
+        {
+            if (body.RegistrationClosed is { } closed) await gate.SetRegistrationClosedAsync(closed);
+            if (body.RequireApproval is { } approval) await gate.SetRequireApprovalAsync(approval);
+            if (body.SmartLogin is { } smart) await gate.SetSmartModeAsync(smart);
+            if (body.LinkPreviews is { } links) await previews.SetEnabledAsync(links);
+            if (body.MediaCaching is { } caching)
+            {
+                if (caching && !MediaCacheService.IsAvailable) return Results.Problem("yt-dlp not found on this system.", statusCode: 400);
+                await previews.SetMediaCachingEnabledAsync(caching);
+            }
+            if (body.GifRating is { } rating) await gifSettings.SetKlipyRatingAsync(rating);
+            return Results.NoContent();
+        });
+
+        admin.MapPost("/pending/{username}/approve", (string username, RegistrationGateService gate) => { gate.ApproveUser(username); return Results.NoContent(); });
+        admin.MapPost("/pending/{username}/reject", (string username, RegistrationGateService gate) => { gate.RejectUser(username); return Results.NoContent(); });
+
+        // ---- Invites and login links (AD-15 to AD-17) --------------------------------------------------------
+
+        admin.MapGet("/links", (ClaimsPrincipal me, AccessLinkService links, UserService users) =>
+        {
+            var all = links.GetAll();
+            return Results.Ok(new
+            {
+                open = all.Where(l => !l.IsClaimed && l.IsActive).OrderByDescending(l => l.CreatedAt).Select(l => AdminLinkDto.From(l, links, users, me.Id())).ToList(),
+                users = all.Where(l => l.IsClaimed && !l.IsRevoked).OrderByDescending(l => l.IsActive).ThenByDescending(l => l.CreatedAt).Select(l => AdminLinkDto.From(l, links, users, me.Id())).ToList(),
+            });
+        });
+
+        admin.MapPost("/links", (CreateLinkRequest body, ClaimsPrincipal me, AccessLinkService links, UserService users, SystemBotService bot) =>
+        {
+            if (body.UserId is { } userId)
+            {
+                var user = users.GetById(userId);
+                if (user is null || bot.IsBotUser(user.Username)) return Results.Problem("Unknown user", statusCode: 404);
+                var link = links.CreateForUser(user.Id, me.Id(), body.ExpiresAt);   // replaces the person's link; the bot tells them
+                _ = bot.NotifyLinkReplacedByAdminAsync(user, link);
+                return Results.Ok(AdminLinkDto.From(link, links, users, me.Id()));
+            }
+            if (body.Note is { Length: > 64 }) return Results.Problem("A note has at most 64 characters.", statusCode: 400);
+            return Results.Ok(AdminLinkDto.From(links.CreateInvite(me.Id(), string.IsNullOrWhiteSpace(body.Note) ? null : body.Note.Trim(), body.ExpiresAt), links, users, me.Id()));
+        });
+
+        admin.MapDelete("/links/{id:guid}", (Guid id, AccessLinkService links) => { links.Revoke(id); return Results.NoContent(); });
+        admin.MapPut("/links/{id:guid}/expiry", (Guid id, ExpiryRequest body, AccessLinkService links) => { links.SetExpiry(id, body.ExpiresAt); return Results.NoContent(); });
+
+        // ---- Logs, Media, Visitors (AD-18 to AD-20); database-only features (AD-03) ---------------------------
+
+        admin.MapGet("/logs", async (string? action, string? user, int? skip, UserActionLogService log, UserService users, PersistenceWriter writer) =>
+        {
+            if (!writer.Enabled) return Results.Ok(new { available = false, rows = Array.Empty<object>() });
+            string? uid = null;
+            if (!string.IsNullOrWhiteSpace(user))
+            {
+                var match = users.GetByUsername(user.Trim());
+                if (match is null) return Results.Ok(new { available = true, rows = Array.Empty<object>() });
+                uid = match.Id.ToString();
+            }
+            var rows = await log.GetLogsAsync(uid, string.IsNullOrWhiteSpace(action) ? null : action, skip ?? 0, 100);
+            return Results.Ok(new
+            {
+                available = true,
+                rows = rows.Select(r => new { r.Date, username = Guid.TryParse(r.UserUid, out var g) ? users.GetById(g)?.Username ?? r.UserUid : r.UserUid, r.Action, r.IP, r.Info }).ToList(),
+            });
+        });
+
+        admin.MapGet("/media", async (string? type, string? user, int? skip, MediaUploadLogService media, GifService gifs, PersistenceWriter writer) =>
+        {
+            if (!writer.Enabled) return Results.Ok(new { available = false });
+            var (files, bytes, images, videos) = await media.GetStatsAsync();
+            var rows = await media.GetLogsAsync(string.IsNullOrWhiteSpace(user) ? null : user, string.IsNullOrWhiteSpace(type) ? null : type, skip ?? 0, 100);
+            return Results.Ok(new
+            {
+                available = true,
+                stats = new { ffmpeg = VideoService.IsAvailable, totalFiles = files, totalBytes = bytes, images, videos },
+                rows = rows.Select(r => MediaRow(r, gifs)).ToList(),
+            });
+        });
+
+        admin.MapGet("/visitors", async (string? action, int? skip, UserActionLogService log, GeoLocationService geo, PersistenceWriter writer) =>
+        {
+            if (!writer.Enabled) return Results.Ok(new { available = false });
+            var (visits, failures, uniqueIps, today) = await log.GetVisitorStatsAsync();
+            var rows = await log.GetVisitorLogsAsync(string.IsNullOrWhiteSpace(action) ? null : action, skip ?? 0, 100);
+            return Results.Ok(new
+            {
+                available = true,
+                stats = new { visits, failures, uniqueIps, today },
+                rows = rows.Select(r => new { r.Date, r.IP, country = geo.Lookup(r.IP)?.Country, r.Action, r.Info, reason = VisitorReason(r.Info), r.UserAgent }).ToList(),
+            });
+        });
+
+        // ---- GIFs (AD-21 to AD-23) --------------------------------------------------------------------------
+
+        admin.MapGet("/gifs", (ClaimsPrincipal me, GifService gifs, UserService users) =>
+        {
+            var entries = gifs.GetAllEntries();
+            var favorites = gifs.GetFavoriteCounts();
+            return Results.Ok(new
+            {
+                stats = new
+                {
+                    ffmpeg = VideoService.IsAvailable,
+                    totalBytes = entries.Sum(e => e.FileSizeBytes),
+                    custom = entries.Count(e => e.SourceProviderId is null),
+                    provider = entries.Count(e => e.SourceProviderId is not null),
+                },
+                serverFolders = gifs.GetServerFolders(),
+                entries = entries.OrderByDescending(e => e.CreatedAt).Select(e => new
+                {
+                    card = GifEndpoints.Card(e, me.Id(), gifs, users),
+                    source = e.SourceProviderId ?? "custom",
+                    format = Path.GetExtension(e.GifUrl ?? e.Mp4Url ?? e.WebmUrl ?? "")?.TrimStart('.').ToLowerInvariant() is { Length: > 0 } ext ? ext : "?",
+                    uses = e.UseCount,
+                    favorites = favorites.GetValueOrDefault(e.Id),
+                    e.CreatedAt,
+                }).ToList(),
+            });
+        });
+
+        admin.MapPut("/gifs/{id:guid}/server", (Guid id, ServerGifRequest body, GifService gifs) =>
+            gifs.SetServerGif(id, body.On, body.Folder) ? Results.NoContent() : Results.Problem("GIF unavailable", statusCode: 404));
+
+        admin.MapDelete("/gifs/{id:guid}", (Guid id, ClaimsPrincipal me, GifService gifs) => gifs.DeleteEntry(me.Id(), id, force: true) switch
+        {
+            GifDeleteResult.Deleted => Results.Ok(new { note = "Deleted." }),
+            GifDeleteResult.SoftDeleted => Results.Ok(new { note = "Removed from everyone's libraries; the file stays while messages use it." }),
+            _ => Results.Problem("GIF unavailable", statusCode: 404),
+        });
+
+        admin.MapGet("/gifs/export", (HttpContext ctx, GifService gifs) => GifEndpoints.StreamPackAsync(ctx, gifs, userId: null, "yap-server-gifs.zip"));
+
+        // ---- Diagnostics (AD-24 to AD-28) -------------------------------------------------------------------
+
+        // The server's standing notices for the admin page: today the proxy that is not trusted (ProxyWatch).
+        admin.MapGet("/status", (ProxyWatch proxy) => Results.Ok(new { proxy = proxy.Status() }));
+
+        admin.MapGet("/diagnostics", (ChatService chat, PresenceService presence, DiagnosticsCollectorService collector, NotificationAudit audit,
+            PushNotificationService push, PersistenceWriter writer, SystemBotService bot) =>
+        {
+            var snapshots = collector.GetSnapshots();
+            return Results.Ok(new
+            {
+                latest = collector.GetLatest(),
+                series = snapshots.Select(s => new { s.Timestamp, s.UniqueUsers, s.UserSessions, s.ActiveConnections, s.DisconnectedConnections, s.TotalMessages }).ToList(),
+                sessions = presence.All().OrderBy(s => s.Username).ThenBy(s => s.ConnectedAt).Select(s => SessionRow(s, presence, chat)).ToList(),
+                recentlyClosed = presence.RecentlyClosed().Select(s => SessionRow(s, presence, chat)).ToList(),
+                push = new
+                {
+                    keyStatus = push.KeyStatus,
+                    detail = push.KeyStatusDetail,
+                    decisions = audit.GetPushDecisions().Where(d => !bot.IsBotUser(d.To)).ToList(),
+                    results = audit.GetPushResults().Where(r => !bot.IsBotUser(r.To)).ToList(),
+                },
+                unread = audit.GetUnreadChanges().Where(u => !bot.IsBotUser(u.User)).ToList(),
+                writer = new { enabled = writer.Enabled, depth = writer.Depth, lastError = writer.LastError, lastErrorAt = writer.LastErrorAt },
+                events = chat.GetDiagnostics().EventSubscribers,
+            });
+        });
+
+        admin.MapGet("/generate-thumbnails", (ImageService imageService, UploadPaths uploads) =>
+        {
+            var uploadsPath = uploads.Root;
+            if (!Directory.Exists(uploadsPath)) return Results.Ok(new { message = "No uploads folder" });
+
+            string[] extensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
+            var originals = Directory.GetFiles(uploadsPath)
+                .Where(f => extensions.Contains(Path.GetExtension(f).ToLowerInvariant()))
+                .Where(f => !Path.GetFileNameWithoutExtension(f).EndsWith("_800px") && !Path.GetFileNameWithoutExtension(f).EndsWith("_1600px"))
                 .ToList();
-
-            var toProcess = originalImages
-                .Where(f => !File.Exists(Path.Combine(uploadsPath, $"{Path.GetFileNameWithoutExtension(f)}_800px.webp")))
-                .ToList();
+            var toProcess = originals.Where(f => !File.Exists(Path.Combine(uploadsPath, $"{Path.GetFileNameWithoutExtension(f)}_800px.webp"))).ToList();
 
             _ = Task.Run(async () =>
             {
-                var processed = 0;
-                var failed = 0;
-
-                await Parallel.ForEachAsync(toProcess, new ParallelOptions { MaxDegreeOfParallelism = 12 },
-                    async (imagePath, _) =>
-                    {
-                        try
-                        {
-                            await imageService.GenerateThumbnailsAsync(imagePath);
-                            var count = Interlocked.Increment(ref processed);
-                            Console.WriteLine($"[Thumbnails] {count}/{toProcess.Count}: {Path.GetFileName(imagePath)}");
-                        }
-                        catch (Exception ex)
-                        {
-                            Interlocked.Increment(ref failed);
-                            Console.WriteLine($"[Thumbnails] Failed: {Path.GetFileName(imagePath)} - {ex.Message}");
-                        }
-                    });
-
-                Console.WriteLine($"[Thumbnails] Complete: {processed} processed, {failed} failed");
+                await Parallel.ForEachAsync(toProcess, new ParallelOptions { MaxDegreeOfParallelism = 12 }, async (path, _) =>
+                {
+                    try { await imageService.GenerateThumbnailsAsync(path); }
+                    catch (Exception ex) { Console.WriteLine($"[Thumbnails] Failed: {Path.GetFileName(path)} - {ex.Message}"); }
+                });
             });
-
-            return Results.Ok(new { message = "Processing started in background", toProcess = toProcess.Count, total = originalImages.Count });
+            return Results.Ok(new { message = "Processing started in background", toProcess = toProcess.Count, total = originals.Count });
         });
     }
+
+    private static object SessionRow(Session s, PresenceService presence, ChatService chat) => new
+    {
+        s.ConnectionId, s.Username, s.DeviceId, s.IsMobile, s.ClientIp, s.ClientIpv4, s.Transport, s.ConnectedAt, s.Connected, s.ClosedAt, s.DroppedAt,
+        s.Visible, s.LastInputAt, s.LastHeartbeatAt,
+        status = presence.EffectiveOf(s.UserId),
+        viewing = s.Viewing is { } id && chat.GetChannel(id) is { } c ? (c.IsDirectMessage ? $"DM: {c.Participant1} ↔ {c.Participant2}" : $"#{c.Name}") : null,
+        ghost = s.Visible && !s.Connected,   // AD-25: counts as visible with no connection
+        s.Latency,
+    };
+
+    // The preview and the link of one upload row (AD-19), by file type.
+    private static object MediaRow(Yap.Models.Media.MediaUploadLog r, GifService gifs)
+    {
+        var stem = Path.GetFileNameWithoutExtension(r.StoredFileName);
+        string? thumb = null, link = null;
+        switch (r.FileType)
+        {
+            case "image": thumb = $"/uploads/{stem}_800px.webp"; link = $"/uploads/{r.StoredFileName}"; break;
+            case "video": thumb = $"/uploads/{stem}_poster.webp"; link = r.CompressDurationMs.HasValue ? $"/uploads/{stem}.mp4" : $"/uploads/{r.StoredFileName}"; break;
+            case "gif":
+                if (Guid.TryParse(stem, out var id) && gifs.GetEntry(id) is { } e) { thumb = e.PreviewUrl ?? e.GifUrl ?? e.RemoteGifUrl; link = e.GifUrl ?? e.RemoteGifUrl; }
+                break;
+        }
+        return new { r.Date, r.Username, r.OriginalFileName, r.FileType, r.FileSize, r.CompressDurationMs, thumb, link };
+    }
+
+    // The failure codes the sign-in service writes, as the Visitors tab shows them (AD-20).
+    private static string? VisitorReason(string? info)
+    {
+        if (string.IsNullOrEmpty(info)) return null;
+        var code = info.Split(':', 2)[0];
+        return code switch
+        {
+            "wrong_passphrase" => "Wrong passphrase",
+            "multi_device_blocked" => "Multi-device blocked",
+            "registration_closed" => "Registration closed",
+            "bot_username" => "Bot username",
+            "ip_mismatch" => "IP mismatch",
+            "approval_not_consumed" or "approval_pending" => "Approval pending",
+            _ => code,
+        };
+    }
+}
+
+public sealed record AdminUserDto(Guid Id, string Username, string? DisplayName, string? AvatarUrl, bool IsAdmin, bool IsBot, string Status,
+    DateTime? PwaInstalledAt, DateTime CreatedAt, LastActionDto? LastAction, string? TimeZone, string? Locale, List<IpDto> RecentIps);
+public sealed record LastActionDto(string Action, DateTime At);
+public sealed record IpDto(string Ip, string? Country, DateTime? LastSeen);
+public sealed record ThemeUseDto(string Id, string Name, string PreviewBg, string PreviewAccent, int Count);
+public sealed record GenerateRequest(Guid ChannelId, int Count = 200, int Hours = 168);
+public sealed record BotRequest(string? DisplayName, string? WelcomeMessage);
+public sealed record SettingsRequest(bool? RegistrationClosed, bool? RequireApproval, bool? SmartLogin, bool? LinkPreviews, bool? MediaCaching, KlipyRating? GifRating);
+public sealed record PendingDto(string Username, DateTime RequestedAt);
+public sealed record CreateLinkRequest(Guid? UserId, string? Note, DateTime? ExpiresAt);
+public sealed record ServerGifRequest(bool On, string? Folder);
+
+/// <summary>A link on the admin page. The code shows only while the admin may see it (AD-17).</summary>
+public sealed record AdminLinkDto(Guid Id, string? Code, string? Url, string? Username, string? Note, DateTime CreatedAt, bool ByAdmin,
+    DateTime? ExpiresAt, bool Active, bool Expired, bool Revoked, int UseCount, DateTime? LastUsedAt)
+{
+    public static AdminLinkDto From(AccessLink l, AccessLinkService links, UserService users, Guid viewerId) => new(
+        l.Id, l.AdminCanSeeCode ? l.Code : null, l.AdminCanSeeCode ? links.BuildUrl(l.Code, viewerId) : null,
+        l.UserId is { } uid ? users.GetById(uid)?.Username ?? "(deleted)" : null, l.Note, l.CreatedAt, l.CreatedById != l.UserId,
+        l.ExpiresAt, l.IsActive, l.IsExpired, l.IsRevoked, l.UseCount, l.LastUsedAt);
 }

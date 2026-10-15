@@ -1,0 +1,733 @@
+using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using Microsoft.EntityFrameworkCore;
+using Yap.Models;
+using Yap.Models.Accounts;
+using Yap.Models.Notifications;
+using Yap.Services.Persistence;
+
+namespace Yap.Services.Accounts;
+
+/// <summary>
+/// Singleton service for user management with in-memory cache.
+/// Handles user creation, authentication, and lookups.
+/// </summary>
+public class UserService
+{
+    private readonly IDbContextFactory<ChatDbContext>? _dbFactory;   // startup load only
+    private readonly PersistenceWriter _writer;
+    private readonly ILogger<UserService> _logger;
+
+    // In-memory cache (mirrors database, like ChatService pattern)
+    private readonly ConcurrentDictionary<Guid, User> _users = new();
+    private readonly ConcurrentDictionary<string, Guid> _usernameToId = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, Guid> _tokenToId = new();
+
+    /// <summary>Display name, avatar, bio or location changed; everyone redraws the person (ST-07).</summary>
+    public event Action<User>? OnProfileChanged;
+
+    /// <summary>The recent emoji of a person changed; the broadcaster adds the quick reactions (MR-41, PK-07).</summary>
+    public event Action<Guid, List<string>>? OnRecentEmojiChanged;
+
+    /// <summary>A setting of the account changed; the person's other devices merge the fields (ST-10, PK-07).</summary>
+    public event Action<Guid, object>? OnSettingsChanged;
+
+    // Admin tracking
+    private Guid? _adminUserId;
+    private readonly object _adminLock = new();
+
+    public UserService(IServiceProvider serviceProvider, PersistenceWriter writer, ILogger<UserService> logger)
+    {
+        _logger = logger;
+        _writer = writer;
+        _dbFactory = serviceProvider.GetService<IDbContextFactory<ChatDbContext>>();
+    }
+
+    /// <summary>
+    /// Loads users from database on startup.
+    /// </summary>
+    public async Task LoadUsersAsync()
+    {
+        if (_dbFactory is null) return;
+
+        try
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync();
+            var users = await db.Users.AsNoTracking().ToListAsync();
+
+            var flattened = 0;
+            foreach (var user in users)
+            {
+                _users[user.Id] = user;
+                _usernameToId[user.Username] = user.Id;
+                _tokenToId[user.Token] = user.Id;
+
+                if (user.IsAdmin)
+                {
+                    _adminUserId = user.Id;
+                }
+
+                // Collapse raw usage counts to dense ranks once on load. Keeps the column
+                // bounded and stops long-dead favorites from sitting at the top forever —
+                // only relative order matters for quick reactions, not the magnitudes.
+                // The write-back makes the stored column shrink too. Idempotent: once dense,
+                // re-flattening is a no-op and nothing is written.
+                if (FlattenEmojiCounts(user))
+                {
+                    _writer.Enqueue(Writes.User(user));
+                    flattened++;
+                }
+            }
+
+            _logger.LogInformation(
+                "Loaded {Count} users; flattened emoji counts for {Flattened}",
+                users.Count, flattened);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load users from database");
+        }
+    }
+
+    /// <summary>
+    /// Creates a new user with a generated token.
+    /// </summary>
+    public User? CreateUser(string username)
+    {
+        // Generate a secure random token
+        var token = GenerateToken();
+
+        // Determine if this user should be admin (first user)
+        // Single lock block to prevent two users both seeing null and both becoming admin
+        bool isAdmin;
+        lock (_adminLock)
+        {
+            isAdmin = _adminUserId == null;
+        }
+
+        // No passphrase at birth any more. New accounts get a login link instead, minted by
+        // the caller (AuthEndpoints) because AccessLinkService sits above this service, and
+        // the link's code doubles as the typed secret code. Accounts that already have a
+        // passphrase keep it, and Settings can still enable one. The reason a credential
+        // must exist from day one stands: a context that starts signed out (installed PWA,
+        // second browser) otherwise has no way back in, and one real user forked into
+        // seven accounts that way.
+        var user = new User(username, token) { IsAdmin = isAdmin };
+
+        // Atomic uniqueness check — TryAdd returns false if username already exists
+        if (!_usernameToId.TryAdd(user.Username, user.Id))
+        {
+            _logger.LogWarning("Attempted to create user with existing username: {Username}", username);
+            return null;
+        }
+
+        _users[user.Id] = user;
+        _tokenToId[user.Token] = user.Id;
+
+        if (isAdmin)
+        {
+            lock (_adminLock)
+            {
+                // Double-check: another thread may have set admin between our check and here
+                if (_adminUserId == null)
+                {
+                    _adminUserId = user.Id;
+                }
+                else
+                {
+                    // Someone else became admin first — demote this user
+                    isAdmin = false;
+                    user.IsAdmin = false;
+                }
+            }
+        }
+
+        _writer.Enqueue(Writes.NewUser(user));
+        _logger.LogInformation("Created new user: {Username} (Admin: {IsAdmin})", username, isAdmin);
+        OnProfileChanged?.Invoke(user);   // the people lists of the open clients learn the name (SH-33)
+
+        return user;
+    }
+
+    /// <summary>
+    /// Authenticates a user by their token.
+    /// </summary>
+    public User? AuthenticateByToken(string token)
+    {
+        if (string.IsNullOrEmpty(token))
+            return null;
+
+        if (_tokenToId.TryGetValue(token, out var userId) && _users.TryGetValue(userId, out var user))
+        {
+            return user;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Gets a user by their ID.
+    /// </summary>
+    public User? GetById(Guid userId)
+    {
+        return _users.TryGetValue(userId, out var user) ? user : null;
+    }
+
+    /// <summary>
+    /// Gets a user by their username.
+    /// </summary>
+    public User? GetByUsername(string username)
+    {
+        if (_usernameToId.TryGetValue(username, out var userId))
+        {
+            return _users.TryGetValue(userId, out var user) ? user : null;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Finds the user whose display name matches (case-insensitive).
+    /// Login guard: a display name typed into the login form must not silently
+    /// become a brand-new account (the doppelgänger / duplicate-DM-channel bug).
+    /// </summary>
+    public User? FindByDisplayName(string displayName) =>
+        string.IsNullOrWhiteSpace(displayName)
+            ? null
+            : _users.Values.FirstOrDefault(u =>
+                string.Equals(u.DisplayName, displayName.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Gets all registered users.
+    /// </summary>
+    public List<User> GetAllUsers() => _users.Values.ToList();
+
+    /// <summary>
+    /// Updates the user's LastSeenAt timestamp.
+    /// </summary>
+    public void UpdateLastSeen(Guid userId)
+    {
+        if (_users.TryGetValue(userId, out var user))
+        {
+            user.LastSeenAt = DateTime.UtcNow;
+            _writer.Enqueue(Writes.User(user));
+        }
+    }
+
+    /// <summary>
+    /// Gets the admin user ID.
+    /// </summary>
+    public Guid? GetAdminUserId()
+    {
+        lock (_adminLock)
+        {
+            return _adminUserId;
+        }
+    }
+
+    /// <summary>
+    /// Checks if a user is the admin.
+    /// </summary>
+    public bool IsAdmin(Guid userId)
+    {
+        lock (_adminLock)
+        {
+            return _adminUserId == userId;
+        }
+    }
+
+    /// <summary>
+    /// Checks if a username is the admin.
+    /// </summary>
+    public bool IsAdmin(string username)
+    {
+        if (_usernameToId.TryGetValue(username, out var userId))
+        {
+            return IsAdmin(userId);
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Gets the admin username.
+    /// </summary>
+    public string? GetAdminUsername()
+    {
+        lock (_adminLock)
+        {
+            if (_adminUserId.HasValue && _users.TryGetValue(_adminUserId.Value, out var user))
+            {
+                return user.Username;
+            }
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Revokes admin status from a user (e.g., bot user that was created first).
+    /// </summary>
+    public void RevokeAdmin(Guid userId)
+    {
+        lock (_adminLock)
+        {
+            if (_adminUserId == userId)
+            {
+                _adminUserId = null;
+                if (_users.TryGetValue(userId, out var user))
+                    user.IsAdmin = false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Updates a user's profile (display name, profile picture, bio).
+    /// </summary>
+    public string? UpdateProfile(Guid userId, string? displayName, string? profilePictureUrl, string? bio, string? country)
+    {
+        if (!_users.TryGetValue(userId, out var user)) return "Unknown user.";
+        if (displayName is { Length: > 64 }) return "A display name has at most 64 characters.";   // ST-05
+        if (bio is { Length: > 150 }) return "A bio has at most 150 characters.";                   // ST-06
+        if (country is { Length: > 100 }) return "A location has at most 100 characters.";
+
+        user.DisplayName = displayName;
+        user.ProfilePictureUrl = profilePictureUrl;
+        user.Bio = bio;
+        user.Country = country;
+
+        _writer.Enqueue(Writes.User(user));
+        OnProfileChanged?.Invoke(user);
+        return null;
+    }
+
+    /// <summary>
+    /// Mutes or unmutes every notification for a user. <paramref name="until"/> is null for
+    /// "until I turn it back on"; unmuting clears it.
+    /// </summary>
+    public void SetServerMute(Guid userId, bool muted, DateTime? until)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        var expiry = muted ? until : null;
+        user.NotifServerMuted = muted;
+        user.NotifServerMuteUntil = expiry;
+
+        _writer.Enqueue(Writes.User(user));
+    }
+
+    /// <summary>
+    /// Sets how DMs notify (allow all, mute all, or per-channel).
+    /// </summary>
+    public void SetDmNotificationMode(Guid userId, NotificationMode mode)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        user.NotifDmMode = mode;
+
+        _writer.Enqueue(Writes.User(user));
+    }
+
+    /// <summary>
+    /// Sets how rooms notify (allow all, mute all, or per-channel).
+    /// </summary>
+    public void SetRoomNotificationMode(Guid userId, NotificationMode mode)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        user.NotifRoomMode = mode;
+
+        _writer.Enqueue(Writes.User(user));
+    }
+
+    /// <summary>
+    /// Sets whether a DM partner with no override row notifies (Individual DM mode only).
+    /// </summary>
+    public void SetNewDmsMuted(Guid userId, bool muted)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        user.NotifNewDmsMuted = muted;
+
+        _writer.Enqueue(Writes.User(user));
+    }
+
+    public void SetSmartLoginOptOut(Guid userId, bool optOut)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        user.SmartLoginOptOut = optOut;
+
+        _writer.Enqueue(Writes.User(user));
+        OnSettingsChanged?.Invoke(userId, new { smartLoginOptOut = user.SmartLoginOptOut });
+    }
+
+    /// <summary>
+    /// Updates the user's selected color theme ID.
+    /// </summary>
+    public string? UpdateTheme(Guid userId, string? themeId)
+    {
+        if (!_users.TryGetValue(userId, out var user)) return "Unknown user.";
+        if (themeId is not null && !ThemeRegistry.IsKnown(themeId)) return "Unknown theme.";   // ST-08
+
+        user.Theme = themeId;
+
+        _writer.Enqueue(Writes.User(user));
+        OnSettingsChanged?.Invoke(userId, new { theme = user.Theme });
+        return null;
+    }
+
+    private static readonly int[] FontSizes = [14, 15, 16, 17, 18, 20];   // the six choices of Settings (ST-10)
+
+    /// <summary>The root font size in px. 16 is the browser default and is stored as null (ST-10).</summary>
+    public string? UpdateFontSize(Guid userId, int? fontSize)
+    {
+        if (!_users.TryGetValue(userId, out var user)) return "Unknown user.";
+        if (fontSize is { } size && !FontSizes.Contains(size)) return "Unknown text size.";
+
+        user.FontSize = fontSize == 16 ? null : fontSize;
+
+        _writer.Enqueue(Writes.User(user));
+        OnSettingsChanged?.Invoke(userId, new { fontSize = user.FontSize });
+        return null;
+    }
+
+    /// <summary>
+    /// Updates the user's timezone and locale (detected from browser).
+    /// </summary>
+    public void UpdateLocale(Guid userId, string? timeZone, string? locale, string? dateFormat = null)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        user.TimeZone = timeZone;
+        user.Locale = locale;
+        // The first locale fixes the date order and the clock (ST-19): every device then reads one stored value.
+        if (user.DateFormat is null && !string.IsNullOrEmpty(locale)) user.DateFormat = LocaleResolver.GuessDateFormatFromLocale(locale);
+        if (dateFormat != null)
+            user.DateFormat = dateFormat;
+
+        _writer.Enqueue(Writes.User(user));
+        OnSettingsChanged?.Invoke(userId, new { timeZone = user.TimeZone, locale = user.Locale, dateFormat = user.DateFormat });
+    }
+
+    /// <summary>
+    /// Records that the user was seen running Yap as an installed PWA (display-mode: standalone).
+    /// Updates <see cref="User.PwaInstalledAt"/> to now. Idempotent per connect; only called by the
+    /// client when it detects standalone mode, so non-PWA sessions never touch this.
+    /// </summary>
+    public void MarkPwaInstalled(Guid userId)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        var now = DateTime.UtcNow;
+        user.PwaInstalledAt = now;
+
+        _writer.Enqueue(Writes.User(user));
+    }
+
+    /// <summary>
+    /// Sets a passphrase for the user (enables multi-device login).
+    /// </summary>
+    public void SetPassword(Guid userId, string? password)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        user.Password = password;
+
+        _writer.Enqueue(Writes.User(user));
+    }
+
+    /// <summary>
+    /// Verifies a password for an existing user. Returns the user if credentials match.
+    /// </summary>
+    public User? VerifyPassword(string username, string password)
+    {
+        var user = GetByUsername(username);
+        if (user == null || user.Password == null)
+            return null;
+
+        return string.Equals(user.Password, password, StringComparison.Ordinal) ? user : null;
+    }
+
+    /// <summary>
+    /// Checks if a user has a passphrase set.
+    /// </summary>
+    public bool HasPassword(string username)
+    {
+        var user = GetByUsername(username);
+        return user?.Password != null;
+    }
+
+    /// <summary>
+    /// Gets the stored passphrase for a user (for display in Settings).
+    /// </summary>
+    public string? GetPassword(Guid userId)
+    {
+        return _users.TryGetValue(userId, out var user) ? user.Password : null;
+    }
+
+    #region Smart Login Known IPs
+
+    // Smart login's IP memory. Exact-string matches only — never prefixes: CGNAT pools
+    // are shared with thousands of strangers, and a /24-wide match would let them log in
+    // as each other. The TTL bounds how long a recycled IP + username grants passwordless
+    // entry; the SmartMode and per-user SmartLoginOptOut gates still apply at call sites.
+    private static readonly TimeSpan KnownIpTtl = TimeSpan.FromDays(14);
+    private static readonly TimeSpan KnownIpRefreshThrottle = TimeSpan.FromHours(1);
+    private const int MaxKnownIps = 5;
+
+    private sealed record KnownIpEntry(string Ip, DateTime LastSeenUtc);
+
+    /// <summary>
+    /// Records that this user was seen from an IP (login, authenticated page load).
+    /// Throttled so routine page loads from an already-known IP do not rewrite the row.
+    /// </summary>
+    public void RecordKnownIp(Guid userId, string? ip)
+    {
+        if (string.IsNullOrEmpty(ip) || !_users.TryGetValue(userId, out var user))
+            return;
+
+        var entries = ParseKnownIps(user.KnownIps);
+
+        var existing = entries.FirstOrDefault(e => string.Equals(e.Ip, ip, StringComparison.Ordinal));
+        if (existing != null && DateTime.UtcNow - existing.LastSeenUtc < KnownIpRefreshThrottle)
+            return;
+
+        entries.RemoveAll(e => string.Equals(e.Ip, ip, StringComparison.Ordinal));
+        entries.Insert(0, new KnownIpEntry(ip, DateTime.UtcNow));
+        if (entries.Count > MaxKnownIps)
+            entries.RemoveRange(MaxKnownIps, entries.Count - MaxKnownIps);
+
+        user.KnownIps = System.Text.Json.JsonSerializer.Serialize(entries);
+        _writer.Enqueue(Writes.User(user));
+    }
+
+    /// <summary>
+    /// Smart login: was this user seen from this exact IP within the TTL? Complements
+    /// ChatService.HasActiveSessionFromIp so smart login keeps working after restarts
+    /// and closed sessions instead of requiring a live connection.
+    /// </summary>
+    /// <summary>"Sign out all other devices" forgets the remembered networks, so a signed-out device on the same
+    /// network does not walk back in through smart login (AU-20).</summary>
+    public void ForgetKnownIps(Guid userId)
+    {
+        if (!_users.TryGetValue(userId, out var user)) return;
+        user.KnownIps = null;
+        _writer.Enqueue(Writes.User(user));
+    }
+
+    public bool HasRecentKnownIp(string username, string? ip)
+    {
+        if (string.IsNullOrEmpty(ip))
+            return false;
+
+        var user = GetByUsername(username);
+        if (user == null)
+            return false;
+
+        return ParseKnownIps(user.KnownIps).Any(e =>
+            string.Equals(e.Ip, ip, StringComparison.Ordinal) &&
+            DateTime.UtcNow - e.LastSeenUtc <= KnownIpTtl);
+    }
+
+    private static List<KnownIpEntry> ParseKnownIps(string? json)
+    {
+        if (string.IsNullOrEmpty(json))
+            return [];
+
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<List<KnownIpEntry>>(json) ?? [];
+        }
+        catch
+        {
+            return []; // corrupt blob — start fresh rather than break logins
+        }
+    }
+
+    #endregion
+
+    /// <summary>
+    /// Generates a random passphrase in "color animal NN" format.
+    /// </summary>
+    public static string GeneratePassphrase()
+    {
+        var colors = new[] { "red", "blue", "green", "gold", "pink", "cyan", "lime", "teal",
+            "plum", "mint", "ruby", "jade", "coral", "amber", "ivory", "peach", "sage", "navy", "rust", "wine" };
+        var animals = new[] { "cat", "dog", "fox", "owl", "bee", "bat", "elk", "ant", "emu", "yak",
+            "ape", "cod", "cow", "hen", "jay", "koi", "ram", "rat", "ray", "seal",
+            "wolf", "bear", "deer", "frog", "hawk", "lion", "lynx", "moth", "puma", "swan" };
+
+        var color = colors[RandomNumberGenerator.GetInt32(colors.Length)];
+        var animal = animals[RandomNumberGenerator.GetInt32(animals.Length)];
+        var number = RandomNumberGenerator.GetInt32(10, 100);
+
+        return $"{color} {animal} {number}";
+    }
+
+    /// <summary>
+    /// Rotates the auth token for a user. Invalidates the old token and returns the new one.
+    /// Used when signing out all other devices — caller sets the new token on the current device's cookie.
+    /// </summary>
+    public string? RotateToken(Guid userId)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return null;
+
+        var oldToken = user.Token;
+        var newToken = GenerateToken();
+
+        _tokenToId.TryRemove(oldToken, out _);
+        _tokenToId[newToken] = userId;
+        user.Token = newToken;
+
+        _writer.Enqueue(Writes.User(user));
+        _logger.LogInformation("Rotated token for user {Username}", user.Username);
+
+        return newToken;
+    }
+
+    /// <summary>
+    /// The status the person picked in the status menu (PR-01). PresenceService calls this and tells the
+    /// person's other devices.
+    /// </summary>
+    public void SetStatus(Guid userId, UserStatus status)
+    {
+        if (!_users.TryGetValue(userId, out var user)) return;
+        user.Status = status;
+        _writer.Enqueue(Writes.User(user));
+    }
+
+    /// <summary>
+    /// One use of an emoji: a pick in a picker, a quick reaction or a tap on a pill. It moves to the front of
+    /// the 20 recent emoji (PK-07). The person's other devices get the new list. The count column is kept
+    /// current but nothing reads it: the quick reactions come from the reactions themselves (MR-41).
+    /// </summary>
+    public void RecordEmojiUse(Guid userId, string emoji)
+    {
+        if (emoji.Length is 0 or > 64) return;   // not an emoji
+        if (!_users.TryGetValue(userId, out var user)) return;
+        var recent = GetRecentEmojis(user.Username);
+        recent.Remove(emoji);
+        recent.Insert(0, emoji);
+        if (recent.Count > 20) recent.RemoveRange(20, recent.Count - 20);
+        var counts = GetEmojiCounts(user.Username);
+        counts[emoji] = counts.GetValueOrDefault(emoji) + 1;
+        user.RecentEmojis = System.Text.Json.JsonSerializer.Serialize(recent);
+        user.EmojiCounts = System.Text.Json.JsonSerializer.Serialize(counts);
+        _writer.Enqueue(Writes.User(user));
+        OnRecentEmojiChanged?.Invoke(userId, recent);
+    }
+
+    /// <summary>
+    /// Gets the recent emojis list for a user (deserialized from in-memory User).
+    /// </summary>
+    public List<string> GetRecentEmojis(string username)
+    {
+        var user = GetByUsername(username);
+        if (user?.RecentEmojis == null) return new();
+
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<List<string>>(user.RecentEmojis) ?? new();
+        }
+        catch
+        {
+            return new();
+        }
+    }
+
+    /// <summary>
+    /// Gets the recent GIF entry IDs for a user (deserialized from in-memory User).
+    /// </summary>
+    public List<Guid> GetRecentGifs(string username)
+    {
+        var user = GetByUsername(username);
+        if (user?.RecentGifs == null) return new();
+
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<List<Guid>>(user.RecentGifs) ?? new();
+        }
+        catch
+        {
+            return new();
+        }
+    }
+
+    public void UpdateRecentGifs(Guid userId, List<Guid> gifIds)
+    {
+        if (!_users.TryGetValue(userId, out var user))
+            return;
+
+        user.RecentGifs = System.Text.Json.JsonSerializer.Serialize(gifIds);
+        _writer.Enqueue(Writes.User(user));
+    }
+
+    /// <summary>
+    /// Gets the emoji usage counts for a user (deserialized from in-memory User).
+    /// </summary>
+    public Dictionary<string, int> GetEmojiCounts(string username)
+    {
+        var user = GetByUsername(username);
+        if (user?.EmojiCounts == null) return new();
+
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(user.EmojiCounts) ?? new();
+        }
+        catch
+        {
+            return new();
+        }
+    }
+
+    /// <summary>
+    /// Collapses a user's raw emoji usage counts to dense ranks (lowest count → 1, next
+    /// distinct → 2, …), keeping the 40 highest-ranked. Only relative order matters for
+    /// quick reactions, so this bounds the stored column and lets recent usage climb past
+    /// stale favorites. Mutates user.EmojiCounts; returns true if the value actually changed.
+    /// Idempotent — a dense 1..n sequence re-ranks to itself.
+    /// </summary>
+    private static bool FlattenEmojiCounts(User user)
+    {
+        if (string.IsNullOrEmpty(user.EmojiCounts)) return false;
+
+        Dictionary<string, int>? counts;
+        try { counts = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(user.EmojiCounts); }
+        catch { return false; }
+        if (counts is null || counts.Count == 0) return false;
+
+        // Dense-rank the distinct count values: smallest → 1, largest → N.
+        var ranks = counts.Values.Distinct().OrderBy(x => x)
+            .Select((val, index) => new { val, index })
+            .ToDictionary(x => x.val, x => x.index + 1);
+
+        // Replace each emoji's count with its rank; keep the top 40, drop the long tail.
+        var flattened = counts
+            .Select(kvp => new { kvp.Key, Rank = ranks[kvp.Value] })
+            .OrderByDescending(x => x.Rank)
+            .Take(40)
+            .ToDictionary(x => x.Key, x => x.Rank);
+
+        var serialized = System.Text.Json.JsonSerializer.Serialize(flattened);
+        if (serialized == user.EmojiCounts) return false; // already flat — skip the write
+
+        user.EmojiCounts = serialized;
+        return true;
+    }
+
+    /// <summary>
+    /// Generates a secure random token.
+    /// </summary>
+    private static string GenerateToken()
+    {
+        var bytes = RandomNumberGenerator.GetBytes(32);
+        return Convert.ToBase64String(bytes).Replace("+", "-").Replace("/", "_").TrimEnd('=');
+    }
+}

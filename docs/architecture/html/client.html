@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The client · Yap architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #f3f5f7; --surface: #ffffff; --surface-2: #e9edf1;
+  --fg: #182029; --muted: #56606e; --line: #d4dae2; --line-strong: #a9b3c0;
+  --accent: #0d6a87; --code-bg: #f8f9fb;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+    --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+  --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+main { max-width: 980px; margin: 0 auto; padding: 36px 16px 96px; display: flex; flex-direction: column; gap: 22px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.15; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 4.5vw, 2.8rem); font-weight: 700; }
+h2 { font-size: clamp(1.4rem, 2.6vw, 1.8rem); font-weight: 600; padding-top: 22px; margin-top: 14px; border-top: 1px solid var(--line-strong); }
+h3 { font-size: 1.12rem; font-weight: 600; margin-top: 6px; }
+p, ul, ol { margin: 0; max-width: 76ch; }
+ul, ol { padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
+li > ul, li > ol { margin-top: 6px; }
+a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 0.88em; background: var(--surface-2); padding: 0.05em 0.3em; border-radius: 3px; overflow-wrap: anywhere; }
+pre { margin: 0; padding: 12px 16px; overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--code-bg); font: 0.82rem/1.5 var(--mono); }
+pre code { background: none; padding: 0; font-size: inherit; }
+blockquote { margin: 0; padding: 10px 16px; border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; max-width: 76ch; }
+.eyebrow { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+nav.pages { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+nav.pages a, nav.pages span { display: inline-block; padding: 3px 10px; border: 1px solid var(--line); border-radius: 4px; text-decoration: none; color: var(--fg); background: var(--surface); font-size: 0.86rem; }
+nav.pages span { color: var(--muted); border-style: dashed; }
+nav.pages a[aria-current] { border-color: var(--accent); color: var(--accent); }
+.rule { border: 1px solid var(--line); border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; padding: 10px 14px; max-width: 76ch; scroll-margin-top: 16px; }
+.rule .id { font-family: var(--mono); font-size: 0.8rem; color: var(--accent); margin-right: 8px; }
+.rule .why { color: var(--muted); }
+figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+figcaption { font-size: 0.9rem; color: var(--muted); max-width: 80ch; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+th { font-family: var(--display); font-weight: 600; background: var(--surface-2); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+footer { font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; }
+
+figure.code { position: relative; }
+figure.code .lang { position: absolute; top: 6px; right: 10px; font: 0.7rem var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+pre .c { color: var(--muted); font-style: italic; }
+pre .s { color: #2f7d32; }
+pre .n { color: #a4541c; }
+pre .k { color: #7a3fb3; font-weight: 500; }
+pre .t { color: var(--accent); }
+pre .p { color: #0b5e8a; }
+pre .a { color: #8a6d00; }
+pre .v { color: #a4541c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) pre .s { color: #8fd18f; } :root:not([data-theme="light"]) pre .n, :root:not([data-theme="light"]) pre .v { color: #f0a86a; } :root:not([data-theme="light"]) pre .k { color: #c99af5; } :root:not([data-theme="light"]) pre .p { color: #7cc4ea; } :root:not([data-theme="light"]) pre .a { color: #e0c860; } }
+:root[data-theme="dark"] pre .s { color: #8fd18f; } :root[data-theme="dark"] pre .n, :root[data-theme="dark"] pre .v { color: #f0a86a; } :root[data-theme="dark"] pre .k { color: #c99af5; } :root[data-theme="dark"] pre .p { color: #7cc4ea; } :root[data-theme="dark"] pre .a { color: #e0c860; }
+/* Contract tables: a route or a method name never breaks across lines, so the first column grows to fit it.
+   Long lists of code spans still wrap between the spans. The wrapper scrolls sideways when a table is wider than the page. */
+.tablewrap code { white-space: nowrap; }
+.tablewrap td:first-child { min-width: 10rem; }
+figure.diagram { padding: 16px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+figure.diagram svg { display: block; max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">Yap · architecture</div>
+<nav class="pages" aria-label="Architecture pages"><a href="sketch.html">Architecture sketch: Yap without Blazor</a><a href="plan.html">Plan of action</a><a href="message-path.html">Message path</a><a href="presence.html">Presence</a><a href="chat-hub.html">ChatHub and read state</a><a href="auth-and-program.html">Authentication and Program.cs</a><a href="sign-in.html">Sign-in flows</a><a href="bootstrap-and-events.html">Bootstrap and events</a><a href="client.html" aria-current="page">The client</a><a href="wire-contract.html">Wire contract</a></nav>
+<h1 id="the-client">The client</h1>
+<p>The client is a set of static files in <code>wwwroot/</code>: one HTML file, CSS files, JavaScript modules, one vendored library, and a service worker. There is no build step. The browser loads the modules directly. This page gives the list of files, the role of each file, and the way they work together. The timeline, the composer, the pickers and the offline parts get their own pages later.</p>
+<h2 id="the-files">The files</h2>
+<figure class="code"><pre><code>wwwroot/
+  index.html              the one HTML page: the frame&#x27;s markup, &lt;template&gt; elements for every component, the module preload list
+  app.css                 fonts, CSS variables, resets, the body, and the rules the flattened files do not have
+  themes.css, themes/     one block per theme (as today)
+  css/
+    frame.css             header, sidebar, status menu, profile card (flattened from the old scoped files; css/README.md)
+    timeline.css          the message list, the loading row, the top note, the gallery viewer
+    message.css           one message row: header, content, media, reactions, action bar, editor, cards
+    composer.css          the input box, the reply bar, the typing strip, the drop ring
+    pickers.css           the emoji picker, the GIF picker, the phone sheet
+    pages.css             login, settings, channel settings, admin
+  js/
+    main.js               starts the app: the bootstrap, the router, the frame, the service worker, the new-version strip
+    store.js              the state object, the subscribe function, the local-first edits
+    api.js                fetch for the HTTP routes
+    hub.js                the SignalR connection, its retry loop, the hub messages, the heartbeat
+    router.js             URL to page, history, the last route
+    session.js            sign-in and sign-out as the client sees them
+    catalog.js            the emoji catalogue, loaded once per build
+    sender.js             the outbox: pending rows, uploads, the post loop, the rows on disk
+    upload.js             files to the TUS endpoint, with progress
+    notify.js             the sound, the tab title, the app badge
+    push.js               the push subscription of this device and the prompt of the installed app
+    pwa.js                the install dialog, the browser&#x27;s install prompt, the add-to-home-screen guide
+    render/dom.js         el(), clone(), replace()
+    render/text.js        message text to DOM nodes: links, :shortcode: images, emoji images
+    render/time.js        timestamps with the account&#x27;s zone, clock and date order
+    render/avatar.js      the avatar and the gradient of a username
+    ui/frame.js           header, status chip and menu, connection dot, sidebar, profile card
+    ui/timeline.js        the list, the follow rule, the pill, older pages, the lobby lines
+    ui/message.js         one message row and its popups
+    ui/composer.js        the input box and the pickers&#x27; host
+    ui/emoji-picker.js    the emoji picker, for the composer and for reactions
+    ui/gif-picker.js      the GIF picker
+    ui/gallery.js         the image viewer
+    ui/overlays.js        the layer stack, Escape, taps outside, popup placement
+    ui/gif-library.js     the GIF library manager of Settings and of the admin&#x27;s server library
+    offline/db.js         the IndexedDB database
+    offline/snapshot.js   the stored bootstrap and the stored conversation tails
+    offline/outbox.js     the unsent messages on disk
+    pages/chat.js         a room or a direct message
+    pages/login.js        the login page
+    pages/verify.js       the code for a known name
+    pages/invite.js       an invite or a login link
+    pages/settings.js     Settings
+    pages/channel-settings.js   Create Channel and Channel Settings
+    pages/admin.js        Administration
+  lib/signalr.min.js      vendored
+  lib/tus.min.js          vendored
+  service-worker.js       the shell cache by build, the emoji cache, the media cache, push, the notification tap</code></pre></figure>
+<p>Four kinds of module:</p>
+<div class="tablewrap"><table><thead><tr><th>Kind</th><th>Modules</th><th>Role</th></tr></thead><tbody><tr><td>core</td><td><code>store</code>, <code>api</code>, <code>hub</code>, <code>router</code></td><td>hold the state and talk to the server. They know nothing about the DOM.</td></tr><tr><td>render</td><td><code>render/*</code></td><td>turn a value into DOM nodes or strings. No DOM state; <code>text</code> keeps the emoji catalogue it was given and <code>time</code> the account's format, nothing else.</td></tr><tr><td>ui</td><td><code>ui/*</code></td><td>one visible component each. A component reads the store, draws itself, and reacts to input.</td></tr><tr><td>pages</td><td><code>pages/*</code></td><td>one route each. A page mounts the components it needs and removes them when the route changes.</td></tr></tbody></table></div>
+<p><code>session</code>, <code>catalog</code>, <code>sender</code>, <code>upload</code>, <code>notify</code> and the offline modules are helpers. They are called by the ui modules, by <code>main</code> and by <code>hub</code>.</p>
+<h2 id="how-the-modules-depend-on-each-other">How the modules depend on each other</h2>
+<figure class="diagram">
+<svg viewBox="0 0 860 420" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, system-ui, sans-serif" font-size="13">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--muted)"/></marker>
+  </defs>
+  <style>
+    .box { fill: var(--surface-2); stroke: var(--line-strong); rx: 6; }
+    .core { fill: var(--surface); stroke: var(--accent); stroke-width: 1.5; rx: 6; }
+    .t { fill: currentColor; text-anchor: middle; }
+    .s { fill: var(--muted); text-anchor: middle; font-size: 11px; }
+    .e { stroke: var(--muted); stroke-width: 1.4; fill: none; marker-end: url(#a); }
+  </style>
+
+  <rect x="30" y="30" width="800" height="60" class="box"/>
+  <text x="430" y="54" class="t">index.html</text>
+  <text x="430" y="72" class="s">markup, templates, preload list, inline theme script; loads main.js</text>
+
+  <rect x="350" y="120" width="160" height="44" class="box"/>
+  <text x="430" y="147" class="t">main.js</text>
+  <path d="M430 90 V 118" class="e"/>
+
+  <rect x="60" y="200" width="150" height="44" class="box"/>
+  <text x="135" y="227" class="t">router.js</text>
+  <path d="M370 164 L 150 198" class="e"/>
+
+  <rect x="60" y="290" width="150" height="44" class="box"/>
+  <text x="135" y="317" class="t">pages/*</text>
+  <path d="M135 244 V 288" class="e"/>
+
+  <rect x="260" y="290" width="150" height="44" class="box"/>
+  <text x="335" y="317" class="t">ui/*</text>
+  <path d="M210 312 H 258" class="e"/>
+
+  <rect x="260" y="360" width="150" height="44" class="box"/>
+  <text x="335" y="387" class="t">render/*</text>
+  <path d="M335 334 V 358" class="e"/>
+
+  <rect x="470" y="200" width="150" height="44" class="core"/>
+  <text x="545" y="227" class="t">store.js</text>
+  <path d="M450 164 L 520 198" class="e"/>
+  <path d="M410 300 L 470 240" class="e"/>
+  <text x="400" y="268" class="s">read, subscribe</text>
+
+  <rect x="680" y="200" width="150" height="44" class="core"/>
+  <text x="755" y="227" class="t">hub.js</text>
+  <path d="M510 150 L 720 198" class="e"/>
+  <path d="M680 230 H 622" class="e"/>
+  <text x="651" y="250" class="s">writes</text>
+
+  <rect x="470" y="290" width="150" height="44" class="core"/>
+  <text x="545" y="317" class="t">api.js</text>
+  <path d="M410 320 H 468" class="e"/>
+  <path d="M545 288 V 246" class="e"/>
+  <text x="590" y="268" class="s">writes</text>
+
+  <rect x="680" y="290" width="150" height="44" class="box"/>
+  <text x="755" y="317" class="t">offline/sender.js</text>
+  <path d="M680 312 H 622" class="e"/>
+  <path d="M755 288 V 246" class="e"/>
+  <text x="790" y="268" class="s">wakes on connect</text>
+
+  <text x="430" y="410" class="s">Arrows mean "calls". The ui modules read the store and call api and hub. Only hub, api and the sender write to the store.</text>
+</svg>
+<figcaption>The dependency graph has no cycles. The core modules know nothing about the DOM. The ui modules know nothing about SignalR or fetch.</figcaption>
+</figure>
+<h2 id="the-store">The store</h2>
+<p>The store is one plain object and one function. The object holds all data the client has. The function lets a component ask for a call when a part of the data changes.</p>
+<figure class="code"><span class="lang">js</span><pre><code><span class="c">// js/store.js (sketch)</span>
+<span class="k">export</span> <span class="k">const</span> state = {
+  connection: <span class="s">&#x27;connecting&#x27;</span>,    <span class="c">// &#x27;connecting&#x27; | &#x27;connected&#x27; | &#x27;reconnecting&#x27; | &#x27;offline&#x27; | &#x27;signedOut&#x27;</span>
+  user: <span class="k">null</span>, config: <span class="k">null</span>, texts: <span class="k">null</span>,
+  rooms: [], users: {}, presence: {}, dms: [], unread: {}, mutes: <span class="k">null</span>, emoji: <span class="k">null</span>, favoriteGifIds: <span class="k">new</span> <span class="t">Set</span>(),
+  open: <span class="k">null</span>,                  <span class="c">// { channelId, messages: [], hasMore, restricted, typists: [], following: true }</span>
+  pending: [],                 <span class="c">// outbox rows of the open conversation, drawn as faded rows</span>
+  drafts: {},                  <span class="c">// conversation key -&gt; { text, replyToId }; a room by its id, a direct message by &#x27;dm:&#x27; and the partner</span>
+};
+
+<span class="k">const</span> listeners = <span class="k">new</span> <span class="t">Map</span>();   <span class="c">// part name -&gt; Set of functions</span>
+
+<span class="k">export</span> <span class="k">function</span> on(part, fn) {           <span class="c">// call fn when this part changes; returns the function that stops it</span>
+  <span class="k">if</span> (!listeners.has(part)) listeners.set(part, <span class="k">new</span> <span class="t">Set</span>());
+  listeners.get(part).add(fn);
+  <span class="k">return</span> () =&gt; listeners.get(part).<span class="k">delete</span>(fn);
+}
+
+<span class="k">export</span> <span class="k">function</span> changed(...parts) {      <span class="c">// the writer calls this after it changed state</span>
+  <span class="k">for</span> (<span class="k">const</span> part <span class="k">of</span> parts) <span class="k">for</span> (<span class="k">const</span> fn <span class="k">of</span> listeners.get(part) ?? []) fn();
+}
+
+<span class="k">export</span> <span class="k">function</span> applyBootstrap(doc) {    <span class="c">// replaces the shared data as a whole; see the wire contract, &quot;Bootstrap&quot;</span>
+  <span class="t">Object</span>.assign(state, { user: doc.user, config: doc.config, texts: doc.texts, rooms: doc.rooms,
+    users: <span class="t">Object</span>.fromEntries(doc.users.map(u =&gt; [u.username, u])), presence: doc.presence, dms: doc.dms,
+    unread: doc.unread, mutes: doc.mutes, emoji: doc.emoji, favoriteGifIds: <span class="k">new</span> <span class="t">Set</span>(doc.favoriteGifIds) });
+  changed(<span class="s">&#x27;user&#x27;</span>, <span class="s">&#x27;rooms&#x27;</span>, <span class="s">&#x27;users&#x27;</span>, <span class="s">&#x27;presence&#x27;</span>, <span class="s">&#x27;dms&#x27;</span>, <span class="s">&#x27;unread&#x27;</span>, <span class="s">&#x27;mutes&#x27;</span>, <span class="s">&#x27;emoji&#x27;</span>, <span class="s">&#x27;favoriteGifIds&#x27;</span>);
+}</code></pre></figure>
+<p>The part names are the field names of the bootstrap document, plus <code>connection</code>, <code>open</code>, <code>pending</code> and <code>drafts</code>. There is no diffing. A component that listens to <code>rooms</code> redraws its room list. A room list has at most a few dozen rows, so a full redraw is cheap. The message list is the one component that updates rows in place, because it can hold hundreds of rows. The timeline page describes that.</p>
+<h2 id="the-hub-module">The hub module</h2>
+<p><code>hub.js</code> owns the SignalR connection. It does three things: it keeps the connection alive, it writes hub messages into the store, and it offers <code>invoke</code> to the ui modules.</p>
+<figure class="code"><span class="lang">js</span><pre><code><span class="c">// js/hub.js (sketch)</span>
+<span class="k">import</span> * as store <span class="k">from</span> <span class="s">&#x27;./store.js&#x27;</span>;
+<span class="k">import</span> { api } <span class="k">from</span> <span class="s">&#x27;./api.js&#x27;</span>;
+<span class="k">import</span> * as sender <span class="k">from</span> <span class="s">&#x27;./offline/sender.js&#x27;</span>;
+
+<span class="k">const</span> connection = <span class="k">new</span> signalR.<span class="t">HubConnectionBuilder</span>()
+  .withUrl(<span class="s">`/hub?device=${deviceId()}`</span>)          <span class="c">// the device id is a random id in localStorage (AU-19)</span>
+  .build();
+
+connection.on(<span class="s">&#x27;message&#x27;</span>,        m =&gt; store.addMessage(m));
+connection.on(<span class="s">&#x27;messageEdited&#x27;</span>,  m =&gt; store.replaceMessage(m));
+connection.on(<span class="s">&#x27;messageDeleted&#x27;</span>, (channelId, id) =&gt; store.removeMessage(channelId, id));
+connection.on(<span class="s">&#x27;reactions&#x27;</span>,      (id, reactions) =&gt; store.setReactions(id, reactions));
+connection.on(<span class="s">&#x27;previews&#x27;</span>,       (id, previews) =&gt; store.setPreviews(id, previews));
+connection.on(<span class="s">&#x27;typing&#x27;</span>,         (channelId, username, on) =&gt; store.setTyping(channelId, username, on));
+connection.on(<span class="s">&#x27;unread&#x27;</span>,         (channelId, count) =&gt; store.setUnread(channelId, count));
+connection.on(<span class="s">&#x27;presence&#x27;</span>,       (username, status, kind) =&gt; store.setPresence(username, status, kind));
+connection.on(<span class="s">&#x27;profile&#x27;</span>,        u =&gt; store.setUser(u));
+connection.on(<span class="s">&#x27;rooms&#x27;</span>,          rooms =&gt; store.setRooms(rooms));
+connection.on(<span class="s">&#x27;dm&#x27;</span>,             dm =&gt; store.addDm(dm));
+connection.on(<span class="s">&#x27;me&#x27;</span>,             partial =&gt; store.mergeMe(partial));
+connection.on(<span class="s">&#x27;gifFavorites&#x27;</span>,   ids =&gt; store.setFavoriteGifs(ids));
+connection.on(<span class="s">&#x27;signedOut&#x27;</span>,      () =&gt; signedOut());
+
+connection.onclose(() =&gt; { setState(navigator.onLine ? <span class="s">&#x27;reconnecting&#x27;</span> : <span class="s">&#x27;offline&#x27;</span>); retryLater(); });
+
+<span class="k">export</span> <span class="k">async</span> <span class="k">function</span> connect() {
+  setState(state.connection === <span class="s">&#x27;connecting&#x27;</span> ? <span class="s">&#x27;connecting&#x27;</span> : <span class="s">&#x27;reconnecting&#x27;</span>);
+  <span class="k">try</span> { <span class="k">await</span> connection.start(); } <span class="k">catch</span> { retryLater(); <span class="k">return</span>; }
+  setState(<span class="s">&#x27;connected&#x27;</span>);
+  <span class="k">const</span> [doc] = <span class="k">await</span> <span class="t">Promise</span>.all([api.get(<span class="s">&#x27;/api/bootstrap&#x27;</span>), reopen()]);   <span class="c">// one round trip; the hub is already connected</span>
+  store.applyBootstrap(doc);
+  sender.wake();                                                            <span class="c">// post what queued while offline (OF-10)</span>
+}
+
+<span class="k">export</span> <span class="k">async</span> <span class="k">function</span> invoke(method, ...args) {        <span class="c">// the ui calls this; a refusal comes back as { error }</span>
+  <span class="k">if</span> (state.connection !== <span class="s">&#x27;connected&#x27;</span>) <span class="k">return</span> { error: <span class="s">&#x27;Needs a connection&#x27;</span> };
+  <span class="k">return</span> connection.invoke(method, ...args);
+}
+
+<span class="c">// Reconnect: a timer with a growing delay, capped at 30 s, plus an attempt at once on each of these (OF-13).</span>
+addEventListener(<span class="s">&#x27;online&#x27;</span>, retryNow);
+document.addEventListener(<span class="s">&#x27;visibilitychange&#x27;</span>, () =&gt; { <span class="k">if</span> (document.visibilityState === <span class="s">&#x27;visible&#x27;</span>) retryNow(); });
+<span class="k">export</span> { retryNow as reconnectNow };                   <span class="c">// the connection dot calls this on tap (SH-18)</span></code></pre></figure>
+<p>The client runs its own retry loop instead of SignalR's automatic reconnect. SignalR's reconnect stops after its list of delays ends, and it has no function for "try now". The spec wants a retry on <code>online</code>, on a visible tab, and on a tap of the dot, with no end (OF-13).</p>
+<h2 id="the-api-module">The api module</h2>
+<p><code>api.js</code> is a thin function over <code>fetch</code>. It sends and receives JSON, sends the cookie, and converts a refusal into a reason the ui can show.</p>
+<figure class="code"><span class="lang">js</span><pre><code><span class="c">// js/api.js (sketch)</span>
+<span class="k">export</span> <span class="k">class</span> <span class="t">ApiError</span> <span class="k">extends</span> <span class="t">Error</span> { constructor(status, reason) { <span class="k">super</span>(reason); <span class="k">this</span>.status = status; } }
+
+<span class="k">async</span> <span class="k">function</span> request(method, url, body) {
+  <span class="k">let</span> res;
+  <span class="k">try</span> { res = <span class="k">await</span> fetch(url, { method, credentials: <span class="s">&#x27;same-origin&#x27;</span>, headers: body &amp;&amp; { <span class="s">&#x27;content-type&#x27;</span>: <span class="s">&#x27;application/json&#x27;</span> },
+                                 body: body &amp;&amp; <span class="t">JSON</span>.stringify(body) }); }
+  <span class="k">catch</span> { <span class="k">throw</span> <span class="k">new</span> <span class="t">ApiError</span>(<span class="n">0</span>, <span class="s">&#x27;Needs a connection&#x27;</span>); }                       <span class="c">// network error (GEN-10)</span>
+  <span class="k">if</span> (res.ok) <span class="k">return</span> res.status === <span class="n">204</span> ? <span class="k">null</span> : res.json();
+  <span class="k">if</span> (res.status === <span class="n">401</span>) { signedOut(); }
+  <span class="k">const</span> problem = <span class="k">await</span> res.json().<span class="k">catch</span>(() =&gt; <span class="k">null</span>);
+  <span class="k">throw</span> <span class="k">new</span> <span class="t">ApiError</span>(res.status, problem?.detail ?? <span class="s">&#x27;Something went wrong&#x27;</span>);   <span class="c">// ProblemDetails (GEN-02)</span>
+}
+
+<span class="k">export</span> <span class="k">const</span> api = { get: url =&gt; request(<span class="s">&#x27;GET&#x27;</span>, url), post: (url, body) =&gt; request(<span class="s">&#x27;POST&#x27;</span>, url, body),
+                     put: (url, body) =&gt; request(<span class="s">&#x27;PUT&#x27;</span>, url, body), patch: (url, body) =&gt; request(<span class="s">&#x27;PATCH&#x27;</span>, url, body),
+                     <span class="k">delete</span>: url =&gt; request(<span class="s">&#x27;DELETE&#x27;</span>, url) };</code></pre></figure>
+<h2 id="how-a-component-is-written">How a component is written</h2>
+<p>A component is a function. It receives the element it draws into. It draws from the store, subscribes to the parts it needs, and returns a function that removes the subscriptions. Example: the room list in the sidebar.</p>
+<figure class="code"><span class="lang">js</span><pre><code><span class="c">// js/ui/frame.js (sketch of one component)</span>
+<span class="k">import</span> { state, on } <span class="k">from</span> <span class="s">&#x27;../store.js&#x27;</span>;
+<span class="k">import</span> { el, clone } <span class="k">from</span> <span class="s">&#x27;../render/dom.js&#x27;</span>;
+<span class="k">import</span> { navigate } <span class="k">from</span> <span class="s">&#x27;../router.js&#x27;</span>;
+
+<span class="k">export</span> <span class="k">function</span> <span class="t">RoomList</span>(root) {
+  <span class="k">function</span> render() {
+    root.replaceChildren(...state.rooms.map(room =&gt; {
+      <span class="k">const</span> row = clone(<span class="s">&#x27;t-room-row&#x27;</span>);                                   <span class="c">// &lt;template id=&quot;t-room-row&quot;&gt; in index.html</span>
+      row.querySelector(<span class="s">&#x27;.name&#x27;</span>).textContent = room.name;
+      row.classList.toggle(<span class="s">&#x27;open&#x27;</span>, room.id === state.open?.channelId);
+      row.classList.toggle(<span class="s">&#x27;muted&#x27;</span>, isMuted(room.id));
+      <span class="k">const</span> count = state.unread[room.id] ?? <span class="n">0</span>;
+      row.querySelector(<span class="s">&#x27;.badge&#x27;</span>).textContent = isMuted(room.id) || !count ? <span class="s">&#x27;&#x27;</span> : <span class="t">String</span>(count);   <span class="c">// SH-22, SH-23</span>
+      row.querySelector(<span class="s">&#x27;.dot&#x27;</span>).hidden = !(isMuted(room.id) &amp;&amp; count);
+      row.querySelector(<span class="s">&#x27;.bell&#x27;</span>).hidden = !state.mutes.channels[room.id];
+      row.querySelector(<span class="s">&#x27;.gear&#x27;</span>).hidden = !state.user.isAdmin;
+      row.addEventListener(<span class="s">&#x27;click&#x27;</span>, () =&gt; navigate(<span class="s">`/room/${room.id}`</span>));
+      <span class="k">return</span> row;
+    }));
+  }
+  <span class="k">const</span> offs = [<span class="s">&#x27;rooms&#x27;</span>, <span class="s">&#x27;unread&#x27;</span>, <span class="s">&#x27;mutes&#x27;</span>, <span class="s">&#x27;open&#x27;</span>, <span class="s">&#x27;user&#x27;</span>].map(part =&gt; on(part, render));
+  render();
+  <span class="k">return</span> () =&gt; offs.forEach(off =&gt; off());
+}</code></pre></figure>
+<p>Rules every component follows:</p>
+<ul><li>Text goes into the DOM with <code>textContent</code> or through <code>render/text.js</code>. No component uses <code>innerHTML</code> with data from the server. This is the whole XSS story.</li><li>A component draws from the store only. It does not keep a second copy of the data.</li><li>A user action changes the store first, then calls <code>api</code> or <code>hub</code>. The component redraws from the store at once (GEN-01). When the call fails, the action puts the store back and shows the reason (GEN-02). Example, a reaction:</li></ul>
+<figure class="code"><span class="lang">js</span><pre><code><span class="k">async</span> <span class="k">function</span> toggleReaction(message, emoji) {
+  store.toggleReactionLocally(message.id, emoji, state.user.username);     <span class="c">// the pill changes now (MR-40)</span>
+  <span class="k">const</span> result = <span class="k">await</span> hub.invoke(<span class="s">&#x27;react&#x27;</span>, message.id, emoji);
+  <span class="k">if</span> (result?.error) { store.toggleReactionLocally(message.id, emoji, state.user.username); showReason(rowOf(message), result.error); }
+}</code></pre></figure>
+<ul><li>A component never talks to SignalR or <code>fetch</code> directly. It calls <code>hub.invoke</code> or <code>api.*</code>.</li></ul>
+<h2 id="the-router-and-the-pages">The router and the pages</h2>
+<p><code>router.js</code> maps the URL to a page module (SH-42). It listens to <code>popstate</code> for the back button (SH-44) and offers <code>navigate(path)</code> for links. It stores the last conversation route in localStorage, and <code>/</code> opens it (SH-43).</p>
+<div class="tablewrap"><table><thead><tr><th>Route</th><th>Page</th><th>Inside the frame</th></tr></thead><tbody><tr><td><code>/</code>, <code>/lobby</code>, <code>/room/{id}</code>, <code>/dm/{username}</code></td><td><code>pages/chat.js</code></td><td>yes</td></tr><tr><td><code>/settings</code></td><td><code>pages/settings.js</code></td><td>yes (ST-03)</td></tr><tr><td><code>/channel/new</code>, <code>/channel/{id}/settings</code></td><td><code>pages/channel-settings.js</code></td><td>yes</td></tr><tr><td><code>/admin</code></td><td><code>pages/admin.js</code></td><td>no (AD-01)</td></tr><tr><td><code>/login</code>, <code>/verify/{username}</code>, <code>/invite/{code}</code></td><td><code>pages/login.js</code>, <code>verify.js</code>, <code>invite.js</code></td><td>no</td></tr><tr><td>anything else</td><td><code>pages/not-found.js</code></td><td>no</td></tr></tbody></table></div>
+<p>A page module exports one function, <code>mount(root, params)</code>. It returns the function that unmounts the page. The frame is mounted once and stays while the route moves between chat, settings and channel settings. Only the content column changes. This keeps the sidebar, the header and the hub connection alive across these pages (SH-01, ST-03).</p>
+<figure class="code"><span class="lang">js</span><pre><code><span class="c">// js/pages/chat.js (sketch)</span>
+<span class="k">export</span> <span class="k">function</span> mount(root, { roomId, dmUser }) {
+  <span class="k">const</span> unmounts = [ <span class="t">Timeline</span>(root.querySelector(<span class="s">&#x27;.timeline&#x27;</span>)), <span class="t">Composer</span>(root.querySelector(<span class="s">&#x27;.composer&#x27;</span>)) ];
+  openConversation(roomId, dmUser);           <span class="c">// paints the snapshot, invokes openRoom or openDm, replaces</span>
+  <span class="k">return</span> () =&gt; unmounts.forEach(u =&gt; u());
+}</code></pre></figure>
+<h2 id="start-up">Start-up</h2>
+<ol><li>The browser loads <code>index.html</code>. An inline script reads the cached theme and text size from localStorage and sets them on <code>&lt;html&gt;</code>, before the first paint. Without this the page would flash the default theme.</li><li>The browser loads <code>main.js</code> and its imports. <code>index.html</code> lists every module in <code>&lt;link rel=&quot;modulepreload&quot;&gt;</code>, so the browser requests all of them at once instead of one level at a time.</li><li><code>main.js</code> reads the stored bootstrap document and the stored tail of the current conversation from IndexedDB, and paints them. The user sees the last known state at once (TL-02).</li><li><code>main.js</code> requests <code>GET /api/bootstrap</code>. Without <code>user</code> in the answer, the router shows the login, verify or invite page with the texts from the answer. With <code>user</code>, the store applies the document and the frame is current.</li><li><code>main.js</code> calls <code>hub.connect()</code>. When the hub is connected, the hub module requests the bootstrap again and opens the current conversation, in parallel. The second bootstrap exists so that no change can fall between the first answer and the first hub message (wire contract, "Bootstrap"). It costs one small request per cold start.</li><li>The sender wakes and posts the outbox.</li></ol>
+<p>A reconnect runs step 5 and 6 only. The view keeps its position, the draft and the pending rows stay (TL-35).</p>
+<h2 id="overlays-and-input-rules">Overlays and input rules</h2>
+<p><code>ui/overlays.js</code> owns one stack of open layers: menus, pickers, sheets, dialogs, the gallery. Escape closes the top layer only (GEN-17). A tap outside a layer closes it. On a window of 600 px or less, a menu or a picker opens as a bottom sheet over a dimmed page (GEN-18). The width tier is a CSS media query; the JavaScript reads the same query with <code>matchMedia</code> where it must choose a behaviour (IB-08, GEN-14).</p>
+<h2 id="what-is-not-in-the-client">What is not in the client</h2>
+<ul><li>No framework, no virtual DOM, no bundler, no transpiler. The files in <code>wwwroot/js</code> are what the browser runs.</li><li>No HTML from the server. The server sends data.</li><li>No second copy of history. The timeline holds the open conversation only. The snapshot store holds the last tail per conversation for offline reads (OF-06). The outbox holds unsent messages (OF-08). Nothing else is stored.</li><li>No merge logic. The bootstrap replaces, the events update.</li></ul>
+<footer>Source: <code>docs/architecture/client.md</code>. Edit the Markdown, then run <code>python3 docs/architecture/tools/build.py</code>.</footer>
+</main>
+</body>
+</html>

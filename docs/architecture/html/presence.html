@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Presence · Yap architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #f3f5f7; --surface: #ffffff; --surface-2: #e9edf1;
+  --fg: #182029; --muted: #56606e; --line: #d4dae2; --line-strong: #a9b3c0;
+  --accent: #0d6a87; --code-bg: #f8f9fb;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+    --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+  --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+main { max-width: 980px; margin: 0 auto; padding: 36px 16px 96px; display: flex; flex-direction: column; gap: 22px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.15; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 4.5vw, 2.8rem); font-weight: 700; }
+h2 { font-size: clamp(1.4rem, 2.6vw, 1.8rem); font-weight: 600; padding-top: 22px; margin-top: 14px; border-top: 1px solid var(--line-strong); }
+h3 { font-size: 1.12rem; font-weight: 600; margin-top: 6px; }
+p, ul, ol { margin: 0; max-width: 76ch; }
+ul, ol { padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
+li > ul, li > ol { margin-top: 6px; }
+a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 0.88em; background: var(--surface-2); padding: 0.05em 0.3em; border-radius: 3px; overflow-wrap: anywhere; }
+pre { margin: 0; padding: 12px 16px; overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--code-bg); font: 0.82rem/1.5 var(--mono); }
+pre code { background: none; padding: 0; font-size: inherit; }
+blockquote { margin: 0; padding: 10px 16px; border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; max-width: 76ch; }
+.eyebrow { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+nav.pages { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+nav.pages a, nav.pages span { display: inline-block; padding: 3px 10px; border: 1px solid var(--line); border-radius: 4px; text-decoration: none; color: var(--fg); background: var(--surface); font-size: 0.86rem; }
+nav.pages span { color: var(--muted); border-style: dashed; }
+nav.pages a[aria-current] { border-color: var(--accent); color: var(--accent); }
+.rule { border: 1px solid var(--line); border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; padding: 10px 14px; max-width: 76ch; scroll-margin-top: 16px; }
+.rule .id { font-family: var(--mono); font-size: 0.8rem; color: var(--accent); margin-right: 8px; }
+.rule .why { color: var(--muted); }
+figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+figcaption { font-size: 0.9rem; color: var(--muted); max-width: 80ch; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+th { font-family: var(--display); font-weight: 600; background: var(--surface-2); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+footer { font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; }
+
+figure.code { position: relative; }
+figure.code .lang { position: absolute; top: 6px; right: 10px; font: 0.7rem var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+pre .c { color: var(--muted); font-style: italic; }
+pre .s { color: #2f7d32; }
+pre .n { color: #a4541c; }
+pre .k { color: #7a3fb3; font-weight: 500; }
+pre .t { color: var(--accent); }
+pre .p { color: #0b5e8a; }
+pre .a { color: #8a6d00; }
+pre .v { color: #a4541c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) pre .s { color: #8fd18f; } :root:not([data-theme="light"]) pre .n, :root:not([data-theme="light"]) pre .v { color: #f0a86a; } :root:not([data-theme="light"]) pre .k { color: #c99af5; } :root:not([data-theme="light"]) pre .p { color: #7cc4ea; } :root:not([data-theme="light"]) pre .a { color: #e0c860; } }
+:root[data-theme="dark"] pre .s { color: #8fd18f; } :root[data-theme="dark"] pre .n, :root[data-theme="dark"] pre .v { color: #f0a86a; } :root[data-theme="dark"] pre .k { color: #c99af5; } :root[data-theme="dark"] pre .p { color: #7cc4ea; } :root[data-theme="dark"] pre .a { color: #e0c860; }
+/* Contract tables: a route or a method name never breaks across lines, so the first column grows to fit it.
+   Long lists of code spans still wrap between the spans. The wrapper scrolls sideways when a table is wider than the page. */
+.tablewrap code { white-space: nowrap; }
+.tablewrap td:first-child { min-width: 10rem; }
+figure.diagram { padding: 16px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+figure.diagram svg { display: block; max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">Yap · architecture</div>
+<nav class="pages" aria-label="Architecture pages"><a href="sketch.html">Architecture sketch: Yap without Blazor</a><a href="plan.html">Plan of action</a><a href="message-path.html">Message path</a><a href="presence.html" aria-current="page">Presence</a><a href="chat-hub.html">ChatHub and read state</a><a href="auth-and-program.html">Authentication and Program.cs</a><a href="sign-in.html">Sign-in flows</a><a href="bootstrap-and-events.html">Bootstrap and events</a><a href="client.html">The client</a><a href="wire-contract.html">Wire contract</a></nav>
+<h1 id="presence">Presence</h1>
+<p>Who is online, away or offline, who types, and when a join or leave line appears. The spec page is <a href="../spec/presence.html">presence.md</a> (PR-01 to PR-25). This page says how <code>Services/Presence/PresenceService</code> produces those rules from hub connections, and what sits around it.</p>
+<h2 id="what-presence-is-made-of">What presence is made of</h2>
+<p>Three kinds of fact, kept apart because they change for different reasons.</p>
+<div class="tablewrap"><table><thead><tr><th>Fact</th><th>Lives in</th><th>Changes when</th></tr></thead><tbody><tr><td><strong>Chosen status</strong>: online, away, invisible</td><td><code>User.Status</code>, owned by UserService, persisted (PR-01, PR-02)</td><td>the person picks it in the status menu, on any device</td></tr><tr><td><strong>Sessions</strong>: one per hub connection</td><td>PresenceService, memory only</td><td>a tab connects, drops, closes, sends a heartbeat, opens a conversation</td></tr><tr><td><strong>Automatic away</strong>: a flag per person</td><td>PresenceService, memory only</td><td>the sweep sets it, input clears it (PR-10, PR-13)</td></tr></tbody></table></div>
+<p>From these, PresenceService computes the <strong>effective status</strong> that other people see. In code it is the enum <code>EffectiveStatus</code> with the values Online, Away and Offline. It is not called <code>Presence</code>, because that name is the namespace.</p>
+<div class="tablewrap"><table><thead><tr><th>Chosen</th><th>Sessions</th><th>Auto-away</th><th>Effective</th></tr></thead><tbody><tr><td>any</td><td>none</td><td></td><td>offline</td></tr><tr><td>invisible</td><td>some</td><td></td><td>offline (PR-05)</td></tr><tr><td>away</td><td>some</td><td></td><td>away</td></tr><tr><td>online</td><td>some</td><td>no</td><td>online</td></tr><tr><td>online</td><td>some</td><td>yes</td><td>away (PR-04)</td></tr></tbody></table></div>
+<p>The bot has one permanent session registered at startup, so it is always online (PR-09).</p>
+<h2 id="the-session">The session</h2>
+<figure class="code"><span class="lang">cs</span><pre><code><span class="c">// Services/Presence/Session.cs (sketch)</span>
+<span class="k">public</span> <span class="k">sealed</span> <span class="k">class</span> <span class="t">Session</span>
+{
+    <span class="k">public</span> <span class="k">required</span> <span class="k">string</span> <span class="t">ConnectionId</span> { get; <span class="k">init</span>; }     <span class="c">// SignalR connection id</span>
+    <span class="k">public</span> <span class="k">required</span> <span class="t">Guid</span> <span class="t">UserId</span> { get; <span class="k">init</span>; }
+    <span class="k">public</span> <span class="k">required</span> <span class="k">string</span> <span class="t">Username</span> { get; <span class="k">init</span>; }
+    <span class="k">public</span> <span class="k">required</span> <span class="k">string</span> <span class="t">DeviceId</span> { get; <span class="k">init</span>; }         <span class="c">// from local storage; tabs on one device share it (AU-19)</span>
+    <span class="k">public</span> <span class="k">required</span> <span class="k">bool</span> <span class="t">IsMobile</span> { get; <span class="k">init</span>; }           <span class="c">// User-Agent at connect (PR-25)</span>
+    <span class="k">public</span> <span class="k">required</span> <span class="k">string</span> <span class="t">ClientIp</span> { get; <span class="k">init</span>; }
+    <span class="k">public</span> <span class="k">required</span> <span class="k">string</span> <span class="t">Transport</span> { get; <span class="k">init</span>; }        <span class="c">// WebSockets, ServerSentEvents, LongPolling (AD-26)</span>
+    <span class="k">public</span> <span class="t">DateTime</span> <span class="t">ConnectedAt</span> { get; <span class="k">init</span>; }
+
+    <span class="k">public</span> <span class="t">DateTime</span>? <span class="t">ClosedAt</span> { get; set; }      <span class="c">// the client closed the connection: tab closed, sign-out, reload</span>
+    <span class="k">public</span> <span class="t">DateTime</span>? <span class="t">DroppedAt</span> { get; set; }     <span class="c">// the connection was lost: network, sleep, closed laptop</span>
+    <span class="k">public</span> <span class="k">bool</span> <span class="t">Connected</span> =&gt; <span class="t">ClosedAt</span> <span class="k">is</span> <span class="k">null</span> &amp;&amp; <span class="t">DroppedAt</span> <span class="k">is</span> <span class="k">null</span>;
+
+    <span class="k">public</span> <span class="k">bool</span> <span class="t">Visible</span> { get; set; }            <span class="c">// from the heartbeat</span>
+    <span class="k">public</span> <span class="t">DateTime</span> <span class="t">LastInputAt</span> { get; set; }    <span class="c">// now minus the heartbeat&#x27;s idle seconds</span>
+    <span class="k">public</span> <span class="t">DateTime</span> <span class="t">LastHeartbeatAt</span> { get; set; }
+    <span class="k">public</span> <span class="t">Guid</span>? <span class="t">Viewing</span> { get; set; }           <span class="c">// the open conversation, for diagnostics and typing</span>
+
+    <span class="k">public</span> <span class="t">LatencyStats</span> <span class="t">Latency</span> { get; } = <span class="k">new</span>(); <span class="c">// RTT and send-to-appear: last, average, max, slow events</span>
+}</code></pre></figure>
+<p>Two time stamps for two ways to disconnect, because the spec treats them differently. SignalR tells them apart: <code>OnDisconnectedAsync</code> gets <code>null</code> when the client closed the connection, and an exception when the transport failed or the keep-alive timed out.</p>
+<h2 id="the-sweep">The sweep</h2>
+<p>Blazor had a timer per circuit. Here one timer runs every 10 seconds over all sessions, which the spec allows (PR-10, PR-13: "within 10 seconds"). The rules, in the order they run:</p>
+<figure class="code"><span class="lang">cs</span><pre><code><span class="c">// Services/Presence/PresenceService.cs (sketch of the sweep)</span>
+<span class="k">void</span> <span class="t">Sweep</span>(<span class="t">DateTime</span> now)
+{
+    <span class="k">lock</span> (_gate)
+    {
+        <span class="k">foreach</span> (<span class="k">var</span> s <span class="k">in</span> _sessions.<span class="t">Values</span>.<span class="t">ToList</span>())
+        {
+            <span class="k">if</span> (s.<span class="t">ClosedAt</span> <span class="k">is</span> { } closed &amp;&amp; now - closed &gt; <span class="t">TimeSpan</span>.<span class="t">FromSeconds</span>(<span class="n">30</span>)) <span class="t">Remove</span>(s);   <span class="c">// PR-17: a reload shows nothing</span>
+            <span class="k">else</span> <span class="k">if</span> (s.<span class="t">DroppedAt</span> <span class="k">is</span> { } dropped &amp;&amp; now - dropped &gt; <span class="t">TimeSpan</span>.<span class="t">FromMinutes</span>(<span class="n">5</span>)) <span class="t">Remove</span>(s); <span class="c">// PR-16</span>
+        }
+        <span class="k">foreach</span> (<span class="k">var</span> userId <span class="k">in</span> _sessions.<span class="t">Values</span>.<span class="t">Select</span>(s =&gt; s.<span class="t">UserId</span>).<span class="t">Distinct</span>())
+        {
+            <span class="k">var</span> mine = _sessions.<span class="t">Values</span>.<span class="t">Where</span>(s =&gt; s.<span class="t">UserId</span> == userId).<span class="t">ToList</span>();
+            <span class="k">var</span> connected = mine.<span class="t">Where</span>(s =&gt; s.<span class="t">Connected</span>).<span class="t">ToList</span>();
+            <span class="k">bool</span> anyVisible = connected.<span class="t">Any</span>(s =&gt; s.<span class="t">Visible</span> &amp;&amp; now - s.<span class="t">LastHeartbeatAt</span> &lt; <span class="t">TimeSpan</span>.<span class="t">FromSeconds</span>(<span class="n">35</span>));
+            <span class="k">bool</span> allIdle = connected.<span class="t">All</span>(s =&gt; now - s.<span class="t">LastInputAt</span> &gt; <span class="t">TimeSpan</span>.<span class="t">FromMinutes</span>(<span class="n">5</span>)
+                                           || now - s.<span class="t">LastHeartbeatAt</span> &gt; <span class="t">TimeSpan</span>.<span class="t">FromSeconds</span>(<span class="n">90</span>));
+            <span class="k">bool</span> droppedAWhile = mine.<span class="t">Any</span>(s =&gt; s.<span class="t">DroppedAt</span> <span class="k">is</span> { } d &amp;&amp; now - d &gt; <span class="t">TimeSpan</span>.<span class="t">FromSeconds</span>(<span class="n">30</span>));
+
+            <span class="k">if</span> ((connected.<span class="t">Count</span> == <span class="n">0</span> &amp;&amp; droppedAWhile) || (allIdle &amp;&amp; !anyVisible) || (droppedAWhile &amp;&amp; !anyVisible))
+                <span class="t">SetAutoAway</span>(userId, <span class="k">true</span>);    <span class="c">// PR-10, PR-15; only when the chosen status is online (PR-12)</span>
+        }
+    }
+}</code></pre></figure>
+<p><code>Remove</code> deletes the session. When it was the person's last one, the person's auto-away flag goes too, and the effective status becomes offline. Every change of effective status raises one event; a change that leaves the effective status equal raises nothing, so a second tab, a reload or a dropped tab while the desktop is visible are silent.</p>
+<p>Auto-away ends outside the sweep: a heartbeat that reports input within the last 30 seconds clears the flag at once (PR-13), and so does a status pick.</p>
+<h2 id="the-lock">The lock</h2>
+<p>Everything that reads or changes <code>_sessions</code> and the auto-away flags runs under one <code>Lock</code> (<code>System.Threading.Lock</code>, .NET 9+). Hub methods run concurrently on thread-pool threads, one per connection, and the sweep runs on a timer thread. The dictionary alone could be a <code>ConcurrentDictionary</code>, but that is not the problem. The decisions are the problem: "this is the person's first session, so it is a join", "this was the last one, so it is a leave", "every session is idle, so set away", "the effective status changed, so raise one event". Each is a read of several sessions followed by a write. Two tabs connecting in the same millisecond must produce one join, not two and not none. A reload is a disconnect and a connect a few hundred milliseconds apart and must produce nothing. The lock makes each transition atomic, and it makes the events come out in the order the transitions happened.</p>
+<p>Two rules keep it harmless. Nothing inside the lock does I/O or calls out: no hub sends, no event handlers, no database. A transition collects the changes it caused in a local list, leaves the lock, then raises them. And the work inside is microseconds over a few hundred objects, so contention is not measurable at Yap's size.</p>
+<p>The alternative without a lock is an actor: one loop owns the state, every change is a command on a channel, like the persistence writer, and readers get an immutable snapshot that the loop republishes after each command. Ordering comes for free and no thread ever waits. It is a real design, and it is the right one when the state is large or the transitions do I/O. Here neither is true, and it adds a command type per operation, a snapshot republished on every heartbeat, and asynchronous reads for callers that only want "who is connected". A lock is one field and one keyword; the actor is a subsystem. ChatService already guards its message lists the same way, so a reader of the codebase meets one pattern.</p>
+<h2 id="the-hub-lifecycle-around-it">The hub lifecycle around it</h2>
+<figure class="code"><span class="lang">cs</span><pre><code><span class="c">// Endpoints/ChatHub.cs (sketch, presence parts)</span>
+<span class="k">public</span> <span class="k">override</span> <span class="k">async</span> <span class="t">Task</span> <span class="t">OnConnectedAsync</span>()
+{
+    <span class="k">var</span> http = <span class="t">Context</span>.<span class="t">GetHttpContext</span>()!;
+    presence.<span class="t">Connect</span>(<span class="k">new</span> <span class="t">Session</span>
+    {
+        <span class="t">ConnectionId</span> = <span class="t">Context</span>.<span class="t">ConnectionId</span>,
+        <span class="t">UserId</span> = <span class="t">Context</span>.<span class="t">User</span>!.<span class="t">Id</span>(), <span class="t">Username</span> = <span class="t">Context</span>.<span class="t">User</span>!.<span class="t">Identity</span>!.<span class="t">Name</span>!,
+        <span class="t">DeviceId</span> = http.<span class="t">Request</span>.<span class="t">Query</span>[<span class="s">&quot;device&quot;</span>]!, <span class="t">IsMobile</span> = <span class="t">UserAgent</span>.<span class="t">IsMobile</span>(http),
+        <span class="t">ClientIp</span> = <span class="t">IpHelper</span>.<span class="t">Get</span>(http), <span class="t">Transport</span> = http.<span class="t">Features</span>.<span class="t">Get</span>&lt;<span class="t">IHttpTransportFeature</span>&gt;()!.<span class="t">TransportType</span>.<span class="t">ToString</span>(),
+        <span class="t">ConnectedAt</span> = <span class="t">DateTime</span>.<span class="t">UtcNow</span>, <span class="t">LastInputAt</span> = <span class="t">DateTime</span>.<span class="t">UtcNow</span>, <span class="t">LastHeartbeatAt</span> = <span class="t">DateTime</span>.<span class="t">UtcNow</span>, <span class="t">Visible</span> = <span class="k">true</span>,
+    });
+}
+
+<span class="k">public</span> <span class="k">override</span> <span class="t">Task</span> <span class="t">OnDisconnectedAsync</span>(<span class="t">Exception</span>? exception)
+    =&gt; presence.<span class="t">Disconnect</span>(<span class="t">Context</span>.<span class="t">ConnectionId</span>, closedByClient: exception <span class="k">is</span> <span class="k">null</span>);
+
+<span class="k">public</span> <span class="k">long</span> <span class="t">Heartbeat</span>(<span class="k">bool</span> visible, <span class="k">int</span> idleSeconds, <span class="k">int</span>? lastRttMs, <span class="k">int</span>[] sendToAppearMs)
+{
+    presence.<span class="t">Heartbeat</span>(<span class="t">Context</span>.<span class="t">ConnectionId</span>, visible, idleSeconds, lastRttMs, sendToAppearMs);
+    <span class="k">return</span> <span class="t">DateTimeOffset</span>.<span class="t">UtcNow</span>.<span class="t">ToUnixTimeMilliseconds</span>();
+}
+
+<span class="k">public</span> <span class="t">Task</span> <span class="t">SetStatus</span>(<span class="t">UserStatus</span> status) =&gt; presence.<span class="t">SetChosenStatus</span>(<span class="t">Context</span>.<span class="t">User</span>!.<span class="t">Id</span>(), status);
+<span class="k">public</span> <span class="k">void</span> <span class="t">Typing</span>(<span class="t">Guid</span> channelId, <span class="k">bool</span> on) =&gt; presence.<span class="t">SetTyping</span>(<span class="t">Context</span>.<span class="t">ConnectionId</span>, channelId, on);</code></pre></figure>
+<p><code>Connect</code> is a join when the person had no session (PR-17). <code>Disconnect</code> only stamps <code>ClosedAt</code> or <code>DroppedAt</code>; the sweep does the rest. The hub also tells PresenceService the open conversation from <code>openRoom</code>, <code>openDm</code> and <code>leave</code>, for the diagnostics table and for typing.</p>
+<p>The heartbeat is the single source of liveness, as it is today. The client sends it every 10 seconds while visible and every 60 seconds while hidden, and at once when the tab becomes visible or the hub reconnects. It carries the idle time since the last input, the previous round trip and any send-to-appear samples since the last beat (AD-26). The return value lets the client measure the round trip.</p>
+<h2 id="events-out">Events out</h2>
+<p>PresenceService raises three events. The broadcaster turns them into hub events.</p>
+<div class="tablewrap"><table><thead><tr><th>Event</th><th>Hub event</th><th>To</th><th>Meaning</th></tr></thead><tbody><tr><td><code>OnPresenceChanged(username, EffectiveStatus, PresenceChange)</code></td><td><code>presence</code></td><td>everyone</td><td><code>kind</code> is <code>join</code> (first session), <code>leave</code> (last session gone), or <code>change</code> (status pick, auto-away, invisible toggle). The client shows lobby lines for join and leave only (MR-73), never for change, so an invisible toggle makes no line (PR-05).</td></tr><tr><td><code>OnTypingChanged(channelId, username, on)</code></td><td><code>typing</code></td><td>the room's group, or the other DM person</td><td>The client drops a typist 3.5 s after the last <code>on</code>. A send sends <code>off</code> through ChatService (IB-59).</td></tr><tr><td><code>OnChosenStatusChanged(userId, status)</code></td><td><code>me</code></td><td>the person's devices</td><td>The menu marks the chosen status on every device (PR-01).</td></tr></tbody></table></div>
+<p>Invisible people produce no <code>presence</code> event with any value other than offline, so they never appear to join or leave. The chip of an invisible person is grey because their own <code>presence</code> event says offline; their menu still marks Invisible from <code>me</code> (PR-05, SH-11).</p>
+<h2 id="what-asks-presenceservice">What asks PresenceService</h2>
+<div class="tablewrap"><table><thead><tr><th>Caller</th><th>Question</th><th>Rule</th></tr></thead><tbody><tr><td>ChatService, on a send</td><td>which people have a connected session</td><td>room unread counts (NT-03)</td></tr><tr><td>ChatService, on push</td><td>is this person online with a visible connected session</td><td>push suppression (NT-26)</td></tr><tr><td>ChatService, on a send</td><td>stop the sender's typing</td><td>IB-59</td></tr><tr><td>Login</td><td>has this account a connected session from this address</td><td>smart login (AU-09)</td></tr><tr><td><code>GET /api/account/devices</code></td><td>the person's sessions grouped by device</td><td>the Active Sessions card (AU-19); a dropped device stays listed until the 5 min removal</td></tr><tr><td><code>POST /api/account/devices/sign-out-others</code></td><td>the person's connections on other devices</td><td>close them after the <code>signedOut</code> event (AU-20)</td></tr><tr><td>the bootstrap</td><td>every effective status except offline</td><td>the people list (SH-29)</td></tr><tr><td>the admin pages</td><td>effective status including Invisible, the sessions table, the connections table</td><td>AD-04, AD-25, AD-26</td></tr></tbody></table></div>
+<p>PresenceService depends on UserService for the chosen status and on nothing else. ChatService depends on PresenceService. The broadcaster depends on both.</p>
+<h2 id="the-client-around-it">The client around it</h2>
+<ul><li><strong>Input tracker.</strong> One listener each for key, pointer, wheel and visibility records the last input time. Incoming messages are not input (PR-10).</li><li><strong>Heartbeat.</strong> One interval, re-armed at 10 s or 60 s when visibility changes, fired at once on visibility and on reconnect. It times its own invoke to measure the round trip.</li><li><strong>Status menu.</strong> A pick recolours the chip at once and invokes <code>setStatus</code>. Without a connection the three items are dimmed (SH-13).</li><li><strong>Chip colour.</strong> From the person's own <code>presence</code> event, so automatic away shows orange while the menu, fed by <code>me</code>, still marks Online (PR-04).</li><li><strong>People list and count.</strong> From the <code>presence</code> map in the store, merged with the person's DM partners from the bootstrap (SH-29, SH-30). Invisible and offline partners are grey and not counted.</li><li><strong>Lobby lines.</strong> For <code>join</code> and <code>leave</code> kinds only, with a text from the configured lists (MR-73). Not stored.</li><li><strong>Typing.</strong> Send <code>on</code> at the first non-blank input and at most every 2 s after, <code>off</code> on send, blank draft, leave, hidden tab (IB-59). Show typists of the open conversation with the configured texts, viewer left out (PR-21).</li></ul>
+<h2 id="diagnostics">Diagnostics</h2>
+<p>The sessions table (AD-25) is a dump of the session objects: user, device and address, transport, connected, visible, effective status, viewing, last input, last heartbeat, age. A row with <code>Visible</code> true and <code>Connected</code> false shows in the warning colour. The connections table (AD-26) is the <code>Latency</code> of each session, plus a ring of the last 50 removed sessions. A hub filter times every inbound invocation and counts those over 100 ms as slow events, which replaces the circuit handler's inbound timing.</p>
+<h2 id="spec-notes-met-here">Spec notes met here</h2>
+<ul><li>PR-14 says a person who closes the last tab "shows as offline at once". PR-17 says the leave is "30 seconds after the person closes the last tab" and that a reload therefore shows nothing. The two cannot both hold. This design follows PR-17, because a reload must not produce a leave and a join line. Proposed spec fix: PR-14 reads "shows as offline 30 seconds later, without an away phase; a return within that time shows nothing".</li><li>Today's code keys typing by username, so one tab's <code>off</code> ends typing for all tabs of the person. The sketch keys it by connection and shows the person as typing while any connection types.</li></ul>
+<footer>Source: <code>docs/architecture/presence.md</code>. Edit the Markdown, then run <code>python3 docs/architecture/tools/build.py</code>.</footer>
+</main>
+</body>
+</html>

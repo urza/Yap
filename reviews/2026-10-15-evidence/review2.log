@@ -1,0 +1,7 @@
+server: /d/PROJECTS/d3mnjx/repos/urza/Yap-r2/Yap/bin/Debug/net10.0/Yap.dll on http://127.0.0.1:5103, root /tmp/yap-browser-tests/root-LsxPcO
+{"name":"Reconnect after more than one page","bug":true,"count":51,"hasMore":false,"missing":["gap-1","gap-2","gap-3","gap-4","gap-5","gap-6","gap-7","gap-8","gap-9","gap-10"]}
+{"name":"Offline send into unopened DM","bug":true,"pending":0,"draft":"new offline DM","open":null}
+{"name":"Chosen Away preserves unread","bug":true,"status":"away","unread":0}
+{"name":"Multi GIF pick retains all attachments","bug":true,"done":true,"attachmentCounts":[1],"pending":[]}
+{"name":"PWA signout prevents handoff reuse","bug":true,"afterLaunch":"reviewbob"}
+SERVER_ISSUES []

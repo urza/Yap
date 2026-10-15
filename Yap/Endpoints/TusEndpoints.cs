@@ -1,18 +1,27 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Security.Claims;
 using tusdotnet;
 using tusdotnet.Models;
 using tusdotnet.Models.Configuration;
+using tusdotnet.Models.Expiration;
 using tusdotnet.Stores;
-using Yap.Middleware;
 using Yap.Services;
 using Yap.Services.Gifs;
+using Yap.Services.Accounts;
+using Yap.Services.Media;
+
+using Yap.Models.Accounts;
 
 namespace Yap.Endpoints;
 
 public static class TusEndpoints
 {
-    private static readonly ConcurrentDictionary<string, object> _completedFiles = new();
+    // What a finished upload became, for the uploader's GET /api/tus/info: the id alone is no right to the answer.
+    private sealed record Completed(Guid? UserId, object Result);
+    private static readonly ConcurrentDictionary<string, Completed> _completedFiles = new();
+    // The person who created each upload in progress: a PATCH, HEAD or DELETE from anyone else gets 404.
+    private static readonly ConcurrentDictionary<string, Guid> _owners = new();
     private static readonly HashSet<string> _imageExtensions = new(StringComparer.OrdinalIgnoreCase)
         { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
     private static readonly HashSet<string> _videoExtensionsForGifProbe = new(StringComparer.OrdinalIgnoreCase)
@@ -20,14 +29,15 @@ public static class TusEndpoints
 
     public static void MapTusEndpoints(this WebApplication app)
     {
-        var tusStorePath = Path.Combine(app.Environment.WebRootPath, "uploads", "tus-temp");
+        var uploads = app.Services.GetRequiredService<UploadPaths>();
+        var tusStorePath = uploads.TusTemp;
         Directory.CreateDirectory(tusStorePath);
-        var webRootPath = app.Environment.WebRootPath;
 
         app.MapTus("/api/tus", async httpContext => new()
         {
             Store = new TusDiskStore(tusStorePath),
             MaxAllowedUploadSizeInBytesLong = GetMaxUploadBytes(httpContext),
+            Expiration = new SlidingExpiration(TimeSpan.FromHours(24)),   // an abandoned upload expires; TusCleanupService removes it
             Events = new()
             {
                 OnAuthorizeAsync = eventContext =>
@@ -35,13 +45,23 @@ public static class TusEndpoints
                     if (eventContext.HttpContext.Request.Method == "OPTIONS")
                         return Task.CompletedTask;
 
-                    var token = eventContext.HttpContext.Request.Cookies[AuthMiddleware.CookieName];
-                    var userService = eventContext.HttpContext.RequestServices.GetRequiredService<UserService>();
-                    var user = !string.IsNullOrEmpty(token) ? userService.AuthenticateByToken(token) : null;
-                    if (user == null)
+                    if (!eventContext.HttpContext.User.IsSignedIn())
                     {
                         eventContext.FailRequest(HttpStatusCode.Unauthorized, "Authentication required");
+                        return Task.CompletedTask;
                     }
+                    // An upload in progress belongs to the person who created it. Anyone else's PATCH, HEAD or
+                    // DELETE on its id gets 404, as does an id this process never saw (after a restart the client
+                    // starts the upload again).
+                    if (eventContext.Intent is not (IntentType.CreateFile or IntentType.GetOptions)
+                        && (eventContext.FileId is not { } fileId || !_owners.TryGetValue(fileId, out var owner) || owner != eventContext.HttpContext.User.Id()))
+                        eventContext.FailRequest(HttpStatusCode.NotFound, "File not found");
+                    return Task.CompletedTask;
+                },
+
+                OnCreateCompleteAsync = eventContext =>
+                {
+                    _owners[eventContext.FileId] = eventContext.HttpContext.User.Id();
                     return Task.CompletedTask;
                 },
 
@@ -69,9 +89,8 @@ public static class TusEndpoints
                     if (target != null)
                     {
                         var services = eventContext.HttpContext.RequestServices;
-                        var token = eventContext.HttpContext.Request.Cookies[AuthMiddleware.CookieName];
                         var userService = services.GetRequiredService<UserService>();
-                        var user = !string.IsNullOrEmpty(token) ? userService.AuthenticateByToken(token) : null;
+                        var user = CurrentUser(eventContext.HttpContext, userService);
                         if (user == null)
                         {
                             eventContext.FailRequest("Authentication required");
@@ -100,6 +119,7 @@ public static class TusEndpoints
                     var gifService = eventContext.HttpContext.RequestServices.GetRequiredService<GifService>();
 
                     var file = await eventContext.GetFileAsync();
+                    _owners.TryRemove(file.Id, out _);
                     var metadata = await file.GetMetadataAsync(eventContext.CancellationToken);
 
                     // Null when tus metadata carried no filename; originalFileName keeps the
@@ -116,8 +136,9 @@ public static class TusEndpoints
                     var folder = metadata.TryGetValue("folder", out var folderMeta)
                         ? folderMeta.GetString(System.Text.Encoding.UTF8) : null;
 
-                    var token = eventContext.HttpContext.Request.Cookies[AuthMiddleware.CookieName];
-                    var user = !string.IsNullOrEmpty(token) ? userService.AuthenticateByToken(token) : null;
+                    var user = CurrentUser(eventContext.HttpContext, userService);
+                    // What the uploader's GET /api/tus/info gets for this file, once.
+                    void Done(object result) => _completedFiles[file.Id] = new Completed(user?.Id, result);
 
                     var tusFilePath = Path.Combine(tusStorePath, file.Id);
                     void CleanupTusMetadata()
@@ -126,7 +147,7 @@ public static class TusEndpoints
                             try { File.Delete(metaFile); } catch { }
                     }
 
-                    // Zip pack import. The archive must never reach wwwroot/uploads — it would be
+                    // Zip pack import. The archive must never reach the uploads folder — it would be
                     // publicly served — so it moves to the system temp dir instead, and the
                     // background import owns (and eventually deletes) it.
                     if (kind == "gif-pack")
@@ -138,7 +159,7 @@ public static class TusEndpoints
                                 user == null ? "unauthenticated" : "server target without admin");
                             try { File.Delete(tusFilePath); } catch { }
                             CleanupTusMetadata();
-                            _completedFiles[file.Id] = new { type = "error", error = "Not allowed" };
+                            Done(new { type = "error", error = "Not allowed" });
                             return;
                         }
 
@@ -151,7 +172,7 @@ public static class TusEndpoints
                             new FileInfo(zipPath).Length, "gif-pack", ".zip");
                         logger.LogInformation("GIF pack accepted from {User} → import {ImportId} (server: {Server})",
                             user.Username, importId, serverTarget);
-                        _completedFiles[file.Id] = new { type = "gif-pack", importId };
+                        Done(new { type = "gif-pack", importId });
                         return;
                     }
 
@@ -166,7 +187,7 @@ public static class TusEndpoints
                         return;
                     }
 
-                    var uploadsFolder = Path.Combine(webRootPath, "uploads");
+                    var uploadsFolder = uploads.Root;
                     var uniqueFileName = $"{Guid.NewGuid()}{extension}";
                     var filePath = Path.Combine(uploadsFolder, uniqueFileName);
 
@@ -193,8 +214,8 @@ public static class TusEndpoints
                             if (user == null || (target == "server" && !isAdmin) || overQuota)
                             {
                                 try { File.Delete(filePath); } catch { }
-                                _completedFiles[file.Id] = new
-                                    { type = "error", error = overQuota ? "GIF storage quota exceeded" : "Not allowed" };
+                                Done(new
+                                    { type = "error", error = overQuota ? "GIF storage quota exceeded" : "Not allowed" });
                                 return;
                             }
                         }
@@ -217,18 +238,18 @@ public static class TusEndpoints
                             if (isLibraryUpload && user != null)
                             {
                                 if (target == "server")
-                                    await gifService.SetServerGifAsync(gifAttachment.GifEntryId, isServer: true, folder);
+                                    gifService.SetServerGif(gifAttachment.GifEntryId, isServer: true, folder);
                                 else
-                                    await gifService.SetFavoriteAsync(user.Id, gifAttachment.GifEntryId, favorite: true, folder);
+                                    gifService.SetFavorite(user.Id, gifAttachment.GifEntryId, favorite: true, folder);
                             }
 
-                            _completedFiles[file.Id] = new
+                            Done(new
                             {
                                 type = "gif",
                                 gifEntryId = gifAttachment.GifEntryId,
                                 width = gifAttachment.Width,
                                 height = gifAttachment.Height
-                            };
+                            });
                             return;
                         }
                         else if (isLibraryUpload)
@@ -236,7 +257,7 @@ public static class TusEndpoints
                             // A failed manager upload must not fall through into the chat media
                             // pipeline — it would post as an orphan image nobody asked for.
                             try { File.Delete(filePath); } catch { }
-                            _completedFiles[file.Id] = new { type = "error", error = "Could not process this file as a GIF" };
+                            Done(new { type = "error", error = "Could not process this file as a GIF" });
                             return;
                         }
                         else if (isExplicitGif)
@@ -266,7 +287,7 @@ public static class TusEndpoints
                                 var swLarge = System.Diagnostics.Stopwatch.StartNew();
                                 await imageService.GenerateLargeThumbnailAsync(filePath);
                                 swLarge.Stop();
-                                await mediaLog.SetCompressDurationAsync(uniqueFileName, mediumMs + swLarge.ElapsedMilliseconds);
+                                mediaLog.SetCompressDuration(uniqueFileName, mediumMs + swLarge.ElapsedMilliseconds);
                             }
                             catch (Exception ex)
                             {
@@ -286,7 +307,7 @@ public static class TusEndpoints
                                 {
                                     var (compressedPath, durationMs) = await videoService.CompressVideoAsync(filePath);
                                     if (compressedPath != null && durationMs > 0)
-                                        await mediaLog.SetCompressDurationAsync(uniqueFileName, durationMs);
+                                        mediaLog.SetCompressDuration(uniqueFileName, durationMs);
                                 }
                                 catch (Exception ex)
                                 {
@@ -296,17 +317,20 @@ public static class TusEndpoints
                         }
                     }
 
-                    _completedFiles[file.Id] = new { url = $"/uploads/{uniqueFileName}", path = filePath, type };
+                    Done(new { url = $"/uploads/{uniqueFileName}", type });
                 }
             }
         }).RequireCors("TusUpload");
 
-        app.MapGet("/api/tus/info/{fileId}", (string fileId) =>
+        // The answer goes to the person who uploaded, once. The file id is the only key, so a guessed or leaked id
+        // must not hand someone else's file over; the server's own path stays on the server.
+        app.MapGet("/api/tus/info/{fileId}", (string fileId, ClaimsPrincipal me) =>
         {
-            if (_completedFiles.TryRemove(fileId, out var result))
-                return Results.Ok(result);
-            return Results.NotFound(new { error = "File not found or still processing" });
-        }).RequireCors("TusUpload");
+            if (!_completedFiles.TryGetValue(fileId, out var done) || done.UserId != me.Id())
+                return Results.NotFound(new { error = "File not found or still processing" });
+            _completedFiles.TryRemove(fileId, out _);
+            return Results.Ok(done.Result);
+        }).RequireAuthorization().RequireCors("TusUpload");
     }
 
     /// <summary>
@@ -315,6 +339,10 @@ public static class TusEndpoints
     /// sniffed from the create POST's Upload-Metadata header ("gif-pack" base64-encoded), the
     /// only place it's visible before tusdotnet validates Upload-Length against this limit.
     /// </summary>
+    // The TUS events run after UseAuthentication, so the principal is set; OnAuthorize already refused anonymous calls.
+    private static User? CurrentUser(HttpContext http, UserService users) =>
+        http.User.IsSignedIn() ? users.GetById(http.User.Id()) : null;
+
     private static long GetMaxUploadBytes(HttpContext httpContext)
     {
         var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();

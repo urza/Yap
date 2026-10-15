@@ -118,7 +118,7 @@ public class GifFfmpegHelper
 
     /// <summary>
     /// Transcodes a source media file into an animated WebP. Animated WebP plays in an
-    /// &lt;img&gt; tag (no autoplay policy / no Blazor hydration drama) and is ~2× smaller than
+    /// &lt;img&gt; tag (no autoplay policy to work around) and is ~2× smaller than
     /// the equivalent GIF for the same content. Caps at 15fps and max-width 480px.
     /// </summary>
     public Task<bool> TranscodeToAnimatedWebpAsync(string srcPath, string dstPath, CancellationToken ct = default)

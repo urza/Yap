@@ -1,0 +1,498 @@
+using System.Collections.Concurrent;
+using System.Text.Json;
+using Yap.Models;
+using Yap.Models.Accounts;
+using Yap.Models.Chat;
+using Yap.Services.Accounts;
+using Yap.Services.Admin;
+
+using Yap.Services.Presence;
+
+namespace Yap.Services.Chat;
+
+/// <summary>
+/// Singleton service that manages the system bot user.
+/// The bot appears as a regular user in the sidebar, sends welcome DMs to new users,
+/// notifies admin when users join, and auto-replies with a placeholder when users DM it.
+/// </summary>
+public class SystemBotService
+{
+    private readonly UserService _userService;
+    private readonly ChatService _chatService;
+    private readonly PresenceService _presence;
+    private readonly AccessLinkService _accessLinks;
+    private readonly IConfiguration _configuration;
+    private readonly IWebHostEnvironment _env;
+    private readonly ILogger<SystemBotService> _logger;
+
+    private Guid _botUserId;
+    private string _botUsername = "";
+    private bool _initialized;
+    private readonly ProxyWatch _proxyWatch;
+    private bool _proxyNoticeSent;   // the admin hears of an untrusted proxy once per run
+
+    // Debounce auto-replies: username -> last reply time
+    private readonly ConcurrentDictionary<string, DateTime> _lastReplyTimes = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly TimeSpan ReplyDebounce = TimeSpan.FromSeconds(30);
+
+    // Track users who have already received a welcome DM (prevents duplicates)
+    private readonly HashSet<string> _welcomedUsers = new(StringComparer.OrdinalIgnoreCase);
+
+    // Welcome message loaded from file (persisted) or config (default)
+    private string? _welcomeMessageFromFile;
+
+    private const string BotAvatarUrl = "/images/bot-avatar.svg";
+    private const string DefaultWelcomeMessage = "👋 Hey! Welcome to {0}! I am bot for sending system messages.";
+
+    public SystemBotService(
+        UserService userService,
+        ChatService chatService,
+        PresenceService presence,
+        AccessLinkService accessLinks,
+        IConfiguration configuration,
+        IWebHostEnvironment env,
+        ProxyWatch proxyWatch,
+        ILogger<SystemBotService> logger)
+    {
+        _userService = userService;
+        _chatService = chatService;
+        _presence = presence;
+        _accessLinks = accessLinks;
+        _configuration = configuration;
+        _env = env;
+        _proxyWatch = proxyWatch;
+        _logger = logger;
+    }
+
+    private string SettingsFilePath => Path.Combine(_env.ContentRootPath, "Data", "bot-settings.json");
+
+    private bool BotEnabled => _configuration.GetValue<bool>("ChatSettings:Bot:Enabled", true);
+    private string BotUsernameConfig => _configuration["ChatSettings:Bot:Username"] ?? "ping";
+    private string BotDisplayNameConfig => _configuration["ChatSettings:Bot:DisplayName"] ?? "Ping";
+    private string ProjectName => _configuration["ChatSettings:ProjectName"] ?? "Yap";
+
+    /// <summary>
+    /// Gets the current welcome message template.
+    /// Priority: file override → appsettings.json → hardcoded default.
+    /// {0} is replaced with the project name when sent.
+    /// </summary>
+    public string WelcomeMessage
+    {
+        get => _welcomeMessageFromFile
+               ?? _configuration["ChatSettings:Bot:WelcomeMessage"]
+               ?? DefaultWelcomeMessage;
+    }
+
+    /// <summary>
+    /// Updates the welcome message and persists it to Data/bot-settings.json.
+    /// </summary>
+    public async Task UpdateWelcomeMessageAsync(string message)
+    {
+        _welcomeMessageFromFile = message;
+        await SaveSettingsAsync();
+    }
+
+    /// <summary>
+    /// Initializes the bot user and subscribes to events.
+    /// Must be called after UserService.LoadUsersAsync() and ChatService initialization.
+    /// </summary>
+    public async Task InitializeAsync()
+    {
+        // Load persisted settings (welcome message override)
+        LoadSettings();
+
+        if (!BotEnabled)
+        {
+            _logger.LogInformation("System bot is disabled");
+            return;
+        }
+
+        var botUsername = BotUsernameConfig;
+        var botDisplayName = BotDisplayNameConfig;
+
+        // Look up or create the bot user
+        var botUser = _userService.GetByUsername(botUsername);
+        if (botUser == null)
+        {
+            botUser = _userService.CreateUser(botUsername);
+            if (botUser == null)
+            {
+                _logger.LogError("Failed to create bot user '{Username}'", botUsername);
+                return;
+            }
+
+            // Bot should never be admin — if it was made admin (first user), revoke it
+            if (botUser.IsAdmin)
+            {
+                _userService.RevokeAdmin(botUser.Id);
+                _logger.LogWarning("Bot was created as admin (first user) — revoking admin status");
+            }
+
+            _userService.UpdateProfile(
+                botUser.Id,
+                displayName: botDisplayName,
+                profilePictureUrl: BotAvatarUrl,
+                bio: "I'm a bot! 🤖",
+                country: null);
+
+            _logger.LogInformation("Created bot user '{Username}' with ID {UserId}", botUsername, botUser.Id);
+        }
+        else
+        {
+            // Update display name and avatar if changed
+            if (botUser.DisplayName != botDisplayName || botUser.ProfilePictureUrl != BotAvatarUrl)
+            {
+                _userService.UpdateProfile(
+                    botUser.Id,
+                    displayName: botDisplayName,
+                    profilePictureUrl: BotAvatarUrl,
+                    bio: botUser.Bio ?? "I'm a bot! 🤖",
+                    country: botUser.Country);
+            }
+
+            _logger.LogInformation("Found existing bot user '{Username}' with ID {UserId}", botUsername, botUser.Id);
+        }
+
+        _botUserId = botUser.Id;
+        _botUsername = botUser.Username;
+        _initialized = true;
+
+        _presence.RegisterPermanent(_botUserId, _botUsername);   // the bot is always online (PR-09)
+
+        // Subscribe to events
+        _presence.OnPresenceChanged += HandlePresenceChanged;
+        _accessLinks.OnBrakeTripped += HandleBrakeTripped;
+        _chatService.OnMessageReceived += HandleMessageReceived;
+
+        _logger.LogInformation("System bot initialized: {Username} ({UserId})", _botUsername, _botUserId);
+    }
+
+    /// <summary>
+    /// Checks if the given username is the bot.
+    /// </summary>
+    public bool IsBotUser(string? username)
+    {
+        if (!_initialized || string.IsNullOrEmpty(username))
+            return false;
+        return _botUsername.Equals(username, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Checks if the given user ID is the bot.
+    /// </summary>
+    public bool IsBotUser(Guid userId)
+    {
+        if (!_initialized)
+            return false;
+        return _botUserId == userId;
+    }
+
+    /// <summary>
+    /// Gets the bot's user ID, or null if not initialized.
+    /// </summary>
+    public Guid? BotUserId => _initialized ? _botUserId : null;
+
+    /// <summary>
+    /// Gets the bot's username, or null if not initialized.
+    /// </summary>
+    public string? BotUsername => _initialized ? _botUsername : null;
+
+    /// <summary>
+    /// Updates the bot's display name at runtime (from admin panel).
+    /// </summary>
+    public void UpdateDisplayName(string newDisplayName)
+    {
+        if (!_initialized) return;
+
+        var botUser = _userService.GetById(_botUserId);
+        if (botUser == null) return;
+
+        _userService.UpdateProfile(
+            _botUserId,
+            displayName: newDisplayName,
+            profilePictureUrl: botUser.ProfilePictureUrl,
+            bio: botUser.Bio,
+            country: botUser.Country);
+
+        _logger.LogInformation("Bot display name updated to '{DisplayName}'", newDisplayName);
+    }
+
+    #region Settings File (Data/bot-settings.json)
+
+    private void LoadSettings()
+    {
+        try
+        {
+            if (File.Exists(SettingsFilePath))
+            {
+                var json = File.ReadAllText(SettingsFilePath);
+                var settings = JsonSerializer.Deserialize<BotSettings>(json);
+                if (settings?.WelcomeMessage != null)
+                    _welcomeMessageFromFile = settings.WelcomeMessage;
+
+                _logger.LogInformation("Loaded bot settings from {Path}", SettingsFilePath);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load bot settings from {Path}", SettingsFilePath);
+        }
+    }
+
+    private async Task SaveSettingsAsync()
+    {
+        try
+        {
+            var settings = new BotSettings { WelcomeMessage = _welcomeMessageFromFile };
+            var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+            await File.WriteAllTextAsync(SettingsFilePath, json);
+            _logger.LogInformation("Saved bot settings to {Path}", SettingsFilePath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save bot settings to {Path}", SettingsFilePath);
+        }
+    }
+
+    private class BotSettings
+    {
+        public string? WelcomeMessage { get; set; }
+    }
+
+    #endregion
+
+    /// <summary>The bot's direct message with the admin, or null before an admin account exists (a fresh install).</summary>
+    private Channel? AdminDm()
+    {
+        var adminUsername = _userService.GetAdminUsername();
+        if (adminUsername == null || _userService.GetByUsername(adminUsername) is not { } admin) return null;
+        return _chatService.GetOrCreateDm(_botUserId, admin.Id);
+    }
+
+    /// <summary>
+    /// Notifies admin via bot DM that a user is requesting to join (approval mode).
+    /// </summary>
+    public async Task NotifyAdminOfPendingUserAsync(string username)
+    {
+        if (!_initialized || AdminDm() is not { } channel) return;
+        _chatService.Send(new SendMessage(channel.Id, _botUserId, _botUsername,
+            $"👋 **{username}** is requesting to join. Go to the Admin panel to approve or reject."));
+    }
+
+    /// <summary>
+    /// The admin hears once that requests come through a proxy that is not in TrustedProxies (ProxyWatch): the chat
+    /// is the place the admin reads every day. Sent at the first such request, or at the admin's first join when the
+    /// account did not exist yet (a fresh install, where that first request is the admin's own sign-up).
+    /// </summary>
+    public void NotifyAdminOfUntrustedProxy()
+    {
+        if (!_initialized || _proxyNoticeSent) return;
+        var status = _proxyWatch.Status();
+        if (status.UntrustedPeer is null || AdminDm() is not { } channel) return;
+        _proxyNoticeSent = true;
+        _chatService.Send(new SendMessage(channel.Id, _botUserId, _botUsername,
+            $"⚠️ Requests reach {ProjectName} through a proxy at **{status.UntrustedPeer}** that is not in `ChatSettings:TrustedProxies`. " +
+            "Every client address counts as unknown and smart login is off for everyone. " +
+            "Add the proxy's address or network to TrustedProxies in Data/appsettings.json and restart. The Admin page shows the details."));
+    }
+
+    /// <summary>
+    /// When a new user joins: send them a welcome DM, and notify admin.
+    /// </summary>
+    private void HandlePresenceChanged(string username, EffectiveStatus status, PresenceChange change)
+    {
+        if (change != PresenceChange.Join) return;   // the first connection of a person (PR-17, PR-18)
+        if (IsBotUser(username)) return;
+        // Not async void: the welcome waits a minute, and an async void handler makes the raiser's
+        // synchronization context (xUnit's, for one) wait with it. The task owns its errors.
+        _ = GreetAsync(username);
+    }
+
+    private async Task GreetAsync(string username)
+    {
+        try
+        {
+            var joiningUser = _userService.GetByUsername(username);
+            if (joiningUser == null) return;
+
+            // A new account's first join: the admin hears of it at once, the person a minute later (PR-18, AU-26).
+            if (joiningUser.CreatedAt > DateTime.UtcNow.AddMinutes(-5)) await NotifyAdminOfJoinAsync(joiningUser);
+            if (_userService.IsAdmin(joiningUser.Id)) NotifyAdminOfUntrustedProxy();   // the notice waited for an admin to exist
+            await SendWelcomeDmAsync(joiningUser);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in bot HandlePresenceChanged for {Username}", username);
+        }
+    }
+
+    private async Task SendWelcomeDmAsync(User user)
+    {
+        // Only welcome once per user (in-memory guard for current app lifetime)
+        lock (_welcomedUsers)
+        {
+            if (!_welcomedUsers.Add(user.Username))
+                return;
+        }
+
+        // Skip if bot already has a DM channel with this user (survives app restarts)
+        var existingDms = _chatService.DmChannelsOf(_botUserId);
+        if (existingDms.Any(c => c.CanAccess(user.Username)))
+            return;
+
+        // Delay so the user has time to settle in before getting a notification
+        await Task.Delay(TimeSpan.FromMinutes(1));
+
+        var channel = _chatService.GetOrCreateDm(_botUserId, user.Id);
+        if (channel is null) return;
+
+        // Build welcome message: base message + PWA install line for mobile users + secret code
+        var message = string.Format(WelcomeMessage, ProjectName);
+
+        if (_presence.IsMobile(user.Id))
+        {
+            message += "\n\n📱 I noticed you're on a phone. It's a much better experience if you [pwa-install] to your homescreen — it will look and feel like a normal app. Please also allow notifications when prompted so you don't miss messages. You can change this anytime in Settings.";
+        }
+
+        // Their way back in, born with the account. This DM is the one place they can always
+        // find it again: when a fresh context greets them with the login page (installed app,
+        // new browser, new device), the link is the way back into THIS account instead of
+        // registering a doppelgänger. New accounts get a login link; accounts from before
+        // links existed still carry a passphrase.
+        if (_accessLinks.GetActiveForUser(user.Id) is { } link)
+        {
+            message += $"\n\n🔗 One more thing — this is your personal login link: {_accessLinks.BuildUrl(link.Code, user.Id)}\n" +
+                       "Open it on any device or browser and you're straight back in this account (new phone, reinstalled app, second browser). " +
+                       "Save it somewhere safe, like your notes. Don't share it — anyone who has it can sign in as you. " +
+                       $"On the login page you can also type its code, {link.Code}, as your secret code. " +
+                       "You can manage the link anytime in Settings.";
+        }
+        else if (user.Password != null)
+        {
+            message += $"\n\n🔑 One more thing — your secret code is: {user.Password}\n" +
+                       "If you ever see the login screen again (new device, new browser, reinstalled app), " +
+                       "enter your username and this code to get back into your account. " +
+                       "You can view or change it anytime in Settings.";
+        }
+
+        _chatService.Send(new SendMessage(channel.Id, _botUserId, _botUsername, message));
+        _logger.LogInformation("Sent welcome DM to {Username} (mobile={IsMobile})", user.Username, _presence.IsMobile(user.Id));
+    }
+
+    private async Task NotifyAdminOfJoinAsync(User joiningUser)
+    {
+        if (_userService.IsAdmin(joiningUser.Id)) return;   // not about the admin's own join
+        if (AdminDm() is not { } channel) return;
+        _chatService.Send(new SendMessage(channel.Id, _botUserId, _botUsername,
+            $"👋 {joiningUser.EffectiveDisplayName} just joined the chat!"));
+    }
+
+    /// <summary>
+    /// Notifies a user via bot DM that a new device login occurred.
+    /// Called for both smart login (IP match) and passphrase login.
+    /// </summary>
+    public async Task NotifyNewDeviceLoginAsync(string username, string loginMethod, string ip)
+    {
+        if (!_initialized) return;
+
+        try
+        {
+            var user = _userService.GetByUsername(username);
+            if (user == null) return;
+
+            var channel = _chatService.GetOrCreateDm(_botUserId, user.Id);
+            if (channel is null) return;
+
+            var methodLabel = loginMethod switch
+            {
+                "smart" => "smart login (same network)",
+                "link" => "your login link",
+                _ => "secret code"
+            };
+            var message = $"🔐 New device sign-in detected for your account using **{methodLabel}** from IP `{ip}`. If this wasn't you, open **Settings** and use **Sign out all other devices** immediately.";
+
+            _chatService.Send(new SendMessage(channel.Id, _botUserId, _botUsername, message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error notifying {Username} of new device login", username);
+        }
+    }
+
+    /// <summary>
+    /// Tells a user that an admin replaced their login link (the rescue for someone locked
+    /// out of every device). Includes the new link: if they can still read this DM somewhere,
+    /// that is the fastest hand-over.
+    /// </summary>
+    public async Task NotifyLinkReplacedByAdminAsync(User user, AccessLink link)
+    {
+        if (!_initialized) return;
+
+        try
+        {
+            var channel = _chatService.GetOrCreateDm(_botUserId, user.Id);
+            if (channel is null) return;
+            _chatService.Send(new SendMessage(channel.Id, _botUserId, _botUsername,
+                $"🔗 An admin created a new login link for you: {_accessLinks.BuildUrl(link.Code, user.Id)}\n" +
+                "Your previous link no longer works. Save this one somewhere safe."));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error notifying {Username} of replaced login link", user.Username);
+        }
+    }
+
+    /// <summary>The access-link brake tripped: someone is probably guessing codes.</summary>
+    private async void HandleBrakeTripped(int failures)
+    {
+        try
+        {
+            if (AdminDm() is not { } channel) return;
+            _chatService.Send(new SendMessage(channel.Id, _botUserId, _botUsername,
+                $"🚨 {failures} failed login-link attempts in the last few minutes. Code sign-ins are paused for 10 minutes. " +
+                "Someone may be guessing codes — check the Logs tab in Admin for LOGIN_FAIL entries."));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error notifying admin of access-link brake");
+        }
+    }
+
+    /// <summary>
+    /// When someone DMs the bot, auto-reply with a placeholder (debounced).
+    /// </summary>
+    private async void HandleMessageReceived(ChatMessage message)
+    {
+        // Skip own messages
+        if (IsBotUser(message.Username)) return;
+        if (message.Username == "System") return;
+
+        try
+        {
+            // Check if this message is in a DM channel where bot is a participant
+            var channels = _chatService.DmChannelsOf(_botUserId);
+            var dmChannel = channels.FirstOrDefault(c => c.Id == message.ChannelId);
+            if (dmChannel == null) return;
+
+            // Debounce: max one reply per user per 30 seconds
+            var now = DateTime.UtcNow;
+            if (_lastReplyTimes.TryGetValue(message.Username, out var lastReply)
+                && (now - lastReply) < ReplyDebounce)
+            {
+                return;
+            }
+
+            _lastReplyTimes[message.Username] = now;
+
+            // Small delay to feel more natural
+            await Task.Delay(800);
+
+            _chatService.Send(new SendMessage(dmChannel.Id, _botUserId, _botUsername,
+                "Beep boop! 🤖 I'm not interactive yet, but hopefully soon!"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in bot HandleMessageReceived");
+        }
+    }
+}

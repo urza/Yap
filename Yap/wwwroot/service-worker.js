@@ -1,265 +1,174 @@
-// Service Worker for Yap PWA
-// Handles: push notifications, badge updates, notification clicks
-// Blazor Server requires live connection, so minimal caching
+// The service worker: the shell for offline reads, the emoji and media caches, push and notification taps
+// (offline.md, offline-design-notes.md). It never serves the API from a cache and never reloads a page.
+//
+// Registered as service-worker.js?v={build}: a new build is a new worker, which precaches the new shell
+// into its own cache and deletes the old ones at activate. The shell and its scripts are network-first
+// with the cache as the fallback, so a page online always runs the build the server has, and a page
+// offline runs the last build it saw (OF-06). Emoji images and content-addressed media are cache-first:
+// their names never change meaning.
 
-const CACHE_NAME = 'yap-v2';
-// Separate cache for content-addressed media (user uploads, cached gifs/media). GUID/hash
-// filenames are never reused, so these are served cache-first and intentionally survive SW updates.
+const BUILD = new URL(self.location.href).searchParams.get('v') || 'dev';
+const SHELL_CACHE = `yap-shell-${BUILD}`;
+const EMOJI_CACHE = 'yap-emoji-v1';
 const MEDIA_CACHE = 'yap-media-v1';
 
-// Install: cache essential assets and activate immediately
-self.addEventListener('install', (event) => {
-    console.log('[SW] Installing service worker');
-    event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll([
-                '/icon.svg',
-                '/icon-192.png',
-                '/icon-512.png',
-                '/notif.mp3'
-            ]).catch(() => {
-                // Ignore cache failures for missing files
-            });
-        })
-    );
+// What the shell needs to paint without a network. The page itself is stored under /login: every client
+// route answers the same document, and /login is the one that never redirects.
+const SHELL_URLS = [
+    '/login',
+    '/app.css', '/themes.css', '/themes/teahouse.css',
+    '/css/frame.css', '/css/pickers.css', '/css/timeline.css', '/css/composer.css', '/css/message.css', '/css/pages.css',
+    '/lib/signalr.min.js', '/lib/tus.min.js',
+    '/js/main.js', '/js/store.js', '/js/api.js', '/js/hub.js', '/js/router.js', '/js/session.js', '/js/sender.js', '/js/upload.js', '/js/notify.js',
+    '/js/render/dom.js', '/js/render/text.js', '/js/render/time.js', '/js/render/avatar.js',
+    '/js/ui/frame.js', '/js/ui/timeline.js', '/js/ui/message.js', '/js/ui/composer.js', '/js/ui/overlays.js',
+    '/js/ui/emoji-picker.js', '/js/ui/gif-picker.js', '/js/ui/gallery.js',
+    '/js/pages/chat.js', '/js/pages/login.js', '/js/pages/verify.js', '/js/pages/invite.js', '/js/pages/channel-settings.js', '/js/pages/settings.js', '/js/pages/admin.js',
+    '/js/push.js', '/js/pwa.js', '/js/ui/gif-library.js',
+    '/js/offline/db.js', '/js/offline/snapshot.js', '/js/offline/outbox.js',
+    '/fonts/InterVariable.woff2', '/icon.svg', '/icon-192.png', '/icon-512.png', '/notif.mp3',
+    '/images/turqline01_3px.png', '/images/purpleline01_3px.png', '/emoji_selection_color.png', '/emoji_selection_greys.png',
+];
+const EMOJI_HOSTS = ['cdn.jsdelivr.net'];
+const EMOJI_PATHS = ['/emoji-fallback/', '/emoji-packs/', '/custom-emojis/'];
+const MEDIA_PATHS = ['/uploads/', '/gif-cache/', '/media-cache/'];
+
+self.addEventListener('install', event => {
+    event.waitUntil(caches.open(SHELL_CACHE).then(cache =>
+        // One missing file must not stop the install: add what the server has.
+        Promise.all(SHELL_URLS.map(url => cache.add(url).catch(() => {})))));
     self.skipWaiting();
 });
 
-// Activate: clean up old caches and take control
-self.addEventListener('activate', (event) => {
-    console.log('[SW] Activating service worker');
-    event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            const keep = [CACHE_NAME, MEDIA_CACHE];
-            return Promise.all(
-                cacheNames
-                    .filter((name) => !keep.includes(name))
-                    .map((name) => caches.delete(name))
-            );
-        }).then(() => self.clients.claim())
-    );
+self.addEventListener('activate', event => {
+    event.waitUntil(caches.keys()
+        .then(names => Promise.all(names.filter(n => ![SHELL_CACHE, EMOJI_CACHE, MEDIA_CACHE].includes(n)).map(n => caches.delete(n))))
+        .then(() => self.clients.claim()));
 });
 
-// Fetch: network-first (Blazor Server needs live connection)
-self.addEventListener('fetch', (event) => {
-    const url = new URL(event.request.url);
-    if (event.request.method !== 'GET') return;
-    if (url.pathname.includes('_blazor')) return;
+self.addEventListener('fetch', event => {
+    const { request } = event;
+    if (request.method !== 'GET') return;
+    const url = new URL(request.url);
+    const sameOrigin = url.origin === self.location.origin;
 
-    // App-shell icons + notification sound: cache-first against the versioned app cache.
-    const staticAssets = ['/icon.svg', '/icon-192.png', '/icon-512.png', '/notif.mp3'];
-    if (staticAssets.some(asset => url.pathname.endsWith(asset))) {
-        event.respondWith(cacheFirst(event.request, CACHE_NAME));
+    if (sameOrigin && (url.pathname.startsWith('/api/') || url.pathname.startsWith('/hub'))) return;   // live data, never cached
+
+    // A navigation: the shell. Online the server's current build, offline the stored one (OF-06).
+    if (request.mode === 'navigate' && sameOrigin) {
+        event.respondWith(networkFirst(request, SHELL_CACHE, '/login'));
         return;
     }
 
-    // Content-addressed media (uploads, cached gifs/media). GUID/hash filenames are immutable, so
-    // cache-first lets cold PWA launches paint instantly without re-downloading multi-MB files.
-    // Excludes: profile pictures (stable url, overwritten on avatar change — let the network's
-    // short max-age handle freshness) and range requests (the Cache API can't serve partial
-    // content for video/audio seeking; the HTTP immutable cache covers those instead).
-    const mediaPrefixes = ['/uploads/', '/gif-cache/', '/media-cache/'];
-    if (url.origin === self.location.origin
-        && mediaPrefixes.some((p) => url.pathname.startsWith(p))
-        && !url.pathname.startsWith('/uploads/profiles/')
-        && !event.request.headers.has('range')) {
-        event.respondWith(cacheFirst(event.request, MEDIA_CACHE));
+    if (sameOrigin && isShellAsset(url.pathname)) {
+        event.respondWith(networkFirst(request, SHELL_CACHE));
         return;
+    }
+
+    if (EMOJI_HOSTS.includes(url.host) || (sameOrigin && EMOJI_PATHS.some(p => url.pathname.startsWith(p)))) {
+        event.respondWith(cacheFirst(request, EMOJI_CACHE));
+        return;
+    }
+
+    // Content-addressed media. Profile pictures keep a stable URL and are left to the HTTP cache; range
+    // requests cannot be served from the Cache API.
+    if (sameOrigin && MEDIA_PATHS.some(p => url.pathname.startsWith(p)) && !url.pathname.startsWith('/uploads/profiles/') && !request.headers.has('range')) {
+        event.respondWith(cacheFirst(request, MEDIA_CACHE));
     }
 });
 
-// Cache-first: serve from the named cache, else fetch and cache successful responses.
-// On network failure, fall back to any cached copy (or a network error).
+function isShellAsset(pathname) {
+    return /\.(js|css|woff2|svg|png|mp3)$/.test(pathname) && !MEDIA_PATHS.some(p => pathname.startsWith(p)) && !EMOJI_PATHS.some(p => pathname.startsWith(p));
+}
+
+// The network, and a copy into the cache for later; the cache when the network fails. For a navigation
+// the fallback is the stored shell whatever the path was.
+async function networkFirst(request, cacheName, fallbackKey = null) {
+    const cache = await caches.open(cacheName);
+    try {
+        const response = await fetch(request);
+        if (response.status === 200) cache.put(fallbackKey ?? request, response.clone());   // not a 206: a range answer (audio seeks) cannot be cached
+        return response;
+    } catch {
+        return (await cache.match(fallbackKey ?? request)) || Response.error();
+    }
+}
+
 async function cacheFirst(request, cacheName) {
     const cache = await caches.open(cacheName);
     const cached = await cache.match(request);
     if (cached) return cached;
     try {
         const response = await fetch(request);
-        if (response.ok) cache.put(request, response.clone());
+        if (response.status === 200 || response.type === 'opaque') cache.put(request, response.clone());   // a 206 range answer cannot be cached
         return response;
-    } catch (err) {
-        return (await cache.match(request)) || Response.error();
+    } catch {
+        return Response.error();
     }
 }
 
-// ==========================================
-// Push Notification Handler
-// ==========================================
-self.addEventListener('push', (event) => {
-    console.log('[SW] Push received:', event);
+// ---- push (NT-23 to NT-29) ----
 
-    let data = {
-        title: 'New Message',
-        body: 'You have a new message',
-        icon: '/icon-192.png',
-        badge: '/icon-192.png',
-        tag: 'chat-message',
-        url: '/',
-        unreadCount: 0
-    };
-
-    // Parse push payload
+self.addEventListener('push', event => {
+    let data = { title: 'New Message', body: 'You have a new message', icon: '/icon-192.png', badge: '/icon-192.png', tag: 'chat-message', url: '/', unreadCount: 0 };
     if (event.data) {
-        try {
-            const payload = event.data.json();
-            data = { ...data, ...payload };
-        } catch (e) {
-            console.error('[SW] Error parsing push data:', e);
-            data.body = event.data.text();
-        }
+        try { data = { ...data, ...event.data.json() }; }
+        catch { data.body = event.data.text(); }
     }
-
-    const promises = [];
-
-    // Update badge count. The server already excluded muted channels from this number.
-    if ('setAppBadge' in self.navigator && data.unreadCount > 0) {
-        promises.push(
-            self.navigator.setAppBadge(data.unreadCount)
-                .catch(err => console.error('[SW] Badge error:', err))
-        );
-    }
-
-    // Show the banner. There is no badge-only mode any more: muting is decided on the server,
-    // and a muted channel sends no push at all (it only keeps its unread dot in the app).
-    promises.push(
-        self.registration.showNotification(data.title, {
-            body: data.body,
-            icon: data.icon,
-            badge: data.badge,
-            tag: data.tag,
-            renotify: true,
-            requireInteraction: false,
-            data: { url: data.url }
-        })
-    );
-
-    // Delivery receipt (best-effort): closes the gap between "push service accepted the send" and
-    // "this device actually received it" — Settings shows the last confirmed delivery per device.
-    promises.push(
-        self.registration.pushManager.getSubscription()
-            .then((sub) => sub && fetch('/api/push/delivered', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ endpoint: sub.endpoint, tag: data.tag, shown: true })
-            }))
-            .catch(() => { }) // a failed receipt must never affect the notification itself
-    );
-
-    event.waitUntil(Promise.all(promises));
+    const work = [];
+    // The badge: the server already left out the muted conversations (NT-11).
+    if ('setAppBadge' in self.navigator && data.unreadCount > 0) work.push(self.navigator.setAppBadge(data.unreadCount).catch(() => {}));
+    // A new notification of a conversation replaces the previous one and alerts again (NT-27).
+    work.push(self.registration.showNotification(data.title, {
+        body: data.body, icon: data.icon, badge: data.badge, tag: data.tag, renotify: true, requireInteraction: false, data: { url: data.url },
+    }));
+    // A delivery receipt, best effort: Settings shows the last confirmed delivery per device.
+    work.push(self.registration.pushManager.getSubscription()
+        .then(sub => sub && fetch('/api/push/delivered', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint, tag: data.tag, shown: true }) }))
+        .catch(() => {}));
+    event.waitUntil(Promise.all(work));
 });
 
-// ==========================================
-// Notification Click Handler
-// ==========================================
-self.addEventListener('notificationclick', (event) => {
-    console.log('[SW] Notification clicked:', event);
+// A tap opens the conversation in an open window, or in a new one (NT-28).
+self.addEventListener('notificationclick', event => {
     event.notification.close();
-
-    const urlToOpen = event.notification.data?.url || '/';
-
-    event.waitUntil(
-        clients.matchAll({ type: 'window', includeUncontrolled: true })
-            .then((windowClients) => {
-                // Check if app is already open
-                for (const client of windowClients) {
-                    if (client.url.includes(self.location.origin) && 'focus' in client) {
-                        // Navigate existing window
-                        client.postMessage({
-                            type: 'NOTIFICATION_CLICK',
-                            url: urlToOpen
-                        });
-                        return client.focus();
-                    }
-                }
-                // Open new window
-                return clients.openWindow(urlToOpen);
-            })
-    );
-});
-
-// ==========================================
-// Message Handler (from main app)
-// ==========================================
-self.addEventListener('message', (event) => {
-    console.log('[SW] Message received:', event.data);
-
-    if (event.data?.type === 'SKIP_WAITING') {
-        self.skipWaiting();
-    }
-
-    if (event.data?.type === 'SET_BADGE') {
-        const count = event.data.count;
-        if ('setAppBadge' in self.navigator) {
-            if (count > 0) {
-                self.navigator.setAppBadge(count);
-            } else {
-                self.navigator.clearAppBadge();
+    const url = event.notification.data?.url || '/';
+    event.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windows => {
+        for (const client of windows) {
+            if (client.url.startsWith(self.location.origin) && 'focus' in client) {
+                client.postMessage({ type: 'NOTIFICATION_CLICK', url });
+                return client.focus();
             }
         }
-    }
-
-    if (event.data?.type === 'CLEAR_BADGE') {
-        if ('clearAppBadge' in self.navigator) {
-            self.navigator.clearAppBadge();
-        }
-    }
+        return clients.openWindow(url);
+    }));
 });
 
-// ==========================================
-// Subscription Change Handler
-// ==========================================
-// Browsers rotate/expire push subscriptions (common on iOS, and after the server prunes a 410/404).
-// When that happens the browser fires `pushsubscriptionchange`; we re-subscribe and re-register with
-// the server so notifications keep working WITHOUT the user re-granting permission. Best-effort —
-// support is limited on iOS Safari but present on Chromium/Android.
-self.addEventListener('pushsubscriptionchange', (event) => {
-    console.log('[SW] pushsubscriptionchange — re-subscribing');
-    event.waitUntil(resubscribeToPush());
+self.addEventListener('message', event => {
+    if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
-async function resubscribeToPush() {
+// Browsers rotate push subscriptions (iOS often, and after the server prunes a dead one). The worker
+// subscribes again and tells the server, so notifications keep working without a new permission prompt.
+self.addEventListener('pushsubscriptionchange', event => { event.waitUntil(resubscribe()); });
+
+async function resubscribe() {
     try {
-        // Service workers can't use Blazor services, so fetch the VAPID key over HTTP.
-        const keyResp = await fetch('/api/push/vapid-public-key', { credentials: 'include' });
-        if (!keyResp.ok) {
-            console.warn('[SW] resubscribe: VAPID key unavailable', keyResp.status);
-            return;
-        }
-        const { publicKey } = await keyResp.json();
+        const keyResponse = await fetch('/api/push/vapid-public-key', { credentials: 'include' });
+        if (!keyResponse.ok) return;
+        const { publicKey } = await keyResponse.json();
         if (!publicKey) return;
-
-        const subscription = await self.registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(publicKey)
-        });
-
+        const subscription = await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: base64UrlToBytes(publicKey) });
         const sub = subscription.toJSON();
-        // /api/push/subscribe authenticates via the auth cookie and reads the username from it.
-        const resp = await fetch('/api/push/subscribe', {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                endpoint: sub.endpoint,
-                p256dh: sub.keys?.p256dh,
-                auth: sub.keys?.auth
-            })
+        await fetch('/api/push/subscribe', {   // the cookie names the account
+            method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint: sub.endpoint, p256dh: sub.keys?.p256dh, auth: sub.keys?.auth }),
         });
-        console.log('[SW] resubscribe: server responded', resp.status);
-    } catch (e) {
-        console.error('[SW] resubscribe failed:', e);
-    }
+    } catch { /* best effort */ }
 }
 
-// Helper: Convert a base64url VAPID key to Uint8Array (mirrors urlBase64ToUint8Array in chat.js).
-function urlBase64ToUint8Array(base64String) {
-    const padding = '='.repeat((4 - base64String.length % 4) % 4);
-    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-    const rawData = atob(base64);
-    const outputArray = new Uint8Array(rawData.length);
-    for (let i = 0; i < rawData.length; ++i) {
-        outputArray[i] = rawData.charCodeAt(i);
-    }
-    return outputArray;
+function base64UrlToBytes(value) {
+    const padded = value + '='.repeat((4 - value.length % 4) % 4);
+    const raw = atob(padded.replace(/-/g, '+').replace(/_/g, '/'));
+    return Uint8Array.from(raw, c => c.charCodeAt(0));
 }

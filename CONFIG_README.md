@@ -15,9 +15,9 @@ not reach an existing `Data/` copy. Delete the `Data/` copy to re-seed it, or mi
 hand. Edits to `Data/appsettings.json` reload without a restart, but most values are read once at
 startup, so restart to be sure.
 
-`appsettings.Development.json` still loads in Development. The `Data/` file loads after it, so the
-`Data/` file wins for every key it contains. In practice this means environment-specific files are
-only useful for keys that the `Data/` file leaves out (logging levels, for example).
+The `Data/` file takes the place of `Yap/appsettings.json` in the configuration stack. The sources
+above it still win: `appsettings.Development.json` in Development, environment variables, and the
+command line. So a deployment or a test can override any key without an edit to the `Data/` file.
 
 ## Top-level keys
 
@@ -48,15 +48,17 @@ production once and the failure is silent on the client side.
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
 | `ProjectName` | string | "Yap" | App name in the browser tab and login page |
-| `RoomName` | string | "lobby" | Default room. Users land here after login |
 | `ClearUploadsOnStart` | bool | false | Delete all uploaded files when the app starts |
 | `MaxUploadSizeMB` | int | 100 | Upload size limit for images and videos |
 | `UploadUrl` | string | "" | Upload endpoint. Empty means same origin (`/api/tus`). Set a full URL to bypass a proxy upload limit (Cloudflare) |
+| `UploadsPath` | string | "wwwroot/uploads" | Where uploaded files are stored, relative to the app folder. The URLs stay `/uploads/...` |
+| `PublicOrigin` | string | "" | The address the login links carry, such as `https://chat.example.com`. Empty: each person's links use the address that person's own requests reached the server by, never another person's. Set it behind a proxy, together with `AllowedHosts` (top-level key), so a forged `Host` header cannot appear in anyone's link |
+| `TrustedProxies` | string[] | [] | The reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` the server believes: addresses or CIDR networks, such as `["172.18.0.0/16"]` for a proxy container, or Cloudflare's published ranges. Loopback is always trusted. Behind a proxy that is not listed, every client address counts as unknown and smart login is off; the log warns at start and at the first such request, the bot tells the admin, and the Admin page shows a red notice with the address to add |
 | `Ipv4BeaconUrl` | string | "" | Origin with an A record only, pointing at this app. The admin panel uses it to learn the IPv4 of dual-stack clients. Empty disables it |
 | `PushSubscriptionStorage` | string | "Json" | `"Json"` stores push subscriptions in `Data/push-subscriptions.json`. `"Database"` stores them in the DB |
 | `WelcomePageEnabled` | bool | true | Show `Data/welcome/welcome.html` before the login page, if the file exists |
 | `Bot` | object | | The system bot. `Enabled`, `Username`, `DisplayName`, `WelcomeMessage` (`{0}` is the project name). Runtime bot settings from the admin panel live in `Data/bot-settings.json` |
-| `Persistence` | object | | `Enabled`, `Provider` (`"SQLite"` only; Postgres is a placeholder), `ConnectionStrings`. With persistence off, everything lives in memory and is wiped on restart |
+| `Persistence` | object | | `Enabled`, `ConnectionStrings.SQLite`. With persistence off, everything lives in memory and is wiped on restart |
 | `GifSettings` | object | | `Provider` (`"klipy"`), `UserQuotaMB`, `MaxPackSizeMB`, `Klipy.ApiKey` (free key from partner.klipy.com), `Klipy.CustomerId`, `Klipy.Locale`. Without an API key, provider search and trending are off. Own uploads and server collections still work |
 | `FunnyTexts` | object | | Randomized UI text, see below |
 
@@ -81,7 +83,7 @@ Branding overrides go in `Data/branding/` (manifest, icons). The custom welcome 
 
 ## FunnyTexts
 
-Each UI element picks a random item from its list every time it renders. `{0}` and `{1}` are
+Each UI element picks a random item from its list once, when it first shows, and keeps it until the page reloads (GEN-12). `{0}` and `{1}` are
 replaced with the project name, username, or count as noted. If a list is missing, the code uses a
 plain default.
 
@@ -127,13 +129,11 @@ Shown on the login page above the username input. `{0}` is the project name.
 ]
 ```
 
-#### Connection Statuses
+#### New Messages Pill
+The pill that shows when messages arrive while the reader is scrolled up. One phrase per appearance.
 
 ```json
-"ConnectionStatuses": {
-  "Connected": ["online"],
-  "Disconnected": ["offline"]
-}
+"NewMessagesPill": ["New messages"]
 ```
 
 #### System Messages
@@ -190,9 +190,8 @@ To add variations, add strings to any list. There is no registry to update.
 
 ## Technical notes
 
-`ChatConfigService` reads these values from `IConfiguration` on each access, picks the random text,
-formats the placeholders, and supplies the defaults. It is registered as scoped in `Program.cs` and
-injected where needed (login, welcome, the chat pages, the sidebar, the message input, the pickers, admin, invite).
+`ServerConfig` reads these lists from the configuration and supplies the defaults. The bootstrap
+answer carries them to the client, which picks the random text and fills the placeholders.
 
 ## Custom Emojis
 

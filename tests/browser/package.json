@@ -1,0 +1,16 @@
+{
+  "name": "yap-browser-tests",
+  "private": true,
+  "type": "module",
+  "description": "Browser scripts that drive the Yap client against a throwaway server. Development only.",
+  "scripts": {
+    "smoke": "node smoke.mjs",
+    "offline": "node offline.mjs",
+    "features": "node features.mjs",
+    "pages": "node pages.mjs",
+    "screenshots": "node screenshots.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.47.2"
+  }
+}

@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign-in flows · Yap architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #f3f5f7; --surface: #ffffff; --surface-2: #e9edf1;
+  --fg: #182029; --muted: #56606e; --line: #d4dae2; --line-strong: #a9b3c0;
+  --accent: #0d6a87; --code-bg: #f8f9fb;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+    --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1115; --surface: #151a20; --surface-2: #1d232b; --fg: #e3e7ed; --muted: #97a1b0;
+  --line: #29303a; --line-strong: #3f4855; --accent: #5bb7d2; --code-bg: #11151a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+main { max-width: 980px; margin: 0 auto; padding: 36px 16px 96px; display: flex; flex-direction: column; gap: 22px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.15; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 4.5vw, 2.8rem); font-weight: 700; }
+h2 { font-size: clamp(1.4rem, 2.6vw, 1.8rem); font-weight: 600; padding-top: 22px; margin-top: 14px; border-top: 1px solid var(--line-strong); }
+h3 { font-size: 1.12rem; font-weight: 600; margin-top: 6px; }
+p, ul, ol { margin: 0; max-width: 76ch; }
+ul, ol { padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
+li > ul, li > ol { margin-top: 6px; }
+a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 0.88em; background: var(--surface-2); padding: 0.05em 0.3em; border-radius: 3px; overflow-wrap: anywhere; }
+pre { margin: 0; padding: 12px 16px; overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--code-bg); font: 0.82rem/1.5 var(--mono); }
+pre code { background: none; padding: 0; font-size: inherit; }
+blockquote { margin: 0; padding: 10px 16px; border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; max-width: 76ch; }
+.eyebrow { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+nav.pages { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+nav.pages a, nav.pages span { display: inline-block; padding: 3px 10px; border: 1px solid var(--line); border-radius: 4px; text-decoration: none; color: var(--fg); background: var(--surface); font-size: 0.86rem; }
+nav.pages span { color: var(--muted); border-style: dashed; }
+nav.pages a[aria-current] { border-color: var(--accent); color: var(--accent); }
+.rule { border: 1px solid var(--line); border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; padding: 10px 14px; max-width: 76ch; scroll-margin-top: 16px; }
+.rule .id { font-family: var(--mono); font-size: 0.8rem; color: var(--accent); margin-right: 8px; }
+.rule .why { color: var(--muted); }
+figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+figcaption { font-size: 0.9rem; color: var(--muted); max-width: 80ch; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+th { font-family: var(--display); font-weight: 600; background: var(--surface-2); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+footer { font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; }
+
+figure.code { position: relative; }
+figure.code .lang { position: absolute; top: 6px; right: 10px; font: 0.7rem var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+pre .c { color: var(--muted); font-style: italic; }
+pre .s { color: #2f7d32; }
+pre .n { color: #a4541c; }
+pre .k { color: #7a3fb3; font-weight: 500; }
+pre .t { color: var(--accent); }
+pre .p { color: #0b5e8a; }
+pre .a { color: #8a6d00; }
+pre .v { color: #a4541c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) pre .s { color: #8fd18f; } :root:not([data-theme="light"]) pre .n, :root:not([data-theme="light"]) pre .v { color: #f0a86a; } :root:not([data-theme="light"]) pre .k { color: #c99af5; } :root:not([data-theme="light"]) pre .p { color: #7cc4ea; } :root:not([data-theme="light"]) pre .a { color: #e0c860; } }
+:root[data-theme="dark"] pre .s { color: #8fd18f; } :root[data-theme="dark"] pre .n, :root[data-theme="dark"] pre .v { color: #f0a86a; } :root[data-theme="dark"] pre .k { color: #c99af5; } :root[data-theme="dark"] pre .p { color: #7cc4ea; } :root[data-theme="dark"] pre .a { color: #e0c860; }
+/* Contract tables: a route or a method name never breaks across lines, so the first column grows to fit it.
+   Long lists of code spans still wrap between the spans. The wrapper scrolls sideways when a table is wider than the page. */
+.tablewrap code { white-space: nowrap; }
+.tablewrap td:first-child { min-width: 10rem; }
+figure.diagram { padding: 16px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+figure.diagram svg { display: block; max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">Yap · architecture</div>
+<nav class="pages" aria-label="Architecture pages"><a href="sketch.html">Architecture sketch: Yap without Blazor</a><a href="plan.html">Plan of action</a><a href="message-path.html">Message path</a><a href="presence.html">Presence</a><a href="chat-hub.html">ChatHub and read state</a><a href="auth-and-program.html">Authentication and Program.cs</a><a href="sign-in.html" aria-current="page">Sign-in flows</a><a href="bootstrap-and-events.html">Bootstrap and events</a><a href="client.html">The client</a><a href="wire-contract.html">Wire contract</a></nav>
+<h1 id="sign-in-flows">Sign-in flows</h1>
+<p>This page specifies the routes behind the login page, the verification page, the invite page and sign-out. The spec is <a href="../spec/sessions.html">Sign-in and sessions</a> (AU-01 to AU-26). The <a href="auth-and-program.html">authentication page</a> specifies the cookie and the principal. This page specifies how a device gets the cookie.</p>
+<h2 id="today-and-what-changes">Today, and what changes</h2>
+<p>Today the three pages are Blazor components. They call the services directly, then they navigate to <code>GET /auth/signin?username=</code> or they post a hidden form to <code>POST /auth/signin</code>, because a Blazor circuit cannot set a cookie. The redirect routes and the hidden form exist for that reason only. They are not in the spec's route list (SH-42). They go away.</p>
+<p>The new pages are client pages. They call JSON routes. The sign-in route sets the cookie in its response. The client then navigates. One route replaces four. <code>GET /auth/refresh-token</code> goes away for the same reason: Settings used it to set a rotated token, and <code>sign-out-others</code> now sets the cookie in its own response.</p>
+<p>What stays: <code>/pwa-launch?lt=</code> and the manifest. Installed apps have these URLs baked in.</p>
+<h2 id="one-service-holds-the-decision">One service holds the decision</h2>
+<p><code>Services/Accounts/SignInService</code> decides what a username can do and performs the sign-in. The <code>check</code> route and the <code>signin</code> route use the same decision. The client never decides, it only shows.</p>
+<figure class="code"><span class="lang">cs</span><pre><code><span class="c">// Services/Accounts/SignInService.cs (sketch)</span>
+<span class="k">public</span> <span class="k">enum</span> <span class="t">SignInState</span> { <span class="t">Invalid</span>, <span class="t">Free</span>, <span class="t">Closed</span>, <span class="t">Pending</span>, <span class="t">Smart</span>, <span class="t">Verify</span>, <span class="t">Guide</span> }
+
+<span class="k">public</span> <span class="t">SignInCheck</span> <span class="t">Check</span>(<span class="k">string</span> username, <span class="k">string</span> ip)
+{
+    <span class="k">if</span> (<span class="t">UsernameRules</span>.<span class="t">Validate</span>(username) <span class="k">is</span> { } rule) <span class="k">return</span> <span class="k">new</span>(<span class="t">Invalid</span>, rule);                 <span class="c">// AU-02</span>
+    <span class="k">if</span> (bot.<span class="t">IsBotUser</span>(username)) <span class="k">return</span> <span class="k">new</span>(<span class="t">Invalid</span>, <span class="s">&quot;Nice try! 🤖&quot;</span>);                             <span class="c">// AU-03</span>
+    <span class="k">var</span> user = users.<span class="t">ByUsername</span>(username);
+    <span class="k">if</span> (user <span class="k">is</span> <span class="k">null</span>)
+    {
+        <span class="k">if</span> (users.<span class="t">ByDisplayName</span>(username) <span class="k">is</span> not <span class="k">null</span>) <span class="k">return</span> <span class="k">new</span>(<span class="t">Invalid</span>, <span class="t">DisplayNameTaken</span>(username)); <span class="c">// AU-03</span>
+        <span class="k">if</span> (gate.<span class="t">IsPending</span>(username)) <span class="k">return</span> <span class="k">new</span>(<span class="t">Pending</span>, <span class="k">null</span>);
+        <span class="k">if</span> (gate.<span class="t">RegistrationClosed</span>) <span class="k">return</span> <span class="k">new</span>(<span class="t">Closed</span>, <span class="k">null</span>);                                   <span class="c">// AU-05</span>
+        <span class="k">return</span> <span class="k">new</span>(<span class="t">Free</span>, <span class="k">null</span>);
+    }
+    <span class="k">if</span> (<span class="t">SmartLoginApplies</span>(user, ip)) <span class="k">return</span> <span class="k">new</span>(<span class="t">Smart</span>, <span class="k">null</span>);                                    <span class="c">// AU-09</span>
+    <span class="k">if</span> (user.<span class="t">HasPassphrase</span> || links.<span class="t">HasActiveLink</span>(user.<span class="t">Id</span>)) <span class="k">return</span> <span class="k">new</span>(<span class="t">Verify</span>, <span class="k">null</span>);           <span class="c">// AU-08</span>
+    <span class="k">return</span> <span class="k">new</span>(<span class="t">Guide</span>, <span class="k">null</span>);
+}
+
+<span class="k">bool</span> <span class="t">SmartLoginApplies</span>(<span class="t">User</span> user, <span class="k">string</span> ip)
+    =&gt; gate.<span class="t">SmartLoginAllowed</span> &amp;&amp; !user.<span class="t">SmartLoginOptOut</span>
+       &amp;&amp; (presence.<span class="t">HasConnectedSessionFromIp</span>(user.<span class="t">Id</span>, ip) || users.<span class="t">HasKnownIp</span>(user.<span class="t">Id</span>, ip, within: <span class="t">TimeSpan</span>.<span class="t">FromDays</span>(<span class="n">14</span>)));</code></pre></figure>
+<figure class="code"><span class="lang">cs</span><pre><code><span class="k">public</span> <span class="t">SignInResult</span> <span class="t">SignIn</span>(<span class="k">string</span> username, <span class="k">string</span>? code, <span class="k">string</span> ip, <span class="k">string</span> userAgent)
+{
+    <span class="k">if</span> (links.<span class="t">BrakeTripped</span>) <span class="k">return</span> <span class="t">Refused</span>(<span class="n">429</span>, <span class="s">&quot;Too many attempts. Try again in a few minutes.&quot;</span>);   <span class="c">// AU-14</span>
+    <span class="k">var</span> check = <span class="t">Check</span>(username, ip);
+    <span class="k">switch</span> (check.<span class="t">State</span>)
+    {
+        <span class="k">case</span> <span class="t">Free</span>:    <span class="k">return</span> <span class="t">Created</span>(users.<span class="t">Create</span>(username, ip, userAgent), method: <span class="s">&quot;new&quot;</span>);          <span class="c">// first human is admin (AU-04); link minted (AU-11)</span>
+        <span class="k">case</span> <span class="t">Pending</span>: <span class="k">return</span> gate.<span class="t">IsApproved</span>(username) ? <span class="t">Created</span>(users.<span class="t">Create</span>(...), <span class="s">&quot;approved&quot;</span>) : <span class="t">Waiting</span>();
+        <span class="k">case</span> <span class="t">Smart</span>:   <span class="k">return</span> <span class="t">SignedIn</span>(user, method: <span class="s">&quot;smart login (same network)&quot;</span>);
+        <span class="k">case</span> <span class="t">Verify</span>:
+            <span class="k">if</span> (code <span class="k">is</span> <span class="k">null</span>) <span class="k">return</span> <span class="t">Refused</span>(<span class="n">401</span>, <span class="s">&quot;Code required&quot;</span>);
+            <span class="k">if</span> (users.<span class="t">VerifyPassphrase</span>(user, code)) <span class="k">return</span> <span class="t">SignedIn</span>(user, <span class="s">&quot;secret code&quot;</span>);           <span class="c">// exact match (AU-14)</span>
+            <span class="k">if</span> (links.<span class="t">VerifyCodeForUser</span>(user.<span class="t">Id</span>, code)) <span class="k">return</span> <span class="t">SignedIn</span>(user, <span class="s">&quot;your login link&quot;</span>);    <span class="c">// any case, any separators (AU-12)</span>
+            links.<span class="t">RecordFailure</span>(ip); visitors.<span class="t">LoginFailure</span>(ip, userAgent, <span class="s">&quot;Wrong passphrase&quot;</span>);
+            <span class="k">return</span> <span class="t">Refused</span>(<span class="n">401</span>, <span class="s">&quot;Wrong code&quot;</span>);
+        <span class="k">case</span> <span class="t">Closed</span>:  visitors.<span class="t">LoginFailure</span>(ip, userAgent, <span class="s">&quot;Registration closed&quot;</span>); <span class="k">return</span> <span class="t">Refused</span>(<span class="n">403</span>, <span class="t">ClosedText</span>);
+        <span class="k">default</span>:      <span class="k">return</span> <span class="t">Refused</span>(<span class="n">400</span>, check.<span class="t">Reason</span> ?? <span class="s">&quot;Cannot sign in&quot;</span>);
+    }
+}</code></pre></figure>
+<p><code>SignedIn</code> records the known address (AU-09), logs the action, and asks the bot to send the new-device message to the account (AU-26). <code>Created</code> also starts the one-minute welcome timer and sends the join message to the admin (AU-26, PR-18). The endpoint sets the cookie from the result. The service never sees the response.</p>
+<h2 id="routes">Routes</h2>
+<p>All routes on this page are anonymous except sign-out.</p>
+<div class="tablewrap"><table><thead><tr><th>Route</th><th>Request</th><th>Response</th></tr></thead><tbody><tr><td><code>GET /api/auth/check?username=</code></td><td></td><td><code>{ state, reason? }</code>. The login page calls it while the person types, after a 300 ms pause.</td></tr><tr><td><code>POST /api/auth/signin</code></td><td><code>{ username, code? }</code></td><td>200 <code>{ username }</code> and the cookie. 202 <code>{ state: &quot;pending&quot; }</code> when approval is required; the first such call puts the name on the admin's list, sends the bot message (AU-05, AD-11) and sets the <code>yap_pending</code> cookie: the token of this browser's request. The admin approves a name; only the browser with the token turns the approval into an account, so nobody else can claim it by typing the name first. 4xx with a reason otherwise.</td></tr><tr><td><code>GET /api/auth/pending/{username}</code></td><td></td><td>`{ state: "waiting" \</td><td>"approved" \</td><td>"rejected" }<code> for the browser that holds the request&#x27;s cookie; any other browser sees </code>waiting<code>. The login page polls every 2 s while it waits. On </code>approved<code> it calls </code>signin` again.</td></tr><tr><td><code>GET /api/invite/{code}</code></td><td></td><td>`{ state: "join" \</td><td>"continue" \</td><td>"self" \</td><td>"switch" \</td><td>"invalid" \</td><td>"busy", owner?, current? }<code>. </code>self` is the owner, already signed in; the client opens the lobby. An invalid code counts as a failure for the brake (AU-14, AU-17).</td></tr><tr><td><code>POST /api/invite/{code}</code></td><td><code>{ username? }</code></td><td>200 <code>{ username }</code> and the cookie. <code>username</code> is required for an open invite and ignored for a login link. 4xx with the reasons of the spec's link page.</td></tr><tr><td><code>POST /api/auth/signout</code></td><td><code>{ pushEndpoint?, deviceId? }</code></td><td>204, the cleared cookie and the sign-out mark (a second cookie, removed by the next sign-in). Removes the device's push subscription (NT-24) and ends the hub connections of <code>deviceId</code>, so the other tabs of the device get 401 and show the login page (GEN-05). The token stays valid for the other devices (AU-22).</td></tr><tr><td><code>GET /pwa-launch?lt=</code></td><td></td><td>kept: plants the cookie when the jar is empty, then 302 <code>/</code> (AU-23). A jar with the sign-out mark gets no cookie: a sign-out ends the automatic first-launch sign-in (AU-22).</td></tr><tr><td><code>GET /manifest.webmanifest</code></td><td></td><td>kept: <code>start_url</code> carries the link token for a signed-in browser.</td></tr></tbody></table></div>
+<p>Approve and reject are admin routes, on the admin page. The admin's connections also receive the <code>pending</code> hub event when the list changes.</p>
+<h2 id="the-client-pages">The client pages</h2>
+<p><strong>Login</strong> (<code>pages/login.js</code>, AU-07). One box, one button, the configured playful texts from the bootstrap's anonymous part (see below). The page lowercases and trims the text while the person types (AU-02). It validates the rules locally for the instant error text, then calls <code>check</code> for the server states. Each state maps to one view:</p>
+<div class="tablewrap"><table><thead><tr><th>State</th><th>View</th></tr></thead><tbody><tr><td><code>invalid</code></td><td>the reason under the box; the button disabled</td></tr><tr><td><code>free</code></td><td>"New here? Joining creates a fresh account named {name}."; the button creates the account</td></tr><tr><td><code>closed</code></td><td>"Registration is temporarily closed" and its text</td></tr><tr><td><code>pending</code></td><td>"Waiting for approval"; the poll runs</td></tr><tr><td><code>smart</code></td><td>the button signs in at once</td></tr><tr><td><code>verify</code></td><td>the button goes to <code>/verify/{username}</code></td></tr><tr><td><code>guide</code></td><td>the three-step guide; the installed-app variant inside the installed app (AU-24)</td></tr></tbody></table></div>
+<p>A successful <code>signin</code> navigates to the <code>returnUrl</code> of the link the person came for, or to the lobby (SH-42).</p>
+<p><strong>Verify</strong> (<code>pages/verify.js</code>, AU-14). "Welcome back, {username}", one box for the code, "Sign In". It posts <code>signin</code> with the code. "Wrong code" and "Too many attempts" come from the response.</p>
+<p><strong>Invite</strong> (<code>pages/invite.js</code>, AU-16, AU-17). It calls <code>GET /api/invite/{code}</code> and shows one of five views: join with a username box, continue as the owner, switch account, invalid, busy. Join and continue post to the same route. Opening the link alone never signs the device in (AU-10).</p>
+<p><strong>Sign out</strong> (status menu, SH-15, AU-22). The client shows the confirmations when they apply, posts <code>signout</code> with the device id, unsubscribes push, tells the other tabs of the device over a BroadcastChannel (they stop their hub and their outbox and show the login page, GEN-05), removes the drafts, the outbox, the snapshots and the cached bootstrap of the account, stops the hub, and navigates to <code>/login</code>. Without an answer from the server the sign-out does not happen and the menu shows "Needs a connection": the cookie is HttpOnly, and a local clean-up alone would bring the account back at the next reload (GEN-10). An account switch on the link page sends the same note to the other tabs before the cookie changes, and a note after the sign-in that makes them load the new account (AU-25).</p>
+<h2 id="texts-for-a-signed-out-page">Texts for a signed-out page</h2>
+<p>The login, verify and invite pages need the project name and the configured login texts (AU-07) before any sign-in. <code>GET /api/bootstrap</code> serves both states (decided 2026-10-14). The route is anonymous. With a valid cookie it returns the full document. Without one it returns 200 with <code>config.projectName</code> and the login text lists only, and no <code>user</code>. The client makes the same first call in both states and branches on <code>user</code>. A signed-out visit paints the login page after one round trip. The <a href="wire-contract.html#bootstrap">wire contract</a> shows both shapes.</p>
+<h2 id="failures-and-the-brake">Failures and the brake</h2>
+<p><code>AccessLinkService</code> keeps the brake: 20 failures in 10 minutes pause every code sign-in and every link for 10 minutes, and the bot tells the admin (AU-14). Wrong codes, dead invite links and dead login links count. The <code>check</code> route does not count, so a person who types slowly is never counted. Every failure also goes to the visitors log with its reason, for the admin's Visitors tab (AD-20): "Wrong passphrase", "Registration closed", "Bot username", "IP mismatch", "Approval pending".</p>
+<h2 id="the-services-around-it">The services around it</h2>
+<div class="tablewrap"><table><thead><tr><th>Service</th><th>Used for</th></tr></thead><tbody><tr><td><code>UserService</code></td><td>find by username and display name, create, verify passphrase, known addresses, token</td></tr><tr><td><code>AccessLinkService</code></td><td>find a code, verify a code for a user, mint on create, claim an invite, the brake</td></tr><tr><td><code>RegistrationGateService</code></td><td>the closed and approval switches, the waiting list, approved and rejected names; memory only, lost on restart (AD-11)</td></tr><tr><td><code>PresenceService</code></td><td>a connected session from this address, for smart login. The address is the connection's own, or a trusted proxy's word; a forwarded header from anyone else makes it unknown (see the authentication page, "The client's address")</td></tr><tr><td><code>SystemBotService</code></td><td>the welcome message after one minute, the new-device message, the admin messages</td></tr><tr><td><code>LinkTokenService</code></td><td>the installed app's first launch</td></tr><tr><td><code>UserActionLogService</code>, the visitors log</td><td>LOGIN and LOGIN_FAIL rows</td></tr></tbody></table></div>
+<h2 id="spec-notes-met-here">Spec notes met here</h2>
+<ul><li>AU-05 says a person with a new name "waits on the login page while the admin gets a message" and "approval signs the person in". Today the page polls every second over the circuit. The new page polls the <code>pending</code> route every two seconds and posts <code>signin</code> once the state is <code>approved</code>. The visible behaviour is the same.</li><li>The spec has no <code>GET /auth/signin</code> and no hidden form. Both were Blazor workarounds. Removing them changes nothing the user sees.</li></ul>
+<footer>Source: <code>docs/architecture/sign-in.md</code>. Edit the Markdown, then run <code>python3 docs/architecture/tools/build.py</code>.</footer>
+</main>
+</body>
+</html>

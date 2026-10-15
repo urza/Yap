@@ -1,0 +1,170 @@
+server: /tmp/yap-user-review-20261015/Yap/bin/Debug/net10.0/Yap.dll on http://127.0.0.1:5299, root /tmp/yap-user-review-20261015/scratch-pages/root-2IIha9
+[PASS] 1. Login validation (AU-02)
+    typed key by key "A B" -> value "ab"
+    fill "A B" -> value "a b"
+    error "Only lowercase letters, numbers, _ and . allowed" visible true, join disabled true
+    "ab..c": error "Cannot have consecutive periods", join disabled true
+    "a": before blur (hidden); after blur "Username must be at least 2 characters"; 700 ms later "Username must be at least 2 characters"
+    "boss": hint "New here? Joining creates a fresh account named boss." after 309 ms, join enabled true, error visible false
+[PASS] 2. Sign in boss (Enter) and guest
+    A path /lobby, status-username "boss"
+    B path /lobby
+[PASS] 3. Settings page: themes and text size
+    path /settings, .page-settings inside .chat-container 1, header title "Settings"
+    theme cards 11, selected 1 ("Discord Dark"), font-size options 6
+    right after the click data-theme "nord"; save-status "Saved" within 3 s: true; Nord card selected: 1
+    B data-theme before "discord-dark", after "discord-dark"
+    after "17px": html style.fontSize "17px"
+    B html style.fontSize ""
+[PASS] 4. Profile: display name and bio
+    save-status "Saved" after 829 ms (now "Saved")
+    B users-list shows "The Boss": true (2 ms after Saved); B rows: The Boss | Ping | guest (you)
+    bio-counter "5/150"
+[PASS] 5. Login link (ST-11 to ST-13)
+    on load: link-present visible true, link-absent visible false; summary "You can log in from other devices with your login link, smart login from a network you used recently."
+    reveal: "http://127.0.0.1:5299/invite/••••••••••••" -> "http://127.0.0.1:5299/invite/fern-lizard-9911" (button title "Hide")
+    copy: title "Copied!" true; clipboard "http://127.0.0.1:5299/invite/fern-lizard-9911" equals the value true
+    expiry 7 days: status "Link expires 2026-10-22", select shows "Expires 2026-10-22"
+    New Link: status "New link created. The old one no longer works."; value "http://127.0.0.1:5299/invite/magenta-warbler-1461" (changed true)
+    link-summary "You can log in from other devices with your login link, smart login from a network you used recently."; expiry select now "Never expires"
+[PASS] 6. Secret code (ST-14)
+    on load: code-present false, code-absent true
+    code "mint puma 94", status "Secret code enabled"
+    New Code: "mint puma 94" -> "lime frog 23", status "Secret code changed"
+    link-summary now "You can log in from other devices with your login link, your secret code, smart login from a network you used recently."
+[PASS] 7. Sessions, mutes, time and date
+    session-items 1, current 1, badge "This device"; rows: 🖥️ This device 127.0.0.1 Active just now
+    Mute: duration-row visible true, mute-hint "Muted until you turn notifications back on.", modes visible false, duration selected "Until I turn it back on"
+    Allow: modes visible true, duration-row visible false
+    Individual: room-list visible true, items "#lobby", #lobby toggle class "notif-item-toggle muted"
+    after toggle: class "notif-item-toggle", aria-pressed "false", title "Allowed — click to mute"
+    clock options 2 (7:59 AM | 07:59, selected "7:59 AM"), order options 3 (10/15/2026 | 15/10/2026 | 2026-10-15)
+    stored dateFormat "mdy-12h"; marked clock "7:59 AM", marked order "10/15/2026" (mdy); current-time "7:59 AM"
+    other clock card ("07:59"): current-time "7:59 AM" -> "07:59"; marked now "07:59"
+    +1 hour: "07:59" -> "08:59" (hour difference 1); detected "Detected: UTC+1 · en-US"
+    Detect: current-time "08:59", detected "Detected: UTC+1 · en-US"
+[PASS] 8. Verify page (AU-08, AU-09, AU-14)
+    "boss": new-account-hint visible false, join enabled true; server state "smart"
+    smart login applies (AU-09): Enter -> /lobby, status-username "The Boss"
+    C signed out: true, dialogs []
+    A "Allow smart login": checked true -> false (PATCH 204); smart sign-in worked true
+    "boss" again: server state "verify", hint false, join enabled true
+    Enter -> /verify/boss, h2 "Welcome back, boss"
+    wrong code: error "Wrong code", input class "verify-input invalid"
+    right code "lime frog 23": /lobby, status-username "The Boss" (the display name of boss is "The Boss")
+    sign out C: /login, dialogs []
+[PASS] 9. Link page (AU-10)
+    http://127.0.0.1:5299/invite/magenta-warbler-1461 -> h2 "Welcome back, boss", text "This link signs you in as boss on this device.", button "Continue as boss" (not signed in by opening: true)
+    Continue -> /lobby, status-username "The Boss"
+    sign out C: /login, dialogs []
+    bad code: h2 "This link no longer works", link "Go to the login page" href /login
+[PASS] 10. An account switch reaches the other tab of the device (AU-25)
+    E: link page h2 "Switch account?", button "Switch to boss" true -> after the click: {"user":"boss","connection":"connected","path":"/lobby"}
+    E2 (the other tab): {"user":"boss","connection":"connected","path":"/lobby"}
+    a send from the other tab is recorded as "boss" (B at /lobby sees it: true)
+[PASS] 11. Admin: users and an invite (AD-04, AD-15, AD-16)
+    path /admin, .page-admin 1, nav-items 10, active "users", frame present 0; user rows: The Boss boss | eva | guest | Ping ping (bot "ping")
+    theme-stat-cards 11
+    no-persistence-note visible true
+    boss row -> detail panel true: "B The Boss boss × No push No PWA Nord IP ADDRESSES No IP data USER AGENTS No user agent data"
+    For "Someone new (invite)", note "for tom": save-result "Invite created"; open-invite row "http://127.0.0.1:5299/invite/cherry-muskrat-6845⧉ for tom just now never Never In 1 day In 7 days In 30 days Revoke"; URL "http://127.0.0.1:5299/invite/cherry-muskrat-6845"; header "Invite & Login Links 1 open · 3 active"
+    C h2 "You're invited to Yap", text "Pick a username to join."
+    "tom": Join enabled true
+    Join -> /lobby, status-username "tom"
+[PASS] 12. Admin settings: registration (AD-10, AD-11, AU-05)
+    Registration toggles: ["Close registration","Require approval","Smart login"]
+    Close registration: false -> true, PUT 204
+    D "newbie": closed-message true after 281 ms ("Registration is temporarily closed New signups are not being"), join disabled true
+    Close registration off: true -> false, PUT 204
+    Require approval on: false -> true, PUT 204
+    D POST /api/auth/signin -> 202 Accepted; then GET /api/bootstrap -> none
+    D "pending1" + Enter: join enabled true; waiting-message true ("Waiting for approval Your request to join as pending1 has been submitted. An admin will re")
+    A Pending Requests shows pending1: true after 2 ms ("pending1 just now Approve Reject")
+    Approve -> D at /lobby after 3108 ms, status-username "pending1"; A pending list left: 0
+    Require approval off: true -> false, PUT 204
+[PASS] 13. Admin: bot, debug, logs, media, GIFs, diagnostics, visitors
+    bot "ping": display name "Ping" -> "Helper", save-result "Saved!"
+    debug-result "Generated 15 messages spread across 168h"
+    logs: log-empty "Not available without persistence."
+    media: log-empty "Not available without persistence."
+    stat cards ["FFMPEG Available","TOTAL STORAGE 0 B","CUSTOM GIFS 0","PROVIDER CACHE 0"]; library "The server library is empty — add GIFs above to give everyone a curated set."; table note "No GIFs in the library yet."
+    diag stat cards ["USERS 0","SESSIONS 0","MESSAGES 0","CONNECTIONS 0","CHANNELS 1"]; session rows ["boss","boss","boss","eva","eva","eva","guest","pending1","tom"]
+    sessions Transport column ["WS","WS","WS","WS","WS","WS","WS","WS","WS"]; latency table ["WS","WS","WS","WS","WS","WS","WS","WS","WS","WS","WS","WS"]
+    charts within 5 s: true (117 ms); Chart.js loaded true 4.4.4; canvases ["diag-chart-users 1015x200 chart=true","diag-chart-connections 1015x200 chart=true","diag-chart-messages 1015x200 chart=true"]
+    visitors: log-empty "Not available without persistence."
+[PASS] 14. Create Channel and Channel Settings (AD-29 to AD-35)
+    admin back -> /lobby
+    path /channel/new, .page-channel 1, heading "Create Channel", header title "New Channel"
+    "Dev Talk": hint style.color "var(--color-danger, #ed4245)" (computed rgb(237, 66, 69)), save disabled true
+    "devtalk": save enabled true, hint color "", save label "Create Channel"
+    Admin Only card class "permission-card selected"
+    Save -> /room/b5583730-9f79-406e-a01b-5a496d5e890e; B lists devtalk true after 2 ms; B rooms: # lobby | # devtalk
+    B /room/b5583730-9f79-406e-a01b-5a496d5e890e: readonly-bar visible true ("You do not have permission to send messages in this channel"), message-input-container visible false
+    gear -> /channel/b5583730-9f79-406e-a01b-5a496d5e890e/settings, name "devtalk", heading "Channel Settings", header "#devtalk Settings", order items 2 (#
+lobby | #
+devtalk), history "oneWeek", admin-only selected true
+    Move up: B's first room "# devtalk" after 4 ms; A order now #
+lobby | #
+devtalk
+    /lobby with devtalk first in the sidebar opens "undefined" (the marked lobby: true, first room "devtalk") (SH-43)
+    Delete: first click "Click again to confirm"; A -> /lobby; B devtalk gone true after 1 ms; B at /lobby, rooms # lobby
+[PASS] 15. Sign out A
+    A -> /login, .page-login 1, dialogs []
+
+==== WRITE RESPONSES (status codes per request) ====
+A POST /api/auth/signin: 200 x1
+A POST /hub/negotiate: 200 x1
+A PATCH /api/account: 204 x8
+B POST /api/auth/signin: 200 x1
+B POST /hub/negotiate: 200 x2
+B PATCH /api/account: 204 x1
+A PUT /api/account/link/expiry: 204 x1
+A POST /api/account/link: 200 x1
+A POST /api/account/passphrase: 200 x2
+A PUT /api/account/mutes: 204 x4
+C POST /api/auth/signin: 200,401 x3
+C POST /hub/negotiate: 200 x4
+C POST /api/auth/signout: 204 x3
+C POST /api/invite/magenta-warbler-1461: 200 x1
+E POST /api/auth/signin: 200 x1
+E POST /hub/negotiate: 200 x5
+E PATCH /api/account: 204 x1
+E POST /api/invite/magenta-warbler-1461: 200 x1
+E POST /api/channels/2d79ee90-d181-4ba6-9fd5-323358ba244d/messages: 200 x1
+A POST /api/admin/links: 200 x1
+C POST /api/invite/cherry-muskrat-6845: 200 x1
+A PUT /api/admin/settings: 204 x4
+D POST /api/auth/signin: 202,200 x2
+A POST /api/admin/pending/pending1/approve: 204 x1
+D POST /hub/negotiate: 200 x1
+D PATCH /api/account: 204 x1
+A PUT /api/admin/bot: 204 x1
+A POST /api/admin/generate: 200 x1
+A POST /api/rooms: 201 x1
+A POST /api/rooms/b5583730-9f79-406e-a01b-5a496d5e890e/move: 204 x1
+A DELETE /api/rooms/b5583730-9f79-406e-a01b-5a496d5e890e: 204 x1
+A POST /api/auth/signout: 204 x1
+
+==== BROWSER LOG (deduplicated; [steps] where seen) ====
+8x [2,3,4,7,8] A|requestfailed|PATCH /api/account net::ERR_ABORTED
+1x [2] B|requestfailed|PATCH /api/account net::ERR_ABORTED
+1x [3] A|requestfailed|GET /api/account/passphrase net::ERR_ABORTED
+1x [3] A|requestfailed|GET /api/account/location net::ERR_ABORTED
+1x [5] A|requestfailed|PUT /api/account/link/expiry net::ERR_ABORTED
+4x [7] A|requestfailed|PUT /api/account/mutes net::ERR_ABORTED
+3x [8,9] C|requestfailed|POST /api/auth/signout net::ERR_ABORTED
+1x [8] C|http|401 POST /api/auth/signin
+1x [8] C|console.error|Failed to load resource: the server responded with a status of 401 (Unauthorized) @ /api/auth/signin:0
+1x [10] E|requestfailed|PATCH /api/account net::ERR_ABORTED
+4x [12] A|requestfailed|PUT /api/admin/settings net::ERR_ABORTED
+1x [12] A|requestfailed|POST /api/admin/pending/pending1/approve net::ERR_ABORTED
+1x [12] D|requestfailed|PATCH /api/account net::ERR_ABORTED
+1x [13] A|requestfailed|PUT /api/admin/bot net::ERR_ABORTED
+1x [14] A|requestfailed|POST /api/rooms/b5583730-9f79-406e-a01b-5a496d5e890e/move net::ERR_ABORTED
+1x [14] A|requestfailed|DELETE /api/rooms/b5583730-9f79-406e-a01b-5a496d5e890e net::ERR_ABORTED
+1x [15] A|requestfailed|POST /api/auth/signout net::ERR_ABORTED
+
+==== SERVER LOG: fail/crit/exception lines ====
+(none)
+
+15 passed, 0 failed

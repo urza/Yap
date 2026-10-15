@@ -1,0 +1,52 @@
+server: /tmp/yap-user-review-20261015/Yap/bin/Debug/net10.0/Yap.dll on http://127.0.0.1:5298, root /tmp/yap-user-review-20261015/scratch-features/root-2Bpivn
+setup: A /lobby, B /lobby
+[PASS] 1. Reply
+    reply-bar visible true "Replying to guest ✕"; original reply-target true; input focused true
+    A: class "message-group has-header has-reply", reply-preview "G guest original"
+    B: class "message-group has-header has-reply", reply-preview "G guest original"
+    A reply-bar hidden after send: true; reply-target left: 0
+    B original gets highlight-message: true
+[PASS] 2. Link card
+    a.message-link count 1, target _blank, text "https://example.com/"
+    link-preview-card within 15 s: true "Example Domain" (B: 1)
+[PASS] 3. Images and the gallery
+    gallery with 2 items: true; B galleries: 1
+    counter index right after the modal appears: "1"; filled after 2 ms
+    modal stages 2, counter 1/2
+    ArrowRight -> index "2"
+    Escape closes the modal: true
+[PASS] 4. Emoji-only and mixed
+    emoji-only row with 2 img.emoji-big: true (content class "message-content emoji-only", imgs ["emoji emoji-big","emoji emoji-big"])
+    mixed: imgs ["emoji emoji-text"], content class "message-content"
+[PASS] 5. Pack emoji
+    packs[0].emojis[0].shortcode = 666
+    A img.emoji-custom: true ["emoji emoji-big emoji-custom alt=:666:"]; B: true
+[PASS] 6. Older messages
+    generate: 200 {"generated":120,"hours":2}
+    initial rows 50; scroll {"top":1727,"h":2398,"ch":671}; at bottom true
+    after scroll to top: .loading-more seen true; rows 100; scrollTop 2079 (> 0 means no jump to the top)
+    history-start reached: true (["This is the beginning of #lobby"]); total rows 127; older pages loaded 2
+[PASS] 7. New messages pill
+    pill shown: true ("New messages"); scrollTop 0 -> 0
+    after click: pill count 0, distance to bottom 0
+[PASS] 8. Typing in a DM
+    A /dm/guest, B /dm/boss; B indicator visible true, text "boss is typing..."
+    case 1 (guest opened the DM while boss typed): indicator hidden after boss stops: true (3199 ms after the last key)
+    case 2 (both already in the DM, boss types again): shown true, hidden true after 3288 ms
+[PASS] 9. Shift+Enter
+    textContent "line1\nline2", innerText "line1\nline2", <br> 0, white-space pre-wrap; B has row true
+[PASS] 10. Two GIF files in one pick become one message with two GIFs (IB-33)
+    message with GIFs true; GIF counts per message [2]; GIFs in the last gallery 2; pending rows left 0; statuses []
+    B shows two GIFs in one row: true
+[PASS] 11. Chosen Away stops the automatic read (NT-07, PR-24)
+    A Away true; unread count of the open DM after B's message: 1
+    back Online: unread 0 (the three conditions hold again)
+
+==== BROWSER LOG (deduplicated; [steps] where seen) ====
+1x [0] A|requestfailed|PATCH /api/account net::ERR_ABORTED
+1x [0] B|requestfailed|PATCH /api/account net::ERR_ABORTED
+
+==== SERVER LOG: fail/crit/exception lines ====
+(none)
+
+11 passed, 0 failed

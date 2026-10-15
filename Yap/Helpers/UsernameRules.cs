@@ -3,9 +3,8 @@ using System.Text.RegularExpressions;
 namespace Yap.Helpers;
 
 /// <summary>
-/// The username format, in one place. Login.razor checks it as the user types; the invite
-/// endpoint checks it server-side, because an invite creates the account without ever
-/// passing through the login page's UI.
+/// The username format, in one place. SignInService checks every new name, from the login
+/// route and from the invite route, because both create accounts.
 /// </summary>
 public static partial class UsernameRules
 {

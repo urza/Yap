@@ -1,0 +1,95 @@
+server: /tmp/yap-user-review-20261015/Yap/bin/Debug/net10.0/Yap.dll on http://127.0.0.1:5303, root /tmp/yap-user-review-20261015/scratch-smoke-repeat/root-cc4U2S
+[PASS] 1. Login page
+    username-input present
+    join-button present, text "Join Chat"
+[PASS] 2. Sign in boss, frame
+    status-username "boss"
+    room-item count 2 (# lobby | + Add Room)
+    message-input present
+    path /lobby
+    add-room present (admin)
+[PASS] 3. Sign in guest, presence in A
+    B frame up, path /lobby
+    A shows guest user-item without reload: true, 109 ms after guest's submit
+    online-count "3"; users-list: boss (you) | Ping 1 | guest; people-header "Online Users (3)"
+[PASS] 4. Send "hello from boss"
+    A row present, .pending gone within 5s: true (33 ms); classes seen: message-group has-header pending / message-group has-header
+    A input cleared
+    B row present: true, header name "boss"
+[PASS] 5. Send "hi boss" from B
+    A shows "hi boss"
+    B: "hello from boss" class="message-group has-header"; "hi boss" class="message-group has-header"
+    A: "hello from boss" class="message-group has-header"; "hi boss" class="message-group has-header"
+[PASS] 6. Reaction from B
+    wrapper open; sections recent:0, pack-wechat:75, smileys:131, gestures:87, animals:75, nature:62, food:108, activities:93, travel:84, objects:117, symbols:108, flags:60
+    clicked 😀; pill in B: true, in A: true ("1"); wrapper closed: true
+[PASS] 7. Edit in A
+    edit-input value "hello from boss"
+    A: content "hello from boss (edited) (edited)", edited-indicator true
+    B: content "hello from boss (edited) (edited)", edited-indicator true
+    editor closed in A
+[PASS] 8. Typing indicator
+    A typing-indicator visible with guest: true, text "guest is typing.." (481 ms after first key)
+    hidden attribute set: true (3077 ms after last key); still visible to the user: false; computed display "none", hidden=true, text left "guest is typing.."
+[PASS] 9. DM and unread
+    A path /dm/guest
+    dm header "guest"
+    data-context=dm
+    B boss unread-badge "1" visible=true
+    B mailbox visible true, badge "1"
+    B path /dm/boss
+    B sees psst: true
+    B mailbox computed display none: true (display "none", hidden attr true); boss badge now "0"
+[PASS] 10. Delete psst
+    more-menu items: Copy Text | Delete Message
+    delete-confirm-overlay shown
+    gone in A: true, in B: true; overlay closed: true
+[PASS] 11. Status menu, Away
+    items: Online | Away | Invisible | Settings | Notification settings | Admin | Sign Out
+    A status-button class "status-button status-away"; dropdown closed: true
+    B boss dot class "user-status-dot away"
+    back to online: A "status-button status-online", B dot "user-status-dot online"
+[PASS] 12. Emoji toggle
+    data-picker=emoji, picker visible true, sections 12
+    after "smile": 4 visible .emoji-btn:not([data-search-miss]) (4 without data-search-miss in DOM)
+    Escape closes: data-picker=null
+[PASS] 13. GIF toggle
+    data-picker=gif, gif-picker visible true
+    gif-results text "No recent GIFs yet" (children 1)
+    click outside closes: data-picker=null
+[PASS] 14. Reload A on DM
+    path /dm/guest, context dm, header "guest"
+    messages before ["before reload"] after ["before reload"]
+    HTTP errors after reload: 0
+    A log entries after reload: 0
+[PASS] 15. Phone layout
+    hamburger visible true (people icon visible false), sidebar class "users-sidebar", path /lobby
+    after toggle: "users-sidebar sidebar-open"
+    sidebar closed again before emoji: true
+    combined-picker in emoji pane: true, visible true, data-picker=emoji, active-tab emoji
+    sheet after Settings and back: emoji buttons before 1000, after 1000; GIF pane children 1
+[PASS] 16. Sign out A
+    bootstrap user flags {"hasLink":true,"hasPassphrase":false}
+    login page: true, path /login, dialogs: []
+    /api/auth/signout status 204
+    second tab of the device: login page true, user null, connection signedOut
+    A log entries during sign-out: 1 — requestfailed: POST /api/auth/signout net::ERR_ABORTED
+[FAIL] 17. Back button in B reopens the DM (SH-44)
+    !! start /dm/boss; after lobby click: path /lobby, context dm
+    after back: path /dm/boss, context dm, header "boss", messages ["before reload"]
+    second back: path /lobby, context room
+
+==== HIDDEN-BUT-DISPLAYED (elements with [hidden] whose computed display is not none) ====
+
+==== BROWSER LOG (deduplicated; [steps] where seen) ====
+1x [2] A|requestfailed|PATCH /api/account net::ERR_ABORTED
+1x [3] B|requestfailed|PATCH /api/account net::ERR_ABORTED
+1x [15] phone|requestfailed|PATCH /api/account net::ERR_ABORTED
+1x [15] phone|requestfailed|GET /api/account/passphrase net::ERR_ABORTED
+1x [15] phone|requestfailed|GET /api/account/location net::ERR_ABORTED
+1x [16] A|requestfailed|POST /api/auth/signout net::ERR_ABORTED
+
+==== SERVER LOG: fail/crit/exception lines ====
+(none)
+
+16 passed, 1 failed: 17
