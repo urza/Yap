@@ -97,7 +97,9 @@ async function networkFirst(request, cacheName, fallbackKey = null) {
 async function cacheFirst(request, cacheName) {
     const cache = await caches.open(cacheName);
     const cached = await cache.match(request);
-    if (cached) return cached;
+    // An opaque entry (a script tag's no-cors fetch) is no answer for a CORS request such as an emoji <img
+    // crossorigin>: the browser would show a broken picture. Such a pair fetches again and the real answer wins.
+    if (cached && !(cached.type === 'opaque' && request.mode === 'cors')) return cached;
     try {
         const response = await fetch(request);
         if (response.status === 200 || response.type === 'opaque') cache.put(request, response.clone());   // a 206 range answer cannot be cached

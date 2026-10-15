@@ -8,6 +8,7 @@ import * as store from './store.js';
 import { api } from './api.js';
 import { saveBootstrap } from './offline/snapshot.js';
 import { installed } from './push.js';
+import { retryFailedImages } from './render/text.js';
 
 const DEVICE_KEY = 'yap.deviceId';
 
@@ -74,6 +75,7 @@ export async function connect() {
   everConnected = true;
   attempts = 0;
   store.setConnection('connected');
+  retryFailedImages();   // emoji pictures that the CDN did not deliver while the network was poor (MR-15)
 
   const results = await Promise.allSettled([
     api.get(`/api/bootstrap?connection=${encodeURIComponent(connection.connectionId ?? '')}`),
