@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Yap.Helpers;
@@ -55,6 +56,63 @@ public class SecurityTests : IClassFixture<YapFactory>
         var spoofed = Request("198.51.100.7", "203.0.113.9");   // the client wrote the header itself
         await middleware.Invoke(spoofed);
         Assert.Null(IpHelper.GetClientIp(spoofed));
+    }
+
+    [Fact(DisplayName = "AU-09: behind a Cloudflare hop the visitor is CF-Connecting-IP; from anyone else the header is ignored")]
+    public async Task Cloudflare_hop_gives_the_visitor_and_needs_no_listing()
+    {
+        // The deployment this models: visitor -> Cloudflare -> Caddy (no Cloudflare configuration) -> Docker gateway -> Yap.
+        // Only the gateway is listed; Cloudflare is known by its ranges (CloudflareIps), and Caddy passes CF-Connecting-IP through.
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["ChatSettings:TrustedProxies:0"] = "10.0.0.0/8" }).Build();
+        var middleware = new ForwardedHeadersMiddleware(_ => Task.CompletedTask, NullLoggerFactory.Instance, Options.Create(TrustedProxies.Options(config)));
+        var services = new ServiceCollection().AddSingleton<CloudflareIps>().BuildServiceProvider();
+
+        static DefaultHttpContext Request(IServiceProvider services, string peer, string? forwardedFor, string? connectingIp)
+        {
+            var http = new DefaultHttpContext { RequestServices = services };
+            http.Connection.RemoteIpAddress = IPAddress.Parse(peer);
+            if (forwardedFor is not null) http.Request.Headers["X-Forwarded-For"] = forwardedFor;
+            if (connectingIp is not null) http.Request.Headers["CF-Connecting-IP"] = connectingIp;
+            return http;
+        }
+
+        var viaCaddy = Request(services, "10.1.2.3", "104.16.1.1", "203.0.113.9");   // Caddy wrote the Cloudflare edge into X-Forwarded-For
+        await middleware.Invoke(viaCaddy);
+        Assert.Equal("203.0.113.9", IpHelper.GetClientIp(viaCaddy));
+        Assert.Null(IpHelper.UntrustedForwardedFor(viaCaddy));
+
+        var direct = Request(services, "172.64.5.5", "203.0.113.9", "203.0.113.9");   // Cloudflare itself is the peer, nothing listed for it
+        await middleware.Invoke(direct);
+        Assert.Equal("203.0.113.9", IpHelper.GetClientIp(direct));
+        Assert.Null(IpHelper.UntrustedForwardedFor(direct));   // no "proxy not trusted" notice for Cloudflare
+
+        var spoofed = Request(services, "198.51.100.7", null, "203.0.113.42");   // not a Cloudflare address: the header is the client's word
+        await middleware.Invoke(spoofed);
+        Assert.Equal("198.51.100.7", IpHelper.GetClientIp(spoofed));
+
+        var aroundCloudflare = Request(services, "10.1.2.3", "198.51.100.7", "203.0.113.42");   // reached Caddy without Cloudflare
+        await middleware.Invoke(aroundCloudflare);
+        Assert.Equal("198.51.100.7", IpHelper.GetClientIp(aroundCloudflare));
+    }
+
+    [Fact(DisplayName = "AU-09: a CF-Connecting-IP from a peer that is not Cloudflare does not sign in as the person who used that address")]
+    public async Task Spoofed_cloudflare_header_does_not_sign_in()
+    {
+        await _app.SignInAsync("nora_smart");
+        var users = _app.Service<UserService>();
+        users.RecordKnownIp(users.GetByUsername("nora_smart")!.Id, "203.0.113.77");
+
+        var attacker = _app.CreateClient();
+        attacker.DefaultRequestHeaders.Add("X-Test-Remote-Ip", "198.51.100.7");
+        attacker.DefaultRequestHeaders.Add("CF-Connecting-IP", "203.0.113.77");
+        var check = await attacker.GetFromJsonAsync<JsonElement>("/api/auth/check?username=nora_smart");
+        Assert.NotEqual("smart", check.GetProperty("state").GetString());
+
+        var throughCloudflare = _app.CreateClient();   // the same header from a Cloudflare address is the visitor
+        throughCloudflare.DefaultRequestHeaders.Add("X-Test-Remote-Ip", "104.16.1.1");
+        throughCloudflare.DefaultRequestHeaders.Add("CF-Connecting-IP", "203.0.113.77");
+        var own = await throughCloudflare.GetFromJsonAsync<JsonElement>("/api/auth/check?username=nora_smart");
+        Assert.Equal("smart", own.GetProperty("state").GetString());
     }
 
     [Fact(DisplayName = "AU-09: a spoofed X-Forwarded-For does not sign in as the person who used that address")]

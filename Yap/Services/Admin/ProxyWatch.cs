@@ -7,7 +7,8 @@ namespace Yap.Services.Admin;
 /// Such a server runs, but every client address counts as unknown and smart login is off (IpHelper), and the
 /// person who installed it must learn why in a place they look at: the log says it at start and at the first such
 /// request, the bot tells the admin in chat, and the admin page shows a notice until the proxy is listed and the
-/// server restarted (the list is read at start).
+/// server restarted (the list is read at start). A request through Cloudflare is not such a request: Cloudflare is
+/// trusted by its own address ranges (IpHelper, CloudflareIps).
 /// </summary>
 public sealed class ProxyWatch(IConfiguration configuration)
 {
@@ -24,7 +25,7 @@ public sealed class ProxyWatch(IConfiguration configuration)
     /// True the first time, for the log and the bot.</summary>
     public bool Note(HttpContext context)
     {
-        if (IpHelper.UntrustedForwardedFor(context.Request) is not { } forwardedFor) return false;
+        if (IpHelper.UntrustedForwardedFor(context) is not { } forwardedFor) return false;
         lock (_gate)
         {
             Count++;

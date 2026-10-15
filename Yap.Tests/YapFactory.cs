@@ -39,6 +39,7 @@ public class YapFactory : WebApplicationFactory<Program>
             builder.UseSetting("ChatSettings:Persistence:ConnectionStrings:SQLite", $"Data Source={SqlitePath}");
         builder.UseSetting("ChatSettings:ClearUploadsOnStart", "false");
         builder.UseSetting("ChatSettings:Bot:Enabled", "true");
+        builder.UseSetting("ChatSettings:CloudflareIpsUrl", "");   // a test never reaches the network; the built-in ranges serve
         builder.UseSetting("Logging:LogLevel:Default", "Warning");
         builder.ConfigureServices(services => services.AddSingleton<IStartupFilter, TestRemoteIp>());
     }

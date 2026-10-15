@@ -177,6 +177,9 @@ builder.Services.AddSingleton<DiagnosticsCollectorService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DiagnosticsCollectorService>());
 builder.Services.AddHostedService<TusCleanupService>();   // expired unfinished uploads leave the disk
 builder.Services.AddSingleton<ProxyWatch>();              // the notice about a proxy that is not trusted
+builder.Services.AddSingleton<CloudflareIps>();           // Cloudflare's ranges: the one proxy trusted without a listing (IpHelper)
+builder.Services.AddHostedService<CloudflareIpsRefresh>();
+builder.Services.AddHttpClient("Cloudflare", client => client.Timeout = TimeSpan.FromSeconds(15));
 
 // CORS for upload subdomain (tus uploads may come from a different origin)
 builder.Services.AddCors(options =>
@@ -226,6 +229,7 @@ if (builder.Configuration.GetValue<bool>("ChatSettings:ClearUploadsOnStart", tru
 // Configure the HTTP request pipeline.
 // First: the proxies in ChatSettings:TrustedProxies may say who the client is and which scheme it used. A forwarded
 // header from any other peer stays on the request, and IpHelper then reports the address as unknown (AU-09).
+// Cloudflare is the exception: IpHelper knows its ranges and reads CF-Connecting-IP behind a Cloudflare hop.
 app.UseForwardedHeaders(TrustedProxies.Options(builder.Configuration));
 var proxyWatch = app.Services.GetRequiredService<ProxyWatch>();
 if (proxyWatch.Trusted.Count > 0) app.Logger.LogInformation("Trusted proxies: {Proxies}", string.Join(", ", proxyWatch.Trusted));

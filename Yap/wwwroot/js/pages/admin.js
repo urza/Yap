@@ -420,7 +420,7 @@ export function mount(root) {
     replace(box, [
       el('strong', null, 'Requests reach this server through a proxy that is not trusted.'),
       el('p', null, `The peer ${proxy.untrustedPeer} is not in ChatSettings:TrustedProxies (forwarded chain: ${proxy.forwardedFor}). Every client address counts as unknown and smart login is off for everyone. ${proxy.count} such requests since ${stamp(proxy.firstSeenAt)}.`),
-      el('p', null, "Add the proxy's address or its network (CIDR) to Data/appsettings.json and restart. Behind Cloudflare, add Cloudflare's published ranges as well."),
+      el('p', null, "Add the proxy's address or its network (CIDR) to Data/appsettings.json and restart. Cloudflare needs no entry: its ranges are built in."),
       el('pre', null, `"TrustedProxies": ["${proxy.untrustedPeer}"]`),
       proxy.trusted.length ? el('p', null, `Trusted now: ${proxy.trusted.join(', ')}`) : null,
     ]);
