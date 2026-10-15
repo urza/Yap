@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Yap.Helpers;
 using Yap.Configuration;
 using Yap.Models.Accounts;
 using Yap.Models.Admin;
@@ -244,8 +245,21 @@ public static class AdminEndpoints
 
         // ---- Diagnostics (AD-24 to AD-28) -------------------------------------------------------------------
 
-        // The server's standing notices for the admin page: today the proxy that is not trusted (ProxyWatch).
-        admin.MapGet("/status", (ProxyWatch proxy) => Results.Ok(new { proxy = proxy.Status() }));
+        // The server's standing notices for the admin page (the proxy that is not trusted, ProxyWatch) and the proxy
+        // section of the Settings tab: the Cloudflare ranges, and this very request as the server sees it, so the
+        // admin can tell a working chain from a wrong one by looking at their own address.
+        admin.MapGet("/status", (HttpContext http, ProxyWatch proxy, CloudflareIps cloudflare) => Results.Ok(new
+        {
+            proxy = proxy.Status(),
+            cloudflare = cloudflare.Status(),
+            you = new
+            {
+                address = IpHelper.GetClientIp(http),
+                peer = http.Connection.RemoteIpAddress is { } peer ? IpHelper.Unmapped(peer).ToString() : null,
+                viaCloudflare = http.Connection.RemoteIpAddress is { } p && cloudflare.Contains(p),
+                scheme = http.Request.Scheme,
+            },
+        }));
 
         admin.MapGet("/diagnostics", (ChatService chat, PresenceService presence, DiagnosticsCollectorService collector, NotificationAudit audit,
             PushNotificationService push, PersistenceWriter writer, SystemBotService bot) =>

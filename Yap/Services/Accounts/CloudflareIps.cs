@@ -27,6 +27,12 @@ public sealed class CloudflareIps
 
     public IReadOnlyList<IPNetwork> Networks => _networks;
 
+    /// <summary>Where the current list came from: "built-in", "cache" or "download", and when (download only).</summary>
+    public string Source { get; private set; } = "built-in";
+    public DateTime? RefreshedAt { get; private set; }
+
+    public CloudflareStatusDto Status() => new(_networks.Length, Source, RefreshedAt);
+
     public bool Contains(IPAddress address)
     {
         address = IpHelper.Unmapped(address);
@@ -36,17 +42,21 @@ public sealed class CloudflareIps
     }
 
     /// <summary>Replaces the list. Entries that do not parse are skipped; an empty result keeps the old list.</summary>
-    public bool Apply(IEnumerable<string> cidrs)
+    public bool Apply(IEnumerable<string> cidrs, string source, DateTime? refreshedAt = null)
     {
         var parsed = Parse(cidrs);
         if (parsed.Length == 0) return false;
         _networks = parsed;
+        Source = source;
+        RefreshedAt = refreshedAt;
         return true;
     }
 
     private static IPNetwork[] Parse(IEnumerable<string> cidrs) =>
         cidrs.Select(c => IPNetwork.TryParse(c.Trim(), out var n) ? n : (IPNetwork?)null).OfType<IPNetwork>().ToArray();
 }
+
+public sealed record CloudflareStatusDto(int Count, string Source, DateTime? RefreshedAt);
 
 /// <summary>
 /// Keeps <see cref="CloudflareIps"/> current: the last download from Data/cloudflare-ips.json at start, then a
@@ -81,7 +91,7 @@ public sealed class CloudflareIpsRefresh(CloudflareIps ips, IHttpClientFactory c
         {
             if (!File.Exists(CachePath)) return;
             var cached = JsonSerializer.Deserialize<Cidrs>(File.ReadAllText(CachePath));
-            if (cached is not null && ips.Apply(cached.All)) log.LogDebug("Cloudflare ranges: {Count} from {Path}", ips.Networks.Count, CachePath);
+            if (cached is not null && ips.Apply(cached.All, "cache", File.GetLastWriteTimeUtc(CachePath))) log.LogDebug("Cloudflare ranges: {Count} from {Path}", ips.Networks.Count, CachePath);
         }
         catch (Exception e) { log.LogDebug(e, "Cloudflare ranges: {Path} is not readable, the built-in list stays", CachePath); }
     }
@@ -91,7 +101,7 @@ public sealed class CloudflareIpsRefresh(CloudflareIps ips, IHttpClientFactory c
         using var response = await clients.CreateClient("Cloudflare").GetAsync(url, ct);
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadFromJsonAsync<Envelope>(ct);
-        if (body?.Result is not { } result || !ips.Apply(result.All)) throw new InvalidDataException("no ranges in the response");
+        if (body?.Result is not { } result || !ips.Apply(result.All, "download", DateTime.UtcNow)) throw new InvalidDataException("no ranges in the response");
         Directory.CreateDirectory(Path.GetDirectoryName(CachePath)!);
         await File.WriteAllTextAsync(CachePath, JsonSerializer.Serialize(result), ct);
         log.LogInformation("Cloudflare ranges: {Count} networks, refreshed", ips.Networks.Count);

@@ -178,6 +178,7 @@ export function mount(root) {
         hint(s.gifProviderConfigured ? 'Provider: configured' : 'Provider: not configured')),
       el('div', { class: 'section-header', style: { marginTop: '2rem' } }, el('h3', null, 'Deployment'), el('span', { class: 'section-count' }, 'Set in appsettings.json, per instance')),
       el('div', { class: 'howto-list' },
+        proxyHost,
         howto('Upload subdomain (tus)', s.uploadUrl, 'off — uploads use /api/tus on this domain', [
           'Uploads that pass through the Cloudflare proxy hit its request size limit. A direct subdomain avoids that limit, so large files upload without errors.',
           ['Add a DNS record for upload.your-domain.com. Make it DNS-only (grey cloud). Point it at this server.', "Give this server a trusted TLS certificate for that hostname (for example Let's Encrypt). Cloudflare origin certificates do not work here, because the browser connects directly.", 'Set ChatSettings:UploadUrl to https://upload.your-domain.com/api/tus and restart. In Docker, set the env var ChatSettings__UploadUrl instead.'],
@@ -188,6 +189,31 @@ export function mount(root) {
           'Leave the setting empty to disable. The value is display-only and never affects login decisions.'])),
       pendingHost,
     ]);
+    // Reverse proxy and Cloudflare (AU-09): what is trusted, what the server sees, and the lines to paste. Always
+    // shown, unlike the red notice above the tabs, which only appears while a proxy is not trusted.
+    const proxyHost = el('div');
+    const drawProxy = ({ proxy, cloudflare, you }) => {
+      const peer = proxy.untrustedPeer;
+      const trusted = proxy.trusted.length ? proxy.trusted.join(', ') : '';
+      const seen = you.address
+        ? `Your address as the server sees it: ${you.address}${you.viaCloudflare ? ' (through Cloudflare)' : ''}, connection from ${you.peer}, scheme ${you.scheme}.`
+        : `Your address is unknown to the server (connection from ${you.peer}, scheme ${you.scheme}). A forwarded header came from a peer that is not trusted.`;
+      // The lines with the values this very request shows: the origin the admin's browser used, and the peer the
+      // connection came from (the proxy or the Docker gateway). Shown inside the block they belong to.
+      const snippet = `"ChatSettings": {\n  "PublicOrigin": "${location.origin}",\n  "TrustedProxies": ["${peer ?? you.peer ?? '172.17.0.1'}"],\n  ...\n}`;
+      replace(proxyHost, [el('details', { class: 'howto-box', open: !!peer },
+        el('summary', null, el('span', { class: 'toggle-label' }, 'Reverse proxy and Cloudflare'),
+          el('span', { class: `howto-status${trusted && !peer ? ' on' : ''}` }, trusted ? `trusted: ${trusted}` : 'no proxy trusted')),
+        el('div', { class: 'howto-body' },
+          el('p', null, seen),
+          peer ? el('p', null, `Requests come from ${peer}, which is not in TrustedProxies (forwarded chain: ${proxy.forwardedFor}). Every client address counts as unknown and smart login is off. ${proxy.count} such requests since ${stamp(proxy.firstSeenAt)}.`) : null,
+          el('p', null, `Cloudflare needs no entry: ${cloudflare.count} Cloudflare networks are known (${cloudflare.source}${cloudflare.refreshedAt ? ', ' + stamp(cloudflare.refreshedAt) : ''}). Behind a Cloudflare hop the visitor comes from CF-Connecting-IP, also through Caddy or nginx.`),
+          el('p', null, 'List the proxy next to this server, or the Docker gateway when this server runs in a container. The values below are detected from this request. Add the two lines to the "ChatSettings" block of Data/appsettings.json, keep the rest of the block, and restart. A network in CIDR form (172.17.0.0/16) survives a gateway change; the single address works too.'),
+          el('pre', null, snippet),
+          el('p', null, you.address ? 'The chain works when the address above is your own public address, not a Docker gateway and not a Cloudflare address.' : 'List the peer above, restart, and reload this page. Your address should then be your own public address.'))),
+      ]);
+    };
+    api.get('/api/admin/status').then(drawProxy).catch(() => {});
     const howto = (label, value, off, [intro, steps, outro]) => el('details', { class: 'howto-box' },
       el('summary', null, el('span', { class: 'toggle-label' }, label), el('span', { class: `howto-status${value ? ' on' : ''}` }, value || off)),
       el('div', { class: 'howto-body' }, el('p', null, intro), el('ol', null, steps.map(t => el('li', null, t))), el('p', null, outro)));
