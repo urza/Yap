@@ -10,7 +10,7 @@ namespace Yap.Services.Chat;
 /// use it, so every reader sees the same message. It resolves what the row needs from other services: image
 /// sizes, video posters, GIF files and uploaders, the quoted original of a reply, and the link cards.
 /// </summary>
-public sealed class MessageMapper(ChatService chat, GifService gifs, UserService users, LinkPreviewService previews, LinkPreviewSettingsService previewSettings)
+public sealed class MessageMapper(ChatService chat, GifService gifs, UserService users, LinkPreviewService previews, LinkPreviewSettingsService previewSettings, MediaCacheService mediaCache)
 {
     /// <summary>The wire shape for one reader. The reader matters for the quote of a reply: a room with a history
     /// cutoff hides the original from some readers (TL-05), and their quote says "unavailable" instead of carrying
@@ -40,6 +40,8 @@ public sealed class MessageMapper(ChatService chat, GifService gifs, UserService
         foreach (var url in LinkPreviewService.ExtractUrls(m.Content).Take(5))
         {
             var p = previews.GetCachedPreview(url);
+            // The file outlives the scrape: it is on disk across restarts, the scrape is in memory for an hour.
+            if (p?.CachedMediaUrl is null && mediaCache.GetCachedMedia(url) is { } file) p = previews.AttachMedia(url, file);
             if (p is null || (!p.HasContent && p.CachedMediaUrl is null)) continue;
             var media = p.CachedMediaUrl is null ? null
                 : new PreviewMediaDto(p.MediaType?.ToString().ToLowerInvariant() ?? "video", p.CachedMediaUrl, p.CachedPosterUrl, p.MediaWidth, p.MediaHeight, p.MediaDurationSeconds);

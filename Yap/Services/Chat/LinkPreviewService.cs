@@ -102,6 +102,30 @@ public partial class LinkPreviewService
     }
 
     /// <summary>
+    /// A cached media file completes the preview of its URL, then the card becomes a player (MR-23). Used when a
+    /// download finishes and when a page of history meets a file that is already on disk from before a restart.
+    /// </summary>
+    public LinkPreview AttachMedia(string url, MediaCacheEntry entry)
+    {
+        var preview = GetOrCreatePreview(url);
+        preview.CachedMediaUrl = entry.LocalUrl;
+        preview.CachedPosterUrl = entry.PosterUrl;
+        preview.MediaType = entry.MediaType;
+        preview.MediaDurationSeconds = entry.DurationSeconds;
+        if (entry.Width > 0 && entry.Height > 0)
+        {
+            preview.MediaWidth = entry.Width;
+            preview.MediaHeight = entry.Height;
+        }
+        // yt-dlp's title and thumbnail fill in when the page scrape got none (YouTube serves bots a consent page).
+        if (string.IsNullOrEmpty(preview.Title)) preview.Title = entry.Title;
+        if (string.IsNullOrEmpty(preview.ImageUrl)) preview.ImageUrl = entry.Thumbnail;
+        if (!string.IsNullOrEmpty(preview.Title) || !string.IsNullOrEmpty(preview.ImageUrl) || !string.IsNullOrEmpty(preview.CachedMediaUrl))
+            preview.Failed = false;
+        return preview;
+    }
+
+    /// <summary>
     /// Fire-and-forget background fetch. Invokes OnPreviewFetched when done.
     /// </summary>
     public void QueueFetch(Guid messageId, string url)

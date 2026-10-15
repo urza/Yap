@@ -83,6 +83,7 @@ public sealed class ChatHub(ChatService chat, PresenceService presence, UserServ
     public Page Older(Guid channelId, DateTime beforeTimestamp, Guid beforeId)
     {
         var (messages, hasMore) = chat.Older(channelId, beforeTimestamp, beforeId, PageSize, Me);
+        chat.EnsurePreviews(messages);   // the cards of history arrive by the "previews" message (MR-22)
         return new Page(messages.Select(m => map.From(m, Me)).ToList(), hasMore);
     }
 
@@ -132,6 +133,7 @@ public sealed class ChatHub(ChatService chat, PresenceService presence, UserServ
     {
         chat.MarkRead(Me, channel.Id, "open", Context.ConnectionId);
         var (messages, hasMore, restricted) = chat.Tail(channel.Id, PageSize, Me);
+        chat.EnsurePreviews(messages);
         return new Conversation(channel.Id, messages.Select(m => map.From(m, Me)).ToList(), hasMore, restricted, presence.Typists(channel.Id, except: MyName));
     }
 }

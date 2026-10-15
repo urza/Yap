@@ -22,6 +22,10 @@ public partial class MediaCacheService
 
     // Failed URLs: don't retry URLs that yt-dlp can't handle (TTL: 1 hour)
     private readonly ConcurrentDictionary<string, DateTime> _failedUrls = new();
+    // URLs whose file is not on disk: the mapper asks for every link of every served page, and a directory scan
+    // per link per page adds up. A download that completes goes into _cache, which is checked first, so a miss
+    // never has to be forgotten.
+    private readonly ConcurrentDictionary<string, byte> _notOnDisk = new();
 
     // Dedup in-flight downloads
     private readonly ConcurrentDictionary<string, byte> _inFlight = new();
@@ -115,6 +119,9 @@ public partial class MediaCacheService
             && uri.Host.Equals("open.spotify.com", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>The cached file of a URL, from memory or from disk (a restart empties the memory), or null.</summary>
+    public MediaCacheEntry? GetCachedMedia(string url) => GetOrLoadCachedMedia(url);   // a file on disk plays without yt-dlp
+
     /// <summary>
     /// Checks memory cache, then disk. Populates memory cache on disk hit.
     /// </summary>
@@ -122,36 +129,34 @@ public partial class MediaCacheService
     {
         if (_cache.TryGetValue(url, out var existing))
             return existing;
+        if (_notOnDisk.ContainsKey(url)) return null;
 
         // Check disk (covers app restart)
         var hash = ComputeHash(url);
         var diskFile = FindOutputFile(hash);
-        if (diskFile != null)
+        if (diskFile == null) { _notOnDisk[url] = 0; return null; }
+
+        var ext = Path.GetExtension(diskFile);
+        var type = IsVideoExtension(ext) ? CachedMediaType.Video : CachedMediaType.Audio;
+
+        // Pick up title/dimensions/poster from disk if present; otherwise kick off a
+        // background describe so the next render gets them.
+        var title = ReadTitleSidecar(hash);
+        var (w, h) = (0, 0);
+        string? poster = null;
+        var incomplete = title == null && !IsSpotifyUrl(url); // Spotify never has a yt-dlp title
+        if (type == CachedMediaType.Video)
         {
-            var ext = Path.GetExtension(diskFile);
-            var type = IsVideoExtension(ext) ? CachedMediaType.Video : CachedMediaType.Audio;
-
-            // Pick up title/dimensions/poster from disk if present; otherwise kick off a
-            // background describe so the next render gets them.
-            var title = ReadTitleSidecar(hash);
-            var (w, h) = (0, 0);
-            string? poster = null;
-            var incomplete = title == null && !IsSpotifyUrl(url); // Spotify never has a yt-dlp title
-            if (type == CachedMediaType.Video)
-            {
-                var dims = ReadDimensionsSidecar(hash);
-                if (dims != null) (w, h) = dims.Value;
-                if (File.Exists(PosterPath(hash))) poster = PosterUrl(hash);
-                incomplete |= dims == null || poster == null;
-            }
-            if (incomplete) QueueLazyDescribe(url, hash, diskFile, type);
-
-            var entry = new MediaCacheEntry($"/media-cache/{hash}{ext}", type, 0, w, h, title, PosterUrl: poster);
-            _cache[url] = entry;
-            return entry;
+            var dims = ReadDimensionsSidecar(hash);
+            if (dims != null) (w, h) = dims.Value;
+            if (File.Exists(PosterPath(hash))) poster = PosterUrl(hash);
+            incomplete |= dims == null || poster == null;
         }
+        if (incomplete) QueueLazyDescribe(url, hash, diskFile, type);
 
-        return null;
+        var entry = new MediaCacheEntry($"/media-cache/{hash}{ext}", type, 0, w, h, title, PosterUrl: poster);
+        _cache[url] = entry;
+        return entry;
     }
 
     /// <summary>

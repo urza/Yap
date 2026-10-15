@@ -81,21 +81,7 @@ public class ChatService
         // A cached media file completes the LinkPreview of its URL, then the card becomes a player (MR-23).
         _mediaCacheService.OnMediaCached = (messageId, url, entry) =>
         {
-            var preview = _linkPreviewService.GetOrCreatePreview(url);
-            preview.CachedMediaUrl = entry.LocalUrl;
-            preview.CachedPosterUrl = entry.PosterUrl;
-            preview.MediaType = entry.MediaType;
-            preview.MediaDurationSeconds = entry.DurationSeconds;
-            if (entry.Width > 0 && entry.Height > 0)
-            {
-                preview.MediaWidth = entry.Width;
-                preview.MediaHeight = entry.Height;
-            }
-            // yt-dlp's title and thumbnail fill in when the page scrape got none (YouTube serves bots a consent page).
-            if (string.IsNullOrEmpty(preview.Title)) preview.Title = entry.Title;
-            if (string.IsNullOrEmpty(preview.ImageUrl)) preview.ImageUrl = entry.Thumbnail;
-            if (!string.IsNullOrEmpty(preview.Title) || !string.IsNullOrEmpty(preview.ImageUrl) || !string.IsNullOrEmpty(preview.CachedMediaUrl))
-                preview.Failed = false;
+            _linkPreviewService.AttachMedia(url, entry);
             RaisePreviewsReady(messageId);
         };
 
@@ -463,6 +449,26 @@ public class ChatService
         {
             _linkPreviewService.QueueFetch(message.Id, url);
             if (_linkPreviewSettings.MediaCachingEnabled) _mediaCacheService.QueueDownload(message.Id, url);
+        }
+    }
+
+    /// <summary>
+    /// The cards of a served page. Previews live in memory for an hour and not across a restart, so a page of
+    /// history has none until they are fetched again: the hub calls this for every page it serves, the fetch runs
+    /// in the background, and the "previews" message fills the rows in while the reader looks at them (MR-22).
+    /// A preview still in memory is not fetched again. A media file already on disk is attached by the mapper.
+    /// </summary>
+    public void EnsurePreviews(IEnumerable<ChatMessage> messages)
+    {
+        if (!_linkPreviewSettings.Enabled) return;
+        foreach (var message in messages)
+        {
+            if (message.HasMedia) continue;
+            foreach (var url in LinkPreviewService.ExtractUrls(message.Content).Take(5))
+            {
+                if (_linkPreviewService.GetCachedPreview(url) is null) _linkPreviewService.QueueFetch(message.Id, url);
+                if (_linkPreviewSettings.MediaCachingEnabled) _mediaCacheService.QueueDownload(message.Id, url);   // a no-op for a file on disk
+            }
         }
     }
 
