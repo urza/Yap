@@ -19,15 +19,17 @@ public class RequestLoggingMiddleware
     private readonly RequestDelegate _next;
     private readonly RequestLogQueue _logQueue;
     private readonly UserActionLogService _actionLog;
+    private readonly LoadCounters _load;
 
     private static readonly string[] SkipPrefixes = ["/uploads", "/hub"];
     private static readonly string[] SkipExtensions = [".js", ".css", ".webp", ".png", ".jpg", ".jpeg", ".gif", ".webmanifest", ".mp4", ".webm", ".mov", ".avi", ".mkv"];
 
-    public RequestLoggingMiddleware(RequestDelegate next, RequestLogQueue logQueue, UserActionLogService actionLog)
+    public RequestLoggingMiddleware(RequestDelegate next, RequestLogQueue logQueue, UserActionLogService actionLog, LoadCounters load)
     {
         _next = next;
         _logQueue = logQueue;
         _actionLog = actionLog;
+        _load = load;
     }
 
     /// <summary>
@@ -81,6 +83,7 @@ public class RequestLoggingMiddleware
         finally
         {
             stopwatch.Stop();
+            _load.Request(stopwatch.ElapsedMilliseconds);
 
             var clientIp = IpHelper.GetClientIp(context) ?? "unknown";
 

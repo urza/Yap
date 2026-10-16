@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Yap.LoadTest.Shared/Yap.LoadTest.Shared.csproj" />
+  <Project Path="Yap.LoadTest.Worker/Yap.LoadTest.Worker.csproj" />
+  <Project Path="Yap.LoadTest.Orchestrator/Yap.LoadTest.Orchestrator.csproj" />
+  <Project Path="Yap.LoadTest.HostMonitor/Yap.LoadTest.HostMonitor.csproj" />
+</Solution>

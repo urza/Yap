@@ -1,0 +1,8 @@
+bin/
+obj/
+state/
+results/
+*.csv
+
+# The host monitor CSVs of a finished series stay with its report.
+!reports/**/*.csv

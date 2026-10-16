@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Spectre.Console" Version="0.49.1" />
+    <ProjectReference Include="../Yap.LoadTest.Shared/Yap.LoadTest.Shared.csproj" />
+    <!-- The worker's dll and runtimeconfig land next to this exe, so the orchestrator can start `dotnet Yap.LoadTest.Worker.dll`. -->
+    <ProjectReference Include="../Yap.LoadTest.Worker/Yap.LoadTest.Worker.csproj" />
+  </ItemGroup>
+</Project>

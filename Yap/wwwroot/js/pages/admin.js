@@ -378,7 +378,8 @@ export function mount(root) {
   function diagnostics(host) {
     let charts = {};
     const body = el('div');
-    host.append(header('Diagnostics', 'Live system metrics'), body);
+    const load = loadCard();
+    host.append(header('Diagnostics', 'Live system metrics'), load.node, body);
     const ms = v => v == null ? '—' : `${Math.round(v)}`;
     const sessionRow = s => el('tr', s.ghost ? { style: { color: 'var(--color-warning)' } } : null,
       td(s.username), td([s.isMobile ? '📱' : '🖥️', ' ', s.clientIp ?? '—', s.clientIpv4 && s.clientIpv4 !== s.clientIp ? el('span', { style: { color: 'var(--text-secondary)' }, title: 'IPv4 reported by the beacon' }, ` · v4 ${s.clientIpv4}`) : null]),
@@ -433,7 +434,44 @@ export function mount(root) {
     }
     refresh();
     const timer = setInterval(refresh, 30_000);   // AD-02
-    return () => { clearInterval(timer); Object.values(charts).forEach(c => c.destroy()); };
+    return () => { clearInterval(timer); load.stop(); Object.values(charts).forEach(c => c.destroy()); };
+  }
+
+  // Server load: the 1 s samples of /api/admin/load, polled every 2 s. Built for stress tests, so it has its own
+  // clock; the 30 s rhythm of the rest of the tab would hide the moment the server bends.
+  function loadCard() {
+    const stats = el('div', { class: 'diag-stats', style: { marginBottom: '0.75rem' } });
+    const canvas = el('canvas');
+    const node = el('div', { class: 'diag-chart-card', style: { marginBottom: '16px' } }, el('h4', null, 'Server load — last minute'), stats, el('div', { class: 'diag-chart-wrapper' }, canvas));
+    let chart = null;
+    const n = v => v == null ? '—' : String(v);
+    async function tick() {
+      let d;
+      try { d = await api.get('/api/admin/load?seconds=60'); } catch (e) { replace(stats, [empty(e.message)]); return; }
+      const l = d.latest;
+      if (!l) { replace(stats, [empty('No samples yet.')]); return; }
+      replace(stats, [
+        statCard('CPU', `${l.cpuPercent} %`), statCard('Working set', `${l.workingSetMB} MB`), statCard('Heap', `${l.heapMB} MB`),
+        statCard('GC 0/1/2', `${l.gen0}/${l.gen1}/${l.gen2}`), statCard('Pool queue', n(l.threadPoolQueue)), statCard('Connections', n(l.connections)),
+        statCard('Msg/s', n(l.messagesPerSec)), statCard('Hub sends/s', n(l.hubSendsPerSec)), statCard('Req/s', n(l.requestsPerSec)),
+        statCard('Req p95', `${l.requestP95Ms} ms`), statCard('Writer depth', n(l.writerDepth)), statCard('Sweep', `${l.sweepMs.toFixed(1)} ms`),
+        statCard('Host load', n(l.machineLoad1)), statCard('Host free', l.machineMemAvailableMB == null ? '—' : `${l.machineMemAvailableMB} MB`),
+      ]);
+      if (!window.Chart) return;   // the diagnostics tab loads Chart.js on its first draw; until then the numbers alone
+      const labels = d.series.map(s => new Date(s.at).toTimeString().slice(3, 8));
+      const data = [
+        { label: 'CPU %', data: d.series.map(s => s.cpuPercent), borderColor: '#faa61a', yAxisID: 'y' },
+        { label: 'Hub sends/s', data: d.series.map(s => s.hubSendsPerSec), borderColor: '#5865f2', yAxisID: 'y1' },
+        { label: 'Msg/s', data: d.series.map(s => s.messagesPerSec), borderColor: '#3ba55c', yAxisID: 'y1' },
+        { label: 'Writer depth', data: d.series.map(s => s.writerDepth), borderColor: '#ed4245', yAxisID: 'y1' },
+      ];
+      if (chart) { chart.data.labels = labels; data.forEach((ds, i) => { chart.data.datasets[i].data = ds.data; }); chart.update('none'); return; }
+      chart = new window.Chart(canvas, { type: 'line', data: { labels, datasets: data.map(ds => ({ ...ds, pointRadius: 0, borderWidth: 2, tension: 0.2 })) },
+        options: { animation: false, maintainAspectRatio: false, scales: { x: { ticks: { maxTicksLimit: 6 } }, y: { beginAtZero: true, max: 100, position: 'left' }, y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } } } } });
+    }
+    tick();
+    const timer = setInterval(tick, 2_000);
+    return { node, stop: () => { clearInterval(timer); chart?.destroy(); } };
   }
 
   const tabs = { users, debug, bot, settings, invites, logs, media, gifs, diagnostics, visitors };

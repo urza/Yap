@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ThreadPoolMinThreads>64</ThreadPoolMinThreads>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Yap.LoadTest.Shared/Yap.LoadTest.Shared.csproj" />
+  </ItemGroup>
+</Project>

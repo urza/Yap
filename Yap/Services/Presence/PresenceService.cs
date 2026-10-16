@@ -1,5 +1,6 @@
 using Yap.Models.Accounts;
 using Yap.Services.Accounts;
+using Yap.Services.Admin;
 
 namespace Yap.Services.Presence;
 
@@ -11,7 +12,7 @@ namespace Yap.Services.Presence;
 /// Three kinds of fact: the chosen status lives on <see cref="User.Status"/>; the sessions and the automatic
 /// away flag live here, in memory only.
 /// </summary>
-public sealed class PresenceService(UserService users, ILogger<PresenceService> log) : BackgroundService
+public sealed class PresenceService(UserService users, LoadCounters load, ILogger<PresenceService> log) : BackgroundService
 {
     private readonly ILogger<PresenceService> _log = log;
     private static readonly TimeSpan SweepInterval = TimeSpan.FromSeconds(10);    // PR-10, PR-13: "within 10 seconds"
@@ -158,7 +159,11 @@ public sealed class PresenceService(UserService users, ILogger<PresenceService> 
         try
         {
             while (await timer.WaitForNextTickAsync(stoppingToken))
+            {
+                var started = System.Diagnostics.Stopwatch.GetTimestamp();
                 Sweep(DateTime.UtcNow);
+                load.Sweep(System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);   // grows with the session count; the load card shows it
+            }
         }
         catch (OperationCanceledException) { }
     }

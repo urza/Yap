@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.SignalR;
 using Yap.Models.Accounts;
 using Yap.Models.Chat;
 using Yap.Services.Accounts;
+using Yap.Services.Admin;
 using Yap.Services.Chat;
 using Yap.Services.Gifs;
 using Yap.Services.Notifications;
@@ -17,7 +18,7 @@ namespace Yap.Endpoints;
 /// </summary>
 public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService chat, PresenceService presence, UserService users,
     NotificationSettingsService mutes, GifService gifs, RegistrationGateService gate, SystemBotService bot, MessageMapper map,
-    ILogger<ChatHubBroadcaster> log) : IHostedService
+    LoadCounters load, ILogger<ChatHubBroadcaster> log) : IHostedService
 {
     private readonly List<Action> _unsubscribe = [];
 
@@ -107,7 +108,11 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
     private void ToAll(string name, params object?[] args) => Fire(hub.Clients.All.SendCoreAsync(name, args));
 
     // The service events are synchronous. The send is not awaited, so a slow client never delays a service.
-    private void Fire(Task send) => send.ContinueWith(t => log.LogWarning(t.Exception, "A hub send failed"), TaskContinuationOptions.OnlyOnFaulted);
+    private void Fire(Task send)
+    {
+        load.HubSend();   // one per send call, not per recipient: the admin load card shows the fan-out rate
+        send.ContinueWith(t => log.LogWarning(t.Exception, "A hub send failed"), TaskContinuationOptions.OnlyOnFaulted);
+    }
 
     // Subscribe now, remember how to unsubscribe at stop.
     private void On(Action<Action> add, Action<Action> remove, Action handler) { add(handler); _unsubscribe.Add(() => remove(handler)); }

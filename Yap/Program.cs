@@ -175,6 +175,9 @@ builder.Services.AddSingleton<MediaUploadLogService>();
 // Diagnostics collector (captures snapshots every 30s for admin charts)
 builder.Services.AddSingleton<DiagnosticsCollectorService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DiagnosticsCollectorService>());
+builder.Services.AddSingleton<LoadCounters>();          // bumped by the hub broadcaster, the request middleware and the presence sweep
+builder.Services.AddSingleton<LoadMetrics>();           // 1 s samples for GET /api/admin/load (stress tests)
+builder.Services.AddHostedService(sp => sp.GetRequiredService<LoadMetrics>());
 builder.Services.AddHostedService<TusCleanupService>();   // expired unfinished uploads leave the disk
 builder.Services.AddSingleton<ProxyWatch>();              // the notice about a proxy that is not trusted
 builder.Services.AddSingleton<CloudflareIps>();           // Cloudflare's ranges: the one proxy trusted without a listing (IpHelper)

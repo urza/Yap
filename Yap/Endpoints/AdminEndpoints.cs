@@ -284,6 +284,14 @@ public static class AdminEndpoints
             });
         });
 
+        // One-second samples of the server under load (CPU, memory, GC, thread pool, hub rates, writer depth). The
+        // admin Diagnostics tab polls the last minute; the load-test orchestrator polls a few seconds at a time.
+        admin.MapGet("/load", (LoadMetrics load, int seconds = 60) =>
+        {
+            var series = load.Last(seconds);
+            return Results.Ok(new { latest = series.LastOrDefault(), series });
+        });
+
         admin.MapGet("/generate-thumbnails", (ImageService imageService, UploadPaths uploads) =>
         {
             var uploadsPath = uploads.Root;
