@@ -4,7 +4,7 @@
 
 import { state, displayName, toggleReactionLocally, editLocally, removeLocally, toggleFavoriteLocally } from '../store.js';
 import { clone, el, replace, classes } from '../render/dom.js';
-import { inline, messageText } from '../render/text.js';
+import { inline, messageText, imageFailed } from '../render/text.js';
 import { messageTime } from '../render/time.js';
 import { avatar } from '../render/avatar.js';
 import * as hub from '../hub.js';
@@ -125,7 +125,7 @@ const ROWS = { 2: [2], 3: [3], 4: [2, 2], 5: [2, 3], 6: [3, 3], 7: [2, 2, 3], 8:
 function imageGallery(m) {
   const open = index => openGallery(m, index);
   const item = (img, index, single) => el('div', { class: 'gallery-item', onclick: () => open(index) },
-    el('img', { src: img.medium, alt: 'Uploaded image', class: 'gallery-image', loading: 'lazy', width: 800, height: single ? 600 : 800 }));
+    el('img', { src: img.medium, alt: 'Uploaded image', class: 'gallery-image', loading: 'lazy', width: 800, height: single ? 600 : 800, onerror: imageFailed }));   // a poor connection: load again (MR-24)
   if (m.images.length === 1) return el('div', { class: 'image-gallery gallery-single' }, item(m.images[0], 0, true));
   const rows = [];
   let index = 0;
@@ -159,7 +159,7 @@ function gif(g, m) {
   if (!g.src) missing.hidden = false;
   else {
     const media = g.isImage
-      ? el('img', { src: g.src, alt: 'GIF', width: g.width || null, height: g.height || null, loading: 'lazy' })
+      ? el('img', { src: g.src, alt: 'GIF', width: g.width || null, height: g.height || null, loading: 'lazy', onerror: imageFailed })
       : el('video', { src: g.src, autoplay: true, loop: true, muted: true, playsinline: true, preload: 'auto', class: 'gif-message-video' });
     media.addEventListener(g.isImage ? 'load' : 'canplay', () => node.classList.add('gif-loaded'), { once: true });
     media.addEventListener('error', () => node.classList.add('gif-loaded'), { once: true });

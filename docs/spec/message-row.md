@@ -58,7 +58,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 ### Emoji
 
-**MR-15** Emoji in text show as images from one image set, so every reader sees the same image. The device's own emoji glyphs are not used. A skin tone variant, a flag, a keycap or a joined sequence shows as one image. If the device does not load an emoji image, Yap loads the image again when the connection returns.
+**MR-15** Emoji in text show as images from one image set, so every reader sees the same image. The device's own emoji glyphs are not used. A skin tone variant, a flag, a keycap or a joined sequence shows as one image. If the device does not load an emoji image, Yap loads the image again, as for a gallery image (MR-24).
 
 **MR-16** In mixed text, an emoji is 1.2 times the text size. When a message contains only emoji and whitespace, the emoji are 3 times the text size. A link or any other text in the message prevents this larger size.
 
@@ -80,7 +80,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 ### Images, videos and GIFs
 
-**MR-24** A message with media shows its text, when it has one, above the media as a caption. One image shows at its own aspect ratio. On desktop, the image is at most 400 px wide and 350 px high. On a phone, it is full width and at most 450 px high. While the image loads, a 4:3 box in the sidebar colour keeps its space.
+**MR-24** A message with media shows its text, when it has one, above the media as a caption. One image shows at its own aspect ratio. On desktop, the image is at most 400 px wide and 350 px high. On a phone, it is full width and at most 450 px high. While the image loads, a 4:3 box in the sidebar colour keeps its space. If the device does not load an image, Yap loads it again after 3 s, then 10 s, then 30 s, and again when the connection returns. This applies to gallery images, GIF images and emoji images.
 
 **MR-25** Several images make a gallery of square, cropped thumbnails in rows of two or three, with 4 px gaps. Two or three images make one row. Four make two and two. Five make two and three. Six make three and three. Seven make two, two and three. Eight make two, three and three. Nine make three rows of three. Ten make two, two, three and three.
 

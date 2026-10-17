@@ -94,23 +94,28 @@ export function emojiImage(emoji, size = 'text', { lazy = false } = {}) {
   return el('img', { class: `emoji emoji-${size}`, src, alt: emoji, draggable: 'false', crossorigin: 'anonymous', loading: lazy ? 'lazy' : null, onerror: imageFailed });
 }
 
-// An emoji image that the CDN did not deliver (a poor connection, a short outage of the CDN, the device offline)
-// would stay a broken picture for as long as the row is on screen: the browser never retries an <img> on its own.
-// The service worker only caches a good answer, so a retry is a real second chance. One retry soon while the
-// device believes it is online (a hiccup), then a retry when the network comes back (hub.js calls retryFailedImages).
+// An image that did not arrive (a poor connection, a short outage of the CDN, the device offline) would stay a
+// broken picture or a grey box for as long as the row is on screen: the browser never retries an <img> on its own.
+// The service worker only caches a good answer, so a retry is a real second chance. Retries at growing delays
+// while the device believes it is online (a poor connection keeps the hub up, so nothing else would fire), then
+// a retry when the network comes back (hub.js calls retryFailedImages). Emoji, gallery images and GIFs share it
+// (MR-15, MR-24); message.js passes it as the onerror of its pictures.
+const RETRY_DELAYS = [3000, 10000, 30000];
 const failed = new Set();
-function imageFailed(event) {
+export function imageFailed(event) {
   const img = event.target;
   const attempts = (Number(img.dataset.attempts) || 0) + 1;
   img.dataset.attempts = attempts;
-  if (attempts === 1 && navigator.onLine) { setTimeout(() => reload(img), 3000); return; }
+  const delay = RETRY_DELAYS[attempts - 1];
+  if (delay && navigator.onLine) { setTimeout(() => reload(img), delay); return; }
   failed.add(img);
 }
 function reload(img) { if (img.isConnected) { const src = img.src; img.removeAttribute('src'); img.src = src; } }
 
-// Every emoji image that failed and is still on screen loads again. Called when the connection returns.
+// Every image that failed and is still on screen loads again, with its attempts reset so the delays start over.
+// Called when the connection returns.
 export function retryFailedImages() {
-  for (const img of failed) reload(img);
+  for (const img of failed) { delete img.dataset.attempts; reload(img); }
   failed.clear();
 }
 
