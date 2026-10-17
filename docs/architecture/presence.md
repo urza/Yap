@@ -129,7 +129,7 @@ public void Typing(Guid channelId, bool on) => presence.SetTyping(Context.Connec
 
 `Connect` is a join when the person had no session (PR-17). `Disconnect` only stamps `ClosedAt` or `DroppedAt`; the sweep does the rest. The hub also tells PresenceService the open conversation from `openRoom`, `openDm` and `leave`, for the diagnostics table and for typing.
 
-The heartbeat is the single source of liveness, as it is today. The client sends it every 10 seconds while visible and every 60 seconds while hidden, and at once when the tab becomes visible or the hub reconnects. It carries the idle time since the last input, the previous round trip and any send-to-appear samples since the last beat (AD-26). The return value lets the client measure the round trip.
+The heartbeat is the single source of liveness, as it is today. The client sends it every 10 seconds while visible and every 60 seconds while hidden, and at once when the tab becomes visible or hidden or the hub reconnects. The hidden beat matters: the server reads the flag for unread counts (NT-07), for push, and for the away sweep. It carries the idle time since the last input, the previous round trip and any send-to-appear samples since the last beat (AD-26). The return value lets the client measure the round trip.
 
 ## Events out
 

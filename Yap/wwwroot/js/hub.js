@@ -195,6 +195,11 @@ function noteInput() {
 for (const type of ['pointerdown', 'pointermove', 'keydown', 'touchstart', 'wheel']) document.addEventListener(type, noteInput, { capture: true, passive: true });
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') noteInput(); });
 
+// A beat on every visibility change, so the server's view of the tab is current within one round trip.
+// The server reads it for unread counts (a hidden tab is not reading, NT-07), for push (a message to a hidden
+// tab needs one) and for the away sweep. Without this a hidden tab is reported at the next 60 s tick.
+document.addEventListener('visibilitychange', () => beat());
+
 export const idleSeconds = () => Math.round((Date.now() - lastInputAt) / 1000);
 
 // The person is looking at the open conversation (NT-07): the page is visible, the account is not away (chosen or
