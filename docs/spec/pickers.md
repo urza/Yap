@@ -123,7 +123,7 @@ The emoji picker and the GIF picker open from the input box. The emoji picker pu
 
 ### The phone sheet
 
-**PK-45** On a phone (600 px or less), the two pickers are in one bottom sheet with the tabs "GIFs" and "Emoji", in that order. Emoji is the active tab on the first open. The height of the sheet is half the screen, at most 400 px. Each tab fills the sheet and scrolls inside it. The rails are 36 px wide.
+**PK-45** On a phone (600 px or less), the two pickers are in one bottom sheet with the tabs "GIFs" and "Emoji", in that order. Emoji is the active tab on the first open. The [input box page](input-box.md#IB-41) gives the height of the sheet, and [IB-66](input-box.md#IB-66) gives the keyboard button and the full-height button in its tab row. Each tab fills the sheet and scrolls inside it. The rails are 36 px wide.
 
 **PK-46** A tab switch is instant. Each tab keeps its search text, results and scroll position. The active tab is kept until the page is reloaded.
 

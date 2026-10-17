@@ -114,13 +114,15 @@ The input box is the part of a conversation where the user writes and sends a me
 
 **IB-40** On desktop, a picker opens above the toggle group, right-aligned, with an 8 px gap. The rest of the page stays visible. A tap anywhere outside the picker closes it.
 
-**IB-41** On a phone, there is no GIF toggle. The emoji toggle opens one bottom sheet with two tabs, "GIFs" and "Emoji". The Emoji tab is active first. The sheet height is half the screen height, at most 400 px. The box moves up to the top edge of the sheet. Everything else is dimmed to half, except the draft text, the sheet and Send. The sheet keeps its last tab until the page reloads.
+**IB-41** On a phone, there is no GIF toggle. The emoji toggle opens one bottom sheet with two tabs, "GIFs" and "Emoji". The Emoji tab is active first. The sheet takes the place of the phone keyboard: the keyboard closes, and the sheet has the height that the keyboard had the last time it was open on this device. Before the first time, the sheet height is half the screen height, at most 400 px. The box moves up to the top edge of the sheet. Everything else is dimmed to half, except the draft text, the sheet and Send. The sheet keeps its last tab until the page reloads. *Why:* with the same height, the box does not move when the sheet and the keyboard change places.
+
+**IB-66** At the right end of the tab row of the sheet are a keyboard button and a button with two chevrons that point up. The keyboard button closes the sheet and puts the focus in the draft, so the keyboard opens in the place of the sheet. The chevrons make the sheet fill the whole screen; the box and Send are not visible. The chevrons then point down and return the sheet to its first height. A GIF pick at full height sends and closes the sheet, as [IB-47](#IB-47) says. The sheet opens at its first height every time.
 
 **IB-42** While a picker is open: a tap on + only closes the picker, and the file chooser does not open. A tap on the other toggle only closes the picker. A tap on the toggle of the open picker closes the picker. A tap on the draft puts focus on the draft and closes the picker with the same tap. A tap anywhere else closes the picker.
 
 **IB-43** A picker also closes on a send, on a GIF pick, when the conversation changes, when the window width crosses 600 px, and on Escape.
 
-**IB-44** An emoji pick inserts the emoji into the draft at the caret. If the draft was never focused, or the conversation changed since, it goes to the end. If text is selected, the emoji is inserted before the selected text. The text stays but is no longer selected, and the caret is after the emoji. The pick does not move focus. The picker stays open. The pick counts as typing and updates the user's recent emoji. Several picks insert the emoji one after another. A custom pack emoji inserts its shortcode text, for example ":name:".
+**IB-44** An emoji pick inserts the emoji into the draft at the caret. If the draft was never focused, or the conversation changed since, it goes to the end. If text is selected, the emoji is inserted before the selected text. The text stays but is no longer selected, and the caret is after the emoji. The pick does not move focus. The picker stays open. The pick counts as typing and updates the user's recent emoji. Several picks insert the emoji one after another. A custom pack emoji inserts its shortcode text, for example ":name:". On a phone, a pick while the sheet fills the screen returns the sheet to its first height, so the draft shows again.
 
 **IB-45** In its idle state, the emoji toggle shows a grey silhouette of a random emoji. Each time the mouse pointer moves onto the toggle, the toggle shows a new random emoji in full colour. The silhouette then shows the same emoji. The toggle stays in colour while its picker is open.
 
@@ -154,7 +156,7 @@ The input box is the part of a conversation where the user writes and sends a me
 
 **IB-57** Focus does not move into the draft on page load or when the conversation changes. *Why:* on a phone, focus on the draft opens the keyboard, and the keyboard covers the messages that the user wants to read.
 
-**IB-58** Only a tap on the draft and Reply move focus into the draft. Emoji picks, Send, ✕, picker toggles and dialogs never move focus.
+**IB-58** Only a tap on the draft, Reply and the keyboard button of the phone sheet move focus into the draft. Emoji picks, Send, ✕, picker toggles and dialogs never move focus. On a phone, the emoji toggle takes the focus out of the draft, so that the keyboard closes and the sheet takes its place.
 
 ### Who is typing
 

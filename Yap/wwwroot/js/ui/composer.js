@@ -25,6 +25,10 @@ let pickers = null;
 // also across a switch to another conversation (IB-33). A reload drops them, as Discord does.
 const trays = new Map();   // conversation key -> [{ file, url }]
 
+// The height of the phone keyboard, measured in the composer and kept on the device: a GIF as the first action of a
+// session also gets a sheet of the right size (IB-41).
+let keyboardHeight = Number(localStorage.getItem('yap.keyboardHeight')) || 0;
+
 export function Composer(root) {
   const box = clone('t-composer');
   root.append(box);
@@ -125,6 +129,16 @@ export function Composer(root) {
   area.addEventListener('keyup', () => { caret = area.selectionStart; });
   area.addEventListener('focus', () => { container.dataset.composing = ''; });
   area.addEventListener('blur', () => { delete container.dataset.composing; });
+
+  // The phone sheet takes the keyboard's place, so it wants the keyboard's height (IB-41). No API gives it; the visible
+  // height of the page does: it shrinks by the keyboard while a text field has the focus. Read at every keyboard open,
+  // because a different keyboard app or a landscape turn gives a new number.
+  let idleHeight = visualViewport.height;   // the visible height without a keyboard
+  visualViewport.addEventListener('resize', () => {
+    const h = visualViewport.height;
+    if (!document.activeElement?.matches('input, textarea')) { idleHeight = h; return; }
+    if (idleHeight - h > 100) { keyboardHeight = idleHeight - h; localStorage.setItem('yap.keyboardHeight', String(keyboardHeight)); }   // less is a browser bar, not a keyboard
+  }, { signal });
   area.addEventListener('keydown', e => {
     if (e.key !== 'Enter' || e.isComposing) return;                                       // IB-13
     if (overlays.isTouch() || e.shiftKey) return;                                          // IB-11, IB-12
@@ -294,7 +308,11 @@ export function Composer(root) {
 
   // ---- the pickers (IB-38 to IB-48) ----
 
-  const handlers = { insert: insertEmoji, sendGif, warn };
+  const handlers = {
+    insert: insertEmoji, sendGif, warn,
+    toKeyboard: () => { closePicker(); area.focus(); },      // the keyboard takes the sheet's place (IB-66)
+    toggleFull: () => sizeSheet(!container.dataset.sheet),   // IB-66
+  };
 
   function mountPickers() {
     pickers ??= {
@@ -314,6 +332,10 @@ export function Composer(root) {
       if (!pickers.combined) {
         const combined = clone('t-combined-picker');
         for (const tab of combined.querySelectorAll('.combined-tab')) tab.addEventListener('click', () => { combined.dataset.activeTab = tab.dataset.combinedTab; });
+        combined.querySelector('.combined-keyboard').addEventListener('click', () => pickers.current.toKeyboard());
+        const size = combined.querySelector('.combined-size');
+        size.addEventListener('pointerdown', e => e.preventDefault());   // a GIF search keeps its focus across the resize
+        size.addEventListener('click', () => pickers.current.toggleFull());
         pickers.combined = combined;
       }
       // Every time, not only when the sheet is made: the unmount below takes the two pickers out of the sheet,
@@ -335,10 +357,23 @@ export function Composer(root) {
     if (which === 'emoji') pickers.emoji.opened();
     if (which === 'gif' || overlays.isPhone()) pickers.gif.opened();
     emojiToggle.classList.toggle('open', which === 'emoji');
+    if (overlays.isPhone()) {
+      // The sheet takes the keyboard's place (IB-41): the draft gives up the focus, so the keyboard closes, and the
+      // sheet gets the keyboard's height, so the box stays where it was. Half height on every open.
+      area.blur();
+      container.style.setProperty('--sheet-height', keyboardHeight ? `${keyboardHeight}px` : '');
+      sizeSheet(false);
+    }
   }
   function closePicker() {
     delete container.dataset.picker;
     emojiToggle.classList.remove('open');
+    sizeSheet(false);
+  }
+  // The phone sheet at half height, in the keyboard's place, or at full height over the whole view (IB-66).
+  function sizeSheet(full) {
+    if (full) container.dataset.sheet = 'full'; else delete container.dataset.sheet;
+    pickers?.combined?.querySelector('.combined-size')?.setAttribute('aria-expanded', String(full));   // the chevrons turn on this
   }
   for (const toggle of [emojiToggle, gifToggle]) {
     toggle.addEventListener('pointerdown', e => e.preventDefault());                       // never moves the focus (IB-58)
@@ -358,6 +393,7 @@ export function Composer(root) {
     caret = pos + value.length;
     area.setSelectionRange(caret, caret);
     grow(); saveDraft(); noteTyping();
+    sizeSheet(false);                                                                       // a pick at full height shows the draft again (IB-44)
   }
 
   function sendGif(gif) {                                                                  // IB-47, PK-20

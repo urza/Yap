@@ -10,8 +10,9 @@
     display: flex;
     flex-direction: column;
     width: 100%;
-    height: 50vh;
-    max-height: 400px;
+    /* The keyboard's height, measured by composer.js, which sets --sheet-height on the input box; half the screen
+       before the first measurement (IB-41). The fallback here is for a sheet outside the input box. */
+    height: var(--sheet-height, min(50vh, 400px));
     background: var(--bg-sidebar);
     border-radius: 12px 12px 0 0;
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
@@ -20,6 +21,7 @@
 
 .combined-tabs {
     display: flex;
+    align-items: center;
     gap: 4px;
     padding: 8px 8px 6px;
     background: var(--bg-header);
@@ -49,6 +51,39 @@
 .combined-picker[data-active-tab="emoji"] .combined-tab[data-combined-tab="emoji"] {
     color: var(--text-primary);
     background: var(--bg-input);
+}
+
+/* The keyboard button and the full-height chevrons, at the right end of the tab row (IB-66). :active, not :hover:
+   the sheet exists on phones only. */
+.combined-tool {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    background: transparent;
+    border: none;
+    padding: 0;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.combined-keyboard {
+    margin-left: auto;
+}
+
+.combined-tool:active {
+    color: var(--text-primary);
+    background: var(--bg-input);
+}
+
+/* The chevrons point up at half height and down at full height; composer.js flips aria-expanded. */
+.combined-size svg {
+    transition: transform 0.15s;
+}
+
+.combined-size[aria-expanded="true"] svg {
+    transform: rotate(180deg);
 }
 
 .combined-body {

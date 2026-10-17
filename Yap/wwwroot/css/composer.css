@@ -595,6 +595,12 @@
         display: none;
     }
 
+    /* The sheet sits in the keyboard's place: --sheet-height is the measured keyboard height (composer.js sets it on
+       the container at every open), half the screen before the first measurement (IB-41). */
+    .message-input-container {
+        --sheet-height: min(50vh, 400px);
+    }
+
     .emoji-picker-container {
         position: fixed;
         bottom: 0;
@@ -602,6 +608,21 @@
         right: 0;
         top: auto;
         margin-bottom: 0;
+    }
+
+    /* Full height (IB-66): the fixed container spans the view and the sheet fills it. Send is a sibling of the box
+       and paints above the sheet, so it hides; the box and the rest are under the sheet already. */
+    .message-input-container[data-sheet="full"] .emoji-picker-container {
+        top: 0;
+    }
+
+    .message-input-container[data-sheet="full"] .combined-picker {
+        height: 100%;
+        border-radius: 0;
+    }
+
+    .message-input-container[data-sheet="full"] .send-button {
+        visibility: hidden;
     }
 
     .emoji-picker-container .emoji-picker {
@@ -615,9 +636,10 @@
         background: rgba(0, 0, 0, 0.5);
     }
 
-    /* Push input above the fixed emoji picker so it stays visible */
+    /* Push input above the fixed emoji picker so it stays visible. The same margin at full height: the sheet covers
+       the box then, and the timeline does not relayout on every expand and collapse. */
     .message-input-container[data-picker="emoji"] {
-        margin-bottom: min(50vh, 400px);
+        margin-bottom: var(--sheet-height);
     }
 }
 
