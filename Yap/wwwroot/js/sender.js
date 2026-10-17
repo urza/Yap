@@ -6,6 +6,10 @@
 // One loop, driven by events, never by a timer (offline-design-notes.md): the oldest queued row, its files
 // uploaded if still Blobs, then the POST. A network error stops the loop until a wake-up; a refusal marks
 // the row failed. A Web Lock makes one tab the sender: the other tabs show the rows and post nothing.
+//
+// A wake-up during a run marks the run to go again when it ends. An upload whose socket died with the network
+// may never report (the phone's Wi-Fi went away mid-upload): a wake-up gives up an upload with no progress for a
+// few seconds, and the run that follows sends the files that are not done.
 
 import { state, changed, setPending, addMessage } from './store.js';
 import { api, ApiError } from './api.js';
@@ -15,8 +19,11 @@ import { keyOf } from './offline/snapshot.js';
 import * as upload from './upload.js';
 
 const DAY = 86_400_000;
+const STALL_MS = 5000;   // no byte and no poll for this long when a wake-up comes: the socket is dead
 let queue = [];        // every pending row, all conversations, oldest first
 let posting = false;
+let again = false;     // a wake-up came during a run
+let current = null;    // the upload in flight: { job, lastProgressAt }
 let holder = !navigator.locks;   // without Web Locks every tab posts; the server's clientId dedupe copes
 let loaded = null;
 
@@ -62,6 +69,7 @@ export function remove(row) {
   queue = queue.filter(r => r !== row);
   outbox.remove(row).then(() => outbox.announce());
   publish();
+  flush();   // the rows behind a cancelled upload go on
 }
 
 export function retry(row) {
@@ -83,7 +91,8 @@ function fail(row, reason) {
 
 // One post at a time, in order (IB-28, OF-10). A network error keeps the row pending; a refusal marks it failed.
 async function flush() {
-  if (posting || !holder) return;
+  if (!holder) return;
+  if (posting) { again = true; return; }
   posting = true;
   try {
     await ready();
@@ -112,7 +121,14 @@ async function flush() {
         fail(row, e instanceof ApiError ? e.message : 'Could not send');
       }
     }
-  } finally { posting = false; }
+  } finally { posting = false; if (again) { again = false; flush(); } }
+}
+
+// The connection is back, or the tab is visible again. An upload that made no progress for a while is on a
+// dead socket: the browser may never report it. It is given up, and the run that follows takes the rest.
+function wake() {
+  if (current && Date.now() - current.lastProgressAt > STALL_MS) current.job.giveUp();
+  flush();
 }
 
 // The files of one row, with one progress figure (IB-34). The results replace the Blobs; a refusal marks the row.
@@ -120,12 +136,16 @@ async function flush() {
 // can be online while the server is down, and that is a wait, not a failure (OF-08), the same as for a text send.
 async function uploadFiles(row) {
   if (!navigator.onLine) return false;
-  const job = upload.upload(row.files, state.config?.uploadUrl || '/api/tus', (percent, done, total) => {
+  const live = { job: null, lastProgressAt: Date.now() };
+  current = live;
+  live.job = upload.upload(row.files, state.config?.uploadUrl || '/api/tus', (percent, done, total) => {
+    live.lastProgressAt = Date.now();
     row.uploading = { ...row.uploading, percent, label: `${done}/${total}` };
     changed('pending');
   });
-  row.cancel = job.cancel;
-  const result = await job.promise;
+  row.cancel = live.job.cancel;
+  const result = await live.job.promise;
+  current = null;
   if (result.cancelled || !queue.includes(row)) return false;   // removed meanwhile
   row.cancel = null;
   for (const f of result.files) {
@@ -166,9 +186,9 @@ outbox.onChange(() => { loaded = null; ready().then(flush); });
 // The lock: one tab posts at a time (offline-design-notes.md, "Tabs"). The holder keeps it until it closes.
 if (navigator.locks) navigator.locks.request('yap-outbox-sender', { mode: 'exclusive' }, () => new Promise(() => { holder = true; flush(); }));
 
-hub.onConnected(() => { flush(); });                       // what queued while offline goes out (OF-10)
-addEventListener('online', () => flush());
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') flush(); });
+hub.onConnected(wake);                                     // what queued while offline goes out (OF-10)
+addEventListener('online', wake);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') wake(); });
 
 export function showFor(key) { ready().then(() => setPending(rowsOf(key))); }
 export const hasQueued = () => queue.length > 0;   // the sign-out confirmation (SH-15)

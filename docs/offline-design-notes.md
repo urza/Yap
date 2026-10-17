@@ -45,6 +45,8 @@ One loop, driven by events, never by a timer:
 
 Wake-ups: the `online` event, a SignalR reconnect, the tab becoming visible, a new row appended. No poll, no backoff table, no attempt counter, no persisted next-attempt time.
 
+A wake-up during a run marks the run to go again when it ends. An upload with no progress for five seconds at a wake-up is given up: the files that are done stay done, the rest upload again in the run that follows. A socket that died with the network (a phone's Wi-Fi switched off mid-upload) may never report an error, and without this the loop would wait for it forever.
+
 ## Server side
 
 The server dedupes by `clientId`. A bounded dictionary per user in memory, `clientId` to message id, entries expiring after a day. A repeated POST with a known `clientId` returns the existing message with 200. That is the whole idempotency story. The persistence copy of the dictionary follows the normal memory-first rule: the database is a copy, not the source.
