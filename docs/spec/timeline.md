@@ -25,7 +25,7 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 
 **TL-01** A conversation opens at the bottom and shows its newest 50 messages. The view does not go to the first unread message.
 
-**TL-02** When the conversation was shown before on this device, its last known messages show immediately. When the server responds, the new list replaces them. A conversation that was never shown before stays empty until its messages arrive. There is no spinner.
+**TL-02** When the conversation was shown before on this device, its last known messages show immediately. When the server responds, the new list replaces them. A conversation that was never shown before opens empty, and the input box is there at once. When the answer takes longer than about 400 ms, a "Loading messages..." line shows at the top; a fast answer shows no line, so nothing flashes. A message sent before the answer arrives goes out the normal way and shows as pending until it comes back.
 
 **TL-03** A conversation is marked read when it opens. See [Notifications and unread](notifications.md).
 

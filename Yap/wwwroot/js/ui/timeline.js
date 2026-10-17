@@ -158,6 +158,7 @@ export function Timeline(root) {
     const open = state.open;
     if (!open) { replace(top, []); return; }
     if (loading) { replace(top, [clone('t-loading-more')]); return; }
+    if (open.loading && state.connection !== 'offline') { replace(top, [clone('t-loading-tail')]); return; }   // the first answer is on its way (TL-02)
     if (open.hasMore) {
       if (state.connection !== 'connected') { replace(top, [el('div', { class: 'history-start' }, 'Needs a connection')]); return; }
       if (list.scrollHeight <= list.clientHeight + 1) {

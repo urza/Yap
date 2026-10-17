@@ -48,7 +48,8 @@ let tailTimer = 0, bootTimer = 0, draftTimer = 0;
 
 function queueTail() {
   clearTimeout(tailTimer);
-  tailTimer = setTimeout(() => { if (state.open?.messages) saveTail(keyOf(state.open), state.open); }, 800);
+  // the empty placeholder shown while the first answer loads (TL-02) must not replace a stored tail
+  tailTimer = setTimeout(() => { if (state.open?.messages && !state.open.loading) saveTail(keyOf(state.open), state.open); }, 800);
 }
 
 // The bootstrap document, rebuilt from the store: the same shape the server sends.

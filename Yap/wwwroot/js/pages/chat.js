@@ -79,11 +79,14 @@ function resolve({ lobby: wantsLobby, roomId, dmUser }) {
   return room ? { kind: 'room', channelId: room.id, room } : null;
 }
 
-// The last known messages at once; the server's answer replaces them (TL-02).
+// The last known messages at once; the server's answer replaces them (TL-02). A conversation never shown
+// on this device opens empty and marked loading: the composer is there before the server answers. In the
+// 2026-10-16 load test the answer took seconds, and the page was blank with no input box until then.
 async function paintStored(target, me) {
   const stored = await snapshot.loadTail(snapshot.keyOf({ partner: target.partner ?? null, channelId: target.channelId }));
-  if (me !== generation || !stored || state.open) return;
-  setOpen(stored, target.kind === 'dm' ? target.partner : null);
+  if (me !== generation || state.open) return;
+  setOpen(stored ?? { channelId: target.channelId ?? null, messages: [], hasMore: true, restricted: false, typists: [], loading: true },
+          target.kind === 'dm' ? target.partner : null);
 }
 
 async function openConversation(target, me, painted = Promise.resolve()) {
@@ -97,6 +100,8 @@ async function openConversation(target, me, painted = Promise.resolve()) {
     // (OF-06, OF-08). A direct message has no channel id yet; the outbox addresses it by its partner.
     await painted;   // the stored tail is read first; the hub's refusal comes faster than IndexedDB
     if (me !== generation) return;
+    // A placeholder marked loading stays: the hub is connecting (a cold start) or reconnecting, and the
+    // connected handler opens again. Offline, the timeline shows "Needs a connection" instead of the line.
     if (!state.open) setOpen({ channelId: target.channelId ?? null, messages: [], hasMore: true, restricted: false, typists: [] }, target.partner ?? null);
     return;
   }
