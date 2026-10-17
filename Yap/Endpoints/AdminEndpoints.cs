@@ -262,9 +262,11 @@ public static class AdminEndpoints
         }));
 
         admin.MapGet("/diagnostics", (ChatService chat, PresenceService presence, DiagnosticsCollectorService collector, NotificationAudit audit,
-            PushNotificationService push, PersistenceWriter writer, SystemBotService bot) =>
+            PushNotificationService push, PersistenceWriter writer, SystemBotService bot, ILoggerFactory loggers) =>
         {
             var snapshots = collector.GetSnapshots();
+            // The effective level, whatever config source set it: one line per database command at Information.
+            var sqlLogged = loggers.CreateLogger("Microsoft.EntityFrameworkCore.Database.Command").IsEnabled(LogLevel.Information);
             return Results.Ok(new
             {
                 latest = collector.GetLatest(),
@@ -279,7 +281,7 @@ public static class AdminEndpoints
                     results = audit.GetPushResults().Where(r => !bot.IsBotUser(r.To)).ToList(),
                 },
                 unread = audit.GetUnreadChanges().Where(u => !bot.IsBotUser(u.User)).ToList(),
-                writer = new { enabled = writer.Enabled, depth = writer.Depth, lastError = writer.LastError, lastErrorAt = writer.LastErrorAt },
+                writer = new { enabled = writer.Enabled, depth = writer.Depth, lastError = writer.LastError, lastErrorAt = writer.LastErrorAt, sqlLogged },
                 events = chat.GetDiagnostics().EventSubscribers,
             });
         });

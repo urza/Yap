@@ -407,7 +407,11 @@ export function mount(root) {
           : el('p', { style: { color: 'var(--text-secondary)', margin: 0 } }, 'No push activity since restart.')),
         el('div', { class: 'diag-chart-card', style: { marginBottom: '16px' } }, el('h4', null, 'Unread audit — DM badge changes'),
           d.unread.length ? table(['When', 'User', 'Channel', 'Change', 'Trigger', 'Device state'], d.unread.map(x => el('tr', null, td(ago(x.at)), td(x.user), td(x.channel ?? ''), td(x.kind === 'clear' ? `clear (${x.count})` : `+1 → ${x.count}`), td(x.source ?? ''), td(x.sessionState ?? '', null)))) : el('p', { style: { color: 'var(--text-secondary)', margin: 0 } }, 'No DM unread activity since restart.')),
-        el('div', { class: 'diag-chart-card', style: { marginBottom: '16px' } }, el('h4', null, 'Persistence writer'), el('p', { style: { margin: 0 } }, d.writer.enabled ? `queue depth ${d.writer.depth}${d.writer.lastError ? ` · last error ${ago(d.writer.lastErrorAt)}: ${d.writer.lastError}` : ''}` : 'off (memory only)')),
+        el('div', { class: 'diag-chart-card', style: { marginBottom: '16px' } }, el('h4', null, 'Persistence writer'),
+          el('p', { style: { margin: 0 } }, d.writer.enabled ? `queue depth ${d.writer.depth}${d.writer.lastError ? ` · last error ${ago(d.writer.lastErrorAt)}: ${d.writer.lastError}` : ''}` : 'off (memory only)'),
+          d.writer.enabled ? el('p', { style: { color: 'var(--text-secondary)', margin: '8px 0 0' } }, d.writer.sqlLogged
+            ? 'SQL commands are in the server log: one line per database write. For normal use set "Microsoft.EntityFrameworkCore" to "Warning" under Logging → LogLevel in Data/appsettings.json and restart.'
+            : 'SQL commands are not in the server log. To see every command for a while, set "Microsoft.EntityFrameworkCore" to "Information" under Logging → LogLevel in Data/appsettings.json and restart. Each write is then one log line.') : null),
         el('div', { class: 'diag-charts' },
           el('div', { class: 'diag-chart-card' }, el('h4', null, 'Users & Sessions'), el('div', { class: 'diag-chart-wrapper' }, el('canvas', { id: 'diag-chart-users' }))),
           el('div', { class: 'diag-chart-card' }, el('h4', null, 'Connections: Active vs Disconnected'), el('div', { class: 'diag-chart-wrapper' }, el('canvas', { id: 'diag-chart-connections' }))),
