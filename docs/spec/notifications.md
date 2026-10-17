@@ -12,7 +12,7 @@ Unread counts and notifications tell a person about new messages. This page spec
 
 **NT-02** Only a new message increases a count. Edits, deletions, reactions, typing and presence never change it. The sender's own messages never count, also when the sender uses another device. Bot messages count like the messages of a person.
 
-**NT-03** A direct message counts for the other person, online or not. A room message counts for every person who has Yap open on any device at that moment, whatever their status. It also counts for every person who has that room unmuted. A person who is offline and has the room muted gets nothing. That person gets no count and no dot. *Why:* a person who opens Yap again should not find many dots in the sidebar for rooms that the person never opened.
+**NT-03** A direct message counts for the other person, online or not. A room message counts for every person who has Yap open on any device at that moment, whatever their status. It also counts for every person who has that room unmuted. It does not count for a person who is reading the room at that moment (NT-07). A person who is offline and has the room muted gets nothing. That person gets no count and no dot. *Why:* a person who opens Yap again should not find many dots in the sidebar for rooms that the person never opened.
 
 **NT-04** A mute never stops the count for a person who receives it. A muted conversation shows a dot instead of its number. When the person unmutes the conversation, its true count appears.
 
@@ -22,7 +22,7 @@ Unread counts and notifications tell a person about new messages. This page spec
 
 **NT-06** Opening a conversation marks it read, whatever the status and the visibility. This includes a tap in the sidebar, a link, a notification tap and a switch from another conversation. Leaving a conversation for Settings or another page marks it read when the page was visible and the person was not away.
 
-**NT-07** A message that arrives in the open conversation is marked read at once when three conditions are true. The conditions are that the page is visible, the person is not away, and the view is at the bottom. Such a message never shows a count on any device. Otherwise the message stays unread until all three conditions are true again. A desktop window that is visible but not focused counts as visible.
+**NT-07** A message that arrives in the open conversation never counts for a person who is reading it: the conversation is open on a device, the page is visible, and the person is not away and not idle. The server decides this from the session, so no device shows a count. The view position stays on the client: a person scrolled up in history gets the new-messages pill (TL-13) instead of a count. When the conditions are not met (a hidden tab, an away or idle person), the message counts and stays unread until the client marks the conversation read. The client marks it read when the page is visible, the person is not away, and the view is at the bottom. A desktop window that is visible but not focused counts as visible. *Why:* in a busy room every member is a reader, and a count plus a mark-read per message per member was most of the unread work on the server.
 
 **NT-08** A read clears the whole conversation. Yap has no partial read, no divider and no "mark all as read".
 

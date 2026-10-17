@@ -118,6 +118,7 @@ public sealed class Expectation<T>
 {
     private readonly TaskCompletionSource<T> _source = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public void Set(T value) => _source.TrySetResult(value);
+    public bool Completed => _source.Task.IsCompleted;
     public async Task<T> Within(int seconds = 10)
     {
         var done = await Task.WhenAny(_source.Task, Task.Delay(TimeSpan.FromSeconds(seconds)));

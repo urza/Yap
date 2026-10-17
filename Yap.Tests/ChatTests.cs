@@ -120,6 +120,34 @@ public class ChatTests : IClassFixture<YapFactory>
         await daveHub.DisposeAsync();
     }
 
+    [Fact(DisplayName = "NT-03, NT-07: a room message counts for a connected person elsewhere, not for one reading the room")]
+    public async Task Room_message_skips_the_readers()
+    {
+        var fay = await _app.SignInAsync("fay_reader");
+        var gil = await _app.SignInAsync("gil_elsewhere");
+        var hal = await _app.SignInAsync("hal_sender");
+        var chat = _app.Service<ChatService>();
+        var users = _app.Service<Yap.Services.Accounts.UserService>();
+        var lobby = chat.LobbyId;
+
+        var fayHub = await fay.ConnectAsync();
+        var gilHub = await gil.ConnectAsync();
+        await fayHub.InvokeAsync<Conversation>("OpenRoom", lobby);   // fay is reading the lobby; gil has Yap open on nothing
+        var fayCounted = new Expectation<int>();
+        fayHub.On<Guid, int>("unread", (channelId, count) => { if (channelId == lobby && count > 0) fayCounted.Set(count); });
+        var gilCounted = new Expectation<int>();
+        gilHub.On<Guid, int>("unread", (channelId, count) => { if (channelId == lobby && count == 1) gilCounted.Set(count); });
+
+        var sent = await hal.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId = Guid.NewGuid(), text = "room" });
+        Assert.Equal(HttpStatusCode.OK, sent.StatusCode);
+        await gilCounted.Within();
+
+        Assert.Equal(0, chat.UnreadCount(users.GetByUsername("fay_reader")!.Id, lobby));
+        Assert.False(fayCounted.Completed, "a reader got an unread count for the room they are looking at");
+        await fayHub.DisposeAsync();
+        await gilHub.DisposeAsync();
+    }
+
     [Fact(DisplayName = "MR-40, MR-57: a reaction toggles and arrives; an edit of someone else's message is refused")]
     public async Task Reactions_and_edit_rules()
     {

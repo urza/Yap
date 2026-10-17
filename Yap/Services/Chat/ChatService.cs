@@ -661,7 +661,8 @@ public class ChatService
 
     /// <summary>
     /// NT-02, NT-03: a direct message counts for the other person; a room message counts for everyone who has Yap
-    /// open and everyone who has the room unmuted, minus the sender. Returns each affected person's new count.
+    /// open and everyone who has the room unmuted, minus the sender and the people reading the room right now
+    /// (NT-07, see <see cref="PresenceService.Looking"/>). Returns each affected person's new count.
     /// </summary>
     private List<(Guid UserId, int Count)> IncrementUnread(Channel channel, Guid senderId)
     {
@@ -669,9 +670,15 @@ public class ChatService
         if (channel.IsDirectMessage)
             recipients = channel.GetOtherParticipantId(senderId) is { } other ? [other] : [];
         else
+        {
+            // A person who is reading the room sees the message. A count, an `unread` event and a read-state
+            // write for them is work the client undoes with markRead a moment later; in a room of 800 on the
+            // 2026-10-16 load test that was nearly all of the unread cost (one send and one write per member).
+            var looking = _presence.Looking(channel.Id);
             recipients = _presence.ConnectedUserIds()
                 .Concat(_userService.GetAllUsers().Where(u => !_notifications.IsMuted(u, channel.Id, isDirectMessage: false)).Select(u => u.Id))
-                .Where(id => id != senderId).Distinct();
+                .Where(id => id != senderId && !looking.Contains(id)).Distinct();
+        }
 
         var result = new List<(Guid, int)>();
         foreach (var userId in recipients)

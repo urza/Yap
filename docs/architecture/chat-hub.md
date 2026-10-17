@@ -136,9 +136,12 @@ IEnumerable<Guid> UnreadRecipients(Channel channel, Guid sender)
     if (channel.IsDm) return channel.ParticipantIds.Where(id => id != sender);
     var connected = presence.ConnectedUserIds();                                // has Yap open on a device
     var unmuted = notifications.UsersWithRoomUnmuted(channel.Id);              // has this room unmuted
-    return connected.Union(unmuted).Where(id => id != sender);
+    var looking = presence.Looking(channel.Id);                                 // is reading this room now (NT-07)
+    return connected.Union(unmuted).Where(id => id != sender && !looking.Contains(id));
 }
 ```
+
+`Looking` is the server's view of NT-07: a connected session on the room, visible, input in the last five minutes, and the person not away. The scroll position is not known to the server; a person scrolled up gets the new-messages pill (TL-13) and no count. The set is built once per message, so a room of N members costs one pass over the sessions, not N.
 
 An offline person with the room muted gets no count and no dot (the *Why* of NT-03). Generated test messages add no counts (AD-08). For each recipient, ChatService increments the count by one and raises `OnUnreadChanged(userId, channelId, count)`. The broadcaster sends `unread` to the devices of that person.
 
