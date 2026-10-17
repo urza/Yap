@@ -4,77 +4,59 @@ using Yap.LoadTest.Shared;
 
 namespace Yap.LoadTest.Orchestrator;
 
-/// <summary>The live view: the run, the workers, the window percentiles, the server, the log. Rebuilt once a second.</summary>
+/// <summary>The live view: the users, the kinds, the pace, the messages, the latency, the server, the last log lines.</summary>
 public static class Dashboard
 {
-    public static IRenderable Render(Aggregate.View v, string preset, string stepLabel, int stepIndex, int stepCount, TimeSpan inStep, TimeSpan hold, Uri server)
+    public static IRenderable Render(Aggregate.View v, Session.Snapshot s, Uri server, TimeSpan running)
     {
-        var header = new Panel(new Markup(
-                $"[bold]{Markup.Escape(preset)}[/] against [blue]{Markup.Escape(server.ToString())}[/]   step [bold]{stepIndex}/{stepCount}[/]: {Markup.Escape(stepLabel)}   " +
-                $"in step {inStep:mm\\:ss} of {hold:mm\\:ss}   users [bold]{v.Users}[/] connected [bold green]{v.Connected}[/]   " +
-                $"[dim]keys: n = next step now, q = stop and summarise[/]"))
-            .Expand().BorderColor(Color.Grey);
+        var grid = new Grid().AddColumn(new GridColumn().PadRight(2)).AddColumn();
+        Row(grid, "[bold]Yap load test[/]", $"{Esc(server.ToString())}   running {Clock(running)}   settings held {Clock(DateTime.UtcNow - s.ChangedAt)}   [bold]q[/] quit and write the summary");
+        grid.AddEmptyRow();
 
-        var workers = new Table().Border(TableBorder.Rounded).Title("[bold]Workers[/]").Expand();
-        foreach (var h in new[] { "id", "users", "conn", "sent/s", "recv/s", "events/s", "upl", "react", "sta p95", "fan p95", "http p95", "rtt", "reconn", "errors" }) workers.AddColumn(h);
-        foreach (var w in v.Workers)
-            workers.AddRow(w.Worker.ToString(), w.Users.ToString(), w.Connected.ToString(), w.Sent.ToString(), w.Received.ToString(), w.Events.ToString(),
-                w.Uploads.ToString(), w.Reactions.ToString(), Ms(w.SendToAppear.Percentile(0.95)), Ms(w.FanOut.Percentile(0.95)), Ms(w.Http.Percentile(0.95)),
-                Ms(w.Rtt.Percentile(0.5)), w.Reconnects.ToString(), w.Errors.Count == 0 ? "" : $"[red]{Markup.Escape(string.Join(" ", w.Errors.Select(e => $"{e.Key}×{e.Value}")))}[/]");
+        var status = v.Status is { } st ? $"   [yellow]{Esc(st)}[/]" : "";
+        var typing = s.Typing.Length > 0 ? $"   [yellow]new count {s.Typing}_  Enter sets it, Esc cancels[/]" : "";
+        Row(grid, "users", $"[bold]{v.Users}[/] of {s.Target}   connected [bold green]{v.Connected}[/]{status}{typing}   [dim]+ - or arrows 50, PgUp PgDn 250, or type a number and Enter[/]");
+        Row(grid, "kinds", string.Join("   ", Traffic.Each.Select(k => Switch(k, s.Kinds))) + "   [dim]press the letter[/]");
+        Row(grid, "pace", $"[bold]{s.Pace.ToString().ToLowerInvariant()}[/]: a visible user acts about every {s.Pace.ThinkSeconds():0} s, {s.Pace.BurstChance():P0} of the sends start a burst   [dim]< slower, > faster[/]");
+        grid.AddEmptyRow();
 
-        var latency = new Table().Border(TableBorder.Rounded).Title("[bold]Latency (last 10 s / this step / run)[/]").Expand();
-        latency.AddColumn(""); latency.AddColumn("p50"); latency.AddColumn("p95"); latency.AddColumn("p99"); latency.AddColumn("max"); latency.AddColumn("n");
-        Row(latency, "send→appear 10 s", v.WindowSta); Row(latency, "send→appear step", v.Step.SendToAppear); Row(latency, "send→appear run", v.Run.SendToAppear);
-        Row(latency, "fan-out 10 s", v.WindowFan); Row(latency, "fan-out step", v.Step.FanOut);
-        Row(latency, "http POST 10 s", v.WindowHttp); Row(latency, "heartbeat rtt step", v.Step.Rtt);
+        var seg = v.Segment;
+        Row(grid, "messages", $"sent [bold]{v.SentPerSec:0.0}[/]/s   received {v.ReceivedPerSec:0}/s   [dim]this segment:[/] {seg.Sent} sent, {seg.Uploads} uploads, {seg.Reactions} reactions, {Colour(seg.ErrorCount)} errors{Reasons(seg)}, {Colour(seg.Reconnects)} reconnects");
+        Row(grid, "latency", $"send to appear p50 {Ms(v.WindowSta.Percentile(0.5))} / p95 {Warn(v.WindowSta.Percentile(0.95), 100, 500, "0")} ms   fan-out p95 {Ms(v.WindowFan.Percentile(0.95))} ms   send POST p95 {Ms(v.WindowHttp.Percentile(0.95))} ms   heartbeat p50 {Ms(seg.Rtt.Percentile(0.5))} ms   [dim]last 10 s[/]");
+        Row(grid, "server", ServerLine(v));
+        grid.AddEmptyRow();
 
-        var totals = new Table().Border(TableBorder.Rounded).Title("[bold]Totals[/]").Expand();
-        totals.AddColumn(""); totals.AddColumn("step"); totals.AddColumn("run");
-        totals.AddRow("messages sent", v.Step.Sent.ToString(), v.Run.Sent.ToString());
-        totals.AddRow("sent/s now", v.SentPerSec.ToString("0.0"), "");
-        totals.AddRow("received/s now", v.ReceivedPerSec.ToString("0.0"), "");
-        totals.AddRow("uploads", v.Step.Uploads.ToString(), v.Run.Uploads.ToString());
-        totals.AddRow("reactions", v.Step.Reactions.ToString(), v.Run.Reactions.ToString());
-        totals.AddRow("reconnects", Colour(v.Step.Reconnects), Colour(v.Run.Reconnects));
-        totals.AddRow("errors", Colour(v.Step.ErrorCount), Colour(v.Run.ErrorCount));
-
-        var s = v.Server;
-        var serverTable = new Table().Border(TableBorder.Rounded).Title("[bold]Server[/] [dim](/api/admin/load)[/]").Expand();
-        serverTable.AddColumn(""); serverTable.AddColumn("");
-        if (v.ServerError is { } err) serverTable.AddRow("[red]error[/]", Markup.Escape(err));
-        else if (s is null) serverTable.AddRow("waiting", "");
-        else
-        {
-            serverTable.AddRow("cpu %", Warn(s.CpuPercent, 70, 90, "0"));
-            serverTable.AddRow("working set / heap MB", $"{s.WorkingSetMB} / {s.HeapMB}");
-            serverTable.AddRow("gc 0/1/2, pause ms", $"{s.Gen0}/{s.Gen1}/{s.Gen2}, {s.GcPauseMs}");
-            serverTable.AddRow("thread pool threads / queue", $"{s.ThreadPoolThreads} / {Warn(s.ThreadPoolQueue, 1, 100, "0")}");
-            serverTable.AddRow("hub connections", s.Connections.ToString());
-            serverTable.AddRow("messages/s, hub sends/s", $"{s.MessagesPerSec}, {s.HubSendsPerSec}");
-            serverTable.AddRow("requests/s, p95, max ms", $"{s.RequestsPerSec}, {Warn(s.RequestP95Ms, 200, 1000, "0")}, {s.RequestMaxMs}");
-            serverTable.AddRow("writer depth", Warn(s.WriterDepth, 100, 1000, "0"));
-            serverTable.AddRow("presence sweep ms", Warn(s.SweepMs, 50, 500, "0.0"));
-            serverTable.AddRow("host load1 / mem free MB", $"{s.MachineLoad1?.ToString("0.00") ?? "—"} / {s.MachineMemAvailableMB?.ToString() ?? "—"}");
-            serverTable.AddRow("sample age s", Warn((DateTime.UtcNow - s.At).TotalSeconds, 5, 15, "0"));
-        }
-
-        var log = new Panel(new Markup(string.Join("\n", v.Log.Select(Markup.Escape)))).Header("log").Expand().BorderColor(Color.Grey);
-
-        return new Rows(header, workers, new Columns(latency, new Rows(totals, serverTable)), log);
+        var first = true;
+        foreach (var line in v.Log) { Row(grid, first ? "[dim]log[/]" : "", $"[dim]{Esc(line)}[/]"); first = false; }
+        return grid;
     }
 
-    private static void Row(Table t, string label, HistogramData h) =>
-        t.AddRow(label, Ms(h.Percentile(0.5)), Ms(h.Percentile(0.95)), Ms(h.Percentile(0.99)), h.Count == 0 ? "—" : h.Max.ToString(), h.Count.ToString());
-    private static string Ms(long v) => v < 0 ? "—" : v.ToString();
+    private static string ServerLine(Aggregate.View v)
+    {
+        if (v.ServerError is { } err) return $"[red]unreachable: {Esc(err)}[/]";
+        if (v.Server is not { } s) return "[dim]waiting for the first sample[/]";
+        var age = (DateTime.UtcNow - s.At).TotalSeconds;
+        var stale = age > 5 ? $"   [yellow]sample {age:0} s old[/]" : "";
+        return $"cpu {Warn(s.CpuPercent, 70, 90, "0")} %   memory {s.WorkingSetMB} MB   connections {s.Connections}   requests {s.RequestsPerSec}/s, p95 {Warn(s.RequestP95Ms, 200, 1000, "0")} ms   " +
+               $"thread pool queue {Warn(s.ThreadPoolQueue, 1, 100, "0")}   writer queue {Warn(s.WriterDepth, 100, 1000, "0")}   host load {s.MachineLoad1?.ToString("0.00") ?? "-"}{stale}";
+    }
+
+    // Every value is one line, cropped at the window's edge: a wrapped line would make the frame taller than the window.
+    private static void Row(Grid grid, string label, string value) => grid.AddRow(new Markup(label), new Markup(value).Overflow(Overflow.Ellipsis));
+    private static string Switch(Kinds k, Kinds on) => $"[bold]{k.ToString().ToLowerInvariant()[0]}[/] {k.ToString().ToLowerInvariant()} {(on.HasFlag(k) ? "[green]on[/]" : "[grey]off[/]")}";
+    private static string Reasons(Totals t) => t.Errors.Count == 0 ? "" : $" ({Esc(string.Join(", ", t.Errors.OrderByDescending(e => e.Value).Take(3).Select(e => $"{e.Key} x{e.Value}")))})";
+    private static string Clock(TimeSpan t) => t.ToString(@"hh\:mm\:ss");
+    private static string Esc(string s) => Markup.Escape(s);
+    private static string Ms(long v) => v < 0 ? "-" : v.ToString();
     private static string Colour(long n) => n == 0 ? "0" : $"[red]{n}[/]";
-    private static string Warn(double v, double amber, double red, string fmt) => v >= red ? $"[red]{v.ToString(fmt)}[/]" : v >= amber ? $"[yellow]{v.ToString(fmt)}[/]" : v.ToString(fmt);
+    private static string Warn(double v, double amber, double red, string fmt) => v < 0 ? "-" : v >= red ? $"[red]{v.ToString(fmt)}[/]" : v >= amber ? $"[yellow]{v.ToString(fmt)}[/]" : v.ToString(fmt);
 
     /// <summary>One line for a terminal without a live display (an ssh session without a tty, or a log file).</summary>
-    public static string Line(Aggregate.View v, string stepLabel)
+    public static string Line(Aggregate.View v, Session.Snapshot s)
     {
-        var s = v.Server;
-        return $"{DateTime.Now:HH:mm:ss} {stepLabel,-12} users {v.Users,5} conn {v.Connected,5} | sent/s {v.SentPerSec,6:0.0} recv/s {v.ReceivedPerSec,7:0.0} | " +
-               $"sta p50/p95 {Ms(v.WindowSta.Percentile(0.5)),5}/{Ms(v.WindowSta.Percentile(0.95)),5} fan p95 {Ms(v.WindowFan.Percentile(0.95)),5} | " +
-               $"err {v.Step.ErrorCount,4} | srv cpu {s?.CpuPercent,5:0.0} ws {s?.WorkingSetMB,5} q {s?.ThreadPoolQueue,4} depth {s?.WriterDepth,5} sends/s {s?.HubSendsPerSec,6}";
+        var srv = v.Server;
+        return $"{DateTime.Now:HH:mm:ss} users {v.Users,5}/{s.Target,-5} conn {v.Connected,5} | sent/s {v.SentPerSec,6:0.0} recv/s {v.ReceivedPerSec,7:0} | " +
+               $"sta p50/p95 {Ms(v.WindowSta.Percentile(0.5)),5}/{Ms(v.WindowSta.Percentile(0.95)),5} fan p95 {Ms(v.WindowFan.Percentile(0.95)),5} | err {v.Segment.ErrorCount,4} | " +
+               $"srv cpu {srv?.CpuPercent,5:0.0} mem {srv?.WorkingSetMB,5} q {srv?.ThreadPoolQueue,4} writer {srv?.WriterDepth,5} | {Traffic.Format(s.Kinds)} {s.Pace.ToString().ToLowerInvariant()}";
     }
 }

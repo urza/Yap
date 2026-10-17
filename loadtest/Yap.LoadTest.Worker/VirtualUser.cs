@@ -31,15 +31,21 @@ public sealed class VirtualUser(Context ctx, string username, string token, int 
     private readonly Dictionary<Guid, long> _inFlight = [];        // clientId -> Stopwatch timestamp of the POST
     private readonly Queue<Guid> _recent = new();                  // message ids seen in the open room, for reactions and replies
     private readonly Lock _gate = new();
+    private const double FreshUploadShare = 0.1;   // image sends that upload a new file instead of reusing the pool
+    private const double RoomHopChance = 0.1;      // after a send, when there are test rooms: open another one for a while
 
     public async Task RunAsync(CancellationToken ct)
     {
         ctx.Stats.UserStarted();
-        _visible = _rng.NextDouble() < ctx.VisibleShare;
-        var heartbeat = HeartbeatLoopAsync(ct);
-        var behaviour = BehaviourLoopAsync(ct);
-        await ConnectionLoopAsync(ct);
-        await Task.WhenAll(heartbeat, behaviour);
+        try
+        {
+            _visible = _rng.NextDouble() < ctx.VisibleShare;
+            var heartbeat = HeartbeatLoopAsync(ct);
+            var behaviour = BehaviourLoopAsync(ct);
+            await ConnectionLoopAsync(ct);
+            await Task.WhenAll(heartbeat, behaviour);
+        }
+        finally { ctx.Stats.UserStopped(); }
     }
 
     // ---- connection -------------------------------------------------------------------------------------
@@ -102,18 +108,18 @@ public sealed class VirtualUser(Context ctx, string username, string token, int 
         var b = await bootstrap ?? throw new InvalidOperationException("empty bootstrap");
         _rooms = b.Rooms ?? [];
         _uploadBase = b.Config?.UploadUrl ?? "";
-        _peers = (b.Users ?? []).Where(u => !u.IsBot && !u.IsAdmin && u.Username != username && u.Username.StartsWith("lt_")).Select(u => u.Username).ToList();
+        _peers = (b.Users ?? []).Where(u => !u.IsBot && !u.IsAdmin && u.Username != username && u.Username.StartsWith(ctx.Prefix)).Select(u => u.Username).ToList();
         if (_homeRoom == Guid.Empty) _homeRoom = HomeRoom();
         if (_channel == Guid.Empty) _channel = _homeRoom;
         await OpenAsync(hub, _channel, ct);
         if (ctx.ClaimCatalogFetch()) _ = FetchCatalogAsync(ct);
     }
 
-    // Preset rooms are lt-room-NN; user i lives in room i mod N. One room means the lobby.
+    // Test rooms are lt-room-NN; user i lives in room i mod N. One room means the lobby.
     private Guid HomeRoom()
     {
         var testRooms = _rooms.Where(r => r.Name.StartsWith("lt-room-")).OrderBy(r => r.Name).ToList();
-        if (ctx.Preset.Rooms <= 1 || testRooms.Count == 0) return _rooms.FirstOrDefault(r => r.IsLobby)?.Id ?? _rooms.First().Id;
+        if (ctx.Rooms <= 1 || testRooms.Count == 0) return _rooms.FirstOrDefault(r => r.IsLobby)?.Id ?? _rooms.First().Id;
         return testRooms[index % testRooms.Count].Id;
     }
 
@@ -220,26 +226,29 @@ public sealed class VirtualUser(Context ctx, string username, string token, int 
                     if (_rng.NextDouble() < 0.4) { _visible = true; Input(); await BeatAsync(ct); }
                     continue;
                 }
-                await Delay(TimeSpan.FromSeconds(Exponential(ctx.Preset.MeanThinkSeconds)), ct);
+                // The pace and the kinds are read on every turn, so a change on the dashboard applies within one think time.
+                var pace = ctx.Controls.Pace;
+                await Delay(TimeSpan.FromSeconds(Exponential(pace.ThinkSeconds())), ct);
                 if (ct.IsCancellationRequested) break;
                 if (_rng.NextDouble() < 0.04) { await Delay(TimeSpan.FromSeconds(_rng.Next(120, 420)), ct); continue; }   // stepped away: auto-away after 5 min
                 if (_rng.NextDouble() < 0.03) { _visible = false; await BeatAsync(ct); continue; }                          // switched tabs
                 if (_hub is not { } hub || !_connected) continue;
 
-                var kind = ctx.Preset.Mix.Pick(_rng);
+                var on = ctx.Controls.Kinds;
+                if (Traffic.Pick(_rng, on) is not { } kind) continue;   // nothing is on: the user reads and heartbeats
                 if (kind == MessageKind.Reaction) { await ReactAsync(hub, ct); continue; }
 
                 await TypeAsync(hub, kind, ct);
                 await SendAsync(kind, ct);
-                if (_rng.NextDouble() < ctx.Preset.BurstChance)
+                if (on.HasFlag(Kinds.Text) && _rng.NextDouble() < pace.BurstChance())
                     for (var i = _rng.Next(2, 6); i > 0 && !ct.IsCancellationRequested; i--)
                     {
                         await Delay(TimeSpan.FromMilliseconds(_rng.Next(400, 2500)), ct);
                         await SendAsync(_rng.Next(4) == 0 ? MessageKind.Emoji : MessageKind.Short, ct);
                     }
-                if (_rng.NextDouble() < ctx.Preset.RoomHopChance) await HopAsync(hub, ct);
+                if (ctx.Rooms > 1 && _rng.NextDouble() < RoomHopChance) await HopAsync(hub, ct);
             }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+            catch (Exception) when (ct.IsCancellationRequested) { }   // the user is being stopped: the hub is disposed under the running action
             catch (Exception e) { ctx.Stats.Error("behaviour " + Reason(e)); await Delay(TimeSpan.FromSeconds(5), ct); }
         }
     }
@@ -293,7 +302,7 @@ public sealed class VirtualUser(Context ctx, string username, string token, int 
     private async Task<string?> ImageUrlAsync(CancellationToken ct)
     {
         var pool = ctx.ImagePool;
-        var fresh = pool.Count < Context.ImagePoolSize || _rng.NextDouble() < ctx.Preset.FreshUploadShare;
+        var fresh = pool.Count < Context.ImagePoolSize || _rng.NextDouble() < FreshUploadShare;
         if (!fresh) return pool.ElementAt(_rng.Next(pool.Count));
         try
         {

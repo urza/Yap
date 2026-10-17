@@ -11,6 +11,7 @@ public sealed class Stats(int worker)
     public readonly Histogram SendToAppear = new(), FanOut = new(), Http = new(), Rtt = new();
 
     public void UserStarted() => Interlocked.Increment(ref _users);
+    public void UserStopped() => Interlocked.Decrement(ref _users);
     public void Connected(bool up) => Interlocked.Add(ref _connected, up ? 1 : -1);
     public void Sent() => Interlocked.Increment(ref _sent);
     public void Received() => Interlocked.Increment(ref _received);

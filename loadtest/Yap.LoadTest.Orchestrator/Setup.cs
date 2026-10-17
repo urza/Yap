@@ -52,12 +52,13 @@ public sealed class Setup(YapApi api, RunState state, Action<string> log)
         catch { return false; }
     }
 
-    public async Task ApplySettingsAsync(string admin, Preset preset, CancellationToken ct)
+    /// <summary>Registration open and approval off, so accounts can be created; previews and media caching on, so a link costs what it costs in production. The links switch on the dashboard turns that traffic off.</summary>
+    public async Task ApplySettingsAsync(string admin, CancellationToken ct)
     {
-        var caching = preset.MediaCaching;
-        var body = new SettingsRequest(RegistrationClosed: false, RequireApproval: false, SmartLogin: null, LinkPreviews: preset.LinkPreviews, MediaCaching: caching);
+        var caching = true;
+        var body = new SettingsRequest(RegistrationClosed: false, RequireApproval: false, SmartLogin: null, LinkPreviews: true, MediaCaching: caching);
         using var response = await api.SendJsonAsync(HttpMethod.Put, "/api/admin/settings", body, admin, ct);
-        if (response.StatusCode == HttpStatusCode.BadRequest && caching)
+        if (response.StatusCode == HttpStatusCode.BadRequest)
         {
             // The server refuses media caching when yt-dlp is not installed. The run goes on without it.
             log("settings: media caching is not available on this server (yt-dlp missing); running with it off");
@@ -66,19 +67,20 @@ public sealed class Setup(YapApi api, RunState state, Action<string> log)
             if (!retry.IsSuccessStatusCode) throw new InvalidOperationException($"PUT /api/admin/settings -> {(int)retry.StatusCode} {await YapApi.ProblemDetail(retry, ct)}");
         }
         else if (!response.IsSuccessStatusCode) throw new InvalidOperationException($"PUT /api/admin/settings -> {(int)response.StatusCode} {await YapApi.ProblemDetail(response, ct)}");
-        log($"settings: registration open, approval off, previews {(preset.LinkPreviews ? "on" : "off")}, media caching {(caching ? "on" : "off")}");
+        log($"settings: registration open, approval off, previews on, media caching {(caching ? "on" : "off")}");
     }
 
-    /// <summary>Creates the accounts that are missing, eight at a time. Each sign-in is one POST; the token is the cookie.</summary>
-    public async Task EnsureUsersAsync(string prefix, int count, CancellationToken ct)
+    /// <summary>Creates the accounts up to <paramref name="count"/> that are missing, eight at a time. Each sign-in is one POST; the token is the cookie.</summary>
+    public async Task EnsureUsersAsync(string prefix, int count, CancellationToken ct, Action<int, int>? progress = null)
     {
         var have = state.Users.Select(u => u.Username).ToHashSet();
         var missing = Enumerable.Range(1, count).Select(i => $"{prefix}{i:D4}").Where(n => !have.Contains(n)).ToList();
-        if (missing.Count == 0) { log($"users: {count} ready"); return; }
-        log($"users: creating {missing.Count}");
+        if (missing.Count == 0) return;
+        log($"accounts: creating {missing.Count}");
         var gate = new SemaphoreSlim(8);
         var created = new System.Collections.Concurrent.ConcurrentBag<SavedUser>();
         var failures = new System.Collections.Concurrent.ConcurrentBag<string>();
+        var done = 0;
         await Task.WhenAll(missing.Select(async name =>
         {
             await gate.WaitAsync(ct);
@@ -87,6 +89,7 @@ public sealed class Setup(YapApi api, RunState state, Action<string> log)
                 var r = await api.SignInAsync(name, null, ct);
                 if (r.Status == HttpStatusCode.OK && r.Token is { } token) created.Add(new SavedUser(name, token));
                 else failures.Add($"{name}: {(int)r.Status} {r.Detail}");
+                progress?.Invoke(Interlocked.Increment(ref done), missing.Count);
             }
             finally { gate.Release(); }
         }));
@@ -94,7 +97,7 @@ public sealed class Setup(YapApi api, RunState state, Action<string> log)
         state.Users = state.Users.OrderBy(u => u.Username, StringComparer.Ordinal).ToList();
         if (!failures.IsEmpty)
             throw new InvalidOperationException($"{failures.Count} accounts could not be created, e.g. {failures.First()}. A 401 means the name exists from an earlier run whose state file is gone: pass a new --prefix.");
-        log($"users: {state.Users.Count} ready");
+        log($"accounts: {created.Count} created, {state.Users.Count} in the state file");
     }
 
     public async Task EnsureRoomsAsync(string admin, int rooms, CancellationToken ct)
