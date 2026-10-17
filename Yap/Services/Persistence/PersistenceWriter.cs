@@ -16,10 +16,16 @@ public sealed class PersistenceWriter : BackgroundService
     private readonly IDbContextFactory<ChatDbContext>? _db;
     private readonly ILogger<PersistenceWriter> _log;
 
-    // One reader, so the runtime uses its cheapest implementation. Unbounded: a chat this size never
-    // outruns SQLite, and the depth is shown on the diagnostics page instead of enforced here.
+    // One reader, so the runtime uses its cheapest implementation. Unbounded: the depth is shown on the
+    // diagnostics page instead of enforced here, and a backlog drains at a steady rate (see BatchSize).
     private readonly Channel<Write> _queue = Channel.CreateUnbounded<Write>(new UnboundedChannelOptions { SingleReader = true });
     private int _depth;   // counted here because the single-reader channel does not support Reader.Count
+
+    // A commit every 500 writes, not one per pass. A pass that took the whole backlog grew with the
+    // backlog, so a writer that fell behind never caught up: on the 2026-10-16 load test the queue stalled
+    // for good past about 1,000 writes a second. A bounded batch keeps the disk seconds behind memory,
+    // and a restart loses at most one batch.
+    private const int BatchSize = 500;
 
     public PersistenceWriter(IServiceProvider services, ILogger<PersistenceWriter> log)
     {
@@ -46,8 +52,8 @@ public sealed class PersistenceWriter : BackgroundService
         // after the last queued write and a normal shutdown loses nothing.
         while (await _queue.Reader.WaitToReadAsync())
         {
-            var batch = new List<Write>();
-            while (_queue.Reader.TryRead(out var write)) batch.Add(write);
+            var batch = new List<Write>(BatchSize);
+            while (batch.Count < BatchSize && _queue.Reader.TryRead(out var write)) batch.Add(write);
             await RunAsync(batch);
             Interlocked.Add(ref _depth, -batch.Count);   // after the pass: the depth counts writes not yet on disk
         }
@@ -59,8 +65,8 @@ public sealed class PersistenceWriter : BackgroundService
         await base.StopAsync(cancellationToken);   // waits for ExecuteAsync up to the host's shutdown timeout
     }
 
-    // Everything that was queued at the moment of the pass goes into one transaction. Under load this turns
-    // the many read-state updates of one message into one commit, which is the expensive part on SQLite.
+    // Up to BatchSize queued writes go into one transaction. Under load this turns the many read-state
+    // updates of one message into one commit, which is the expensive part on SQLite.
     private async Task RunAsync(List<Write> batch)
     {
         try
@@ -73,6 +79,9 @@ public sealed class PersistenceWriter : BackgroundService
                 // Add and SetValues stay tracked until SaveChanges, while ExecuteUpdate and ExecuteDelete run at
                 // once. Saving after every write keeps an edit after its insert and a delete after both.
                 await db.SaveChangesAsync();
+                // The entities of every write so far stay tracked otherwise, and each save runs change detection
+                // over all of them: a batch of N then costs N²/2. Cleared, write k costs the same as write 1.
+                db.ChangeTracker.Clear();
             }
             await tx.CommitAsync();
         }
