@@ -1,17 +1,17 @@
-// A room or a direct message (SH-42, SH-43). The page mounts the timeline and the composer into the frame's
-// content column, opens the conversation on the hub, and re-opens it after every reconnect (TL-35).
+// A direct message (SH-42). The page mounts the timeline and the composer into the frame's content column,
+// opens the conversation on the hub, and re-opens it after every reconnect (TL-35). A person opens the admin
+// only; the admin opens anyone (docs/dmonly.md).
 
-import { state, on, setOpen, closeOpen, roomById, lobby } from '../store.js';
+import { state, setOpen, closeOpen } from '../store.js';
 import * as hub from '../hub.js';
 import * as router from '../router.js';
 import * as frame from '../ui/frame.js';
 import { Timeline } from '../ui/timeline.js';
 import { Composer } from '../ui/composer.js';
-import { el } from '../render/dom.js';
+import { el, clone } from '../render/dom.js';
 import * as snapshot from '../offline/snapshot.js';
 import { setTitle } from '../notify.js';
 import * as push from '../push.js';
-import { clone } from '../render/dom.js';
 import * as overlays from '../ui/overlays.js';
 
 let generation = 0;   // a switch during an open: the older answer is dropped
@@ -38,26 +38,20 @@ export function mount(root, params) {
   root.replaceChildren(timelineRoot, composerRoot);
   const unmounts = [Timeline(timelineRoot), Composer(composerRoot)];
 
-  const target = resolve(params);
-  if (!target) { unmounts.forEach(u => u()); router.navigate('/lobby', { replace: true }); return () => {}; }
+  const partner = resolve(params);
+  if (!partner) { unmounts.forEach(u => u()); router.navigate('/', { replace: true }); return () => {}; }
 
-  setTitles(target);
-  router.rememberRoute(target.kind === 'dm' ? router.dmPath(target.partner) : router.roomPath(target.room, lobby()?.id));
+  frame.setTitle('dm', { partner });                                   // SH-06
+  setTitle(`${state.config.projectName} | @${partner}`);               // SH-45
 
-  const painted = paintStored(target, me);
+  const painted = paintStored(partner, me);
   notificationPrompt();
-  const open = () => openConversation(target, me, painted, timing);
+  const open = () => openConversation(partner, me, painted, timing, root, params.path);
   open();
   const offConnected = hub.onConnected(open);                 // after a reconnect: the newest messages again (TL-35)
-  const offRooms = on('rooms', () => {
-    if (target.kind !== 'room') return;
-    const room = roomById(target.channelId);
-    if (!room) { router.navigate('/lobby', { replace: true }); return; }                   // the open room was deleted: the lobby (TL-21)
-    if (room.name !== target.room.name) { target.room = room; setTitles(target); }         // a rename reaches the header and the tab (U04 of the 2026-10-15 user test)
-  });
 
   return () => {
-    offConnected(); offRooms();
+    offConnected();
     // leaving for another page marks the conversation read when the person was looking (NT-06)
     if (hub.connected() && hub.looking()) hub.send('markRead', state.open.channelId);
     unmounts.forEach(u => u());
@@ -66,53 +60,58 @@ export function mount(root, params) {
   };
 }
 
-// The header (SH-05, SH-06) and the tab title (SH-45).
-function setTitles(target) {
-  frame.setTitle(target.kind, target.kind === 'dm' ? { partner: target.partner } : { channelId: target.channelId, roomName: target.room.name });
-  setTitle(target.kind === 'dm' ? `${state.config.projectName} | @${target.partner}` : `${state.config.projectName} | #${target.room.name}`);
-}
-
-function resolve({ lobby: wantsLobby, roomId, dmUser }) {
-  if (dmUser) {
-    if (dmUser === state.user.username || !state.users[dmUser]) return null;   // SH-43
-    return { kind: 'dm', partner: dmUser };
-  }
-  const room = wantsLobby ? lobby() : roomById(roomId);
-  return room ? { kind: 'room', channelId: room.id, room } : null;
+// The partner of the route, or null when there is nothing to open: the person themself, a name the directory
+// does not hold, or for a person anyone but the admin. The home is the fallback (SH-43), and the home of a
+// person is the admin, which this accepts, so the two never chase each other.
+function resolve({ dmUser }) {
+  const u = dmUser ? state.users[dmUser] : null;
+  if (!u || dmUser === state.user.username) return null;
+  if (!state.user.isAdmin && !u.isAdmin) return null;
+  return dmUser;
 }
 
 // The last known messages at once; the server's answer replaces them (TL-02). A conversation never shown
 // on this device opens empty and marked loading: the composer is there before the server answers. In the
 // 2026-10-16 load test the answer took seconds, and the page was blank with no input box until then.
-async function paintStored(target, me) {
-  const stored = await snapshot.loadTail(snapshot.keyOf({ partner: target.partner ?? null, channelId: target.channelId }));
+async function paintStored(partner, me) {
+  const stored = await snapshot.loadTail(snapshot.keyOf({ partner }));
   if (me !== generation || state.open) return;
-  setOpen(stored ?? { channelId: target.channelId ?? null, messages: [], hasMore: true, restricted: false, typists: [], loading: true },
-          target.kind === 'dm' ? target.partner : null);
+  setOpen(stored ?? { channelId: null, messages: [], hasMore: true, typists: [], loading: true }, partner);
 }
 
-async function openConversation(target, me, painted, timing) {
-  const result = target.kind === 'dm'
-    ? await hub.invoke('openDm', target.partner)
-    : await hub.invoke('openRoom', target.channelId);
+async function openConversation(partner, me, painted, timing, root, path) {
+  const result = await hub.invoke('openDm', partner);
   if (me !== generation) return;                                           // the person moved on
   if (result?.error) {
-    if (result.error !== 'Needs a connection') { router.navigate('/lobby', { replace: true }); return; }   // an unknown target (SH-43)
+    if (result.error !== 'Needs a connection') {
+      // The server refused the name (SH-43). The admin goes home; a person has no other page, so the column
+      // shows the error with its retry.
+      if (state.user.isAdmin) router.navigate('/', { replace: true }); else showRefusal(root, path, result.error);
+      return;
+    }
     // offline: the stored tail stays; a conversation never opened here opens empty, so a send still queues
     // (OF-06, OF-08). A direct message has no channel id yet; the outbox addresses it by its partner.
     await painted;   // the stored tail is read first; the hub's refusal comes faster than IndexedDB
     if (me !== generation) return;
     // A placeholder marked loading stays: the hub is connecting (a cold start) or reconnecting, and the
     // connected handler opens again. Offline, the timeline shows "Needs a connection" instead of the line.
-    if (!state.open) setOpen({ channelId: target.channelId ?? null, messages: [], hasMore: true, restricted: false, typists: [] }, target.partner ?? null);
+    if (!state.open) setOpen({ channelId: null, messages: [], hasMore: true, typists: [] }, partner);
     return;
   }
-  setOpen(result, target.kind === 'dm' ? target.partner : null);   // the snapshot module stores the tail from the store
+  setOpen(result, partner);   // the snapshot module stores the tail from the store
   if (!timing.reported) { timing.reported = true; reportOpened(timing.mountedAt); }   // the re-open after a reconnect is not a tap
 }
 
+function showRefusal(root, path, reason) {
+  const screen = clone('t-error');
+  screen.querySelector('.error-detail').textContent = reason;
+  screen.querySelector('.error-retry-button').addEventListener('click', () => router.navigate(path, { replace: true }));
+  screen.querySelector('.error-reload-button').addEventListener('click', () => location.reload());
+  root.replaceChildren(screen);
+}
+
 // The wait until the server's rows are on screen (AD-26), reported with the next heartbeat. The first conversation
-// of the page load is the app start, counted from the navigation: scripts, bootstrap, connection and room. Every
+// of the page load is the app start, counted from the navigation: scripts, bootstrap, connection and the open. Every
 // later mount is a tap, counted from the mount. The stored tail may paint earlier; that is the device, not the wire.
 function reportOpened(mountedAt) {
   if (!firstOpenPending) { hub.report('open', performance.now() - mountedAt); return; }

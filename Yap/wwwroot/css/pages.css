@@ -1799,75 +1799,132 @@
     font-size: 0.75rem;
 }
 
-/* ==== ChannelSettings (was Yap/Components/Pages/ChannelSettings.razor.css) ==== */
+/* ==== People (docs/dmonly.md): the admin's home, inside the frame's conversation column ==== */
 
-.page-channel .settings-container {
+.page-people {
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
-    height: 100%;
-    padding: 1.5rem;
+}
+
+.people-search {
+    padding: 0.75rem 1rem 0.5rem;
+}
+
+.people-filter {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-color, transparent);
+    border-radius: 8px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font: inherit;
+}
+
+.people-filter::placeholder {
+    color: var(--text-placeholder);
+}
+
+.people-list {
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
+    padding: 0 0.5rem 1rem;
+    scrollbar-width: thin;
 }
 
-.page-channel .settings-header {
+.person-row {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    margin-bottom: 2rem;
-}
-
-.page-channel .settings-header h2 {
-    color: var(--text-white);
-    font-size: 1.5rem;
-    font-weight: 600;
-    margin: 0;
-}
-
-.page-channel .back-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    background: var(--bg-sidebar);
-    border: none;
-    border-radius: 50%;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
     color: var(--text-secondary);
     cursor: pointer;
     transition: background-color 0.15s, color 0.15s;
 }
 
-.page-channel .back-button:hover {
-    background: var(--bg-hover);
-    color: var(--text-white);
+.person-row:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
 }
 
-.page-channel .settings-content {
-    max-width: 600px;
-    width: 100%;
+/* The rows are divs with role=link (people.js): the keyboard ring is drawn here, inside the row's radius. */
+.person-row:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: -2px;
 }
 
-.page-channel .settings-section {
-    background: var(--bg-sidebar);
-    border-radius: 8px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
+.person-avatar {
+    display: flex;
+    flex-shrink: 0;
 }
 
-.page-channel .settings-section h3 {
-    color: var(--text-white);
-    font-size: 1.125rem;
-    font-weight: 600;
-    margin: 0 0 0.25rem 0;
+.person-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
 }
 
-.page-channel .section-hint {
-    display: block;
-    color: var(--text-muted);
+.person-name {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    min-width: 0;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.person-name-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.person-row .admin-badge,
+.person-row .bot-badge {
+    opacity: 0.8;
+    font-size: 0.875rem;
+}
+
+.person-meta {
+    font-size: 0.8125rem;
+    color: var(--text-tertiary);
+}
+
+.person-row.has-unread .person-meta {
+    color: var(--text-secondary);
+}
+
+.person-side {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    flex-shrink: 0;
+}
+
+.person-time {
     font-size: 0.75rem;
-    margin-bottom: 1rem;
+    color: var(--text-tertiary);
 }
 
+.people-empty {
+    padding: 3rem 1rem;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+/* A 16 px field on a phone, so the page never zooms when it gets focus (GEN-15). */
+@media (max-width: 600px) {
+    .people-filter {
+        font-size: 16px;
+    }
+}
+
+/* Kept from the channel pages: the settings forms use these too. */
 .error-message {
     background: rgba(237, 66, 69, 0.15);
     border: 1px solid var(--color-danger);
@@ -1876,350 +1933,6 @@
     margin-bottom: 1rem;
     color: var(--color-danger);
     font-size: 0.875rem;
-}
-
-/* Form elements */
-.page-channel .form-group {
-    margin-bottom: 1.25rem;
-}
-
-.page-channel .form-group:last-child {
-    margin-bottom: 0;
-}
-
-.page-channel .form-group label {
-    display: block;
-    color: var(--text-secondary);
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-    margin-bottom: 0.5rem;
-}
-
-.page-channel .form-input,
-.page-channel .form-textarea {
-    width: 100%;
-    padding: 0.75rem;
-    background: var(--bg-input);
-    border: 1px solid var(--border-subtle);
-    border-radius: 4px;
-    color: var(--text-primary);
-    font-size: 1rem;
-    font-family: inherit;
-    transition: border-color 0.15s;
-}
-
-.page-channel .form-input:focus,
-.page-channel .form-textarea:focus {
-    outline: none;
-    border-color: var(--accent-primary);
-}
-
-.page-channel .form-input:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.page-channel .form-input::placeholder,
-.page-channel .form-textarea::placeholder {
-    color: var(--text-placeholder);
-}
-
-.page-channel .form-textarea {
-    min-height: 80px;
-    resize: vertical;
-}
-
-.page-channel .form-hint {
-    display: block;
-    color: var(--text-muted);
-    font-size: 0.75rem;
-    margin-top: 0.25rem;
-}
-
-.form-counter {
-    display: block;
-    color: var(--text-muted);
-    font-size: 0.75rem;
-    text-align: right;
-    margin-top: 0.25rem;
-}
-
-/* Permission cards */
-.permission-cards {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.permission-card {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.875rem 1rem;
-    background: var(--bg-input);
-    border: 2px solid var(--border-subtle);
-    border-radius: 8px;
-    cursor: pointer;
-    transition: border-color 0.15s, background-color 0.15s;
-}
-
-.permission-card:hover {
-    border-color: var(--text-placeholder);
-}
-
-.permission-card.selected {
-    border-color: var(--accent-primary);
-    background: rgba(88, 101, 242, 0.08);
-}
-
-.permission-card-radio {
-    flex-shrink: 0;
-}
-
-.radio-outer {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    border: 2px solid var(--text-placeholder);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: border-color 0.15s;
-}
-
-.permission-card.selected .radio-outer {
-    border-color: var(--accent-primary);
-}
-
-.radio-inner {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--accent-primary);
-}
-
-.permission-card-content {
-    display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
-}
-
-.permission-card-title {
-    color: var(--text-white);
-    font-size: 0.9375rem;
-    font-weight: 500;
-}
-
-.permission-card-desc {
-    color: var(--text-muted);
-    font-size: 0.8125rem;
-}
-
-/* Reorder list */
-.reorder-list {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.reorder-item {
-    display: flex;
-    align-items: center;
-    padding: 0.5rem 0.75rem;
-    border-radius: 4px;
-    background: var(--bg-input);
-    transition: background-color 0.15s;
-}
-
-.reorder-item.current {
-    background: rgba(88, 101, 242, 0.15);
-    border: 1px solid rgba(88, 101, 242, 0.3);
-}
-
-.reorder-icon {
-    color: var(--text-placeholder);
-    font-size: 1.125rem;
-    margin-right: 0.5rem;
-    font-weight: 500;
-}
-
-.reorder-name {
-    flex: 1;
-    color: var(--text-primary);
-    font-size: 0.9375rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.reorder-buttons {
-    display: flex;
-    gap: 2px;
-    margin-left: 0.5rem;
-}
-
-.reorder-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    background: transparent;
-    border: 1px solid var(--border-subtle);
-    border-radius: 4px;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.15s;
-}
-
-.reorder-btn:hover:not(:disabled) {
-    background: var(--bg-hover);
-    color: var(--text-white);
-    border-color: var(--text-placeholder);
-}
-
-.reorder-btn:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-}
-
-/* Actions */
-.page-channel .settings-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.75rem;
-    margin-bottom: 1.5rem;
-}
-
-.cancel-button,
-.save-button {
-    padding: 0.75rem 1.5rem;
-    border-radius: 4px;
-    font-size: 0.875rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.15s;
-}
-
-.cancel-button {
-    background: transparent;
-    border: 1px solid var(--border-subtle);
-    color: var(--text-secondary);
-}
-
-.cancel-button:hover {
-    background: var(--bg-hover);
-}
-
-.save-button {
-    background: var(--accent-primary);
-    border: none;
-    color: var(--text-white);
-}
-
-.save-button:hover:not(:disabled) {
-    background: var(--accent-hover);
-}
-
-.save-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-/* Danger zone */
-.danger-section {
-    border: 1px solid rgba(237, 66, 69, 0.3);
-}
-
-/* Flattening: prefixed although .danger-section does not collide. The markup is
-   <div class="settings-section danger-section">; without the prefix the prefixed
-   .settings-section h3 above would win and the danger heading would lose its red. */
-.page-channel .danger-section h3 {
-    color: var(--color-danger);
-}
-
-.danger-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-}
-
-.danger-text {
-    display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
-}
-
-.danger-title {
-    color: var(--text-primary);
-    font-size: 0.9375rem;
-    font-weight: 500;
-}
-
-.danger-desc {
-    color: var(--text-muted);
-    font-size: 0.8125rem;
-}
-
-.delete-button {
-    flex-shrink: 0;
-    padding: 0.5rem 1rem;
-    background: transparent;
-    border: 1px solid var(--color-danger);
-    border-radius: 4px;
-    color: var(--color-danger);
-    font-size: 0.875rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.15s;
-    white-space: nowrap;
-}
-
-.delete-button:hover {
-    background: rgba(237, 66, 69, 0.15);
-}
-
-.delete-button.confirm {
-    background: var(--color-danger);
-    color: var(--text-white);
-    border-color: var(--color-danger);
-}
-
-.delete-button.confirm:hover {
-    background: #c03537;
-}
-
-/* Mobile adjustments */
-@media (max-width: 600px) {
-    .page-channel .settings-container {
-        padding: 1rem;
-    }
-
-    .page-channel .settings-section {
-        padding: 1rem;
-    }
-
-    .page-channel .settings-actions {
-        flex-direction: column-reverse;
-    }
-
-    .cancel-button,
-    .save-button {
-        width: 100%;
-    }
-
-    .danger-item {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .delete-button {
-        width: 100%;
-        text-align: center;
-    }
 }
 
 /* ==== Invite (was Yap/Components/Pages/Invite.razor.css) ==== */

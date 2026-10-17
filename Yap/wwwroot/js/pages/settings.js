@@ -317,9 +317,8 @@ export function mount(root, route) {
     }
     const modes = [['allowAll', 'Allow all', BELL], ['individual', 'Individual', SLIDERS], ['muteAll', 'Mute all', BELL_OFF]];
     seg($('.dm-seg'), modes, mutes.dmMode, v => { mergeMe({ mutes: { ...mutes, dmMode: v } }); putMutes({ dmMode: v }); });
-    seg($('.room-seg'), modes, mutes.roomMode, v => { mergeMe({ mutes: { ...mutes, roomMode: v } }); putMutes({ roomMode: v }); });
-    const dmList = $('.dm-list'), roomList = $('.room-list');
-    dmList.hidden = mutes.dmMode !== 'individual'; roomList.hidden = mutes.roomMode !== 'individual';
+    const dmList = $('.dm-list');
+    dmList.hidden = mutes.dmMode !== 'individual';
     const toggle = (label, isMuted, onToggle) => {
       const item = clone('t-notif-item');
       replace(item.querySelector('.notif-item-name'), inline(label));
@@ -337,10 +336,9 @@ export function mount(root, route) {
       replace(dmList, [...state.dms.slice().sort((a, b) => (b.lastMessageAt ?? '').localeCompare(a.lastMessageAt ?? '')).map(d => channelToggle(d.channelId, displayName(d.partner), mutes.newDmsMuted)),
         Object.assign(toggle('New DMs', mutes.newDmsMuted, next => { mergeMe({ mutes: { ...mutes, newDmsMuted: next } }); putMutes({ newDmsMuted: next }); }), { className: 'notif-item notif-item-default' })]);
     }
-    if (!roomList.hidden) replace(roomList, state.rooms.map(r => channelToggle(r.id, `#${r.name}`, true)));
   }
   drawMutes();
-  offs.push(on('mutes', drawMutes), on('dms', drawMutes), on('rooms', drawMutes));
+  offs.push(on('mutes', drawMutes), on('dms', drawMutes));
   timers.hint = setInterval(() => { if (!$('.mute-hint').hidden) $('.mute-hint').textContent = muteHint(); }, 60_000);
 
   // ---- Time & Date (ST-19, ST-20) ----

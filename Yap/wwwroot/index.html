@@ -96,7 +96,7 @@
     <link rel="modulepreload" href="js/pages/login.js" />
     <link rel="modulepreload" href="js/pages/verify.js" />
     <link rel="modulepreload" href="js/pages/invite.js" />
-    <link rel="modulepreload" href="js/pages/channel-settings.js" />
+    <link rel="modulepreload" href="js/pages/people.js" />
     <link rel="modulepreload" href="js/pages/settings.js" />
     <link rel="modulepreload" href="js/pages/admin.js" />
     <link rel="modulepreload" href="js/push.js" />
@@ -144,9 +144,9 @@
          The class names are the ones the flattened CSS expects (css/README.md).
          ================================================================================================ -->
 
-    <!-- ---- the frame (SH-01): header, header line, conversation column, sidebar ---- -->
+    <!-- ---- the frame (SH-01): header, header line, conversation column. No sidebar in this build (docs/dmonly.md). ---- -->
     <template id="t-frame">
-        <div class="chat-container" data-context="room">
+        <div class="chat-container" data-context="page">
             <div class="theme-scene"></div>
             <div class="theme-scrim"></div>
             <div class="chat-header">
@@ -164,43 +164,23 @@
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5v-3h3.56c.69 1.19 1.97 2 3.45 2s2.75-.81 3.45-2H19v3zm0-5h-4.99c0 1.1-.9 2-2 2s-2-.9-2-2H5V5h14v9z"/></svg>
                         <span class="mailbox-badge"></span>
                     </button>
-                    <button class="users-toggle" type="button" title="Toggle sidebar">
-                        <svg class="icon-people" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M14 8.00598C14 10.211 12.206 12.006 10 12.006C7.795 12.006 6 10.211 6 8.00598C6 5.80098 7.795 4.00598 10 4.00598C12.206 4.00598 14 5.80098 14 8.00598ZM2 19.006C2 15.473 5.29 13.006 10 13.006C14.711 13.006 18 15.473 18 19.006V20.006H2V19.006Z"/>
-                            <path d="M20.0001 20.006H22.0001V19.006C22.0001 16.4433 20.2697 14.4415 17.5213 13.5352C19.0621 14.9127 20.0001 16.8059 20.0001 19.006V20.006Z"/>
-                            <path d="M14.8834 11.9077C16.6657 11.5044 18.0001 9.9077 18.0001 8.00598C18.0001 5.96916 16.4693 4.28218 14.4971 4.0367C15.4322 5.09511 16.0001 6.48524 16.0001 8.00598C16.0001 9.44888 15.4889 10.7742 14.6378 11.8102C14.7203 11.8734 14.8022 11.9388 14.8834 11.9077Z"/>
-                        </svg>
-                        <svg class="icon-hamburger" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
-                        <span class="online-count"></span>
-                    </button>
                 </div>
             </div>
             <img src="/images/turqline01_3px.png" class="header-line" alt="">
             <div class="chat-main">
                 <div class="messages-container"></div>
-                <div class="users-sidebar">
-                    <div class="sidebar-section">
-                        <h4>ROOMS</h4>
-                        <div class="rooms-list"></div>
-                    </div>
-                    <div class="sidebar-section">
-                        <h4 class="people-header"></h4>
-                        <div class="users-list"></div>
-                    </div>
-                </div>
             </div>
-            <div class="sidebar-backdrop"></div>
         </div>
     </template>
 
-    <!-- The title area in a room: one text from the room header list (SH-05). -->
-    <template id="t-header-room"><h3></h3></template>
+    <!-- The title area on the admin's people page: the project name (SH-05). -->
+    <template id="t-header-home"><h3></h3></template>
 
-    <!-- The title area in a direct message, on Settings and on the channel pages: a back arrow, a slot for the
-         partner's small avatar, the title (SH-06, SH-07). -->
+    <!-- The title area in a direct message and on Settings: a back arrow to the home, a slot for the partner's
+         small avatar, the title (SH-06, SH-07). frame.js hides the arrow for a person in their conversation. -->
     <template id="t-header-back">
         <div class="dm-header-title">
-            <button class="back-button" type="button" title="Back to lobby">
+            <button class="back-button" type="button" title="Back">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
             </button>
             <h3></h3>
@@ -237,45 +217,36 @@
         </div>
     </template>
 
-    <!-- A room row (SH-22, SH-23, SH-24). A div with role=link and tabindex, not an <a>: it holds a button (the gear),
-         and the person row holds one too. The keys are wired in frame.js. -->
-    <template id="t-room-row">
-        <div class="room-item" role="link" tabindex="0">
-            <span class="room-icon">#</span>
-            <span class="room-name"></span>
-            <span class="mute-bell" title="Notifications muted"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm0-15.5c2.49 0 4 2.02 4 4.5v5h2v1H6v-1h2v-5c0-3.07 1.63-5.64 4.5-6.32V4c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5v.68c-.17.04-.33.09-.5.14zM5.41 3.35L4 4.76l2.81 2.81C6.29 8.57 6 9.74 6 11v5l-2 2v1h14.24l1.35 1.35 1.41-1.41L5.41 3.35z"/></svg></span>
-            <span class="unread-dot"></span>
-            <span class="unread-badge"></span>
-            <button class="room-settings" type="button" title="Channel settings">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
-            </button>
+    <!-- The people page (docs/dmonly.md): the admin's home, inside the frame. -->
+    <template id="t-people">
+        <div class="page-people">
+            <div class="people-search"><input type="search" class="people-filter" placeholder="Find a person" aria-label="Find a person" autocomplete="off"></div>
+            <div class="people-list"></div>
         </div>
     </template>
 
-    <template id="t-add-room">
-        <div class="room-item add-room" role="link" tabindex="0">
-            <span class="room-icon">+</span>
-            <span class="room-name">Add Room</span>
+    <!-- A person row on the people page. A div with role=link and tabindex, not an <a>: it holds a button (the
+         info button). The keys are wired in people.js. The info button shows on touch screens and narrow windows (SH-34). -->
+    <template id="t-person-row">
+        <div class="person-row" role="link" tabindex="0">
+            <span class="person-avatar"></span>
+            <div class="person-main">
+                <span class="person-name"><span class="user-status-dot"></span><span class="person-name-text"></span><span class="admin-badge" title="Admin"></span><span class="bot-badge" title="Bot"></span></span>
+                <span class="person-meta"></span>
+            </div>
+            <div class="person-side">
+                <span class="person-time"></span>
+                <span class="mute-bell" title="Notifications muted"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm0-15.5c2.49 0 4 2.02 4 4.5v5h2v1H6v-1h2v-5c0-3.07 1.63-5.64 4.5-6.32V4c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5v.68c-.17.04-.33.09-.5.14zM5.41 3.35L4 4.76l2.81 2.81C6.29 8.57 6 9.74 6 11v5l-2 2v1h14.24l1.35 1.35 1.41-1.41L5.41 3.35z"/></svg></span>
+                <span class="unread-dot"></span>
+                <span class="unread-badge"></span>
+                <button class="profile-info-btn" type="button" title="View profile" aria-label="View profile">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+                </button>
+            </div>
         </div>
     </template>
 
-    <!-- A person row (SH-31). The info button shows on touch screens and narrow windows (SH-34). -->
-    <template id="t-user-row">
-        <div class="user-item" role="link" tabindex="0">
-            <span class="user-status-dot"></span>
-            <span class="user-name"></span>
-            <button class="profile-info-btn" type="button" title="View profile" aria-label="View profile">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
-            </button>
-            <span class="admin-badge" title="Admin"></span>
-            <span class="bot-badge" title="Bot"></span>
-            <span class="mute-bell" title="Notifications muted"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm0-15.5c2.49 0 4 2.02 4 4.5v5h2v1H6v-1h2v-5c0-3.07 1.63-5.64 4.5-6.32V4c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5v.68c-.17.04-.33.09-.5.14zM5.41 3.35L4 4.76l2.81 2.81C6.29 8.57 6 9.74 6 11v5l-2 2v1h14.24l1.35 1.35 1.41-1.41L5.41 3.35z"/></svg></span>
-            <span class="unread-dot"></span>
-            <span class="unread-badge"></span>
-        </div>
-    </template>
-
-    <!-- The profile card (SH-35). Placed in .profile-popup, a sibling of the sidebar. -->
+    <!-- The profile card (SH-35). Placed in .profile-popup inside .chat-main. -->
     <template id="t-profile-popup">
         <div class="profile-popup">
             <div class="profile-card">
@@ -333,18 +304,10 @@
         <button class="show-more load-earlier" type="button">Load earlier messages</button>
     </template>
 
-    <template id="t-history-start"><div class="history-start"></div></template>
-
     <template id="t-dm-start">
         <div class="system-message"><div class="message-content">This is the beginning of your direct message history with <strong></strong>.</div></div>
     </template>
 
-    <!-- A lobby join or leave line (MR-73). -->
-    <template id="t-system-line">
-        <div class="message-group system-message"><div class="message-body"><div class="message-content"></div></div></div>
-    </template>
-
-    <!-- The New messages pill (TL-16). -->
     <template id="t-pill">
         <button class="new-messages-pill" type="button"><span class="pill-text"></span><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></button>
     </template>
@@ -524,10 +487,6 @@
                         <span class="typing-text"></span>
                     </span>
                 </div>
-            </div>
-            <div class="readonly-bar" hidden>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
-                <span>You do not have permission to send messages in this channel</span>
             </div>
             <div class="reply-bar" hidden>
                 <span class="reply-bar-text">Replying to <strong></strong></span>
@@ -755,95 +714,6 @@
         </div>
     </template>
 
-    <!-- ---- Create Channel and Channel Settings (AD-29 to AD-35), inside the frame ---- -->
-    <template id="t-channel-settings">
-        <div class="page-channel">
-            <div class="settings-container">
-                <div class="settings-header">
-                    <button class="back-button" type="button" title="Go back"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
-                    <h2 class="page-heading"></h2>
-                </div>
-                <div class="settings-content">
-                    <div class="error-message" hidden></div>
-                    <div class="settings-section">
-                        <h3>Channel Info</h3>
-                        <div class="form-group">
-                            <label for="channel-name">Name</label>
-                            <input type="text" id="channel-name" placeholder="channel-name" maxlength="50" class="form-input" autocapitalize="none" spellcheck="false" />
-                            <span class="form-hint name-hint">Lowercase, no spaces.</span>
-                        </div>
-                        <div class="form-group">
-                            <label for="channel-description">Description</label>
-                            <textarea id="channel-description" maxlength="500" class="form-textarea"></textarea>
-                            <span class="form-hint">Shown at the top of the channel. Leave blank for the default "This is the beginning of #channel" message.</span>
-                            <span class="form-counter"></span>
-                        </div>
-                    </div>
-                    <div class="settings-section">
-                        <h3>Permissions</h3>
-                        <span class="section-hint">Who can send messages in this channel</span>
-                        <div class="permission-cards">
-                            <div class="permission-card" data-permission="everyone">
-                                <div class="permission-card-radio"><div class="radio-outer"></div></div>
-                                <div class="permission-card-content"><span class="permission-card-title">Everyone</span><span class="permission-card-desc">All users can send messages</span></div>
-                            </div>
-                            <div class="permission-card" data-permission="adminOnly">
-                                <div class="permission-card-radio"><div class="radio-outer"></div></div>
-                                <div class="permission-card-content"><span class="permission-card-title">Admin Only</span><span class="permission-card-desc">Only admin can send messages (read-only for others)</span></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="settings-section">
-                        <h3>History Visibility</h3>
-                        <span class="section-hint">How far back non-admin users can scroll through message history</span>
-                        <div class="form-group">
-                            <select class="form-input history-limit">
-                                <option value="unlimited">Unlimited</option>
-                                <option value="oneDay">1 Day</option>
-                                <option value="threeDays">3 Days</option>
-                                <option value="oneWeek">1 Week</option>
-                                <option value="twoWeeks">2 Weeks</option>
-                                <option value="oneMonth">1 Month</option>
-                                <option value="threeMonths">3 Months</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="checkbox-label"><input type="checkbox" class="since-joined" /><span>Only show messages since user joined</span></label>
-                            <span class="form-hint">Each user only sees messages posted after they signed up. When combined with a time limit, the more restrictive cutoff applies. Admin always sees full history.</span>
-                        </div>
-                    </div>
-                    <div class="settings-section order-section" hidden>
-                        <h3>Channel Order</h3>
-                        <span class="section-hint">Use the arrows to reorder channels in the sidebar</span>
-                        <div class="reorder-list"></div>
-                    </div>
-                    <div class="settings-actions">
-                        <button class="cancel-button" type="button">Cancel</button>
-                        <button class="save-button" type="button" disabled><span>Save Changes</span></button>
-                    </div>
-                    <div class="settings-section danger-section" hidden>
-                        <h3>Danger Zone</h3>
-                        <div class="danger-item">
-                            <div class="danger-text"><span class="danger-title">Delete this channel</span><span class="danger-desc">This action cannot be undone. All messages will be lost.</span></div>
-                            <button class="delete-button" type="button">Delete Channel</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </template>
-
-    <template id="t-reorder-item">
-        <div class="reorder-item">
-            <span class="reorder-icon">#</span>
-            <span class="reorder-name"></span>
-            <div class="reorder-buttons">
-                <button class="reorder-btn up" type="button" title="Move up"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg></button>
-                <button class="reorder-btn down" type="button" title="Move down"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></button>
-            </div>
-        </div>
-    </template>
-
     <!-- ---- Settings (settings.md), inside the frame. Static parts here; the page module fills the rest. ---- -->
     <template id="t-settings">
         <div class="page-settings">
@@ -1018,11 +888,8 @@
                             <div class="notif-divider"></div>
                             <div class="notif-row"><span class="notif-row-label">Direct messages</span><div class="segmented dm-seg" role="radiogroup" aria-label="Direct messages"></div></div>
                             <div class="notif-list dm-list" hidden></div>
-                            <div class="notif-divider"></div>
-                            <div class="notif-row"><span class="notif-row-label">Rooms</span><div class="segmented room-seg" role="radiogroup" aria-label="Rooms"></div></div>
-                            <div class="notif-list room-list" hidden></div>
                         </div>
-                        <span class="form-hint">A muted room or DM still shows a small dot in the sidebar when something arrives. It sends no notification, plays no sound, and adds nothing to the unread count.</span>
+                        <span class="form-hint">A muted conversation sends no notification, plays no sound, and adds nothing to the unread count.</span>
                     </div>
 
                     <div class="settings-section" data-section="time">

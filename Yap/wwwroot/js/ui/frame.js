@@ -1,10 +1,11 @@
 // The frame around a conversation (frame.md): the header with the title, the connection dot, the status
-// chip and its menu, the mailbox and the people button; the header line; the sidebar with the rooms and the
-// people; the profile card. Mounted once; the pages change only the content column (SH-01).
+// chip and its menu, and the mailbox; the header line; the profile card. Mounted once; the pages change only
+// the content column (SH-01). There is no sidebar in this build: a person has one conversation, and the
+// admin has the people page as the home (docs/dmonly.md).
 
-import { state, on, displayName, isMuted, showsBell, unreadTotal, dmByChannel, mergeMe, serverMuted, lobby } from '../store.js';
+import { state, on, displayName, unreadTotal, mergeMe, serverMuted } from '../store.js';
 import { clone, el, replace, classes } from '../render/dom.js';
-import { inline, pick, pickTemplate, fill } from '../render/text.js';
+import { inline } from '../render/text.js';
 import { avatar, gradient } from '../render/avatar.js';
 import * as hub from '../hub.js';
 import * as overlays from './overlays.js';
@@ -12,14 +13,9 @@ import * as router from '../router.js';
 import * as session from '../session.js';
 import { hasQueued } from '../sender.js';
 
-const narrow = matchMedia('(max-width: 768px)');   // the sidebar tier (SH-02, SH-03)
-
 let frame = null;          // the mounted .chat-container
 let offs = [];
-const onNarrow = () => { toggleSidebar(false); renderPeople(); };
-let title = { kind: 'room', text: '', partner: null };   // what the header shows
-let headerPick = { channelId: null, template: '' };
-let peoplePick = { count: -1, text: '' };
+let title = { kind: 'home', text: '', partner: null };   // what the header shows
 
 export function mount(appRoot) {
   if (frame) return frame.querySelector('.messages-container');
@@ -28,59 +24,53 @@ export function mount(appRoot) {
 
   const header = frame.querySelector('.chat-header');
   header.querySelector('.status-button').addEventListener('click', openStatusMenu);
-  header.querySelector('.mailbox-button').addEventListener('click', () => { if (narrow.matches) toggleSidebar(true); });   // SH-09
-  header.querySelector('.users-toggle').addEventListener('click', () => toggleSidebar());
-  frame.querySelector('.sidebar-backdrop').addEventListener('click', () => toggleSidebar(false));
+  header.querySelector('.mailbox-button').addEventListener('click', () => router.navigate('/'));   // SH-09: the home holds the unread conversation
   wireConnectionDot(header.querySelector('.connection-dot'));
 
   offs = [
-    wireSidebarFade(frame.querySelector('.users-sidebar')),
     on('user', renderChip), on('users', renderChip), on('presence', renderChip), on('connection', renderChip),
-    on('presence', renderPeople), on('users', renderPeople), on('dms', renderPeople), on('unread', renderPeople), on('mutes', renderPeople), on('open', renderPeople),
-    on('rooms', renderRooms), on('unread', renderRooms), on('mutes', renderRooms), on('open', renderRooms), on('user', renderRooms),
     on('unread', renderMailbox), on('mutes', renderMailbox), on('open', renderMailbox),
-    on('presence', renderCount), on('texts', renderCount),
-    on('connection', renderConnection), on('users', renderTitle), on('texts', renderTitle),
+    on('connection', renderConnection), on('users', renderTitle), on('user', renderTitle),
   ];
-  narrow.addEventListener('change', onNarrow);
   renderAll();
   return frame.querySelector('.messages-container');
 }
 
 export function unmount() {
   offs.forEach(off => off()); offs = [];
-  narrow.removeEventListener('change', onNarrow);
+  closeProfile();
   frame?.remove(); frame = null;
 }
 
-function renderAll() { renderChip(); renderPeople(); renderRooms(); renderMailbox(); renderCount(); renderConnection(); renderTitle(); }
+function renderAll() { renderChip(); renderMailbox(); renderConnection(); renderTitle(); }
 
 // ---- the title area (SH-05, SH-06, SH-07) and the context (SH-04) ----
 
-// kind: 'room' | 'dm' | 'page'. For a room the template is picked once per channel (SH-05) and the name is
-// filled in on every call, so a rename of the open room reaches the header (U04 of the 2026-10-15 user test).
-// For a page the text is the page's title.
-export function setTitle(kind, { channelId = null, roomName = '', partner = null, text = '' } = {}) {
-  if (kind === 'room' && headerPick.channelId !== channelId) headerPick = { channelId, template: pickTemplate(state.texts?.roomHeaders, '# {0}') };
-  title = { kind, text: kind === 'room' ? fill(headerPick.template, roomName) : text, partner };
+// kind: 'home' | 'dm' | 'page'. The home shows its text alone. A direct message shows the partner's avatar and
+// name; the admin gets a back arrow to the people page, a person has nowhere else to go and gets none. A page
+// (Settings) shows a back arrow to the home and the page's title.
+export function setTitle(kind, { partner = null, text = '' } = {}) {
+  title = { kind, text, partner };
   renderTitle();
 }
 
 function renderTitle() {
   if (!frame) return;
-  frame.dataset.context = title.kind === 'dm' ? 'dm' : 'room';
+  frame.dataset.context = title.kind === 'dm' ? 'dm' : 'page';   // themes.css keys the conversation pattern on "dm"
   frame.querySelector('.header-line').src = title.kind === 'dm' ? '/images/purpleline01_3px.png' : '/images/turqline01_3px.png';
   const host = frame.querySelector('.header-title');
-  if (title.kind === 'room') {
-    const h3 = clone('t-header-room');
+  if (title.kind === 'home') {
+    const h3 = clone('t-header-home');
     replace(h3, inline(title.text));
     replace(host, [h3]);
     return;
   }
   const block = clone('t-header-back');
-  block.querySelector('.back-button').addEventListener('click', () => router.navigate('/lobby'));   // SH-44
+  const back = block.querySelector('.back-button');
+  back.addEventListener('click', () => router.navigate('/'));   // SH-44
   const h3 = block.querySelector('h3');
   if (title.kind === 'dm') {
+    back.hidden = !state.user?.isAdmin;
     const u = state.users[title.partner];
     block.insertBefore(avatar(title.partner, u?.avatarUrl, 'small'), h3);
     replace(h3, inline(displayName(title.partner)));
@@ -125,9 +115,9 @@ function openStatusMenu() {
   menu.querySelector('.bell').toggleAttribute('hidden', serverMuted());        // SH-14 (an SVG has no `hidden` property)
   menu.querySelector('.bell-muted').toggleAttribute('hidden', !serverMuted());
   menu.querySelector('[data-action="admin"]').hidden = !state.user.isAdmin;
-  menu.querySelector('[data-action="settings"]').addEventListener('click', () => { closeMenu(); toggleSidebar(false); router.navigate('/settings'); });
-  menu.querySelector('[data-action="notifications"]').addEventListener('click', () => { closeMenu(); toggleSidebar(false); router.navigate('/settings#notification-settings'); });
-  menu.querySelector('[data-action="admin"]').addEventListener('click', () => { closeMenu(); toggleSidebar(false); router.navigate('/admin'); });
+  menu.querySelector('[data-action="settings"]').addEventListener('click', () => { closeMenu(); router.navigate('/settings'); });
+  menu.querySelector('[data-action="notifications"]').addEventListener('click', () => { closeMenu(); router.navigate('/settings#notification-settings'); });
+  menu.querySelector('[data-action="admin"]').addEventListener('click', () => { closeMenu(); router.navigate('/admin'); });
   menu.querySelector('[data-action="signout"]').addEventListener('click', () => { closeMenu(); confirmSignOut(); });
   menu.querySelector('.dropdown-backdrop').addEventListener('click', () => closeMenu());
   container.append(menu);
@@ -143,7 +133,7 @@ async function confirmSignOut() {
   if (!await session.signOut()) overlays.reason(frame.querySelector('.status-dropdown-container'), 'Needs a connection');   // GEN-10: the server removes the cookie
 }
 
-// ---- the mailbox and the people count (SH-08, SH-09) ----
+// ---- the mailbox (SH-08, SH-09) ----
 
 function renderMailbox() {
   if (!frame) return;
@@ -152,16 +142,6 @@ function renderMailbox() {
   button.hidden = total === 0;
   button.title = `${total} unread messages`;
   button.querySelector('.mailbox-badge').textContent = String(total);
-}
-
-function onlineCount() { return Object.keys(state.presence).length; }   // invisible people are absent from the map (PR-05)
-
-function renderCount() {
-  if (!frame) return;
-  const count = onlineCount();
-  frame.querySelector('.online-count').textContent = String(count);
-  if (peoplePick.count !== count) peoplePick = { count, text: pick(state.texts?.peopleHeaders, 'Online Users ({0})', count) };   // SH-28
-  replace(frame.querySelector('.people-header'), inline(peoplePick.text));
 }
 
 // ---- the connection dot (SH-16 to SH-18) ----
@@ -196,148 +176,22 @@ function wireConnectionDot(dot) {
   });
 }
 
-// ---- the sidebar (SH-21 to SH-33, SH-36, SH-37) ----
+// ---- the profile card (SH-34, SH-35), opened from the people page ----
 
-function toggleSidebar(force) {
-  if (!frame) return;
-  const sidebar = frame.querySelector('.users-sidebar');
-  const open = force ?? !sidebar.classList.contains('sidebar-open');
-  sidebar.classList.toggle('sidebar-open', open);
-  frame.querySelector('.sidebar-backdrop').classList.toggle('show', open);
+let profile = null;   // { username, close }
+
+export function closeProfile() { profile?.close(); }
+
+// A second tap on the same person's info button closes the card (SH-34).
+export function toggleProfile(username, status, button) {
+  if (profile?.username === username) closeProfile(); else openProfile(username, status, null, button);
 }
 
-// The fade at the bottom of the sidebar shows only while rows are hidden below the edge (frame.css .has-more).
-// The observer covers the two things that change that besides a scroll: the panel's height and the lists' length.
-// Returns the release for `offs`; the scroll listener needs none, it goes with the sidebar node in unmount.
-function wireSidebarFade(sidebar) {
-  const update = () => sidebar.classList.toggle('has-more', sidebar.scrollTop + sidebar.clientHeight < sidebar.scrollHeight - 1);
-  sidebar.addEventListener('scroll', update, { passive: true });
-  const sizes = new ResizeObserver(update);
-  sizes.observe(sidebar);
-  sidebar.querySelectorAll('.sidebar-section').forEach(s => sizes.observe(s));
-  return () => sizes.disconnect();
-}
-
-function lobbyId() { return lobby()?.id; }   // marked by the server; the sidebar order says nothing about it (SH-43)
-
-// A sidebar row is a div with role=link and tabindex=0: Enter or Space on the row itself activates it. The gear
-// and the info button inside it are buttons of their own; their keys bubble up here and must not navigate
-// (U03 of the 2026-10-15 user test).
-function activateOnKey(row, fn) {
-  row.addEventListener('keydown', e => { if (e.target === row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); fn(); } });
-}
-
-function renderRooms() {
-  if (!frame || !state.user) return;
-  const rows = state.rooms.map(room => {
-    const row = clone('t-room-row');
-    replace(row.querySelector('.room-name'), inline(room.name));
-    const isOpen = state.open?.channelId === room.id;
-    const count = isOpen ? 0 : (state.unread[room.id] ?? 0);   // the open room shows no mark (SH-22)
-    const muted = isMuted(room.id);
-    classes(row, { active: isOpen, 'has-unread': count > 0 && !muted });
-    row.querySelector('.mute-bell').hidden = !showsBell(room.id);
-    row.querySelector('.unread-dot').hidden = !(count > 0 && muted);
-    const badge = row.querySelector('.unread-badge');
-    badge.hidden = !(count > 0 && !muted);
-    badge.textContent = String(count);
-    const gear = row.querySelector('.room-settings');
-    gear.hidden = !state.user.isAdmin;
-    gear.addEventListener('click', e => { e.stopPropagation(); toggleSidebar(false); router.navigate(`/channel/${room.id}/settings`); });
-    const open = () => { toggleSidebar(false); router.navigate(router.roomPath(room, lobbyId())); };   // SH-26
-    row.addEventListener('click', open);
-    activateOnKey(row, open);
-    return row;
-  });
-  if (state.user.isAdmin) {
-    const add = clone('t-add-room');
-    const open = () => { toggleSidebar(false); router.navigate('/channel/new'); };
-    add.addEventListener('click', open);
-    activateOnKey(add, open);
-    rows.push(add);
-  }
-  replace(frame.querySelector('.rooms-list'), rows);
-}
-
-// The order of SH-30: admins, the bot, the user, then everyone else by unread DMs, online, recent DM, name.
-function peopleInOrder() {
-  const me = state.user.username;
-  const dmOf = Object.fromEntries(state.dms.map(d => [d.partner, d]));
-  const names = new Set([...Object.keys(state.presence), ...Object.keys(dmOf), me]);
-  const rank = username => {
-    const u = state.users[username];
-    if (u?.isAdmin) return 0;
-    if (u?.isBot) return 1;
-    if (username === me) return 2;
-    const dm = dmOf[username];
-    if (dm && (state.unread[dm.channelId] ?? 0) > 0 && !isMuted(dm.channelId)) return 3;
-    if (state.presence[username]) return 4;
-    return 5;
-  };
-  return [...names].filter(n => state.users[n] || n === me).sort((a, b) => {
-    const ra = rank(a), rb = rank(b);
-    if (ra !== rb) return ra - rb;
-    if (ra === 5) {
-      const ta = dmOf[a]?.lastMessageAt ?? '', tb = dmOf[b]?.lastMessageAt ?? '';
-      if (ta !== tb) return ta < tb ? 1 : -1;
-    }
-    return displayName(a).localeCompare(displayName(b), undefined, { sensitivity: 'base' });
-  });
-}
-
-function renderPeople() {
-  if (!frame || !state.user) return;
-  const me = state.user.username;
-  const dmOf = Object.fromEntries(state.dms.map(d => [d.partner, d]));
-  const openDm = state.open && dmByChannel(state.open.channelId);
-  const rows = peopleInOrder().map(username => {
-    const u = state.users[username];
-    const row = clone('t-user-row');
-    const status = state.presence[username] ?? 'invisible';   // grey, as offline (SH-29, SH-31)
-    row.querySelector('.user-status-dot').className = `user-status-dot ${status}`;
-    replace(row.querySelector('.user-name'), [...inline(displayName(username)), username === me ? ' (you)' : null]);
-    row.querySelector('.admin-badge').hidden = !u?.isAdmin;
-    row.querySelector('.bot-badge').hidden = !u?.isBot;
-    replace(row.querySelector('.admin-badge'), inline('👑'));
-    replace(row.querySelector('.bot-badge'), inline('🤖'));
-    const dm = dmOf[username];
-    const count = dm && openDm?.channelId !== dm.channelId ? (state.unread[dm.channelId] ?? 0) : 0;
-    const muted = dm ? isMuted(dm.channelId) : false;
-    row.querySelector('.mute-bell').hidden = !(dm && showsBell(dm.channelId));
-    row.querySelector('.unread-dot').hidden = !(count > 0 && muted);
-    const badge = row.querySelector('.unread-badge');
-    badge.hidden = !(count > 0 && !muted);
-    badge.textContent = String(count);
-    classes(row, { 'current-user': username === me, 'active-dm': openDm?.partner === username || state.open?.partner === username });   // a new DM has no row in dms yet (SH-32)
-
-    const info = row.querySelector('.profile-info-btn');
-    const needsButton = overlays.isTouch() || narrow.matches;   // SH-34
-    info.hidden = !needsButton;
-    info.addEventListener('click', e => { e.stopPropagation(); if (profile?.username === username) closeProfile(); else openProfile(username, status, null, true, info); });   // a second tap closes (SH-34)
-    const name = row.querySelector('.user-name');
-    if (!needsButton) {
-      name.addEventListener('pointerenter', e => openProfile(username, status, e, false));
-      name.addEventListener('pointerleave', closeProfile);
-    }
-    if (username === me) { row.tabIndex = -1; row.removeAttribute('role'); }   // the own row opens nothing (SH-32)
-    else {
-      const open = () => { closeProfile(); toggleSidebar(false); router.navigate(router.dmPath(username)); };
-      row.addEventListener('click', open);
-      activateOnKey(row, open);
-    }
-    return row;
-  });
-  replace(frame.querySelector('.users-list'), rows);
-}
-
-// ---- the profile card (SH-34, SH-35) ----
-
-let profile = null;   // { popup, backdrop, close }
-
-function closeProfile() { profile?.close(); }
-
-function openProfile(username, status, pointerEvent, asSheet, button = null) {
+// A hover card next to the pointer, or a centred sheet when the call carries the button that opened it.
+export function openProfile(username, status, pointerEvent, button = null) {
   closeProfile();
+  if (!frame) return;
+  const asSheet = !pointerEvent;
   const u = state.users[username] ?? (username === state.user.username ? state.user : null);
   const popup = clone('t-profile-popup');
   const card = popup.querySelector('.profile-card');
@@ -373,8 +227,7 @@ function openProfile(username, status, pointerEvent, asSheet, button = null) {
     popup.style.top = `clamp(8px, ${pointerEvent.clientY - 56}px, calc(100dvh - 348px))`;
   }
   frame.querySelector('.chat-main').append(popup);
-  const closeLayer = asSheet ? overlays.open({ element: popup, keep: [button], onClose: () => teardown() }) : null;
+  const closeLayer = asSheet ? overlays.open({ element: popup, keep: button ? [button] : [], onClose: () => teardown() }) : null;
   function teardown() { popup.remove(); backdrop?.remove(); profile = null; }
   profile = { username, close: () => { if (closeLayer) closeLayer(); else teardown(); } };
 }
-

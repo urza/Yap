@@ -39,10 +39,10 @@ export function mount(root, { code }) {
       case 'invalid':
         heading.textContent = 'This link no longer works';
         text.textContent = 'It may have expired or been revoked. Ask the person who sent it for a new one.';
-        if (state.user) link('Back to chat', '/lobby'); else link('Go to the login page', '/login');
+        if (state.user) link('Back to chat', '/'); else link('Go to the login page', '/login');
         break;
       case 'self':
-        router.navigate('/lobby', { replace: true });
+        router.navigate('/', { replace: true });
         break;
       case 'join':
         heading.textContent = `You're invited to ${project}`;
@@ -61,7 +61,7 @@ export function mount(root, { code }) {
         text.replaceChildren('You are signed in as ', Object.assign(document.createElement('strong'), { textContent: view.current }), '. This link belongs to ', Object.assign(document.createElement('strong'), { textContent: view.owner }), '.');
         primary.textContent = `Switch to ${view.owner}`; primary.hidden = false;
         primary.addEventListener('click', () => redeem(null, 'Switching…', true));
-        link(`Stay as ${view.current}`, '/lobby');
+        link(`Stay as ${view.current}`, '/');
         break;
     }
   })();

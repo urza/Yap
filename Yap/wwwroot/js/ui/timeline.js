@@ -2,9 +2,9 @@
 // note, the lobby lines. The rows themselves are drawn by ui/message.js. The timeline is the one component
 // that updates rows in place, because it can hold hundreds of them.
 
-import { state, on, prependOlder, roomById, dmByChannel, lobby } from '../store.js';
+import { state, on, prependOlder } from '../store.js';
 import { clone, el, replace } from '../render/dom.js';
-import { inline, pick } from '../render/text.js';
+import { pick } from '../render/text.js';
 import { messageTime } from '../render/time.js';
 import * as hub from '../hub.js';
 import * as overlays from './overlays.js';
@@ -41,7 +41,6 @@ export function Timeline(root) {
     for (const r of rows.values()) r.node.remove();
     rows.clear();
     pendingNodes.forEach(n => n.remove()); pendingNodes = [];
-    flow.querySelectorAll('.lobby-line').forEach(n => n.remove());
     hidePill();
     shownChannel = state.open?.channelId ?? null;
     unread = state.unread[shownChannel] > 0;   // a count from before this open; chat.js marks it read on open, this is the fallback
@@ -178,18 +177,8 @@ export function Timeline(root) {
       } else replace(top, []);
       return;
     }
-    const dm = dmByChannel(open.channelId) ?? (open.partner ? { partner: open.partner } : null);
-    if (dm) {
-      const note = clone('t-dm-start');
-      note.querySelector('strong').textContent = dm.partner;
-      replace(top, [note]);
-      return;
-    }
-    const room = roomById(open.channelId);
-    const note = clone('t-history-start');
-    if (open.restricted) note.append(el('span', null, 'Older messages are not available in this channel'));
-    else if (room?.description) note.append(...room.description.split('\n').map(line => el('div', null, line)));
-    else note.append(el('span', null, `This is the beginning of #${room?.name ?? ''}`));
+    const note = clone('t-dm-start');
+    note.querySelector('strong').textContent = open.partner;
     replace(top, [note]);
   }
 
@@ -264,20 +253,6 @@ export function Timeline(root) {
   }, { signal });
   const offInput = (() => { const h = () => markReadIfSeen(); document.addEventListener('pointerdown', h, { capture: true, passive: true, signal }); document.addEventListener('keydown', h, { capture: true, passive: true, signal }); return () => {}; })();   // input after an idle away (PR-13)
 
-  // ---- lobby lines (MR-73) ----
-  function onPresence(detail) {
-    if (!detail) return;                                   // a bootstrap replaces the map without a detail
-    const { username, kind } = detail;
-    if (!state.open || state.open.channelId !== lobby()?.id) return;
-    if (kind !== 'join' && kind !== 'leave') return;
-    const line = clone('t-system-line');
-    line.classList.add('lobby-line');
-    const text = kind === 'join' ? pick(state.texts?.joinLines, '{0} joined the chat', username) : pick(state.texts?.leaveLines, '{0} left the chat', username);
-    replace(line.querySelector('.message-content'), inline(text));
-    flow.append(line);
-    if (following) scrollToBottom();
-  }
-
   // The labels follow the clock: at midnight "today" becomes "Yesterday" (MR-06).
   const clock = setInterval(() => {
     for (const { node, message } of rows.values()) {
@@ -308,8 +283,8 @@ export function Timeline(root) {
   }
 
   const offs = [
-    on('messages', onMessages), on('pending', onPending), on('presence', onPresence),
-    on('connection', renderTop), on('rooms', renderTop),
+    on('messages', onMessages), on('pending', onPending),
+    on('connection', renderTop),
     on('unread', onUnread),
     on('user', () => markReadIfSeen()), on('presence', () => markReadIfSeen()),   // Away ended, here or on the server: the three conditions may hold again (NT-07)
     on('users', redrawAll),            // a new display name or avatar shows on every row (ST-07)

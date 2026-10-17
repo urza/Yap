@@ -389,12 +389,9 @@ body { display: flex; flex-direction: column; min-height: 100vh; min-height: 100
 .message-group.touched .message-actions { opacity: 1; pointer-events: auto; }
 .message-group.editing .message-actions { opacity: 0 !important; pointer-events: none; }
 
-/* The sidebar scrolls when its content is taller than the screen (SH-27). */
-.users-sidebar { overflow-y: auto; }
-
 /* Controls that show on hover on desktop are always visible on a touch screen (GEN-16, SH-24, PK-21, MR-30). */
 @media (hover: none) {
-  .room-settings, .gif-fav-btn, .gif-message-fav, .gif-message-uploader { opacity: 1 !important; visibility: visible !important; }
+  .gif-fav-btn, .gif-message-fav, .gif-message-uploader { opacity: 1 !important; visibility: visible !important; }
 }
 
 /* Every text field is 16 px on a phone, so the page never zooms when a field gets focus (GEN-15). */
@@ -410,7 +407,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; min-height: 100
 #app > .page-admin { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 #app > .page-admin > .admin-page { flex: 1; min-height: 0; }
 
-/* The settings and channel pages mount in the chat column, a flex column. They take its height, so their
-   container (height: 100%, overflow-y: auto) scrolls. Without this the page overflows the clipped frame. */
-.messages-container > .page-settings, .messages-container > .page-channel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.messages-container > .page-settings > .settings-container, .messages-container > .page-channel > .settings-container { flex: 1; min-height: 0; }
+/* The settings page mounts in the chat column, a flex column. It takes its height, so its container
+   (height: 100%, overflow-y: auto) scrolls. Without this the page overflows the clipped frame. */
+.messages-container > .page-settings { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.messages-container > .page-settings > .settings-container { flex: 1; min-height: 0; }

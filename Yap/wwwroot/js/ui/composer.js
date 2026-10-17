@@ -2,7 +2,7 @@
 // Send, the read-only bar, the pickers, drafts per conversation, uploads. Every action here is local first;
 // the server learns of a message through sender.js (IB-10, IB-24).
 
-import { state, on, displayName, roomById, isReadOnly, setDraft, dmByChannel } from '../store.js';
+import { state, on, displayName, setDraft, dmByChannel } from '../store.js';
 import { clone, el, replace } from '../render/dom.js';
 import { inline, pick } from '../render/text.js';
 import * as hub from '../hub.js';
@@ -40,7 +40,6 @@ export function Composer(root) {
   const tray = box.querySelector('.attachment-tray');
   const sendButton = box.querySelector('.send-button');
   const replyBar = box.querySelector('.reply-bar');
-  const readonly = box.querySelector('.readonly-bar');
   const typing = box.querySelector('.typing-indicator');
   const emojiToggle = box.querySelector('.emoji-toggle-button');
   const gifToggle = box.querySelector('.gif-toggle-button');
@@ -63,7 +62,7 @@ export function Composer(root) {
     const open = state.open;
     const next = open ? keyOf(open) : null;
     target = open ? { channelId: open.channelId ?? null, partner: open.partner ?? null } : null;   // a direct message gains its channel id when the connection returns; its key stays
-    if (next === key) { renderReadOnly(); return; }
+    if (next === key) return;
     const typedBeforeOpen = key === null && area.value;   // text typed while the first conversation was still opening
     if (key) saveDraft();
     key = next;
@@ -71,7 +70,6 @@ export function Composer(root) {
     if (!typedBeforeOpen) restoreDraft();
     openTray();
     renderPlaceholder();
-    renderReadOnly();
     renderTyping();
     sender.showFor(key);
     if (sendWanted && key) { sendWanted = false; send(); }
@@ -87,15 +85,6 @@ export function Composer(root) {
       placeholderPick = { channelId: open.channelId, text: list?.length ? (pick(list, '') || 'Say something…') : 'Type a message...' };   // IB-16 wording
     }
     area.placeholder = placeholderPick.text;
-  }
-
-  function renderReadOnly() {
-    const room = state.open ? roomById(state.open.channelId) : null;
-    const locked = isReadOnly(room);                                                      // IB-62
-    readonly.hidden = !locked;
-    container.hidden = locked;
-    renderReply();
-    if (locked) closePicker();
   }
 
   // ---- drafts (IB-53) ----
@@ -191,7 +180,7 @@ export function Composer(root) {
   // ---- the reply bar (IB-49 to IB-52) ----
 
   function renderReply() {
-    replyBar.hidden = !replyTo || !readonly.hidden;
+    replyBar.hidden = !replyTo;
     container.classList.toggle('has-reply-bar', !!replyTo);
     if (replyTo) replace(replyBar.querySelector('strong'), inline(displayName(replyTo.username)));
     setReplyTarget(replyTo?.id ?? null);                                                                 // MR-37
@@ -423,7 +412,7 @@ export function Composer(root) {
   randomCell();
   emojiToggle.addEventListener('mouseenter', randomCell);
 
-  const offs = [on('messages', d => { if (d?.type === 'reset') onOpen(); }), on('typists', renderTyping), on('rooms', renderReadOnly), on('user', renderReadOnly), on('texts', renderPlaceholder), on('users', renderTyping)];
+  const offs = [on('messages', d => { if (d?.type === 'reset') onOpen(); }), on('typists', renderTyping), on('texts', renderPlaceholder), on('users', renderTyping)];
   if (pickers) { pickers.current = handlers; layoutPickers(); }
   onOpen();
   return () => {

@@ -11,8 +11,8 @@ import { state, on } from '../store.js';
 const BOOTSTRAP = 'bootstrap';
 const tail = key => `tail:${key}`;
 
-// A conversation's key: the room id, or "dm:" and the partner, because a direct message has no id before it opens.
-export const keyOf = open => open.partner ? `dm:${open.partner}` : open.channelId;
+// A conversation's key: "dm:" and the partner, because a direct message has no id before it opens.
+export const keyOf = open => `dm:${open.partner}`;
 
 export async function saveBootstrap(doc) { await db.put(db.STORES.snapshots, { doc, at: Date.now() }, BOOTSTRAP); }
 
@@ -28,7 +28,7 @@ export async function loadDrafts() { return (await db.get(db.STORES.kv, 'drafts'
 async function saveTail(key, conversation) {
   // The tail only: a page of older messages is not stored (OF-14 keeps the promise modest).
   const messages = conversation.messages.slice(-50);
-  await db.put(db.STORES.snapshots, { channelId: conversation.channelId, partner: conversation.partner ?? null, messages, hasMore: conversation.hasMore && messages.length === conversation.messages.length, restricted: conversation.restricted, typists: [], at: Date.now() }, tail(key));
+  await db.put(db.STORES.snapshots, { channelId: conversation.channelId, partner: conversation.partner ?? null, messages, hasMore: conversation.hasMore && messages.length === conversation.messages.length, typists: [], at: Date.now() }, tail(key));
 }
 
 export async function loadTail(key) {
@@ -54,9 +54,9 @@ function queueTail() {
 
 // The bootstrap document, rebuilt from the store: the same shape the server sends.
 function docFromState() {
-  const { user, config, texts, rooms, users, presence, dms, unread, mutes, emoji, favoriteGifIds } = state;
+  const { user, config, texts, users, presence, dms, unread, mutes, emoji, favoriteGifIds } = state;
   if (!user) return null;
-  return { user, config, texts, rooms, users: Object.values(users), presence, dms, unread, mutes, emoji, favoriteGifIds: [...favoriteGifIds] };
+  return { user, config, texts, users: Object.values(users), presence, dms, unread, mutes, emoji, favoriteGifIds: [...favoriteGifIds] };
 }
 
 function queueBootstrap() {
@@ -66,4 +66,4 @@ function queueBootstrap() {
 
 on('messages', queueTail);
 on('drafts', () => { clearTimeout(draftTimer); draftTimer = setTimeout(() => db.put(db.STORES.kv, { ...state.drafts }, 'drafts'), 500); });
-for (const part of ['users', 'presence', 'rooms', 'dms', 'unread', 'mutes', 'emoji', 'favoriteGifIds']) on(part, queueBootstrap);
+for (const part of ['users', 'presence', 'dms', 'unread', 'mutes', 'emoji', 'favoriteGifIds']) on(part, queueBootstrap);

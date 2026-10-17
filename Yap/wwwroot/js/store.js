@@ -5,7 +5,7 @@
 export const state = {
   connection: 'connecting',     // 'connecting' | 'connected' | 'reconnecting' | 'offline' | 'signedOut'
   user: null, config: null, texts: null,
-  rooms: [], users: {}, presence: {}, dms: [], unread: {}, mutes: null, emoji: null, favoriteGifIds: new Set(),
+  users: {}, presence: {}, dms: [], unread: {}, mutes: null, emoji: null, favoriteGifIds: new Set(),
   catalog: null,                // the emoji catalogue from GET /api/emoji, loaded once per build
   open: null,                   // { channelId, partner, messages, hasMore, restricted, typists: { username: expiresAt } }
   pending: [],                  // outbox rows of the open conversation, drawn as faded rows (OF-08)
@@ -34,12 +34,12 @@ export function changed(part, detail) {
 
 export function applyBootstrap(doc) {
   Object.assign(state, {
-    user: doc.user, config: doc.config, texts: doc.texts, rooms: doc.rooms,
+    user: doc.user, config: doc.config, texts: doc.texts,
     users: Object.fromEntries(doc.users.map(u => [u.username, u])),
     presence: doc.presence, dms: doc.dms, unread: doc.unread, mutes: doc.mutes, emoji: doc.emoji,
     favoriteGifIds: new Set(doc.favoriteGifIds),
   });
-  for (const part of ['user', 'config', 'texts', 'rooms', 'users', 'presence', 'dms', 'unread', 'mutes', 'emoji', 'favoriteGifIds']) changed(part);
+  for (const part of ['user', 'config', 'texts', 'users', 'presence', 'dms', 'unread', 'mutes', 'emoji', 'favoriteGifIds']) changed(part);
 }
 
 // The texts-only answer of the bootstrap, for the sign-in pages.
@@ -231,8 +231,6 @@ export function setUser(u) {
     changed('user');
   }
 }
-export function setRooms(rooms) { state.rooms = rooms; changed('rooms'); }
-
 export function addDm(dm) {
   state.dms = [dm, ...state.dms.filter(d => d.channelId !== dm.channelId)];
   changed('dms');
@@ -261,9 +259,9 @@ export function setPending(rows, detail) { state.pending = rows; changed('pendin
 // A sign-out, here or elsewhere, leaves nothing of the account on the page (GEN-05).
 export function reset() {
   clearTimeout(typingTimer);
-  Object.assign(state, { user: null, rooms: [], users: {}, presence: {}, dms: [], unread: {}, mutes: null, emoji: null,
+  Object.assign(state, { user: null, users: {}, presence: {}, dms: [], unread: {}, mutes: null, emoji: null,
     favoriteGifIds: new Set(), open: null, pending: [], drafts: {}, registrations: [] });
-  for (const part of ['user', 'rooms', 'users', 'presence', 'dms', 'unread', 'mutes', 'emoji', 'favoriteGifIds', 'pending']) changed(part);
+  for (const part of ['user', 'users', 'presence', 'dms', 'unread', 'mutes', 'emoji', 'favoriteGifIds', 'pending']) changed(part);
   changed('messages', { type: 'reset' });
 }
 
@@ -281,26 +279,19 @@ export function serverMuted() {
   return !!s?.muted && (!s.until || new Date(s.until) > new Date());
 }
 
-// The three levels, top down (NT-16): the server mute, then the mode of the kind, then the conversation's own
-// bell. In Individual mode a room without a choice is muted (NT-18), a direct message follows the New DMs bell.
+// The three levels, top down (NT-16): the server mute, then the direct-message mode, then the conversation's own
+// bell. In Individual mode a conversation without a choice follows the New DMs bell (NT-18).
 export function isMuted(channelId) {
   const mutes = state.mutes;
   if (!mutes) return false;
   if (serverMuted()) return true;
-  const isRoom = !!roomById(channelId);
-  const mode = isRoom ? mutes.roomMode : mutes.dmMode;
-  if (mode === 'allowAll') return false;
-  if (mode === 'muteAll') return true;
-  return mutes.channels[channelId] ?? (isRoom ? true : mutes.newDmsMuted);
+  if (mutes.dmMode === 'allowAll') return false;
+  if (mutes.dmMode === 'muteAll') return true;
+  return mutes.channels[channelId] ?? mutes.newDmsMuted;
 }
 
-// The crossed bell of a row: a room shows it for its own choice only (SH-22); a direct message for the effective mute (SH-31).
-export function showsBell(channelId) {
-  const mutes = state.mutes;
-  if (!mutes) return false;
-  if (roomById(channelId)) return mutes.roomMode === 'individual' && mutes.channels[channelId] === true;   // the person's own choice, not the default
-  return isMuted(channelId);
-}
+// The crossed bell of a row shows the effective mute (SH-31).
+export function showsBell(channelId) { return isMuted(channelId); }
 
 // The mailbox leaves out the open conversation (SH-09); the app badge counts it too (NT-11).
 export function unreadTotal({ exceptOpen = false } = {}) {
@@ -313,8 +304,6 @@ export function unreadTotal({ exceptOpen = false } = {}) {
   return total;
 }
 
-export function isReadOnly(room) { return !!room?.adminOnly && !state.user?.isAdmin; }   // IB-62
-
 // Away, chosen or automatic, stops the automatic read in the open conversation (PR-24, NT-07). The chosen
 // status is the account's; the effective one comes from the server, which sees every device of the person.
 export function isAway() {
@@ -322,9 +311,7 @@ export function isAway() {
   return !me || me.status === 'away' || state.presence[me.username] === 'away';
 }
 
-export function roomById(id) { return state.rooms.find(r => r.id === id); }
-
-// The room that /lobby opens (SH-43). The server marks it; the sidebar order is the admin's and can put another
-// room first (AD-33). The first room stands in for a stored bootstrap from before the mark existed.
-export function lobby() { return state.rooms.find(r => r.isLobby) ?? state.rooms[0] ?? null; }
 export function dmByChannel(channelId) { return state.dms.find(d => d.channelId === channelId); }
+
+// The one admin of the server, who is in every person's directory (docs/dmonly.md). Null before the account exists.
+export function adminUsername() { return Object.values(state.users).find(u => u.isAdmin)?.username ?? null; }

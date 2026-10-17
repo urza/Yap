@@ -25,7 +25,7 @@ const hint = text => el('span', { class: 'form-hint' }, text);
 const empty = text => el('div', { class: 'log-empty' }, text);
 
 export function mount(root) {
-  if (!state.user?.isAdmin) { router.navigate('/lobby', { replace: true }); return () => {}; }   // AD-01
+  if (!state.user?.isAdmin) { router.navigate('/', { replace: true }); return () => {}; }   // AD-01
   const page = clone('t-admin');
   const host = page.querySelector('.tab-host');
   const timers = {};
@@ -35,7 +35,7 @@ export function mount(root) {
   const seen = {};   // tab -> loaded once
   setTitle('Admin');
 
-  page.querySelector('.back-button').addEventListener('click', () => router.navigate('/lobby'));
+  page.querySelector('.back-button').addEventListener('click', () => router.navigate('/'));
   replace(page.querySelector('.admin-tabs'), TABS.map(([id, label]) => el('button', { class: 'tab-item', type: 'button', 'data-tab': id, onclick: () => open(id) }, label)));
   for (const b of page.querySelectorAll('.nav-item')) b.addEventListener('click', () => open(b.dataset.tab));
 
@@ -100,7 +100,9 @@ export function mount(root) {
 
   // ---- Debug (AD-08) ----
   function debug(host) {
-    const channel = el('select', null, state.rooms.map(r => el('option', { value: r.id }, r.name)));
+    // Into the admin's conversation with one person (docs/dmonly.md); the two of them are the speakers.
+    const person = el('select', null, Object.values(state.users).filter(u => u.username !== state.user.username).sort((a, b) => a.username.localeCompare(b.username))
+      .map(u => el('option', { value: u.username }, u.displayName ? `${u.displayName} (@${u.username})` : `@${u.username}`)));
     const count = el('input', { type: 'number', min: 1, max: 5000, value: 200 });
     const span = el('select', null, [[1, 'Last 1 hour'], [6, 'Last 6 hours'], [24, 'Last 1 day'], [72, 'Last 3 days'], [168, 'Last 1 week'], [336, 'Last 2 weeks'], [720, 'Last 1 month'], [2160, 'Last 3 months'], [8760, 'Last 1 year']].map(([v, l]) => el('option', { value: v }, l)));
     span.value = '168';
@@ -109,12 +111,12 @@ export function mount(root) {
     count.addEventListener('input', () => { button.firstChild.textContent = `Generate ${count.value} messages`; });
     button.addEventListener('click', async () => {
       button.disabled = true; button.firstChild.textContent = 'Generating...';
-      try { const r = await api.post('/api/admin/generate', { channelId: channel.value, count: Number(count.value), hours: Number(span.value) }); result.textContent = `Generated ${r.generated} messages spread across ${r.hours}h`; }
+      try { const r = await api.post('/api/admin/generate', { username: person.value, count: Number(count.value), hours: Number(span.value) }); result.textContent = `Generated ${r.generated} messages spread across ${r.hours}h`; }
       catch (e) { result.textContent = `Error: ${e.message}`; }
       button.disabled = false; button.firstChild.textContent = `Generate ${count.value} messages`;
     });
     host.append(header('Message Generator', 'Generate test messages for debugging'),
-      el('div', { class: 'debug-form' }, el('div', { class: 'form-group' }, el('label', null, 'Channel'), channel), el('div', { class: 'form-group' }, el('label', null, 'Number of messages'), count), el('div', { class: 'form-group' }, el('label', null, 'Spread across'), span), button, result));
+      el('div', { class: 'debug-form' }, el('div', { class: 'form-group' }, el('label', null, 'Conversation with'), person), el('div', { class: 'form-group' }, el('label', null, 'Number of messages'), count), el('div', { class: 'form-group' }, el('label', null, 'Spread across'), span), button, result));
   }
 
   // ---- Bot (AD-09) ----

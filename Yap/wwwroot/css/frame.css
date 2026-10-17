@@ -153,53 +153,6 @@
     line-height: 1.2;
 }
 
-.users-toggle {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    background: transparent;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 0.25rem 0.75rem;
-    border-radius: 4px;
-    transition: background-color 0.2s, color 0.2s;
-}
-
-.users-toggle:hover {
-    background: rgba(79, 84, 92, 0.4);
-    color: var(--text-primary);
-}
-
-.users-toggle svg {
-    width: 20px;
-    height: 20px;
-}
-
-/* Desktop: people icon, Mobile: hamburger */
-.icon-hamburger {
-    display: none;
-}
-
-@media (max-width: 768px) {
-    .icon-people {
-        display: none;
-    }
-
-    .icon-hamburger {
-        display: block;
-    }
-
-    .online-count {
-        display: none;
-    }
-}
-
-.online-count {
-    font-size: 0.875rem;
-    font-weight: 500;
-}
-
 /* Status dropdown container */
 .status-dropdown-container {
     position: relative;
@@ -372,210 +325,7 @@
     }
 }
 
-/* ==== ChatSidebar (was Yap/Components/ChatSidebar.razor.css) ==== */
-
-/* Desktop: always visible. One scroll area for rooms and people together: a long list scrolls, a short one
-   shows no bar. In the 2026-10-16 load test with 1,500 accounts the list was cut off (overflow hidden). */
-.users-sidebar {
-    width: 240px;
-    background: var(--bg-sidebar);
-    padding: 1rem;
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: var(--bg-header) transparent;
-}
-
-/* A fade over the last rows while more are below, so a phone with no visible scrollbar still shows there is
-   more. frame.js toggles .has-more from the scroll position; sticky keeps the fade at the panel's bottom edge. */
-.users-sidebar::after {
-    content: '';
-    display: block;
-    position: sticky;
-    bottom: -1rem;
-    height: 2.5rem;
-    margin: -2.5rem -1rem -1rem;
-    background: linear-gradient(transparent, var(--bg-sidebar));
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.2s;
-}
-
-/* The fade is for the phone, where the scrollbar shows only during a touch. The desktop has the thin bar. */
-@media (max-width: 768px) {
-    .users-sidebar.has-more::after {
-        opacity: 1;
-    }
-}
-
-/* Mobile: slide-in overlay */
-@media (max-width: 768px) {
-    .users-sidebar {
-        position: fixed;
-        right: 0;
-        top: 41px;
-        height: calc(100vh - 41px);
-        transform: translateX(100%);
-        transition: transform 0.2s ease;
-        z-index: 99;
-    }
-
-    .users-sidebar.sidebar-open {
-        transform: translateX(0);
-    }
-}
-
-/* Sidebar sections */
-.sidebar-section {
-    margin-bottom: 1.5rem;
-}
-
-.sidebar-section h4 {
-    color: var(--text-tertiary);
-    text-transform: uppercase;
-    font-size: 0.75rem;
-    font-weight: 600;
-    margin-bottom: 0.5rem;
-    padding: 0 0.5rem;
-}
-
-/* Rooms list */
-.rooms-list {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.room-item {
-    display: flex;
-    align-items: center;
-    padding: 0.5rem;
-    border-radius: 4px;
-    font-size: 1rem;
-    color: var(--text-tertiary);
-    cursor: pointer;
-    transition: all 0.15s;
-}
-
-.room-item:hover {
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-}
-
-.room-item.active {
-    background: var(--bg-secondary);
-    color: var(--text-white);
-}
-
-.room-icon {
-    font-size: 1.25rem;
-    margin-right: 0.5rem;
-    color: var(--text-placeholder);
-    font-weight: 500;
-}
-
-.room-item.active .room-icon,
-.room-item:hover .room-icon {
-    color: var(--text-primary);
-}
-
-.room-name {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.room-settings {
-    background: transparent;
-    border: none;
-    color: var(--text-placeholder);
-    cursor: pointer;
-    padding: 2px 4px;
-    line-height: 1;
-    border-radius: 3px;
-    opacity: 0;
-    transition: all 0.15s;
-    display: flex;
-    align-items: center;
-}
-
-.room-item:hover .room-settings,
-.room-item:focus-within .room-settings {   /* the gear shows for keyboard focus too */
-    opacity: 1;
-}
-
-.room-settings-spacer,
-.room-item:hover .room-settings-spacer {
-    visibility: hidden;
-}
-
-.room-settings:hover {
-    color: var(--text-primary);
-    background: var(--bg-hover);
-}
-
-.room-item.add-room {
-    color: var(--color-success);
-}
-
-.room-item.add-room:hover {
-    background: rgba(59, 165, 92, 0.1);
-}
-
-.room-item.add-room .room-icon {
-    color: var(--color-success);
-}
-
-/* Users list */
-.users-list {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.user-item {
-    display: flex;
-    align-items: center;
-    padding: 0.5rem;
-    border-radius: 4px;
-    font-size: 1rem;
-    color: var(--text-tertiary);
-    cursor: pointer;
-    transition: all 0.15s;
-}
-
-.user-item:hover {
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-}
-
-.user-item.current-user {
-    color: var(--text-white);
-    cursor: default;
-}
-
-.user-item.current-user:hover {
-    background: transparent;
-}
-
-.user-item.active-dm {
-    background: var(--bg-secondary);
-    color: var(--text-white);
-}
-
-/* The rows are divs with role=link (frame.js): the keyboard ring is drawn here, inside the row's radius. */
-.room-item:focus-visible,
-.user-item:focus-visible {
-    outline: 2px solid var(--accent-primary);
-    outline-offset: -2px;
-}
-
-.users-sidebar .user-name {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
+/* ==== People rows: the status dot, the badges, the bells (shared by the people page) ==== */
 
 /* User status dot */
 .user-status-dot {
@@ -605,19 +355,7 @@
     background: var(--status-invisible);
 }
 
-/* Admin badge */
-.users-sidebar .admin-badge {
-    margin-left: 0.25rem;
-    opacity: 0.8;
-}
-
-/* Bot badge */
-.users-sidebar .bot-badge {
-    margin-left: 0.25rem;
-    opacity: 0.8;
-}
-
-/* Unread dot: the quiet marker a MUTED room or DM gets instead of a count.
+/* Unread dot: the quiet marker a MUTED conversation gets instead of a count.
    Muting hides the number and the notification, never the fact that something arrived. */
 .unread-dot {
     width: 8px;
@@ -628,11 +366,7 @@
     flex-shrink: 0;
 }
 
-.room-item.has-unread {
-    color: var(--text-primary);
-}
-
-/* Unread badge: the count an unmuted room or DM gets */
+/* Unread badge: the count an unmuted conversation gets */
 .unread-badge {
     background: var(--color-danger);
     color: white;
@@ -644,9 +378,8 @@
     text-align: center;
 }
 
-/* Crossed bell on muted channels. Sits before the unread dot/badge; the two coexist by
-   design (bell = you muted it, dot = something still arrived). DM rows show it for any
-   effective mute; room rows only for a per-room Individual choice — see ShowsRoomMuteBell. */
+/* Crossed bell on a muted conversation. Sits before the unread dot/badge; the two coexist by
+   design (bell = you muted it, dot = something still arrived). */
 .mute-bell {
     display: flex;
     align-items: center;
@@ -741,8 +474,8 @@
 
    z-index: -1 inside .chat-container's stacking context paints these ABOVE the
    container's own --bg-primary background (which stays as the fallback while
-   images load) but BELOW every in-flow child. That is why the header, sidebar
-   and message list need no z-index of their own and no component was touched.
+   images load) but BELOW every in-flow child. That is why the header and the
+   message list need no z-index of their own and no component was touched.
 
    position: fixed, not background-attachment: fixed - the latter repaints on
    every scroll and misbehaves on iOS Safari. These composite once.
@@ -823,28 +556,6 @@
 
 /* (.messages, .messages-flow, scroll dismiss, .messages-spacer, scrollbar, .system-message,
     .loading-more, .loading-spinner, @keyframes spin, .history-start: moved to timeline.css) */
-
-/* Backdrop for mobile sidebar */
-.sidebar-backdrop {
-    display: none;
-}
-
-@media (max-width: 768px) {
-    .sidebar-backdrop.show {
-        display: block;
-        position: fixed;
-        top: 41px;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: transparent;
-        z-index: 98;
-    }
-
-    .chat-main {
-        width: 100%;
-    }
-}
 
 /* Error boundary content */
 .error-content {

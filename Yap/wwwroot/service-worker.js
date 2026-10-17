@@ -23,7 +23,7 @@ const SHELL_URLS = [
     '/js/render/dom.js', '/js/render/text.js', '/js/render/time.js', '/js/render/avatar.js',
     '/js/ui/frame.js', '/js/ui/timeline.js', '/js/ui/message.js', '/js/ui/composer.js', '/js/ui/overlays.js',
     '/js/ui/emoji-picker.js', '/js/ui/gif-picker.js', '/js/ui/gallery.js',
-    '/js/pages/chat.js', '/js/pages/login.js', '/js/pages/verify.js', '/js/pages/invite.js', '/js/pages/channel-settings.js', '/js/pages/settings.js', '/js/pages/admin.js',
+    '/js/pages/chat.js', '/js/pages/login.js', '/js/pages/verify.js', '/js/pages/invite.js', '/js/pages/people.js', '/js/pages/settings.js', '/js/pages/admin.js',
     '/js/push.js', '/js/pwa.js', '/js/ui/gif-library.js',
     '/js/offline/db.js', '/js/offline/snapshot.js', '/js/offline/outbox.js',
     '/fonts/InterVariable.woff2', '/icon.svg', '/icon-192.png', '/icon-512.png', '/notif.mp3',

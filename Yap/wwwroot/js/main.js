@@ -1,7 +1,7 @@
 // Start-up (client.md, "Start-up"): the bootstrap, then the router, the frame and the page; the hub connects
 // and requests the bootstrap again. The pages inside the frame share one mounted frame (SH-01).
 
-import { state, on, applyBootstrap, applyAnonymous, setUpdateAvailable } from './store.js';
+import { state, on, applyBootstrap, applyAnonymous, setUpdateAvailable, adminUsername } from './store.js';
 import { api, onSignedOut } from './api.js';
 import * as hub from './hub.js';
 import * as router from './router.js';
@@ -17,15 +17,15 @@ import './notify.js';   // the sound, the title and the badge listen to the stor
 import * as snapshot from './offline/snapshot.js';
 
 const app = document.getElementById('app');
-const framed = new Set(['chat', 'settings', 'channel-settings']);
+const framed = new Set(['chat', 'people', 'settings']);
 const anonymous = new Set(['login', 'verify', 'invite']);
 const anonymousOnly = new Set(['login', 'verify']);   // the link page answers a signed-in viewer too (AU-10, AU-17)
 const pages = {
   chat: () => import('./pages/chat.js'),
+  people: () => import('./pages/people.js'),
   login: () => import('./pages/login.js'),
   verify: () => import('./pages/verify.js'),
   invite: () => import('./pages/invite.js'),
-  'channel-settings': () => import('./pages/channel-settings.js'),
   settings: () => import('./pages/settings.js'),
   admin: () => import('./pages/admin.js'),
 };
@@ -83,6 +83,15 @@ router.onRoute(async route => {
   }
   if (state.user && anonymousOnly.has(route.page)) { router.navigate('/', { replace: true }); return; }
 
+  // The home depends on the account (docs/dmonly.md): the admin's people page, or a person's one conversation.
+  // Before an admin account exists there is nothing to open, and that is the not-found page, not a loop.
+  if (route.page === 'home') {
+    const admin = adminUsername();
+    if (state.user.isAdmin) route = { ...route, page: 'people' };
+    else if (admin) { router.navigate(router.dmPath(admin), { replace: true }); return; }
+    else route = { ...route, page: 'not-found' };
+  }
+
   unmountPage(); unmountPage = () => {};
   let root;
   if (framed.has(route.page)) {
@@ -106,7 +115,7 @@ router.onRoute(async route => {
   catch (e) { console.error('page failed', e); showPageError(root, route); }
 });
 
-// SH-41: the conversation column shows the error; the header and the sidebar stay. Drafts and the outbox are untouched.
+// SH-41: the conversation column shows the error; the header stays. Drafts and the outbox are untouched.
 function showPageError(root, route) {
   const screen = clone('t-error');
   screen.querySelector('.error-detail').textContent = '';
