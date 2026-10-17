@@ -610,19 +610,11 @@
         margin-bottom: 0;
     }
 
-    /* Full height (IB-66): the fixed container spans the view and the sheet fills it. Send is a sibling of the box
-       and paints above the sheet, so it hides; the box and the rest are under the sheet already. */
-    .message-input-container[data-sheet="full"] .emoji-picker-container {
-        top: 0;
-    }
-
+    /* Full height (IB-66): the sheet spans the view. In the top layer it covers the box and Send too (pickers.css). */
     .message-input-container[data-sheet="full"] .combined-picker {
-        height: 100%;
+        inset: 0;
+        height: auto;
         border-radius: 0;
-    }
-
-    .message-input-container[data-sheet="full"] .send-button {
-        visibility: hidden;
     }
 
     .emoji-picker-container .emoji-picker {

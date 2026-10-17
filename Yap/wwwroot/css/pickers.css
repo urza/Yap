@@ -9,10 +9,22 @@
 .combined-picker {
     display: flex;
     flex-direction: column;
+    /* A popover (index.html), shown by composer.js: the top layer puts the sheet above the header and outside every
+       clip of the chat column. As a fixed box inside the input box, iOS WebKit painted the header over it and the
+       backdrop never dimmed the header (2026-10-17, the full-height tab row was hidden). The same geometry holds in a
+       browser without the Popover API, where the sheet stays a fixed box in the input box. */
+    position: fixed;
+    inset: auto 0 0 0;
     width: 100%;
     /* The keyboard's height, measured by composer.js, which sets --sheet-height on the input box; half the screen
        before the first measurement (IB-41). The fallback here is for a sheet outside the input box. */
     height: var(--sheet-height, min(50vh, 400px));
+    /* A popover gets a border, padding, auto margins, fit-content sizes and system colours from the browser;
+       these put them back. */
+    margin: 0;
+    border: 0;
+    padding: 0;
+    color: inherit;
     background: var(--bg-sidebar);
     border-radius: 12px 12px 0 0;
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);

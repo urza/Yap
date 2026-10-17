@@ -363,12 +363,21 @@ export function Composer(root) {
       area.blur();
       container.style.setProperty('--sheet-height', keyboardHeight ? `${keyboardHeight}px` : '');
       sizeSheet(false);
+      showSheet(true);
     }
   }
   function closePicker() {
     delete container.dataset.picker;
     emojiToggle.classList.remove('open');
     sizeSheet(false);
+    showSheet(false);
+  }
+  // The sheet is a popover: the top layer takes it above the header and out of the chat column's clip (pickers.css).
+  // A browser without the API shows it as a fixed box in the input box, as before.
+  function showSheet(shown) {
+    const sheet = pickers?.combined;
+    if (!sheet?.isConnected || !sheet.showPopover) return;
+    if (shown) sheet.showPopover(); else sheet.hidePopover();
   }
   // The phone sheet at half height, in the keyboard's place, or at full height over the whole view (IB-66).
   function sizeSheet(full) {

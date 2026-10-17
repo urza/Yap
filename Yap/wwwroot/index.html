@@ -573,7 +573,8 @@
 
     <!-- ---- the pickers (PK) ---- -->
     <template id="t-combined-picker">
-        <div class="combined-picker" data-active-tab="emoji">
+        <!-- popover: the sheet draws in the top layer. Inside the chat column, iOS WebKit kept it under the header (pickers.css). -->
+        <div class="combined-picker" data-active-tab="emoji" popover="manual">
             <div class="combined-tabs">
                 <button type="button" class="combined-tab" data-combined-tab="gifs">GIFs</button>
                 <button type="button" class="combined-tab" data-combined-tab="emoji">Emoji</button>
