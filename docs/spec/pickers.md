@@ -8,7 +8,7 @@ The emoji picker and the GIF picker open from the input box. The emoji picker pu
 
 ![GIF picker, desktop, Browse tab without a provider. The tab rail on the left with Trending disabled, the library search field with the upload button, and the Favorites tile. With a provider, a Trending header and grid and the attribution badge follow.](img/pickers-desktop-gif-browse.png)
 
-![Phone sheet, GIFs tab, Favorites open. The tab row GIFs and Emoji, the GIF rail and the search row, a favourite card with its gold star, the Settings link.](img/pickers-phone-sheet-gifs.png)
+![Phone sheet, GIFs tab, Favorites open. The tab row GIFs and Emoji with the keyboard button and the chevrons at its right end, the GIF rail and the search row, a favourite card with its gold star, the Settings link.](img/pickers-phone-sheet-gifs.png)
 
 1. **Category bar.** A 40 px rail on the left of the emoji picker, with one icon for each section: Recent, each custom pack, then the ten categories. The icon of the section in view is highlighted.
 2. **Emoji search.** A search field with a clear button, at the top of the grid. Results update on every keystroke.
@@ -17,7 +17,7 @@ The emoji picker and the GIF picker open from the input box. The emoji picker pu
 5. **GIF search row.** The search field, its clear button, a spinner and the upload button. The spinner shows while the provider searches.
 6. **GIF results.** A two-column masonry layout of cards. Each card has the aspect ratio of its GIF and plays a preview. Library cards have a favourite star.
 7. **Attribution.** A small "Powered by Klipy" badge in a footer strip. It shows while provider results show.
-8. **Phone sheet.** One bottom sheet with the tabs "GIFs" and "Emoji". Its height is half the screen, at most 400 px.
+8. **Phone sheet.** One bottom sheet with the tabs "GIFs" and "Emoji". At the right end of the tab row, a keyboard button and a button with two chevrons. The [input box page](input-box.md#IB-41) gives the height of the sheet.
 
 ## Rules
 

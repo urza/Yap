@@ -196,6 +196,10 @@ The input box is the part of a conversation where the user writes and sends a me
 | Send failed | all | The row shows the reason, Retry and Remove. |
 | Hover emoji toggle | mouse | The silhouette changes to a random emoji in colour. |
 | Emoji toggle tap, empty draft | mouse, touch | Picker opens immediately. Send visible and dimmed. Phone: sheet, dimmed page, box directly above the sheet. |
+| Emoji toggle tap, keyboard open | touch | The keyboard closes. The sheet opens in its place, with the height of the keyboard. The box stays where it was. |
+| Keyboard button tap in the sheet | touch | The sheet closes. The keyboard opens in its place. Focus in the draft. |
+| Chevrons tap in the sheet | touch | The sheet fills the screen. The box and Send are not visible. The chevrons point down. A second tap returns the sheet to its first height. |
+| Emoji picked at full height | touch | Emoji at the caret. The sheet returns to its first height. |
 | Emoji picked | mouse, touch | Emoji at the caret. Send bright. Picker stays open. The draft's focus unchanged; a keyboard open for the picker's search closes. |
 | Send tap with the sheet open | touch | Sends on the first tap. Sheet closes. Keyboard unchanged. |
 | GIF toggle tap, empty draft | mouse | GIF picker opens, badge bright. |
@@ -245,6 +249,7 @@ The input box is the part of a conversation where the user writes and sends a me
 | GIF dialog title | "Couldn't send GIF" |
 | GIF dialog texts | "That GIF isn't available anymore — try another one."; "File is too large (max 50MB)"; "Could not process this file as a GIF"; "Upload failed" |
 | Phone sheet tabs | "GIFs", "Emoji" |
+| Phone sheet buttons | "Keyboard", "Full height" |
 | Typing, direct message | "{name} is typing..." |
 | Typing, one person in a room (configured; defaults) | "{0} is cooking..", "{0} boutta drop heat..", "{0} typing their villain arc..", "{0} lowkey struggling..", "{0} channeling their inner poet..", "{0} manifesting a message..", "{0} is in their typing era.." |
 | Typing, two people (configured; defaults) | "{0} and {1} are cooking..", "{0} and {1} causing chaos..", "{0} and {1} boutta spam..", "{0} and {1} racing fr fr..", "{0} and {1} typing faast.." |
