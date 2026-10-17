@@ -32,9 +32,9 @@ export function mount(appRoot) {
   header.querySelector('.users-toggle').addEventListener('click', () => toggleSidebar());
   frame.querySelector('.sidebar-backdrop').addEventListener('click', () => toggleSidebar(false));
   wireConnectionDot(header.querySelector('.connection-dot'));
-  wireSidebarFade(frame.querySelector('.users-sidebar'));
 
   offs = [
+    wireSidebarFade(frame.querySelector('.users-sidebar')),
     on('user', renderChip), on('users', renderChip), on('presence', renderChip), on('connection', renderChip),
     on('presence', renderPeople), on('users', renderPeople), on('dms', renderPeople), on('unread', renderPeople), on('mutes', renderPeople), on('open', renderPeople),
     on('rooms', renderRooms), on('unread', renderRooms), on('mutes', renderRooms), on('open', renderRooms), on('user', renderRooms),
@@ -208,12 +208,14 @@ function toggleSidebar(force) {
 
 // The fade at the bottom of the sidebar shows only while rows are hidden below the edge (frame.css .has-more).
 // The observer covers the two things that change that besides a scroll: the panel's height and the lists' length.
+// Returns the release for `offs`; the scroll listener needs none, it goes with the sidebar node in unmount.
 function wireSidebarFade(sidebar) {
   const update = () => sidebar.classList.toggle('has-more', sidebar.scrollTop + sidebar.clientHeight < sidebar.scrollHeight - 1);
   sidebar.addEventListener('scroll', update, { passive: true });
   const sizes = new ResizeObserver(update);
   sizes.observe(sidebar);
   sidebar.querySelectorAll('.sidebar-section').forEach(s => sizes.observe(s));
+  return () => sizes.disconnect();
 }
 
 function lobbyId() { return lobby()?.id; }   // marked by the server; the sidebar order says nothing about it (SH-43)

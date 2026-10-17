@@ -193,12 +193,15 @@ function noteInput() {
   if (wasIdle) beat();
 }
 for (const type of ['pointerdown', 'pointermove', 'keydown', 'touchstart', 'wheel']) document.addEventListener(type, noteInput, { capture: true, passive: true });
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') noteInput(); });
 
 // A beat on every visibility change, so the server's view of the tab is current within one round trip.
 // The server reads it for unread counts (a hidden tab is not reading, NT-07), for push (a message to a hidden
 // tab needs one) and for the away sweep. Without this a hidden tab is reported at the next 60 s tick.
-document.addEventListener('visibilitychange', () => beat());
+// A return to the tab also counts as input (PR-13); the stamp is set here, not via noteInput, so one beat goes out.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') lastInputAt = Date.now();
+  beat();
+});
 
 export const idleSeconds = () => Math.round((Date.now() - lastInputAt) / 1000);
 

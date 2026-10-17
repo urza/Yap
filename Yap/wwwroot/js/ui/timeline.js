@@ -27,7 +27,7 @@ export function Timeline(root) {
   let loading = false;
   let pill = null;
   let pillPick = '';
-  let unread = false;              // a message from someone else arrived and is not marked read yet (NT-07)
+  let unread = false;              // the server counted a message in the open conversation and markRead has not answered yet (NT-07)
   let shownChannel = null;         // the channel the rows belong to
 
   // ---- drawing ----
@@ -44,6 +44,7 @@ export function Timeline(root) {
     flow.querySelectorAll('.lobby-line').forEach(n => n.remove());
     hidePill();
     shownChannel = state.open?.channelId ?? null;
+    unread = state.unread[shownChannel] > 0;   // a count from before this open; chat.js marks it read on open, this is the fallback
     if (!state.open) { renderTop(); return; }
     let prev = null;
     for (const m of ordered()) { flow.append(makeRow(m, prev)); prev = m; }
@@ -144,12 +145,21 @@ export function Timeline(root) {
     else keepPlace();
   }
 
-  // A new row arrived: follow, or show the pill (TL-10, TL-16); mark read when the person sees it (NT-07).
+  // A new row arrived: follow, or show the pill (TL-10, TL-16). The read mark is not sent from here: the server
+  // gives a reader no count (NT-07), so for a person who is looking there is nothing to answer. The `unread`
+  // event drives markRead instead (onUnread), one call per counted message and none per message in a busy room.
   function arrived(m) {
     const own = m.username === state.user?.username;
-    if (!own) unread = true;
-    if (following) { scrollToBottom(); markReadIfSeen(); }
+    if (following) scrollToBottom();
     else if (!own) showPill();
+  }
+
+  // The server counted a message in the open conversation: the person was hidden, away or idle when it came.
+  // Answer with markRead as soon as the person sees it (NT-07).
+  function onUnread() {
+    if (!state.open || !(state.unread[state.open.channelId] > 0)) return;
+    unread = true;
+    markReadIfSeen();
   }
 
   // ---- the top note (TL-07, TL-09, TL-34) ----
@@ -298,6 +308,7 @@ export function Timeline(root) {
   const offs = [
     on('messages', onMessages), on('pending', onPending), on('presence', onPresence),
     on('connection', renderTop), on('rooms', renderTop),
+    on('unread', onUnread),
     on('user', () => markReadIfSeen()), on('presence', () => markReadIfSeen()),   // Away ended, here or on the server: the three conditions may hold again (NT-07)
     on('users', redrawAll),            // a new display name or avatar shows on every row (ST-07)
     on('favoriteGifIds', redrawAll),   // the stars follow the account (PK-36)
