@@ -384,9 +384,37 @@ export function mount(root) {
     const sessionRow = s => el('tr', s.ghost ? { style: { color: 'var(--color-warning)' } } : null,
       td(s.username), td([s.isMobile ? '📱' : '🖥️', ' ', s.clientIp ?? '—', s.clientIpv4 && s.clientIpv4 !== s.clientIp ? el('span', { style: { color: 'var(--text-secondary)' }, title: 'IPv4 reported by the beacon' }, ` · v4 ${s.clientIpv4}`) : null]),
       td(s.transport === 'WebSockets' ? 'WS' : s.transport ? '⚠ Fallback' : '—'), td(s.connected ? '✓' : `✗ ${ago(s.closedAt ?? s.droppedAt)}`), td(s.visible ? '👁 yes' : 'no'), td(s.status ?? '—'), td(s.viewing ?? '—'), td(ago(s.lastInputAt)), td(ago(s.lastHeartbeatAt)), td(ago(s.connectedAt)));
-    const latencyRow = (s, closed) => el('tr', { style: closed ? { opacity: 0.55 } : (s.transport !== 'WebSockets' || (s.latency.avgRttMs ?? 0) > 250) ? { color: 'var(--color-warning)' } : null },
-      td(s.username ?? '—'), td(s.clientIp ?? '—'), td(s.transport === 'WebSockets' ? 'WS' : s.transport ? '⚠ Fallback' : '—'), td(`${s.connected ? '✓' : '✗'} ${ago(s.connectedAt)}`),
-      td(`${ms(s.latency.lastRttMs)} / ${ms(s.latency.avgRttMs)} / ${ms(s.latency.maxRttMs)}`, null), td(s.latency.slowEventCount ? `${s.latency.slowEventCount}× (max ${ms(s.latency.maxEventMs)}ms)` : '—'), td(`${ms(s.latency.lastSendToAppearMs)} / ${ms(s.latency.avgSendToAppearMs)} / ${ms(s.latency.maxSendToAppearMs)}`));
+    // The waits per person (AD-26): a row per user with the numbers since the restart, then that user's live
+    // connections, then the closed ones in grey. The same cells serve all three rows; a connection never has
+    // 'post', because a send carries no connection id.
+    const WAITS = [
+      { key: 'rtt', text: 'RTT last/avg/max', show: ['last', 'avg', 'max'], title: "Round trip of the client's own heartbeat, measured by the client. Hidden tabs do not sample." },
+      { key: 'send', text: 'Send avg/max', show: ['avg', 'max'], title: 'Send tap until the own message is rendered. Text and GIF sends only; a send with files would measure the upload.' },
+      { key: 'post', text: 'Server send avg/max', show: ['avg', 'max'], title: "The server's own time inside a message send. Per person only: the request carries no connection id." },
+      { key: 'open', text: 'Open room avg/max', show: ['avg', 'max'], title: "Tap on a conversation until the server's messages are on screen. Cached rows may show earlier; that is the device, not the wire." },
+      { key: 'older', text: 'Older avg/max', show: ['avg', 'max'], title: 'Scroll to the top until the older messages are in place.' },
+      { key: 'start', text: 'Start last/max', show: ['last', 'max'], title: "Page load until the first conversation shows the server's messages: scripts, bootstrap, connection and room." },
+      { key: 'reconnect', text: 'Reconnect last/max', show: ['last', 'max'], title: 'Connection lost, or the tab back from sleep, until the room is in sync again.' },
+    ];
+    const waitCell = (latency, w) => {
+      const s = latency.stats?.[w.key];
+      return el('td', s ? { title: `${s.count} sample${s.count === 1 ? '' : 's'}, last ${ms(s.last)} ms ${ago(s.at)}` } : null, s ? w.show.map(k => ms(s[k])).join(' / ') : '—');
+    };
+    const waitCells = latency => [...WAITS.map(w => waitCell(latency, w)), td(latency.slowEventCount ? `${latency.slowEventCount}× (max ${ms(latency.maxEventMs)}ms)` : '—')];
+    const laggy = latency => (latency.stats?.rtt?.avg ?? 0) > 250;
+    const transportText = s => s.transport === 'WebSockets' ? 'WS' : s.transport ? '⚠ Fallback' : '—';
+    const userRow = g => {
+      const live = g.sessions.filter(s => s.connected).length;
+      return el('tr', laggy(g.latency) ? { style: { color: 'var(--color-warning)' } } : null, td(el('strong', null, g.username)), td(live ? `${live} live` : 'no connection'), ...waitCells(g.latency));
+    };
+    const connectionRow = s => el('tr', { style: !s.connected ? { opacity: 0.55 } : (s.transport !== 'WebSockets' || laggy(s.latency)) ? { color: 'var(--color-warning)' } : null },   // grey: dropped or closed
+      td([s.isMobile ? '📱' : '🖥️', ' ', s.clientIp ?? '—'], 'diag-indent'), td(s.connected ? `${transportText(s)} · ${ago(s.connectedAt)}` : `${transportText(s)} · closed ${ago(s.closedAt ?? s.droppedAt)}`), ...waitCells(s.latency));
+    const latencyRows = d => {
+      const groups = new Map(d.users.map(u => [u.userId, { ...u, sessions: [] }]));   // worst round trip first, as the server orders them
+      const groupOf = s => { let g = groups.get(s.userId); if (!g) groups.set(s.userId, g = { username: s.username, latency: { stats: {} }, sessions: [] }); return g; };   // connected, no beat yet
+      [...d.sessions, ...d.recentlyClosed].forEach(s => groupOf(s).sessions.push(s));   // live first, then the ring of closed ones
+      return [...groups.values()].flatMap(g => [userRow(g), ...g.sessions.map(connectionRow)]);
+    };
     async function refresh() {
       let d;
       try { d = await api.get('/api/admin/diagnostics'); } catch (e) { replace(body, [empty(e.message)]); return; }
@@ -394,8 +422,10 @@ export function mount(root) {
       replace(body, [
         el('div', { class: 'diag-stats' }, statCard('Users', String(latest.uniqueUsers ?? 0)), statCard('Sessions', String(latest.userSessions ?? 0)), statCard('Messages', String(latest.totalMessages ?? 0)), statCard('Connections', String((latest.activeConnections ?? 0) + (latest.disconnectedConnections ?? 0))), statCard('Channels', String(latest.channels ?? latest.totalChannels ?? 0))),
         el('div', { class: 'diag-chart-card', style: { marginBottom: '16px' } }, el('h4', null, 'Sessions — presence truth table'), d.sessions.length ? table(['User', 'Device', 'Transport', 'Connected', { text: 'Visible', title: 'Page visibility as last reported — a visible session suppresses push for the whole account' }, 'Status', { text: 'Viewing', title: 'Channel this session has open' }, { text: 'Last input', title: 'Time since last real user input (client-reported)' }, { text: 'Heartbeat', title: 'Time since last client-state report' }, 'Age'], d.sessions.map(sessionRow)) : el('p', { style: { color: 'var(--text-secondary)', margin: 0 } }, 'No active sessions.')),
-        el('div', { class: 'diag-chart-card', style: { marginBottom: '16px' } }, el('h4', null, 'Connections — latency'), d.sessions.length || d.recentlyClosed.length ? table(['User', 'IP', { text: 'Transport', title: 'Fallback (SSE/long-polling) instead of WebSockets is the #1 latency suspect' }, 'Connected', { text: 'RTT last/avg/max', title: 'Client-measured round trip' }, { text: 'Slow events', title: 'Hub calls the server took ≥100ms to process' }, { text: 'Send→appear last/avg/max', title: 'Client-measured: send tap → own message rendered' }],
-          [...d.sessions.map(s => latencyRow(s, false)), ...(d.recentlyClosed.length ? [el('tr', null, el('td', { colspan: 7, style: { color: 'var(--text-secondary)', paddingTop: '10px' } }, 'Recently closed')), ...d.recentlyClosed.map(s => latencyRow(s, true))] : [])], 'users-table logs-table') : el('p', { style: { color: 'var(--text-secondary)', margin: 0 } }, 'No connections tracked yet.')),
+        el('div', { class: 'diag-chart-card', style: { marginBottom: '16px' } }, el('h4', null, 'Latency by user'),
+          el('p', { class: 'section-hint', style: { margin: '0 0 8px' } }, 'Milliseconds since the last restart. A user row covers all their connections; under it are the live connections, in grey the recently closed. Hover a header for what it measures.'),
+          d.users.length || d.sessions.length || d.recentlyClosed.length ? table(['Who', { text: 'Connection', title: 'Fallback (SSE/long-polling) instead of WebSockets is the first latency suspect' }, ...WAITS.map(w => ({ text: w.text, title: w.title })), { text: 'Slow calls', title: 'Hub calls and message sends the server took ≥100 ms to process' }],
+            latencyRows(d), 'users-table logs-table') : el('p', { style: { color: 'var(--text-secondary)', margin: 0 } }, 'No connections tracked yet.')),
         el('div', { class: 'diag-chart-card', style: { marginBottom: '16px' } }, el('h4', null, 'Push notifications'),
           d.push.keyStatus === 'valid' ? el('p', { style: { color: 'var(--color-success)', margin: 0 } }, '✅ Configured — VAPID keypair verified at startup.')
           : d.push.keyStatus === 'invalid' ? [el('p', { style: { color: 'var(--color-danger)', margin: 0, fontWeight: 600 } }, '❌ DISABLED — VAPID keypair is invalid.'), el('p', { style: { color: 'var(--text-secondary)', margin: '4px 0 0' } }, d.push.detail ?? '')]

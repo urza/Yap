@@ -74,10 +74,10 @@ public class PresenceTests : IClassFixture<YapFactory>
     {
         var (user, events) = Person("pr_idle");
         _presence.Connect(SessionOf(user, "c1"));
-        _presence.Heartbeat("c1", visible: true, idleSeconds: 301, lastRttMs: 40, sendToAppearMs: null);
+        _presence.Heartbeat("c1", visible: true, idleSeconds: 301, lastRttMs: 40, samples: null);
         _presence.Sweep(DateTime.UtcNow);
         Assert.Equal(("pr_idle", EffectiveStatus.Away, PresenceChange.Change), events[^1]);
-        _presence.Heartbeat("c1", visible: true, idleSeconds: 2, lastRttMs: 40, sendToAppearMs: null);
+        _presence.Heartbeat("c1", visible: true, idleSeconds: 2, lastRttMs: 40, samples: null);
         Assert.Equal(("pr_idle", EffectiveStatus.Online, PresenceChange.Change), events[^1]);
     }
 
@@ -90,13 +90,13 @@ public class PresenceTests : IClassFixture<YapFactory>
         Assert.Equal(("pr_invisible", EffectiveStatus.Offline, PresenceChange.Change), events[^1]);   // a pick is a change: no lobby line (PR-05)
         Assert.DoesNotContain("pr_invisible", _presence.Effective().Keys);
 
-        _presence.Heartbeat("c1", visible: true, idleSeconds: 999, lastRttMs: null, sendToAppearMs: null);
+        _presence.Heartbeat("c1", visible: true, idleSeconds: 999, lastRttMs: null, samples: null);
         _presence.Sweep(DateTime.UtcNow.AddMinutes(10));
         Assert.Equal(EffectiveStatus.Offline, _presence.EffectiveOf(user.Id));
 
         _presence.SetChosenStatus(user.Id, UserStatus.Away);
         Assert.Equal(("pr_invisible", EffectiveStatus.Away, PresenceChange.Change), events[^1]);
-        _presence.Heartbeat("c1", visible: true, idleSeconds: 1, lastRttMs: null, sendToAppearMs: null);
+        _presence.Heartbeat("c1", visible: true, idleSeconds: 1, lastRttMs: null, samples: null);
         Assert.Equal(EffectiveStatus.Away, _presence.EffectiveOf(user.Id));   // a chosen away never self-reverts
     }
 

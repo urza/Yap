@@ -53,6 +53,8 @@ let stopped = false;          // after a sign-out nothing reconnects
 let attempts = 0;
 let retryTimer = 0;
 let everConnected = false;
+let lostAt = 0;        // the start of the reconnect wait (AD-26), see noteLost
+let visibleAt = 0;     // the tab's last return to visible
 const connectedHooks = new Set();
 let signedOutHandler = () => {};
 
@@ -72,6 +74,7 @@ export async function connect() {
     if (/401|Unauthorized/.test(String(e?.message ?? e))) { signedOut(); return; }   // the cookie is dead: the login page, not a loop (AU-21)
     store.setConnection(navigator.onLine ? (everConnected ? 'reconnecting' : 'connecting') : 'offline'); scheduleRetry(); return;
   }
+  const wasReconnect = everConnected;
   everConnected = true;
   attempts = 0;
   store.setConnection('connected');
@@ -86,13 +89,26 @@ export async function connect() {
     if (bootstrap.value.user) { store.applyBootstrap(bootstrap.value); saveBootstrap(bootstrap.value); beacon(bootstrap.value.config); }
     else signedOut();                      // the cookie died while we were away
   }
+  // Back in sync: the room is re-opened and the bootstrap applied. A reconnect nobody watched is nobody's wait.
+  if (wasReconnect && lostAt && document.visibilityState === 'visible') report('reconnect', performance.now() - lostAt);
+  lostAt = 0;
 }
 
 connection.onclose(() => {
   if (stopped) return;
+  noteLost();
   store.setConnection(navigator.onLine ? 'reconnecting' : 'offline');
   scheduleRetry();
 });
+
+// The reconnect wait (AD-26) starts when the person could notice the loss. After sleep the socket is dead, but
+// the client learns it only when its first call fails, up to SignalR's 30 s server timeout: a loss noticed within
+// 35 s of the tab's return counts from the return. The visibility handler restarts a wait noticed while hidden.
+function noteLost() {
+  if (lostAt) return;
+  const now = performance.now();
+  lostAt = visibleAt && now - visibleAt < 35_000 ? visibleAt : now;
+}
 
 function scheduleRetry() {
   clearTimeout(retryTimer);
@@ -118,10 +134,16 @@ addEventListener('online', reconnectNow);
 // Closing it now shows the grey ring at once (SH-17) and lets the retry loop wait for `online`.
 addEventListener('offline', () => {
   if (stopped) return;
+  noteLost();
   store.setConnection('offline');
   if (connection.state !== signalR.HubConnectionState.Disconnected) connection.stop().catch(() => {});
 });
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reconnectNow(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  visibleAt = performance.now();
+  if (lostAt) lostAt = visibleAt;   // a loss noticed while hidden: the wait starts now (AD-26)
+  reconnectNow();
+});
 
 // The server said signedOut: stop, then tell the page.
 function signedOut() {
@@ -158,25 +180,31 @@ export function send(method, ...args) {
 }
 
 // ---- the heartbeat (PR-10, PR-13, AD-25, AD-26) ----
-// Every 10 s while visible, every 60 s while hidden. Carries the idle time, the last round trip, and the
-// send-to-appear samples the composer measured since the last beat.
+// Every 10 s while visible, every 60 s while hidden. Carries the idle time, the last round trip, and the waits
+// the client measured since the last beat: send, open, older, start, reconnect (AD-26).
 
 let lastInputAt = Date.now();
 let lastRttMs = null;
-let sendToAppear = [];
+let samples = [];
 let ticks = 0;
 
-export function reportSendToAppear(ms) { sendToAppear.push(Math.round(ms)); }
+// A wait the person felt, by name, for the admin's latency table (AD-26). Capped: the beat does not run without
+// a connection, and a tab offline for an hour must not queue an hour of samples.
+export function report(name, ms) {
+  if (samples.length >= 50) samples.shift();
+  samples.push({ name, ms: Math.round(ms) });
+}
 
 async function beat() {
   if (!connected()) return;
   const visible = document.visibilityState === 'visible';
   const idleSeconds = Math.round((Date.now() - lastInputAt) / 1000);
-  const samples = sendToAppear; sendToAppear = [];
+  const batch = samples; samples = [];
   const started = performance.now();
   try {
-    await connection.invoke('heartbeat', visible, idleSeconds, lastRttMs, samples.length ? samples : null);
-    lastRttMs = Math.round(performance.now() - started);
+    await connection.invoke('heartbeat', visible, idleSeconds, lastRttMs, batch.length ? batch : null);
+    // A hidden tab's timers are throttled, so its round trip measures the throttle, not the wire: no sample.
+    lastRttMs = visible ? Math.round(performance.now() - started) : null;
   } catch { /* the connection is going down; onclose follows */ }
 }
 

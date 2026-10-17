@@ -34,6 +34,7 @@ public sealed class PresenceService(UserService users, LoadCounters load, ILogge
     private readonly HashSet<Guid> _autoAway = new();
     private readonly Dictionary<Guid, Dictionary<string, (string Username, DateTime At)>> _typing = new(); // channel -> connection
     private readonly Queue<Session> _recentlyClosed = new();
+    private readonly Dictionary<Guid, UserLatency> _userLatency = new();   // every person with a sample since the restart (AD-26)
     private readonly Dictionary<string, (string ConnectionId, DateTime At)> _beaconNonces = new();
     private int _totalConnections;
 
@@ -90,9 +91,9 @@ public sealed class PresenceService(UserService users, LoadCounters load, ILogge
     // ---- heartbeat and status --------------------------------------------------------------------------
 
     /// <summary>The client's liveness report: visible, seconds since the last input, the previous round trip
-    /// and the send-to-appear samples since the last beat (AD-26). Recent input ends an automatic away at
-    /// once (PR-13).</summary>
-    public void Heartbeat(string connectionId, bool visible, double idleSeconds, double? lastRttMs, IEnumerable<double>? sendToAppearMs)
+    /// and the waits it measured since the last beat (AD-26). Recent input ends an automatic away at once
+    /// (PR-13).</summary>
+    public void Heartbeat(string connectionId, bool visible, double idleSeconds, double? lastRttMs, IEnumerable<WaitSample>? samples)
     {
         if (!double.IsFinite(idleSeconds)) return;                 // client input is untrusted
         idleSeconds = Math.Clamp(idleSeconds, 0, 86400);
@@ -105,8 +106,9 @@ public sealed class PresenceService(UserService users, LoadCounters load, ILogge
             s.Visible = visible;
             s.LastInputAt = now.AddSeconds(-idleSeconds);
             s.LastHeartbeatAt = now;
-            if (lastRttMs is { } rtt && double.IsFinite(rtt)) s.Latency.ReportRtt(rtt);
-            foreach (var ms in sendToAppearMs ?? []) if (double.IsFinite(ms)) s.Latency.ReportSendTiming(ms);
+            if (lastRttMs is { } rtt) ReportLocked(s, Wait.Rtt, rtt);
+            foreach (var sample in samples ?? [])
+                if (ClientWaits.TryGetValue(sample.Name ?? "", out var wait)) ReportLocked(s, wait, sample.Ms);
 
             if (idleSeconds < InputFresh.TotalSeconds && _autoAway.Contains(s.UserId))
             {
@@ -120,7 +122,48 @@ public sealed class PresenceService(UserService users, LoadCounters load, ILogge
 
     public void ReportSlowEvent(string connectionId, double ms)
     {
-        lock (_gate) { if (_sessions.TryGetValue(connectionId, out var s)) s.Latency.ReportSlowEvent(ms); }
+        lock (_gate)
+        {
+            if (!_sessions.TryGetValue(connectionId, out var s)) return;
+            s.Latency.ReportSlowEvent(ms);
+            UserLatencyLocked(s.UserId, s.Username).Stats.ReportSlowEvent(ms);
+        }
+    }
+
+    /// <summary>A timed request outside the hub, the message send (AD-26). It carries no connection id, so the
+    /// sample lands on the person only. Over the slow threshold it also counts as a slow event.</summary>
+    public void ReportRequest(Guid userId, string username, Wait wait, double ms)
+    {
+        lock (_gate)
+        {
+            var stats = UserLatencyLocked(userId, username).Stats;
+            stats.Report(wait, ms);
+            if (ms >= LatencyStats.SlowMs) stats.ReportSlowEvent(ms);
+        }
+    }
+
+    // The waits a client may report by name. Rtt has its own argument and Post is the server's own measurement,
+    // so a client can write neither.
+    private static readonly Dictionary<string, Wait> ClientWaits = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["send"] = Wait.Send, ["open"] = Wait.Open, ["older"] = Wait.Older, ["start"] = Wait.Start, ["reconnect"] = Wait.Reconnect,
+    };
+    private const double MaxSampleMs = 600_000;   // ten minutes; a longer "wait" is a bug or a forged number
+
+    /// <summary>One sample on the connection and on the person. Client numbers are untrusted: anything not finite
+    /// or outside 0..10 min is dropped instead of poisoning an average.</summary>
+    private void ReportLocked(Session s, Wait wait, double ms)
+    {
+        if (!double.IsFinite(ms) || ms < 0 || ms > MaxSampleMs) return;
+        s.Latency.Report(wait, ms);
+        UserLatencyLocked(s.UserId, s.Username).Stats.Report(wait, ms);
+    }
+
+    private UserLatency UserLatencyLocked(Guid userId, string username)
+    {
+        if (!_userLatency.TryGetValue(userId, out var u)) _userLatency[userId] = u = new UserLatency(username);
+        u.Username = username;
+        return u;
     }
 
     /// <summary>A pick in the status menu. Account-wide, so every device of the person follows (PR-01). A
@@ -360,6 +403,14 @@ public sealed class PresenceService(UserService users, LoadCounters load, ILogge
     public List<Session> RecentlyClosed()
     {
         lock (_gate) return _recentlyClosed.Reverse().ToList();   // newest first
+    }
+
+    /// <summary>Every person with a sample since the restart, worst average round trip first (AD-26).</summary>
+    public List<(Guid UserId, string Username, LatencyStats Latency)> LatencyByUser()
+    {
+        lock (_gate)
+            return _userLatency.Select(kv => (UserId: kv.Key, kv.Value.Username, Latency: kv.Value.Stats))
+                .OrderByDescending(u => u.Latency.Of(Wait.Rtt)?.Avg ?? -1).ToList();
     }
 
     public (int Connected, int Disconnected, int TotalCreated) Stats()

@@ -96,10 +96,11 @@ public sealed class ChatHub(ChatService chat, PresenceService presence, UserServ
 
     // ---- liveness and status -----------------------------------------------------------------------------
 
-    /// <summary>Every 10 s visible, 60 s hidden. Returns the server time so the client can measure the round trip (AD-26).</summary>
-    public long Heartbeat(bool visible, int idleSeconds, int? lastRttMs, int[]? sendToAppearMs)
+    /// <summary>Every 10 s visible, 60 s hidden. Carries the waits the client measured since the last beat, and
+    /// returns the server time so the client can measure the round trip (AD-26).</summary>
+    public long Heartbeat(bool visible, int idleSeconds, int? lastRttMs, WaitSample[]? samples)
     {
-        presence.Heartbeat(Context.ConnectionId, visible, idleSeconds, lastRttMs, sendToAppearMs?.Select(ms => (double)ms));
+        presence.Heartbeat(Context.ConnectionId, visible, idleSeconds, lastRttMs, samples);
         return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     }
 

@@ -3783,3 +3783,6 @@
     background: rgba(0, 0, 0, 0.25);
     overflow-x: auto;
 }
+
+/* Diagnostics, latency by user (AD-26): a connection row sits under its user, so its first cell steps in. */
+.logs-table td.diag-indent { padding-left: 28px; }

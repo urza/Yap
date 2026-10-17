@@ -113,8 +113,8 @@ async function flush() {
         queue = queue.filter(r => r !== row);
         await outbox.remove(row);
         outbox.announce();
-        if (row.tappedAt) hub.reportSendToAppear(performance.now() - row.tappedAt);   // AD-26: a tap of this tab only
         addMessage(message);                 // the POST answer and the hub event are the same confirmation
+        if (row.tappedAt) hub.report('send', performance.now() - row.tappedAt);   // AD-26: tap to own row rendered; a tap of this tab only
         publish();
       } catch (e) {
         if (e instanceof ApiError && (e.status === 0 || e.status === 409)) break;   // no network, or the first copy is still being stored

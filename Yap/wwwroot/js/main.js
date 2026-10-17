@@ -101,6 +101,7 @@ router.onRoute(async route => {
     return;
   }
   const page = await loader();
+  performance.mark('page-mount');   // the chat page counts the app start only when it is the first page (AD-26)
   try { unmountPage = page.mount(root, route) ?? (() => {}); }
   catch (e) { console.error('page failed', e); showPageError(root, route); }
 });

@@ -200,10 +200,12 @@ export function Timeline(root) {
     const token = ++loadToken;
     loading = true; renderTop();
     const oldest = open.messages[0];
+    const startedAt = performance.now();
     const page = await hub.invoke('older', open.channelId, oldest.timestamp, oldest.id);
     if (token !== loadToken || state.open !== open) return;   // the rows changed meanwhile; reset() released the spinner
     if (page?.error) { loading = false; renderTop(); overlays.reason(list.parentElement, page.error); return; }   // GEN-02
     prependOlder(page);
+    hub.report('older', performance.now() - startedAt);   // the rows are in place: the 'older' change ran inside prependOlder (AD-26)
   }
 
   // ---- following and the pill (TL-10 to TL-18) ----

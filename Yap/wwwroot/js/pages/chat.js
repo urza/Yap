@@ -16,6 +16,7 @@ import * as overlays from '../ui/overlays.js';
 
 let generation = 0;   // a switch during an open: the older answer is dropped
 let prompted = false; // the notification prompt shows once per page load (SH-38)
+let firstOpenPending = true;   // the first conversation of the page load is the app start (AD-26)
 
 function notificationPrompt() {
   if (prompted || !push.promptWanted()) return;
@@ -31,6 +32,7 @@ function notificationPrompt() {
 
 export function mount(root, params) {
   const me = ++generation;
+  const timing = { mountedAt: performance.now(), reported: false };   // the wait until the server's rows show (AD-26)
   const timelineRoot = el('div', { class: 'timeline-root', style: { display: 'contents' } });
   const composerRoot = el('div', { class: 'composer-root', style: { display: 'contents' } });
   root.replaceChildren(timelineRoot, composerRoot);
@@ -44,7 +46,7 @@ export function mount(root, params) {
 
   const painted = paintStored(target, me);
   notificationPrompt();
-  const open = () => openConversation(target, me, painted);
+  const open = () => openConversation(target, me, painted, timing);
   open();
   const offConnected = hub.onConnected(open);                 // after a reconnect: the newest messages again (TL-35)
   const offRooms = on('rooms', () => {
@@ -89,7 +91,7 @@ async function paintStored(target, me) {
           target.kind === 'dm' ? target.partner : null);
 }
 
-async function openConversation(target, me, painted = Promise.resolve()) {
+async function openConversation(target, me, painted, timing) {
   const result = target.kind === 'dm'
     ? await hub.invoke('openDm', target.partner)
     : await hub.invoke('openRoom', target.channelId);
@@ -106,4 +108,16 @@ async function openConversation(target, me, painted = Promise.resolve()) {
     return;
   }
   setOpen(result, target.kind === 'dm' ? target.partner : null);   // the snapshot module stores the tail from the store
+  if (!timing.reported) { timing.reported = true; reportOpened(timing.mountedAt); }   // the re-open after a reconnect is not a tap
+}
+
+// The wait until the server's rows are on screen (AD-26), reported with the next heartbeat. The first conversation
+// of the page load is the app start, counted from the navigation: scripts, bootstrap, connection and room. Every
+// later mount is a tap, counted from the mount. The stored tail may paint earlier; that is the device, not the wire.
+function reportOpened(mountedAt) {
+  if (!firstOpenPending) { hub.report('open', performance.now() - mountedAt); return; }
+  firstOpenPending = false;
+  // Only when the conversation is the first page of the load: a sign-in or a settings visit before it would count
+  // the person's own time. A tab restored in the background is nobody's wait either.
+  if (performance.getEntriesByName('page-mount').length === 1 && document.visibilityState === 'visible') hub.report('start', performance.now());
 }

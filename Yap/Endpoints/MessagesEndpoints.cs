@@ -17,14 +17,17 @@ public static class MessagesEndpoints
 {
     public static void MapMessages(this RouteGroupBuilder api)
     {
+        // Both routes are timed for the diagnostics table (AD-26): a send is HTTP, so the hub filter never sees it.
         api.MapPost("/channels/{channelId:guid}/messages", (Guid channelId, SendMessageRequest body, ClaimsPrincipal me,
-            ChatService chat, GifService gifs, MessageMapper map) => SendAsync(channelId, body, me, chat, gifs, map));
+            ChatService chat, GifService gifs, MessageMapper map) => SendAsync(channelId, body, me, chat, gifs, map))
+            .AddEndpointFilter<ApiLatencyFilter>();
 
         api.MapPost("/dm/{username}/messages", (string username, SendMessageRequest body, ClaimsPrincipal me,
             ChatService chat, GifService gifs, MessageMapper map) =>
             chat.GetOrCreateDm(me.Id(), username) is { } dm
                 ? SendAsync(dm.Id, body, me, chat, gifs, map)
-                : Task.FromResult(Results.Problem("Unknown user", statusCode: 404)));
+                : Task.FromResult(Results.Problem("Unknown user", statusCode: 404)))
+            .AddEndpointFilter<ApiLatencyFilter>();
     }
 
     private static async Task<IResult> SendAsync(Guid channelId, SendMessageRequest body, ClaimsPrincipal me, ChatService chat, GifService gifs, MessageMapper map)

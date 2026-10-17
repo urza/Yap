@@ -273,6 +273,7 @@ public static class AdminEndpoints
                 series = snapshots.Select(s => new { s.Timestamp, s.UniqueUsers, s.UserSessions, s.ActiveConnections, s.DisconnectedConnections, s.TotalMessages }).ToList(),
                 sessions = presence.All().OrderBy(s => s.Username).ThenBy(s => s.ConnectedAt).Select(s => SessionRow(s, presence, chat)).ToList(),
                 recentlyClosed = presence.RecentlyClosed().Select(s => SessionRow(s, presence, chat)).ToList(),
+                users = presence.LatencyByUser().Select(u => new { u.UserId, u.Username, latency = u.Latency }).ToList(),   // AD-26: the waits per person
                 push = new
                 {
                     keyStatus = push.KeyStatus,
@@ -320,7 +321,7 @@ public static class AdminEndpoints
 
     private static object SessionRow(Session s, PresenceService presence, ChatService chat) => new
     {
-        s.ConnectionId, s.Username, s.DeviceId, s.IsMobile, s.ClientIp, s.ClientIpv4, s.Transport, s.ConnectedAt, s.Connected, s.ClosedAt, s.DroppedAt,
+        s.ConnectionId, s.UserId, s.Username, s.DeviceId, s.IsMobile, s.ClientIp, s.ClientIpv4, s.Transport, s.ConnectedAt, s.Connected, s.ClosedAt, s.DroppedAt,
         s.Visible, s.LastInputAt, s.LastHeartbeatAt,
         status = presence.EffectiveOf(s.UserId),
         viewing = s.Viewing is { } id && chat.GetChannel(id) is { } c ? (c.IsDirectMessage ? $"DM: {c.Participant1} ↔ {c.Participant2}" : $"#{c.Name}") : null,

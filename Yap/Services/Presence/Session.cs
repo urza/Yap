@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Yap.Services.Presence;
 
 /// <summary>What other people see (PR-01, PR-05). "Offline" is no connection, or a chosen Invisible.</summary>
@@ -53,37 +55,52 @@ public sealed class Session
 }
 
 /// <summary>
-/// Latency of one connection, for the admin diagnostics table (AD-26). Round trips are measured by the
-/// client around its heartbeat. Send-to-appear is measured by the client from the tap to the row.
-/// Slow events are hub calls that took over 100 ms on the server. Averages are exponentially weighted
+/// The waits the diagnostics table shows (AD-26). The client measures five of them: Send from the tap to its
+/// own message rendered, Open from the tap on a conversation and Start from the page load to the server's rows
+/// on screen, Older from the scroll to the older rows in place, and Reconnect from the loss of the connection to
+/// the room back in sync. Rtt is the client's own heartbeat round trip. Post is the server's time inside a
+/// message send, the one request that does not go over the hub.
+/// </summary>
+public enum Wait { Rtt, Send, Post, Open, Older, Start, Reconnect }
+
+/// <summary>One wait reported by the client: its name as the client spells it, and the milliseconds.</summary>
+public sealed record WaitSample(string Name, int Ms);
+
+/// <summary>
+/// The numbers of one wait. Immutable and replaced whole on each sample, so the admin endpoint can read a
+/// session outside the presence lock and never see a half-written stat. The average is exponentially weighted
 /// (0.75 old, 0.25 new), so one good sample does not hide a bad streak.
+/// </summary>
+public sealed record Stat(double Last, double Avg, double Max, int Count, DateTime At)
+{
+    public static Stat First(double ms) => new(ms, ms, ms, 1, DateTime.UtcNow);
+    public Stat Then(double ms) => new(ms, 0.75 * Avg + 0.25 * ms, Math.Max(Max, ms), Count + 1, DateTime.UtcNow);
+}
+
+/// <summary>
+/// The waits of one connection, or of one person across all their connections, for the admin diagnostics table
+/// (AD-26). Slow events are hub calls and message sends that took over <see cref="SlowMs"/> on the server. In
+/// memory only; a restart clears everything.
 /// </summary>
 public sealed class LatencyStats
 {
-    public double? LastRttMs { get; private set; }
-    public double? AvgRttMs { get; private set; }
-    public double? MaxRttMs { get; private set; }
-    public int RttSamples { get; private set; }
-    public DateTime? RttUpdatedAt { get; private set; }
+    public const double SlowMs = 100;   // the hub filter and the send filter share the threshold
+
+    // Indexed by Wait. A plain array with whole-record writes keeps lock-free readers safe; a dictionary would not.
+    private readonly Stat?[] _byWait = new Stat?[Enum.GetValues<Wait>().Length];
 
     public int SlowEventCount { get; private set; }
     public double? MaxEventMs { get; private set; }
     public DateTime? LastSlowEventAt { get; private set; }
 
-    public double? LastSendToAppearMs { get; private set; }
-    public double? AvgSendToAppearMs { get; private set; }
-    public double? MaxSendToAppearMs { get; private set; }
-    public int SendSamples { get; private set; }
-    public DateTime? SendTimingAt { get; private set; }
+    /// <summary>The waits with at least one sample, keyed by their camelCase name ("rtt", "send", ...) for the JSON.</summary>
+    public Dictionary<string, Stat> Stats => Enum.GetValues<Wait>()
+        .Where(w => _byWait[(int)w] is not null)
+        .ToDictionary(w => JsonNamingPolicy.CamelCase.ConvertName(w.ToString()), w => _byWait[(int)w]!);
 
-    public void ReportRtt(double ms)
-    {
-        LastRttMs = ms;
-        AvgRttMs = AvgRttMs is { } avg ? 0.75 * avg + 0.25 * ms : ms;
-        MaxRttMs = Math.Max(MaxRttMs ?? 0, ms);
-        RttSamples++;
-        RttUpdatedAt = DateTime.UtcNow;
-    }
+    public Stat? Of(Wait wait) => _byWait[(int)wait];
+
+    public void Report(Wait wait, double ms) => _byWait[(int)wait] = _byWait[(int)wait] is { } stat ? stat.Then(ms) : Stat.First(ms);
 
     public void ReportSlowEvent(double ms)
     {
@@ -91,13 +108,11 @@ public sealed class LatencyStats
         MaxEventMs = Math.Max(MaxEventMs ?? 0, ms);
         LastSlowEventAt = DateTime.UtcNow;
     }
+}
 
-    public void ReportSendTiming(double ms)
-    {
-        LastSendToAppearMs = ms;
-        AvgSendToAppearMs = AvgSendToAppearMs is { } avg ? 0.75 * avg + 0.25 * ms : ms;
-        MaxSendToAppearMs = Math.Max(MaxSendToAppearMs ?? 0, ms);
-        SendSamples++;
-        SendTimingAt = DateTime.UtcNow;
-    }
+/// <summary>One person's waits since the restart (AD-26). The username is the one their last report carried.</summary>
+public sealed class UserLatency(string username)
+{
+    public string Username { get; set; } = username;
+    public LatencyStats Stats { get; } = new();
 }
