@@ -482,7 +482,7 @@ public class ChatService
 
     private void DispatchPush(Channel channel, string senderUsername, ChatMessage message)
     {
-        var preview = message.HasGifs ? "[GIF]" : message.HasMedia ? "[Attachment]" : message.Content;   // NT-27
+        var preview = !string.IsNullOrWhiteSpace(message.Content) ? message.Content : message.HasGifs ? "[GIF]" : "[Attachment]";   // NT-27: a caption is the text
         var senderName = _userService.GetByUsername(senderUsername)?.DisplayName ?? senderUsername;        // NT-27: the display name
 
         foreach (var recipient in PushRecipients(channel, senderUsername))
@@ -529,7 +529,7 @@ public class ChatService
     {
         if (GetMessage(messageId) is not { } message) return "Message not found.";
         if (message.UserId != userId) return "You can edit your own messages only.";
-        if (message.HasMedia) return "A media message cannot be edited.";
+        if (message.HasMedia && string.IsNullOrWhiteSpace(message.Content)) return "A media message without a caption cannot be edited.";   // the caption is the part that an edit changes (MR-57)
         if (text.Length > MaxTextLength) return $"A message has at most {MaxTextLength} characters.";
         if (string.IsNullOrWhiteSpace(text) || text == message.Content) return null;   // nothing changes, nothing to say
 

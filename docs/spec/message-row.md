@@ -15,7 +15,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 1. **Avatar.** A 40 px circle on the left with the profile picture, or a coloured disc with the first letter of the username. It shows only on header rows. Other rows leave the avatar column empty.
 2. **Header.** The name, a bot badge if the author is a bot, and the time. It shows only on the first row of a group.
 3. **Reply quote.** A line above the header, on replies only. It shows a 16 px avatar, the original author's name and the original text on one line, two lines on a phone. A curved connector joins it to the avatar below.
-4. **Content.** The text with links and emoji, or the media (images in a gallery, videos, GIFs). A text row can end with "(edited)".
+4. **Content.** The text with links and emoji, the media (images in a gallery, videos, GIFs), or both, with the text above the media as a caption. A row with text can end with "(edited)".
 5. **Link cards.** Cards under the text, one for each link with a preview, at most five.
 6. **Reaction pills.** Pills under the content with the emoji and the count. The reader's own reactions are highlighted.
 7. **Action bar.** A bar at the top right of the row. It shows on hover or after a tap. It contains the quick reactions, Add Reaction, Reply, the GIF star on phones, Edit on own text rows, and More.
@@ -68,7 +68,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 ### Link cards
 
-**MR-19** A text message with links gets one preview card for each link, at most five, in text order. A message with media gets no cards. An admin switch turns off previews for everyone. By default, previews are on.
+**MR-19** A text message with links gets one preview card for each link, at most five, in text order. A message with media gets no cards, also for a link in its caption. An admin switch turns off previews for everyone. By default, previews are on.
 
 **MR-20** A card shows the site name, the title and the description of the page, and a thumbnail on the right when the page has one. A card appears only when the page has a title or a description. The description is cut at 300 characters.
 
@@ -80,7 +80,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 ### Images, videos and GIFs
 
-**MR-24** A message with media shows no text. One image shows at its own aspect ratio. On desktop, the image is at most 400 px wide and 350 px high. On a phone, it is full width and at most 450 px high. While the image loads, a 4:3 box in the sidebar colour keeps its space.
+**MR-24** A message with media shows its text, when it has one, above the media as a caption. One image shows at its own aspect ratio. On desktop, the image is at most 400 px wide and 350 px high. On a phone, it is full width and at most 450 px high. While the image loads, a 4:3 box in the sidebar colour keeps its space.
 
 **MR-25** Several images make a gallery of square, cropped thumbnails in rows of two or three, with 4 px gaps. Two or three images make one row. Four make two and two. Five make two and three. Six make three and three. Seven make two, two and three. Eight make two, three and three. Nine make three rows of three. Ten make two, two, three and three.
 
@@ -98,7 +98,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 ### Reply quote
 
-**MR-32** A reply shows the quote line above its header. The quote line contains a 16 px avatar, the original author's display name, and the original text. The text is one line with an ellipsis, and two lines on a phone. For an original with only media, the quote shows "Click to see attachment". The quote shows emoji as small images and shows no links. The quote changes when the original is edited.
+**MR-32** A reply shows the quote line above its header. The quote line contains a 16 px avatar, the original author's display name, and the original text. The text is one line with an ellipsis, and two lines on a phone. For an original with media and no caption, the quote shows "Click to see attachment". The quote shows emoji as small images and shows no links. The quote changes when the original is edited.
 
 **MR-33** A curved connector joins the avatar of the quote to the avatar of the reply. A reply always starts a group, so it always has a header.
 
@@ -156,9 +156,9 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 ### Editing
 
-**MR-57** The author can edit their own text rows at any time. Media rows cannot be edited. Admins cannot edit other people's messages.
+**MR-57** The author can edit their own text rows, and the caption of their own media rows, at any time. A media row without a caption cannot be edited. Admins cannot edit other people's messages.
 
-**MR-58** Edit replaces the content with an editor in the same row. The header stays. The editor starts with the current text and looks like the input box. It grows to 200 px, then scrolls. Below the editor are "✓ Save", "✕ Cancel" and, on desktop, the hint "Enter to save · Shift+Enter for newline · Esc to cancel".
+**MR-58** Edit replaces the text with an editor in the same row. The header stays, and the media of a captioned row stays. The editor starts with the current text and looks like the input box. It grows to 200 px, then scrolls. Below the editor are "✓ Save", "✕ Cancel" and, on desktop, the hint "Enter to save · Shift+Enter for newline · Esc to cancel".
 
 **MR-59** The editor gets focus, with the caret at the end. On a phone, a closed keyboard stays closed. An open keyboard stays open and types into the editor.
 

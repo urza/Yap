@@ -3,7 +3,7 @@
 // the new-version strip, and the sign-out that empties IndexedDB. Run: npm run offline (see README.md).
 
 import { chromium } from 'playwright';
-import { SHOTS, sleep, waitTrue, short, row, step, stepLogs, fmt, finish, startServer, signIn, watchContext, watchPage, fixture, makePng } from './lib.mjs';
+import { SHOTS, sleep, waitTrue, short, row, step, stepLogs, fmt, finish, startServer, signIn, watchContext, watchPage, fixture, makePng, sendFiles } from './lib.mjs';
 
 // Playwright applies setOffline to the service worker only with this variable, and reads it when a worker
 // appears, so setting it here (after the hoisted imports, before the launch) is in time. Without it the worker
@@ -199,7 +199,7 @@ await step(10, 'File upload offline, then online', async (check) => {
   await ctxA.setOffline(true);
   await waitTrue(async () => !(await dotState(A)).hidden, 10000);
   await sleep(300);
-  await A.setInputFiles('.message-input-container input[type=file]', PNG);
+  await sendFiles(A, PNG);
   await sleep(500);
   const modal = await A.locator('.warning-modal').isVisible().catch(() => false);
   const r = A.locator('.message-group.pending').filter({ hasText: 'tiny.png' });
@@ -224,7 +224,7 @@ await step(11, 'Upload while the server cannot be reached stays pending (OF-08)'
   const galleries = () => A.locator('.message-group:not(.pending) img.gallery-image').count();
   const before = await galleries();
   await ctxA.route('**/api/tus**', route => route.abort('connectionfailed'));   // the browser is online; the server is not reachable
-  await A.setInputFiles('.message-input-container input[type=file]', DOWN);
+  await sendFiles(A, DOWN);
   const r = A.locator('.message-group.pending').filter({ hasText: 'down.png' });
   const has = await waitTrue(async () => (await r.count()) === 1, 3000);
   await sleep(12000);   // tus retries four times, about nine seconds, before it reports

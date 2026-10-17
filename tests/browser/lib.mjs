@@ -36,6 +36,15 @@ export async function waitTrue(fn, ms = 5000, every = 100) {
 // The message row whose text contains `text`.
 export const row = (page, text) => page.locator('.messages-container .message-group').filter({ has: page.locator('.message-content', { hasText: text }) });
 
+// Files through the composer, as a person sends them: the pick lands in the tray, Send posts them (IB-33).
+export async function sendFiles(page, files) {
+  const count = Array.isArray(files) ? files.length : 1;
+  const before = await page.locator('.attachment-tray .tray-item').count();
+  await page.setInputFiles('.message-input-container input[type=file]', files);
+  await page.locator('.attachment-tray .tray-item').nth(before + count - 1).waitFor({ timeout: 3000 });
+  await page.click('.send-button');
+}
+
 // ---- the server ----
 
 // Starts Yap.dll memory-only in a fresh temp content root (a copy of Yap/Data and a link to Yap/wwwroot), so a

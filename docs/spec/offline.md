@@ -26,7 +26,7 @@ Yap runs in the browser and can also be installed as an app on a phone or a desk
 
 **OF-08** Sending works without a connection, also in a conversation that the user never opened on the device. Send accepts the message, shows it as pending in the conversation and keeps it on the device. Yap sends the message when the connection returns, also after the app was closed and opened again.
 
-**OF-09** Without a connection, Yap accepts a pick of files up to 25 MB in total. Yap refuses a larger pick, and the input box shows "Needs a connection".
+**OF-09** Without a connection, the tray of the input box holds files up to 25 MB in total. Yap refuses a pick or a send that goes over this, and the input box shows "Needs a connection".
 
 **OF-10** Yap sends pending messages in the order in which the user wrote them, as soon as a connection exists. The user sees each one change into a normal message. The user does not have to do anything.
 

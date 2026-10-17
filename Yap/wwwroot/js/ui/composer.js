@@ -3,7 +3,7 @@
 // the server learns of a message through sender.js (IB-10, IB-24).
 
 import { state, on, displayName, roomById, isReadOnly, setDraft, dmByChannel } from '../store.js';
-import { clone, replace } from '../render/dom.js';
+import { clone, el, replace } from '../render/dom.js';
 import { inline, pick } from '../render/text.js';
 import * as hub from '../hub.js';
 import * as overlays from './overlays.js';
@@ -21,6 +21,10 @@ const SPRITE_COLS = 20, SPRITE_COUNT = 73;   // the emoji toggle sprite: 48 px c
 // the phone sheet keeps its tab, across a switch (PK-14, IB-41). They call the composer mounted now.
 let pickers = null;
 
+// The trays live once per page too: the files a person picked for a conversation wait there until the send,
+// also across a switch to another conversation (IB-33). A reload drops them, as Discord does.
+const trays = new Map();   // conversation key -> [{ file, url }]
+
 export function Composer(root) {
   const box = clone('t-composer');
   root.append(box);
@@ -29,6 +33,7 @@ export function Composer(root) {
   const container = box.querySelector('.message-input-container');
   const area = box.querySelector('.message-input');
   const fileInput = box.querySelector('input[type=file]');
+  const tray = box.querySelector('.attachment-tray');
   const sendButton = box.querySelector('.send-button');
   const replyBar = box.querySelector('.reply-bar');
   const readonly = box.querySelector('.readonly-bar');
@@ -41,6 +46,7 @@ export function Composer(root) {
   let key = null;              // the open conversation as the device names it: a room id, or 'dm:' and the partner (offline/snapshot.js)
   let target = null;           // { channelId, partner } for the sender; channelId is null for a direct message opened offline for the first time (OF-08)
   let replyTo = null;          // the message replied to (IB-49)
+  let files = [];              // the tray of the open conversation: the array held in trays, so a push here is a push there (IB-33)
   let placeholderPick = { channelId: null, text: '' };
   let typingPick = { key: '', text: '' };
   let caret = null;            // where an emoji pick goes (IB-44)
@@ -59,6 +65,7 @@ export function Composer(root) {
     key = next;
     closePicker();
     if (!typedBeforeOpen) restoreDraft();
+    openTray();
     renderPlaceholder();
     renderReadOnly();
     renderTyping();
@@ -125,10 +132,10 @@ export function Composer(root) {
     send();
   });
   area.addEventListener('paste', e => {                                                    // IB-15
-    const files = [...(e.clipboardData?.items ?? [])].filter(i => i.type.startsWith('image/') || i.type.startsWith('video/')).map(i => i.getAsFile()).filter(Boolean);
-    if (!files.length) return;
+    const picked = [...(e.clipboardData?.items ?? [])].filter(i => i.type.startsWith('image/') || i.type.startsWith('video/')).map(i => i.getAsFile()).filter(Boolean);
+    if (!picked.length) return;
     e.preventDefault();
-    sendFiles(files);
+    addFiles(picked);
   });
 
   // ---- typing (IB-59) ----
@@ -183,22 +190,24 @@ export function Composer(root) {
   // ---- send (IB-18 to IB-28) ----
 
   function send() {
-    if (!area.value.trim()) return;                                                         // IB-21
+    if (!area.value.trim() && !files.length) return;                                        // IB-21
     if (!key) { sendWanted = true; return; }                                               // the conversation is still opening
-    const text = area.value.slice(0, MAX_TEXT);                                             // the same cut as the input handler, for a draft that got in by another path (IB-14)
+    if (needsConnection(files.map(f => f.file))) { overlays.reason(container, 'Needs a connection'); return; }   // picked online, sent offline (OF-09)
+    const text = area.value.trim() ? area.value.slice(0, MAX_TEXT) : '';                   // the same cut as the input handler, for a draft that got in by another path (IB-14); blank text is no caption
+    const attached = takeFiles();                                                           // the files go with the text, as one message (IB-33)
     area.value = ''; grow(); saveDraft();
     const reply = replyTo; setReply(null);
     closePicker();
     stopTyping();
-    const row = sender.queueMessage({ ...target, text, replyToId: reply?.id ?? null });
-    row.tappedAt = performance.now();
+    const row = sender.queueMessage({ ...target, text, replyToId: reply?.id ?? null, files: attached });
+    if (!attached.length) row.tappedAt = performance.now();                                 // AD-26 measures the wire; an upload would hide it
   }
   sendButton.addEventListener('pointerdown', e => e.preventDefault());                     // never moves the focus (IB-22)
   sendButton.addEventListener('click', send);
 
-  // ---- attachments (IB-29 to IB-37) ----
+  // ---- attachments: the tray (IB-29 to IB-37) ----
 
-  fileInput.addEventListener('change', () => { const files = [...fileInput.files]; fileInput.value = ''; if (files.length) sendFiles(files); });
+  fileInput.addEventListener('change', () => { const picked = [...fileInput.files]; fileInput.value = ''; if (picked.length) addFiles(picked); });   // IB-37
   // + is a button that opens the chooser itself; a label around the input took no keyboard focus (U03 of the 2026-10-15 user test).
   const uploadButton = box.querySelector('.image-upload-button');
   uploadButton.addEventListener('pointerdown', e => e.preventDefault());                   // never moves the focus, like Send (IB-22)
@@ -207,15 +216,53 @@ export function Composer(root) {
     else fileInput.click();
   });
 
-  function sendFiles(files) {
+  // Without a connection the send goes to the outbox on disk, which holds 25 MB per message (IB-64, OF-09).
+  const needsConnection = blobs => state.connection !== 'connected' && blobs.reduce((s, f) => s + f.size, 0) > 25 * 1024 * 1024;
+
+  function openTray() {
+    if (key && !trays.has(key)) trays.set(key, []);
+    files = key ? trays.get(key) : [];
+    renderTray();
+  }
+
+  // A pick, a drop or a paste lands in the tray; nothing is uploaded before Send (IB-33).
+  function addFiles(picked) {
     if (!key) return;
     const maxMB = state.config?.maxUploadMB ?? 100;
-    const { accepted, refused } = checkFiles(files, maxMB);
-    if (refused.length) warn(accepted.length ? `${accepted.length} of ${files.length} files uploaded` : 'Upload failed', refused.join('\n'));   // IB-35
+    const { accepted, refused } = checkFiles(picked, maxMB, files.length);
+    if (refused.length) warn(accepted.length ? `${accepted.length} of ${picked.length} files added` : 'No file added', refused.join('\n'));   // IB-35
     if (!accepted.length) return;
-    if (state.connection !== 'connected' && accepted.reduce((s, f) => s + f.size, 0) > 25 * 1024 * 1024) { overlays.reason(container, 'Needs a connection'); return; }   // IB-64, OF-09
-    const reply = replyTo; setReply(null);                                                  // IB-36
-    sender.queueMessage({ ...target, replyToId: reply?.id ?? null, files: accepted });      // the sender uploads and posts (IB-34)
+    if (needsConnection([...files.map(f => f.file), ...accepted])) { overlays.reason(container, 'Needs a connection'); return; }
+    files.push(...accepted.map(file => ({ file, url: URL.createObjectURL(file) })));
+    renderTray();
+  }
+
+  function removeFile(entry) {
+    URL.revokeObjectURL(entry.url);
+    files.splice(files.indexOf(entry), 1);
+    renderTray();
+  }
+
+  // Send empties the tray. The pending row shows the names and the progress, not the thumbnails (IB-34).
+  function takeFiles() {
+    const taken = files.splice(0);
+    for (const f of taken) URL.revokeObjectURL(f.url);
+    renderTray();
+    return taken.map(f => f.file);
+  }
+
+  function renderTray() {
+    tray.hidden = !files.length;
+    container.classList.toggle('has-files', files.length > 0);                              // Send stays visible over an empty draft (composer.css)
+    replace(tray, files.map(entry => {
+      const video = entry.file.type.startsWith('video/');
+      // #t=0.001 makes Safari draw the first frame; it draws nothing for a plain metadata preload.
+      const media = video ? el('video', { class: 'tray-media', src: `${entry.url}#t=0.001`, muted: true, playsinline: true, preload: 'metadata' })
+                          : el('img', { class: 'tray-media', src: entry.url, alt: entry.file.name });
+      return el('div', { class: 'tray-item', title: entry.file.name },
+        media, video ? el('span', { class: 'tray-play', 'aria-hidden': 'true' }) : null,
+        el('button', { type: 'button', class: 'tray-remove', 'aria-label': `Remove ${entry.file.name}`, onpointerdown: e => e.preventDefault(), onclick: () => removeFile(entry) }, '✕'));   // no focus move, like + (IB-22)
+    }));
   }
 
   // drag and drop (IB-30)
@@ -226,8 +273,8 @@ export function Composer(root) {
   container.addEventListener('dragover', e => { if (isFileDrag(e)) e.preventDefault(); });
   container.addEventListener('drop', e => {
     e.preventDefault(); dragDepth = 0; delete container.dataset.dragging;
-    const files = [...(e.dataTransfer?.files ?? [])].filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
-    if (files.length) sendFiles(files);
+    const picked = [...(e.dataTransfer?.files ?? [])].filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
+    if (picked.length) addFiles(picked);
   });
   document.addEventListener('dragover', e => e.preventDefault(), { signal });
   document.addEventListener('drop', e => e.preventDefault(), { signal });                  // a drop elsewhere does nothing

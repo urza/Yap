@@ -4,7 +4,7 @@
 // Run: npm run features (see README.md). Screenshots go to shots/.
 
 import { chromium } from 'playwright';
-import { BASE, SHOTS, sleep, waitTrue, row, step, finish, startServer, signIn, watchContext, watchPage, fixture, makePng } from './lib.mjs';
+import { BASE, SHOTS, sleep, waitTrue, row, step, finish, startServer, signIn, watchContext, watchPage, fixture, makePng, sendFiles } from './lib.mjs';
 
 const RED = makePng(fixture('red.png'), [220, 30, 30]);
 const BLUE = makePng(fixture('blue.png'), [30, 60, 220]);
@@ -64,13 +64,26 @@ await step(2, 'Link card', async (check) => {
   check(true, `link-preview-card within 15 s: ${card}${card ? ` "${cardTxt}"` : ''} (B: ${await row(B, 'look').locator('.link-preview-card').count()})`);
 });
 
-await step(3, 'Images and the gallery', async (check) => {
+await step(3, 'Images through the tray, a caption, and the gallery (IB-33, MR-24)', async (check) => {
+  const items = () => A.locator('.attachment-tray .tray-item').count();
   await A.setInputFiles('.message-input-container input[type=file]', [RED, BLUE]);
+  const inTray = await waitTrue(async () => (await items()) === 2, 3000, 50);
+  const sendShown = await waitTrue(async () => (await A.locator('.send-button').evaluate(b => b.getBoundingClientRect().width)) >= 40, 1000, 50);   // the collapse animates for 0.15 s
+  await A.locator('.attachment-tray .tray-remove').last().click();
+  const one = (await items()) === 1;
+  await A.setInputFiles('.message-input-container input[type=file]', [BLUE]);
+  const twoAgain = await waitTrue(async () => (await items()) === 2, 3000, 50);
+  check(inTray && sendShown && one && twoAgain, `tray: 2 after the pick ${inTray}; Send visible over the empty draft ${sendShown}; 1 after ✕ ${one}; 2 after a second pick ${twoAgain}; pending rows ${await A.locator('.message-group.pending').count()}`);
+  await A.fill('.message-input', 'two colours');
+  await A.click('.send-button');
+  const trayGone = await A.locator('.attachment-tray').isHidden();
   const gal = A.locator('.message-group:not(.pending) .image-gallery').filter({ has: A.locator('.gallery-item') }).last();
   const ok = await waitTrue(async () => (await A.locator('.message-group:not(.pending) .image-gallery').count()) > 0 && (await gal.locator('.gallery-item').count()) === 2, 20000, 200);
   let why = '';
   if (!ok) why = (await A.locator('.message-group .pending-status').allInnerTexts().catch(() => [])).join(' | ') + ` modal: ${await A.locator('.warning-modal').isVisible().catch(() => false)}`;
-  check(ok, `gallery with 2 items: ${ok}${why ? ` (${why})` : ''}; B galleries: ${await B.locator('.image-gallery').count()}`);
+  const caption = ok ? (await A.locator('.message-group:not(.pending)').last().locator('.message-caption').innerText().catch(() => '')).trim() : '';
+  const okB = ok && await waitTrue(async () => (await row(B, 'two colours').locator('.gallery-item').count()) === 2, 5000);
+  check(ok && caption === 'two colours' && trayGone && okB, `gallery with 2 items: ${ok}${why ? ` (${why})` : ''}; caption "${caption}"; tray hidden after Send ${trayGone}; B shows the caption row with 2 images ${okB}`);
   if (!ok) return;
   await gal.locator('.gallery-image').first().click();
   const modal = A.locator('.image-modal');
@@ -210,7 +223,7 @@ await step(9, 'Shift+Enter', async (check) => {
 });
 
 await step(10, 'Two GIF files in one pick become one message with two GIFs (IB-33)', async (check) => {
-  await A.setInputFiles('.message-input-container input[type=file]', [
+  await sendFiles(A, [
     { name: 'one.gif', mimeType: 'image/gif', buffer: Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64') },
     { name: 'two.gif', mimeType: 'image/gif', buffer: Buffer.from('R0lGODlhAQABAIAAAAD/AP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64') }]);
   const sent = await waitTrue(async () => (await A.locator('.message-group:not(.pending) .gif-message-gallery').count()) > 0, 20000, 200);

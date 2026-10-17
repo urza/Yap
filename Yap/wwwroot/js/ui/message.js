@@ -44,7 +44,7 @@ export function needsHeader(prev, m) {
   return new Date(m.timestamp) - new Date(prev.timestamp) >= 3_600_000;
 }
 
-const hasMedia = m => m.images.length > 0 || m.videos.length > 0 || m.gifs.length > 0;
+const hasMedia = m => m.images.length > 0 || m.videos.length > 0 || m.gifs.length > 0 || (m.files?.length ?? 0) > 0;   // files: a pending row's Blobs before the upload (IB-34)
 const isOwn = m => m.username === state.user?.username;
 
 export function renderRow(m, { header }) {
@@ -94,6 +94,7 @@ export function renderRow(m, { header }) {
 function renderContent(row, m) {
   const content = row.querySelector('.message-content');
   if (hasMedia(m)) {
+    if (m.text) content.append(caption(m));                                                  // the text above the media (MR-24)
     if (m.images.length) content.append(imageGallery(m));
     if (m.videos.length) content.append(el('div', { class: 'video-gallery' }, m.videos.map(video)));
     if (m.gifs.length) content.append(el('div', { class: 'gif-message-gallery' }, m.gifs.map(g => gif(g, m))));
@@ -109,6 +110,13 @@ function renderContent(row, m) {
   content.classList.toggle('emoji-only', emojiOnly);
   content.append(...nodes);
   if (m.edited) content.append(' ', el('span', { class: 'edited-indicator' }, '(edited)'));
+}
+
+// The caption of a media row: the text, never in the big emoji-only form; Edit changes it in place (MR-57).
+function caption(m) {
+  const node = el('div', { class: 'message-caption' }, ...messageText(m.text).nodes);
+  if (m.edited) node.append(' ', el('span', { class: 'edited-indicator' }, '(edited)'));
+  return node;
 }
 
 // MR-25: rows of two or three, never a row of one.
@@ -303,9 +311,9 @@ function renderActions(rowNode, m) {
   } else star.remove();
   const edit = bar.querySelector('.action-edit');
   // a failed row is pending too: Edit corrects the text and sends it again (MR-72)
-  if (isOwn(m) && !hasMedia(m)) { edit.hidden = false; edit.addEventListener('click', () => startEdit(rowNode, m)); } else edit.remove();
+  if (isOwn(m) && (m.text || !hasMedia(m))) { edit.hidden = false; edit.addEventListener('click', () => startEdit(rowNode, m)); } else edit.remove();   // a text row, or a media row with a caption (MR-57)
   const more = bar.querySelector('.action-more');
-  if ((m.text && !hasMedia(m)) || isOwn(m)) { more.hidden = false; more.addEventListener('click', e => openMore(rowNode, m, e.currentTarget, e)); } else more.remove();
+  if (m.text || isOwn(m)) { more.hidden = false; more.addEventListener('click', e => openMore(rowNode, m, e.currentTarget, e)); } else more.remove();
 }
 
 function openReactionPicker(rowNode, m, anchor) {
@@ -317,7 +325,7 @@ function openMore(rowNode, m, anchor, event) {
   const layer = clone('t-more-menu');
   const menu = layer.querySelector('.more-menu');
   const copy = layer.querySelector('[data-action="copy"]'), del = layer.querySelector('[data-action="delete"]'), remove = layer.querySelector('[data-action="remove"]');
-  if (!m.text || hasMedia(m)) copy.remove();
+  if (!m.text) copy.remove();   // the caption of a media row copies too (MR-56)
   if (!isOwn(m) || m.pending) del.remove();
   if (!m.pending) remove.remove();
   copy.addEventListener('click', () => { navigator.clipboard?.writeText(m.text).catch(() => {}); close(); });   // MR-56
@@ -338,7 +346,7 @@ function confirmDelete(rowNode, m) {
   replace(preview.querySelector('.preview-username'), inline(displayName(m.username)));
   preview.querySelector('.preview-time').textContent = messageTime(m.timestamp);
   const text = preview.querySelector('.preview-content');
-  if (m.text && !hasMedia(m)) replace(text, inline(m.text)); else text.remove();
+  if (m.text) replace(text, inline(m.text)); else text.remove();
   const thumb = preview.querySelector('.preview-thumb'), label = preview.querySelector('.preview-attachment-label');
   if (m.images[0]) { thumb.hidden = false; thumb.src = m.images[0].medium; label.remove(); }
   else if (m.videos[0]) { thumb.hidden = false; thumb.src = m.videos[0].poster; thumb.alt = 'Video attachment'; label.remove(); }
@@ -367,7 +375,7 @@ let editing = null;   // { rowNode, close }: one editor at a time (MR-62)
 
 function startEdit(rowNode, m) {
   editing?.close();
-  const content = rowNode.querySelector('.message-content');
+  const content = rowNode.querySelector('.message-caption') ?? rowNode.querySelector('.message-content');   // a media row keeps its gallery; the editor takes the caption's place
   const saved = [...content.childNodes];
   const box = clone('t-edit-box');
   const area = box.querySelector('.edit-input');

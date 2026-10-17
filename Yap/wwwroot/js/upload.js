@@ -4,10 +4,11 @@
 const EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.webm', '.mov', '.avi', '.mkv'];   // IB-31
 const MAX_FILES = 10;                                                                              // IB-32
 
-// Splits a pick into the files that go and the lines of the refusal dialog (IB-35).
-export function check(files, maxMB) {
+// Splits a pick into the files that go to the tray and the lines of the refusal dialog (IB-35). `inTray` is
+// what waits there already: the limit is per message, not per pick (IB-32).
+export function check(files, maxMB, inTray = 0) {
   const accepted = [], refused = [];
-  if (files.length > MAX_FILES) return { accepted: [], refused: ['Choose at most 10 files.'] };
+  if (inTray + files.length > MAX_FILES) return { accepted: [], refused: ['Choose at most 10 files.'] };
   for (const f of files) {
     const ext = '.' + f.name.split('.').pop().toLowerCase();
     const kindOk = EXTENSIONS.includes(ext);   // the kinds of IB-31, by extension; a pasted screenshot has no name and comes as image/png

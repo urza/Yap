@@ -66,9 +66,81 @@
     flex: 1 1 0%;
     min-width: 0;
     display: flex;
+    flex-wrap: wrap;   /* the tray takes a full line of its own above +, the draft and the toggles */
     align-items: flex-end;
     background: var(--bg-input);
     border-radius: 22px;
+}
+
+/* The tray (IB-33): the files that wait for Send, as thumbnails above the draft, inside the pill. */
+.attachment-tray {
+    flex: 1 0 100%;
+    display: flex;
+    gap: 8px;
+    margin: 0 12px;
+    padding: 10px 0 8px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.tray-item {
+    position: relative;
+    flex: 0 0 auto;
+    width: 72px;
+    height: 72px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg-muted);
+}
+
+.tray-media {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* A play mark over the first frame of a video. */
+.tray-play {
+    position: absolute;
+    inset: 0;
+    width: 26px;
+    height: 26px;
+    margin: auto;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.55);
+    pointer-events: none;
+}
+
+.tray-play::after {
+    content: "";
+    position: absolute;
+    top: 7px;
+    left: 10px;
+    border-style: solid;
+    border-width: 6px 0 6px 9px;
+    border-color: transparent transparent transparent #fff;
+}
+
+.tray-remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    font-size: 11px;
+    line-height: 20px;
+    cursor: pointer;
+}
+
+.tray-remove:hover {
+    background: rgba(0, 0, 0, 0.85);
 }
 
 /* data-dragging is set by setupDropZone (chat.js) — drag visuals are fully client-side */
@@ -162,11 +234,11 @@
     cursor: not-allowed;
 }
 
-/* The button collapses away while the box is empty AND no picker is open
-   (:placeholder-shown reacts to the value itself; data-picker is the picker
-   state composer.js flips). It collapses instead of
+/* The button collapses away while the box is empty (no text, no file in the tray) AND no picker is
+   open (:placeholder-shown reacts to the value itself; has-files and data-picker are the tray and
+   picker states composer.js flips). It collapses instead of
    display:none so the width animates AND the Enter handler's .click() keeps a live target. */
-.message-input-container:not([data-picker]):has(.message-input:placeholder-shown) .send-button {
+.message-input-container:not([data-picker]):not(.has-files):has(.message-input:placeholder-shown) .send-button {
     flex-basis: 0;
     width: 0;
     margin-left: 0;
@@ -175,7 +247,7 @@
 
 /* Picker open over an empty box: the button is visible (a reassurance the user asked
    for) but dimmed — there is nothing to send yet, and HandleSend still guards. */
-.message-input-container[data-picker]:has(.message-input:placeholder-shown) .send-button {
+.message-input-container[data-picker]:not(.has-files):has(.message-input:placeholder-shown) .send-button {
     background: var(--bg-muted);
     opacity: 0.5;
     cursor: not-allowed;
@@ -486,6 +558,11 @@
     .message-input {
         font-size: 16px;
         padding: 11px 4px;
+    }
+
+    .tray-item {
+        width: 64px;
+        height: 64px;
     }
 
     /* 40px buttons in the 44px-min box: 2px bottom margin keeps them optically centered

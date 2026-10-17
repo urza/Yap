@@ -12,14 +12,15 @@ The input box is the part of a conversation where the user writes and sends a me
 
 1. **Typing strip.** An 18 px band above the box that shows who is typing in this conversation. When nobody types, the strip is empty and keeps its height, so the box does not move.
 2. **Reply bar.** A bar with "Replying to" and the name on the left, and ✕ on the right. It shows only while the user writes a reply. It is directly above the pill and makes one block with it.
-3. **The pill.** A rounded field with 22 px corners, in the theme's input colour. It contains +, the text area and the two toggles. The band around the pill is transparent, so only the pill has colour.
-4. **+ (attach).** A button on the left side in the pill. It opens the file chooser.
-5. **Text area.** The field for the draft text. It starts as one line, grows with the text up to 200 px, then scrolls.
-6. **GIF toggle.** A small badge with the text "GIF", on desktop only. It collapses while the draft has text.
-7. **Emoji toggle.** A button with a grey silhouette of a random emoji. It changes to full colour on hover and while its picker is open.
-8. **Send.** A button with a paper plane icon, outside the pill on its right side. It is hidden while the draft is empty and no picker is open.
-9. **Read-only bar.** A bar that replaces parts 2 to 8 in a room where the user has no permission to write.
-10. **Pickers.** The emoji picker and the GIF picker. They open from the toggles, above them on desktop and as one bottom sheet on a phone. The [pickers page](pickers.md) specifies their content.
+3. **The pill.** A rounded field with 22 px corners, in the theme's input colour. It contains +, the text area and the two toggles, and the tray above them while files wait. The band around the pill is transparent, so only the pill has colour.
+4. **+ (attach).** A button on the left side in the pill. It opens the file chooser. The chosen files go to the tray.
+5. **Tray.** A line of square thumbnails above +, inside the pill, for the files that wait for Send. Each thumbnail has ✕ in its corner. The tray shows only while it has a file.
+6. **Text area.** The field for the draft text. It starts as one line, grows with the text up to 200 px, then scrolls.
+7. **GIF toggle.** A small badge with the text "GIF", on desktop only. It collapses while the draft has text.
+8. **Emoji toggle.** A button with a grey silhouette of a random emoji. It changes to full colour on hover and while its picker is open.
+9. **Send.** A button with a paper plane icon, outside the pill on its right side. It is hidden while the draft and the tray are empty and no picker is open.
+10. **Read-only bar.** A bar that replaces parts 2 to 9 in a room where the user has no permission to write.
+11. **Pickers.** The emoji picker and the GIF picker. They open from the toggles, above them on desktop and as one bottom sheet on a phone. The [pickers page](pickers.md) specifies their content.
 
 ## Rules
 
@@ -29,7 +30,7 @@ The input box is the part of a conversation where the user writes and sends a me
 
 **IB-02** The pill has 22 px corners and the theme's input colour. The band around the pill stays transparent. *Why:* a coloured band takes attention from the message list. One theme had a coloured band, and it was removed.
 
-**IB-03** The pill contains these items, from left to right: +, the text area, the GIF toggle, the emoji toggle. Send is outside the pill, with an 8 px gap. All items align to the bottom edge, so the buttons stay in place when the text grows.
+**IB-03** The pill contains these items, from left to right: +, the text area, the GIF toggle, the emoji toggle. While files wait, the tray is a line above them, across the pill (IB-33). Send is outside the pill, with an 8 px gap. All items align to the bottom edge, so the buttons stay in place when the text grows.
 
 **IB-04** The text area starts as one line and is at least 44 px high. It grows with its content up to 200 px, then scrolls without a visible scrollbar. A word that is too long for one line wraps to the next line inside the box.
 
@@ -55,7 +56,7 @@ The input box is the part of a conversation where the user writes and sends a me
 
 **IB-14** A message contains at most 4000 characters. The box does not accept more characters. When a paste goes over the limit, the box cuts the pasted text at the limit.
 
-**IB-15** A paste of text works as a normal paste. A paste of images or videos uploads them as attachments (see IB-29 to IB-37). In that case, no text from the clipboard is pasted. The box ignores pasted files of other kinds.
+**IB-15** A paste of text works as a normal paste. A paste of images or videos puts them in the tray (see IB-29 to IB-37). In that case, no text from the clipboard is pasted. The box ignores pasted files of other kinds.
 
 **IB-16** In a direct message, the placeholder is "Message @{username}". In a room, the placeholder is one random text from the configured list. The box selects it when the conversation opens. The text does not change until the user leaves the conversation. The placeholder is never empty.
 
@@ -63,13 +64,13 @@ The input box is the part of a conversation where the user writes and sends a me
 
 ### Send
 
-**IB-18** Send is hidden while the draft is empty and no picker is open. It collapses in 0.15 s, and the pill becomes wider to fill its space. "Empty" means that the draft has no characters. A single space makes the button visible.
+**IB-18** Send is hidden while the draft is empty, the tray is empty and no picker is open. It collapses in 0.15 s, and the pill becomes wider to fill its space. "Empty" means that the draft has no characters. A single space makes the button visible.
 
 **IB-19** When the draft has text, Send has the accent colour and a white icon. A theme can add a soft glow to Send. No other control in the chat has a glow.
 
-**IB-20** When a picker is open and the draft is empty, Send is visible and dimmed. *Why:* the user sees that Send is the next step after a pick.
+**IB-20** When a picker is open, the draft is empty and the tray is empty, Send is visible and dimmed. *Why:* the user sees that Send is the next step after a pick.
 
-**IB-21** Send is never disabled. When the draft contains only whitespace, a tap on Send sends nothing and does not change the draft.
+**IB-21** Send is never disabled. When the draft contains only whitespace and the tray is empty, a tap on Send sends nothing and does not change the draft.
 
 **IB-22** A tap or click on Send never moves focus. An open phone keyboard stays open, and a closed phone keyboard stays closed. *Why:* a focus move at this point closes the picker during the tap, and it opens the keyboard after every send.
 
@@ -87,21 +88,21 @@ The input box is the part of a conversation where the user writes and sends a me
 
 ### Attachments
 
-**IB-29** + opens the system file chooser for images and videos. The user can choose several files in one selection. On a phone, the chooser offers the camera and the photo library. + stays visible while the user types.
+**IB-29** + opens the system file chooser for images and videos. The user can choose several files in one selection. On a phone, the chooser offers the camera and the photo library. The chosen files go to the tray (IB-33). + stays visible while the user types.
 
-**IB-30** Files dropped on the input box upload in the same way. While the user drags a file (not text) over the box, the box shows "Drop images here" and an accent ring. The ring disappears on a drop, when the drag leaves the box, and when the drag is cancelled. A drop anywhere else does nothing, and the browser does not open the file.
+**IB-30** Files dropped on the input box go to the tray in the same way. While the user drags a file (not text) over the box, the box shows "Drop images here" and an accent ring. The ring disappears on a drop, when the drag leaves the box, and when the drag is cancelled. A drop anywhere else does nothing, and the browser does not open the file.
 
-**IB-31** The accepted types are images (.jpg, .jpeg, .png, .gif, .webp) and videos (.mp4, .webm, .mov, .avi, .mkv). The box ignores dropped or pasted files of other kinds. When the user chooses a file of another kind with +, the upload dialog lists it as unsupported before anything is uploaded.
+**IB-31** The accepted types are images (.jpg, .jpeg, .png, .gif, .webp) and videos (.mp4, .webm, .mov, .avi, .mkv). The box ignores dropped or pasted files of other kinds. When the user chooses a file of another kind with +, the dialog of IB-35 lists it as unsupported, and the file does not go to the tray.
 
-**IB-32** The maximum size of one file is the configured size limit. The default limit is 100 MB. One message contains at most 10 files. A larger pick is refused, and nothing is uploaded. The refusal text is "Choose at most 10 files."
+**IB-32** The maximum size of one file is the configured size limit. The default limit is 100 MB. One message contains at most 10 files. A pick that takes the tray over 10 files is refused, and no file of that pick goes to the tray. The refusal text is "Choose at most 10 files."
 
-**IB-33** All files of one pick are sent immediately, together, as one message with no text. The draft text stays in the box. A GIF file becomes a GIF attachment, the same as a GIF sent from the picker.
+**IB-33** Chosen, dropped and pasted files wait in a tray inside the input box, above the draft. Each file shows as a square thumbnail, 72 px on desktop and 64 px on a phone, with ✕ in its top right corner. A video shows its first frame and a play mark. ✕ removes the file from the tray. On a phone, the tray scrolls sideways. Send sends the files of the tray and the draft text together, as one message. The text is the caption of the message (MR-24). Send is visible while the tray has a file, and on desktop Enter sends with an empty draft. Nothing is uploaded before Send. Each conversation has its own tray. The tray does not survive a reload. A GIF file becomes a GIF attachment, the same as a GIF sent from the picker.
 
-**IB-34** While files upload, the pending row shows the file names, one progress bar for the whole message, and "Cancel upload". Cancel removes the pending message and discards the data already uploaded for it. Nothing is sent.
+**IB-34** While files upload, the pending row shows the caption when there is one, the file names, one progress bar for the whole message, and "Cancel upload". Cancel removes the pending message and discards the data already uploaded for it. Nothing is sent.
 
-**IB-35** One dialog reports all files that are refused before the upload starts (wrong kind, too large, too many). The dialog title is "Upload failed" when no file remains, and "{s} of {t} files uploaded" when some files remain. The dialog has one line for each refused file. The remaining files are still sent. A failure during the upload itself shows the pending row as failed instead, with Retry and Remove. The user closes the dialog with "Got It", with ✕ or with a tap outside it. The dialog does not move focus and never closes the keyboard.
+**IB-35** One dialog reports all files of a pick that are refused (wrong kind, too large, too many). The dialog title is "No file added" when no file remains, and "{s} of {t} files added" when some files remain. The dialog has one line for each refused file. The remaining files go to the tray. A failure during the upload itself shows the pending row as failed instead, with Retry and Remove. The user closes the dialog with "Got It", with ✕ or with a tap outside it. The dialog does not move focus and never closes the keyboard.
 
-**IB-36** An upload during a reply is sent as a reply, and it closes the reply bar.
+**IB-36** A send with files during a reply is a reply, as in IB-27. The reply bar closes.
 
 **IB-37** The user can pick the same file again immediately after a pick.
 
@@ -169,7 +170,7 @@ The input box is the part of a conversation where the user writes and sends a me
 
 **IB-63** Without a connection, the box works as usual for typing, emoji, pickers and drafts. Send accepts the message and shows it as pending. A GIF pick and a file pick are accepted in the same way. The message is sent when the connection comes back, also after the app is closed and opened again. See [Offline and installation](offline.md).
 
-**IB-64** Without a connection, the box accepts a pick of files up to 25 MB in total. The box refuses a larger pick and shows "Needs a connection".
+**IB-64** Without a connection, the tray holds files up to 25 MB in total. The box refuses a pick that goes over this, and a send of a tray that is over it, and shows "Needs a connection".
 
 **IB-65** When a pending message waits for more than one day, it shows as failed, with Retry and Remove.
 
@@ -205,9 +206,10 @@ The input box is the part of a conversation where the user writes and sends a me
 | ✕ on the reply bar | mouse, touch | Bar and tint disappear. Focus unchanged. |
 | File dragged over the box | mouse | "Drop images here" and the accent ring. |
 | File dropped outside the box | mouse | Nothing. |
-| Files chosen, dropped or pasted | all | One pending row with file names, a progress bar and "Cancel upload". Draft text unchanged. |
-| Some files refused before upload | all | Dialog "{s} of {t} files uploaded" with one line for each refused file. The other files are sent. |
-| All files refused before upload | all | Dialog "Upload failed" with one line for each file. |
+| Files chosen, dropped or pasted | all | The files appear in the tray. Nothing is sent. Draft text unchanged. |
+| Send with files in the tray | all | One pending row with the caption, the file names, a progress bar and "Cancel upload". The tray and the box empty. |
+| Some files of a pick refused | all | Dialog "{s} of {t} files added" with one line for each refused file. The other files go to the tray. |
+| All files of a pick refused | all | Dialog "No file added" with one line for each file. |
 | Upload fails midway | all | The pending row shows Failed, the reason, Retry and Remove. |
 | Room becomes read-only | all | Lock icon and the read-only text replace the box. Draft kept. |
 | Someone types in the conversation | all | Typing strip text with three dots. It disappears 3 s after their last keystroke. |
@@ -219,6 +221,7 @@ The input box is the part of a conversation where the user writes and sends a me
 | Where | Text |
 | --- | --- |
 | + tooltip and accessible name | "Upload files" |
+| Tray ✕ accessible name | "Remove {file name}" |
 | GIF badge | "GIF" |
 | GIF toggle tooltip and accessible name | "GIF picker" |
 | Emoji toggle tooltip and accessible name | "Emoji picker" |
@@ -233,7 +236,7 @@ The input box is the part of a conversation where the user writes and sends a me
 | Drop hint | "Drop images here" |
 | Pending row with files | "Cancel upload" |
 | Failed row | "Failed", the reason, "Retry", "Remove" |
-| Upload dialog titles | "Upload failed"; "{s} of {t} files uploaded" |
+| Upload dialog titles | "No file added"; "{s} of {t} files added" |
 | Upload dialog lines, one per file | `"{name}" — unsupported file type`; `"{name}" — too large ({size} MB, max {max} MB)` |
 | Upload dialog, too many files | "Choose at most 10 files." |
 | Dialog buttons | "Got It"; "✕" |

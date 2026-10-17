@@ -59,7 +59,7 @@ public sealed class MessageMapper(ChatService chat, GifService gifs, UserService
         // never carry another conversation's text (GEN-04) or a past the reader may not see (TL-05).
         if (original is null || original.ChannelId != m.ChannelId || (viewerId is { } viewer && !chat.MayRead(viewer, original)))
             return new ReplyToDto(id, null, null, false, Unavailable: true);   // MR-35
-        return new ReplyToDto(id, original.Username, original.HasMedia ? null : original.Content, original.HasMedia, Unavailable: false);
+        return new ReplyToDto(id, original.Username, string.IsNullOrEmpty(original.Content) ? null : original.Content, original.HasMedia, Unavailable: false);   // a caption quotes as text (MR-32)
     }
 
     // A GIF file lives in one of six places. The row prefers an image file, then the local videos, then the

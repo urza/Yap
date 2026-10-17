@@ -6,7 +6,7 @@
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
-import { BASE, REPO, sleep, waitTrue, row, step, finish, startServer, signIn, watchContext, watchPage, fixture, writePng } from './lib.mjs';
+import { BASE, REPO, sleep, waitTrue, row, step, finish, startServer, signIn, watchContext, watchPage, fixture, writePng, sendFiles as pickAndSend } from './lib.mjs';
 
 // offline-phone-pending: Playwright applies setOffline to the service worker only with this variable (see offline.mjs).
 process.env.PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS = '1';
@@ -156,7 +156,7 @@ async function typeAndSend(page, line) {
 // The composer's file input, as a person picks files: one message, one image per file.
 async function sendFiles(page, files) {
   const before = await page.locator('.message-group:not(.pending) .image-gallery').count();
-  await page.setInputFiles('.message-input-container input[type=file]', files);
+  await pickAndSend(page, files);
   need(await waitTrue(async () => (await page.locator('.message-group:not(.pending) .image-gallery').count()) > before, 30000, 200), 'the image message did not arrive');
 }
 
