@@ -74,7 +74,7 @@
 
 /* The tray (IB-33): the files that wait for Send, as thumbnails above the draft, inside the pill. */
 .attachment-tray {
-    flex: 1 0 100%;
+    flex: 1 1 100%;   /* shrink 1: the side margins come out of the 100%, so the tray ends inside the pill */
     display: flex;
     gap: 8px;
     margin: 0 12px;
