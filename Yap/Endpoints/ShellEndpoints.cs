@@ -15,8 +15,7 @@ public static class ShellEndpoints
 {
     private static readonly string[] Routes =
     [
-        "/", "/lobby", "/room/{id:guid}", "/dm/{user}", "/settings", "/admin",
-        "/channel/new", "/channel/{id:guid}/settings", "/login", "/verify/{user}", "/invite/{code}",
+        "/", "/dm/{user}", "/settings", "/admin", "/login", "/verify/{user}", "/invite/{code}",
     ];
 
     public static void MapShell(this WebApplication app)

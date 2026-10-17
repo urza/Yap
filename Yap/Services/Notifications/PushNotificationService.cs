@@ -257,9 +257,11 @@ public class PushNotificationService
     }
 
     /// <summary>
-    /// Send a DM notification to a user.
+    /// A message in a conversation of the person. The notification names the sender and opens the conversation,
+    /// which is the one with <paramref name="partnerUsername"/>: the sender for a message from the partner, the
+    /// admin for a bot message in a person's conversation with the admin (docs/dmonly.md).
     /// </summary>
-    public Task<PushSendResult> SendDmNotificationAsync(string toUsername, string fromUsername, string messagePreview, int unreadCount, string? fromDisplayName = null)
+    public Task<PushSendResult> SendDmNotificationAsync(string toUsername, string partnerUsername, string fromUsername, string messagePreview, int unreadCount, string? fromDisplayName = null)
     {
         _logger.LogDebug("SendDmNotification: to={To} from={From} unreadCount={UnreadCount} preview={Preview}",
             toUsername, fromUsername, unreadCount, messagePreview.Length > 30 ? messagePreview[..27] + "..." : messagePreview);
@@ -270,35 +272,8 @@ public class PushNotificationService
             Body = messagePreview.Length > 100 ? messagePreview[..97] + "..." : messagePreview,
             Icon = "/icon-192.png",
             Badge = "/icon-192.png",
-            Tag = $"dm-{fromUsername}",
-            Url = $"/dm/{Uri.EscapeDataString(fromUsername)}",
-            UnreadCount = unreadCount
-        };
-
-        return SendToUserAsync(toUsername, payload);
-    }
-
-    /// <summary>
-    /// Send a room notification to a user who has that room unmuted.
-    /// </summary>
-    public Task<PushSendResult> SendRoomNotificationAsync(string toUsername, string roomName, Guid roomId,
-        string fromUsername, string messagePreview, int unreadCount, string? fromDisplayName = null)
-    {
-        _logger.LogDebug("SendRoomNotification: to={To} room={Room} from={From} unreadCount={UnreadCount}",
-            toUsername, roomName, fromUsername, unreadCount);
-
-        // The sender goes in the body, not the title: the title has to say which room this is, or a
-        // phone showing three stacked banners tells you nothing about where to look.
-        var body = $"{fromDisplayName ?? fromUsername}: {messagePreview}";   // NT-27
-
-        var payload = new PushPayload
-        {
-            Title = $"#{roomName}",
-            Body = body.Length > 100 ? body[..97] + "..." : body,
-            Icon = "/icon-192.png",
-            Badge = "/icon-192.png",
-            Tag = $"room-{roomId}",
-            Url = $"/room/{roomId}",
+            Tag = $"dm-{partnerUsername}",
+            Url = $"/dm/{Uri.EscapeDataString(partnerUsername)}",
             UnreadCount = unreadCount
         };
 

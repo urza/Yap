@@ -15,8 +15,9 @@ namespace Yap.Endpoints;
 /// learns arrives as a hub message from <see cref="ChatHubBroadcaster"/>. Sending a message is HTTP, for the
 /// offline outbox (docs/architecture/chat-hub.md, wire-contract.md).
 ///
-/// A Hub instance lives for one invocation. Per-connection state is the session in PresenceService and the
-/// SignalR group membership. This class stores nothing.
+/// A Hub instance lives for one invocation. Per-connection state is the session in PresenceService. This class
+/// stores nothing. There are no SignalR groups: every conversation is a direct message, and its events go to
+/// the two people by user id (docs/dmonly.md).
 /// </summary>
 [Authorize]
 public sealed class ChatHub(ChatService chat, PresenceService presence, UserService users, MessageMapper map) : Hub
@@ -25,7 +26,6 @@ public sealed class ChatHub(ChatService chat, PresenceService presence, UserServ
 
     private Guid Me => Context.User!.Id();
     private string MyName => Context.User!.Username();
-    public static string Group(Guid channelId) => $"channel:{channelId}";   // shared with the broadcaster
 
     // ---- the connection ---------------------------------------------------------------------------------
 
@@ -60,27 +60,20 @@ public sealed class ChatHub(ChatService chat, PresenceService presence, UserServ
 
     // ---- the open conversation ---------------------------------------------------------------------------
 
-    /// <summary>One round trip for a switch: group, viewing, mark-read and the tail (TL-01, TL-03).</summary>
-    public async Task<Conversation> OpenRoom(Guid channelId)
-    {
-        var room = chat.GetRoom(channelId) ?? throw new HubException("Unknown room");   // the client goes to the lobby (SH-43)
-        await Switch(room.Id, joinGroup: true);
-        return Open(room);
-    }
-
-    public async Task<Conversation> OpenDm(string username)
+    /// <summary>One round trip for a switch: viewing, mark-read and the tail (TL-01, TL-03). A person may open the
+    /// admin only; the admin may open anyone (docs/dmonly.md). Anything else is "Unknown user".</summary>
+    public Conversation OpenDm(string username)
     {
         var channel = chat.GetOrCreateDm(Me, username) ?? throw new HubException("Unknown user");
-        await Switch(channel.Id, joinGroup: false);   // direct-message events go to the two people, not to a group
-        return Open(channel);
+        presence.SetViewing(Context.ConnectionId, channel.Id);
+        chat.MarkRead(Me, channel.Id, "open", Context.ConnectionId);
+        var (messages, hasMore) = chat.Tail(channel.Id, PageSize, Me);
+        chat.EnsurePreviews(messages);
+        return new Conversation(channel.Id, messages.Select(m => map.From(m, Me)).ToList(), hasMore, presence.Typists(channel.Id, except: MyName));
     }
 
-    /// <summary>Before Settings or Admin: the connection stays, the conversation is closed.</summary>
-    public async Task Leave()
-    {
-        await LeaveCurrentGroup();
-        presence.SetViewing(Context.ConnectionId, null);
-    }
+    /// <summary>Before Settings, Admin or the people list: the connection stays, the conversation is closed.</summary>
+    public void Leave() => presence.SetViewing(Context.ConnectionId, null);
 
     public Page Older(Guid channelId, DateTime beforeTimestamp, Guid beforeId)
     {
@@ -116,27 +109,4 @@ public sealed class ChatHub(ChatService chat, PresenceService presence, UserServ
 
     /// <summary>A pick in the composer's emoji picker counts as a use (IB-44, PK-07).</summary>
     public void EmojiUsed(string emoji) => users.RecordEmojiUse(Me, emoji);
-
-    // ---- inside -------------------------------------------------------------------------------------------
-
-    private async Task Switch(Guid channelId, bool joinGroup)
-    {
-        await LeaveCurrentGroup();
-        if (joinGroup) await Groups.AddToGroupAsync(Context.ConnectionId, Group(channelId));
-        presence.SetViewing(Context.ConnectionId, channelId);
-    }
-
-    private async Task LeaveCurrentGroup()
-    {
-        if (presence.Get(Context.ConnectionId)?.Viewing is { } previous && chat.GetRoom(previous) is not null)
-            await Groups.RemoveFromGroupAsync(Context.ConnectionId, Group(previous));
-    }
-
-    private Conversation Open(Channel channel)
-    {
-        chat.MarkRead(Me, channel.Id, "open", Context.ConnectionId);
-        var (messages, hasMore, restricted) = chat.Tail(channel.Id, PageSize, Me);
-        chat.EnsurePreviews(messages);
-        return new Conversation(channel.Id, messages.Select(m => map.From(m, Me)).ToList(), hasMore, restricted, presence.Typists(channel.Id, except: MyName));
-    }
 }

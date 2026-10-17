@@ -66,11 +66,13 @@ public static class AdminEndpoints
 
         // ---- Debug (AD-08) ----------------------------------------------------------------------------------
 
+        // Into the admin's conversation with the named person; the two of them are the speakers (docs/dmonly.md).
         admin.MapPost("/generate", (GenerateRequest body, ClaimsPrincipal me, ChatService chat) =>
         {
+            if (chat.GetOrCreateDm(me.Id(), body.Username) is not { } dm) return Results.Problem("Unknown user", statusCode: 404);
             var count = Math.Clamp(body.Count, 1, 5000);
-            var generated = chat.GenerateTestMessages(body.ChannelId, me.Id(), me.Username(), count, TimeSpan.FromHours(Math.Max(1, body.Hours)));
-            return generated == 0 ? Results.Problem("Unknown room", statusCode: 404) : Results.Ok(new { generated, hours = body.Hours });
+            var generated = chat.GenerateTestMessages(dm.Id, count, TimeSpan.FromHours(Math.Max(1, body.Hours)));
+            return Results.Ok(new { generated, hours = body.Hours });
         });
 
         // ---- Bot (AD-09) ------------------------------------------------------------------------------------
@@ -324,7 +326,7 @@ public static class AdminEndpoints
         s.ConnectionId, s.UserId, s.Username, s.DeviceId, s.IsMobile, s.ClientIp, s.ClientIpv4, s.Transport, s.ConnectedAt, s.Connected, s.ClosedAt, s.DroppedAt,
         s.Visible, s.LastInputAt, s.LastHeartbeatAt,
         status = presence.EffectiveOf(s.UserId),
-        viewing = s.Viewing is { } id && chat.GetChannel(id) is { } c ? (c.IsDirectMessage ? $"DM: {c.Participant1} ↔ {c.Participant2}" : $"#{c.Name}") : null,
+        viewing = s.Viewing is { } id && chat.GetChannel(id) is { } c ? $"DM: {c.Participant1} ↔ {c.Participant2}" : null,
         ghost = s.Visible && !s.Connected,   // AD-25: counts as visible with no connection
         s.Latency,
     };
@@ -368,7 +370,7 @@ public sealed record AdminUserDto(Guid Id, string Username, string? DisplayName,
 public sealed record LastActionDto(string Action, DateTime At);
 public sealed record IpDto(string Ip, string? Country, DateTime? LastSeen);
 public sealed record ThemeUseDto(string Id, string Name, string PreviewBg, string PreviewAccent, int Count);
-public sealed record GenerateRequest(Guid ChannelId, int Count = 200, int Hours = 168);
+public sealed record GenerateRequest(string Username, int Count = 200, int Hours = 168);
 public sealed record BotRequest(string? DisplayName, string? WelcomeMessage);
 public sealed record SettingsRequest(bool? RegistrationClosed, bool? RequireApproval, bool? SmartLogin, bool? LinkPreviews, bool? MediaCaching, KlipyRating? GifRating);
 public sealed record PendingDto(string Username, DateTime RequestedAt);

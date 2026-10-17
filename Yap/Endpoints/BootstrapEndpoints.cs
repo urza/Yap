@@ -17,6 +17,10 @@ namespace Yap.Endpoints;
 /// after every hub connect; the client replaces its shared store with it and applies hub messages on top.
 /// Anonymous: without a user it returns the project name and the login texts only, so the login, verify and
 /// invite pages get their texts in the same first call (docs/architecture/bootstrap-and-events.md).
+///
+/// The directory depends on who asks (docs/dmonly.md): the admin gets every account; a person gets the admin,
+/// the bot and themself, because those are the only people a person can see or talk to. Presence is cut the
+/// same way.
 /// </summary>
 public static class BootstrapEndpoints
 {
@@ -39,17 +43,20 @@ public static class BootstrapEndpoints
             users.RecordKnownIp(me.Id, ip);             // smart login remembers this network (AU-09)
             links.ObserveOrigin(me.Id, http.Request.Origin());           // this person's links use the address this person used (AU-15)
 
+            var isAdmin = users.IsAdmin(me.Id);
+            var directory = users.GetAllUsers().Where(u => isAdmin || u.Id == me.Id || users.IsAdmin(u.Id) || bot.IsBotUser(u.Username)).ToList();
+            var names = directory.Select(u => u.Username).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
             return Results.Ok(new BootstrapDto(
-                User: MeDto.From(me, users.IsAdmin(me.Id), links.HasActiveLink(me.Id)),
+                User: MeDto.From(me, isAdmin, links.HasActiveLink(me.Id)),
                 Config: new ClientConfigDto(config.ProjectName, config.UploadUrl, config.MaxUploadSizeMB,
                     config.Ipv4BeaconUrl, connection is null ? null : presence.CreateBeaconNonce(connection, me.Id),
                     previews.Enabled, previews.MediaCachingEnabled,
                     new GifProviderDto(gifs.Provider.DisplayName, gifs.IsConfigured, gifs.Provider.AttributionImageUrl),
                     push.GetPublicKey(), BuildInfo.Time, gate.SmartMode, ThemeRegistry.All),
                 Texts: config.Texts(),
-                Rooms: chat.Rooms().Select(RoomDto.From).ToList(),
-                Users: users.GetAllUsers().Select(u => UserDto.From(u, users.IsAdmin(u.Id), bot.IsBotUser(u.Username))).ToList(),
-                Presence: presence.Effective(),
+                Users: directory.Select(u => UserDto.From(u, users.IsAdmin(u.Id), bot.IsBotUser(u.Username))).ToList(),
+                Presence: presence.Effective().Where(e => names.Contains(e.Key)).ToDictionary(e => e.Key, e => e.Value),
                 Dms: chat.DmConversations(me.Id).Select(d => new DmDto(d.Channel.Id, d.Partner, d.LastMessageAt)).ToList(),
                 Unread: chat.UnreadCounts(me.Id),
                 Mutes: mutes.For(me.Id),
@@ -60,7 +67,7 @@ public static class BootstrapEndpoints
 }
 
 public sealed record BootstrapDto(
-    MeDto User, ClientConfigDto Config, TextsDto Texts, List<RoomDto> Rooms, List<UserDto> Users,
+    MeDto User, ClientConfigDto Config, TextsDto Texts, List<UserDto> Users,
     Dictionary<string, EffectiveStatus> Presence, List<DmDto> Dms, Dictionary<Guid, int> Unread, MutesDto Mutes,
     EmojiStateDto Emoji, List<Guid> FavoriteGifIds);
 

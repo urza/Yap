@@ -398,7 +398,6 @@ app.MapSignIn();
 
 var api = app.MapGroup("/api").RequireAuthorization();
 api.MapBootstrap();   // anonymous inside: it answers both states
-api.MapRooms();
 api.MapMessages();
 api.MapAccount();
 api.MapEmoji();

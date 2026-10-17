@@ -13,16 +13,13 @@ public sealed class ServerConfig(IConfiguration configuration)
     public string Ipv4BeaconUrl => configuration["ChatSettings:Ipv4BeaconUrl"] ?? "";
     public int MaxUploadSizeMB => configuration.GetValue("ChatSettings:MaxUploadSizeMB", 100);   // IB-32
 
-    /// <summary>Every configured list, for a signed-in client.</summary>
+    /// <summary>Every configured list a signed-in client uses. The room header, the people header and the lobby
+    /// lines of the room build are not read: this build has no room (docs/dmonly.md).</summary>
     public TextsDto Texts() => new(
-        RoomHeaders: List("RoomHeaders", "# {0}"),                                      // SH-05
         Placeholders: List("MessagePlaceholders", "Type a message..."),                 // IB-16
         TypingOne: List("TypingIndicators:Single", "{0} is typing.."),                  // IB-60
         TypingTwo: List("TypingIndicators:Double", "{0} and {1} are typing.."),
         TypingMany: List("TypingIndicators:Multiple", "{0} and {1} others are typing.."),
-        PeopleHeaders: List("OnlineUsersHeader", "Online Users ({0})"),                 // SH-28
-        JoinLines: List("SystemMessages:UserJoined", "{0} joined the chat"),            // MR-73
-        LeaveLines: List("SystemMessages:UserLeft", "{0} left the chat"),
         PillTexts: List("NewMessagesPill", "New messages"),                              // TL-17
         LoginHeadings: List("WelcomeMessages", "Welcome to {0}!"),                       // AU-07
         LoginButtons: List("JoinButtonTexts", "Join Chat"),
@@ -37,8 +34,7 @@ public sealed class ServerConfig(IConfiguration configuration)
 }
 
 public sealed record TextsDto(
-    string[] RoomHeaders, string[] Placeholders, string[] TypingOne, string[] TypingTwo, string[] TypingMany,
-    string[] PeopleHeaders, string[] JoinLines, string[] LeaveLines, string[] PillTexts,
+    string[] Placeholders, string[] TypingOne, string[] TypingTwo, string[] TypingMany, string[] PillTexts,
     string[] LoginHeadings, string[] LoginButtons, string[] LoginPlaceholders);
 
 public sealed record LoginTextsDto(string[] LoginHeadings, string[] LoginButtons, string[] LoginPlaceholders);

@@ -9,7 +9,6 @@ public record DiagnosticsSnapshot(
     int UserSessions,
     int UniqueUsers,
     int Channels,
-    int RoomChannels,
     int DmChannels,
     int TotalMessages,
     int ActiveConnections,

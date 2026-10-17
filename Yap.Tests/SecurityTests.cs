@@ -191,17 +191,17 @@ public class SecurityTests : IClassFixture<YapFactory>
         var accepted = await gifs.TryAcceptAsGifAsync(source, "image/gif", isExplicitGif: true, users.GetByUsername("olga_gif")!.Id, "private.gif");
         Assert.NotNull(accepted);
         var id = accepted!.GifEntryId;
-        var lobby = _app.Service<ChatService>().LobbyId;
+        var boss = (await _app.AdminAsync()).Username;   // a person's one conversation (docs/dmonly.md)
 
         // another person: no star, no tags, no send by id
         Assert.Equal(HttpStatusCode.NotFound, (await other.Http.PutAsJsonAsync($"/api/gifs/{id}/favorite", new { on = true })).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await other.Http.PutAsJsonAsync($"/api/gifs/{id}/tags", new { tags = new[] { "mine" } })).StatusCode);
-        var send = await other.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId = Guid.NewGuid(), gifs = new[] { new { entryId = id } } });
+        var send = await other.Http.PostAsJsonAsync($"/api/dm/{boss}/messages", new { clientId = Guid.NewGuid(), gifs = new[] { new { entryId = id } } });
         Assert.Equal(HttpStatusCode.BadRequest, send.StatusCode);
 
         // the uploader: tags and a send
         Assert.Equal(HttpStatusCode.NoContent, (await owner.Http.PutAsJsonAsync($"/api/gifs/{id}/tags", new { tags = new[] { "cat" } })).StatusCode);
-        var sent = await owner.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId = Guid.NewGuid(), gifs = new[] { new { entryId = id } } });
+        var sent = await owner.Http.PostAsJsonAsync($"/api/dm/{boss}/messages", new { clientId = Guid.NewGuid(), gifs = new[] { new { entryId = id } } });
         Assert.Equal(HttpStatusCode.OK, sent.StatusCode);
 
         // sent in a conversation: the other person may star it now, and still not tag it
@@ -290,57 +290,6 @@ public class SecurityTests : IClassFixture<YapFactory>
         Assert.True(told, "the bot did not tell the admin");
     }
 
-    [Fact(DisplayName = "TL-05: a room's history cutoff applies to live events and quotes, not only to the history page")]
-    public async Task History_cutoff_covers_live_events_and_quotes()
-    {
-        var chat = _app.Service<ChatService>();
-        var users = _app.Service<UserService>();
-        var owner = await _app.AdminAsync();
-        var ownerId = users.GetByUsername(owner.Username)!.Id;
-        var (room, error) = chat.CreateRoom(ownerId, "sincejoined", null, Yap.Models.Chat.ChannelPermission.Everyone, Yap.Models.Chat.HistoryLimit.Unlimited, sinceJoined: true);
-        Assert.Null(error);
-        var send = async (object body) => (await (await owner.Http.PostAsJsonAsync($"/api/channels/{room!.Id}/messages", body)).Content.ReadFromJsonAsync<MessageDto>())!;
-        var old = await send(new { clientId = Guid.NewGuid(), text = "OLD SECRET" });
-        await Task.Delay(50);   // the newcomer's account must be younger than the old message
-
-        var newcomer = await _app.SignInAsync("newcomer_cutoff");
-        var hub = await newcomer.ConnectAsync();
-        var opened = await hub.InvokeAsync<Conversation>("OpenRoom", room!.Id);
-        Assert.Empty(opened.Messages);
-        Assert.True(opened.Restricted);
-        var received = new List<(string Kind, string Text)>();
-        var marker = new Expectation<bool>();
-        hub.On<MessageDto>("messageEdited", m => { lock (received) received.Add(("edit", m.Text)); });
-        hub.On<Guid, IReadOnlyList<ReactionGroupDto>>("reactions", (id, _) => { lock (received) received.Add(("reactions", id.ToString())); });
-        hub.On<MessageDto>("message", m =>
-        {
-            lock (received) received.Add(("message", $"{m.Text}|{m.ReplyTo?.Text}|{m.ReplyTo?.Username}|{m.ReplyTo?.Unavailable}"));
-            if (m.Text == "marker") marker.Set(true);
-        });
-
-        // the admin edits and reacts to the old message, replies to it, then posts a plain marker; a connection hears events in order
-        var ownerHub = await owner.ConnectAsync();
-        await ownerHub.InvokeAsync<Conversation>("OpenRoom", room.Id);
-        var ownerEdit = new Expectation<string>();
-        ownerHub.On<MessageDto>("messageEdited", m => { if (m.Id == old.Id) ownerEdit.Set(m.Text); });
-        Assert.Null(await ownerHub.InvokeAsync<HubError?>("Edit", old.Id, "OLD SECRET EDITED"));
-        Assert.Null(await ownerHub.InvokeAsync<HubError?>("React", old.Id, "👍"));
-        var reply = await send(new { clientId = Guid.NewGuid(), text = "a reply", replyToId = old.Id });
-        Assert.Equal("OLD SECRET EDITED", reply.ReplyTo!.Text);   // the admin's own answer carries the quote
-        await send(new { clientId = Guid.NewGuid(), text = "marker" });
-        await marker.Within();
-        Assert.Equal("OLD SECRET EDITED", await ownerEdit.Within());   // a reader inside the cutoff still gets the edit
-
-        lock (received)
-        {
-            Assert.DoesNotContain(received, r => r.Kind == "edit");
-            Assert.DoesNotContain(received, r => r.Kind == "reactions");
-            Assert.DoesNotContain(received, r => r.Text.Contains("SECRET"));
-            Assert.Contains(received, r => r.Kind == "message" && r.Text.StartsWith("a reply||") && r.Text.EndsWith("|True"));   // the quote says unavailable, no text, no name
-        }
-        await hub.DisposeAsync(); await ownerHub.DisposeAsync();
-    }
-
     [Fact(DisplayName = "AU-15: a person's login link carries that person's own address, never another caller's Host header")]
     public async Task Link_origin_is_the_persons_own()
     {
@@ -394,14 +343,14 @@ public class SecurityTests : IClassFixture<YapFactory>
     public async Task Provider_item_must_have_been_shown()
     {
         var sender = await _app.SignInAsync("gina_provider");
-        var lobby = _app.Service<ChatService>().LobbyId;
+        var boss = (await _app.AdminAsync()).Username;
         var item = new
         {
             sourceId = "never-shown-" + Guid.NewGuid().ToString("N"), title = "x", width = 1, height = 1,
             formats = new[] { new { url = "http://127.0.0.1:9/secret.gif", contentType = "image/gif", width = 1, height = 1, sizeBytes = 1L } },
             previewFormats = Array.Empty<object>(), tags = Array.Empty<string>(),
         };
-        var refused = await sender.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId = Guid.NewGuid(), gifs = new[] { new { provider = item, searchText = (string?)null } } });
+        var refused = await sender.Http.PostAsJsonAsync($"/api/dm/{boss}/messages", new { clientId = Guid.NewGuid(), gifs = new[] { new { provider = item, searchText = (string?)null } } });
         Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
     }
 
@@ -411,7 +360,7 @@ public class SecurityTests : IClassFixture<YapFactory>
         var nina = await _app.SignInAsync("nina_beacon");
         var noel = await _app.SignInAsync("noel_beacon");
         var hub = await nina.ConnectAsync();
-        await hub.InvokeAsync<Conversation>("OpenRoom", _app.Service<ChatService>().LobbyId);   // a call completes after the server's connect hook registered the session
+        await hub.InvokeAsync<Conversation>("OpenDm", (await _app.AdminAsync()).Username);   // a call completes after the server's connect hook registered the session
         var connectionId = hub.ConnectionId!;
         var own = await nina.Http.GetFromJsonAsync<JsonElement>($"/api/bootstrap?connection={connectionId}");
         Assert.Equal(JsonValueKind.String, own.GetProperty("config").GetProperty("beaconNonce").ValueKind);

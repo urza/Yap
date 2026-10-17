@@ -11,9 +11,10 @@ using Yap.Services.Presence;
 namespace Yap.Services.Chat;
 
 /// <summary>
-/// Singleton service that manages the system bot user.
-/// The bot appears as a regular user in the sidebar, sends welcome DMs to new users,
-/// notifies admin when users join, and auto-replies with a placeholder when users DM it.
+/// Singleton service that manages the system bot user. The bot is a user account; the admin sees it in the
+/// people list and can open its conversation. It notifies the admin in that conversation, and it writes to a
+/// person inside the person's conversation with the admin, as a system sender, because a person has that one
+/// conversation and no other (docs/dmonly.md). It auto-replies with a placeholder when the admin writes to it.
 /// </summary>
 public class SystemBotService
 {
@@ -270,13 +271,27 @@ public class SystemBotService
     }
 
     /// <summary>
+    /// Where the bot writes to a person: the admin's own bot conversation for the admin, the person's conversation
+    /// with the admin for anyone else. Null before an admin account exists.
+    /// </summary>
+    private Channel? ConversationOf(User user)
+    {
+        if (_userService.IsAdmin(user.Id)) return AdminDm();
+        return _userService.GetAdminUserId() is { } admin ? _chatService.GetOrCreateDm(admin, user.Id) : null;
+    }
+
+    /// <summary>One bot message. In a person's conversation with the admin the bot is not a participant, so the
+    /// send is marked as a system send; ChatService then counts it as unread for both people.</summary>
+    private void Post(Channel channel, string text) =>
+        _chatService.Send(new SendMessage(channel.Id, _botUserId, _botUsername, text) { System = !channel.CanAccess(_botUserId) });
+
+    /// <summary>
     /// Notifies admin via bot DM that a user is requesting to join (approval mode).
     /// </summary>
     public async Task NotifyAdminOfPendingUserAsync(string username)
     {
         if (!_initialized || AdminDm() is not { } channel) return;
-        _chatService.Send(new SendMessage(channel.Id, _botUserId, _botUsername,
-            $"👋 **{username}** is requesting to join. Go to the Admin panel to approve or reject."));
+        Post(channel, $"👋 **{username}** is requesting to join. Go to the Admin panel to approve or reject.");
     }
 
     /// <summary>
@@ -290,10 +305,10 @@ public class SystemBotService
         var status = _proxyWatch.Status();
         if (status.UntrustedPeer is null || AdminDm() is not { } channel) return;
         _proxyNoticeSent = true;
-        _chatService.Send(new SendMessage(channel.Id, _botUserId, _botUsername,
+        Post(channel,
             $"⚠️ Requests reach {ProjectName} through a proxy at **{status.UntrustedPeer}** that is not in `ChatSettings:TrustedProxies`. " +
             "Every client address counts as unknown and smart login is off for everyone. " +
-            "Add the proxy's address or network to TrustedProxies in Data/appsettings.json and restart. The Admin page shows the details."));
+            "Add the proxy's address or network to TrustedProxies in Data/appsettings.json and restart. The Admin page shows the details.");
     }
 
     /// <summary>
@@ -335,15 +350,14 @@ public class SystemBotService
                 return;
         }
 
-        // Skip if bot already has a DM channel with this user (survives app restarts)
-        var existingDms = _chatService.DmChannelsOf(_botUserId);
-        if (existingDms.Any(c => c.CanAccess(user.Username)))
+        // Skip when the conversation already holds a bot message: the welcome was sent before a restart.
+        if (ConversationOf(user) is not { } existing || _chatService.HasMessageFrom(existing.Id, _botUserId))
             return;
 
         // Delay so the user has time to settle in before getting a notification
         await Task.Delay(TimeSpan.FromMinutes(1));
 
-        var channel = _chatService.GetOrCreateDm(_botUserId, user.Id);
+        var channel = ConversationOf(user);
         if (channel is null) return;
 
         // Build welcome message: base message + PWA install line for mobile users + secret code
@@ -375,16 +389,15 @@ public class SystemBotService
                        "You can view or change it anytime in Settings.";
         }
 
-        _chatService.Send(new SendMessage(channel.Id, _botUserId, _botUsername, message));
-        _logger.LogInformation("Sent welcome DM to {Username} (mobile={IsMobile})", user.Username, _presence.IsMobile(user.Id));
+        Post(channel, message);
+        _logger.LogInformation("Sent welcome to {Username} (mobile={IsMobile})", user.Username, _presence.IsMobile(user.Id));
     }
 
     private async Task NotifyAdminOfJoinAsync(User joiningUser)
     {
         if (_userService.IsAdmin(joiningUser.Id)) return;   // not about the admin's own join
         if (AdminDm() is not { } channel) return;
-        _chatService.Send(new SendMessage(channel.Id, _botUserId, _botUsername,
-            $"👋 {joiningUser.EffectiveDisplayName} just joined the chat!"));
+        Post(channel, $"👋 {joiningUser.EffectiveDisplayName} just joined the chat!");
     }
 
     /// <summary>
@@ -400,7 +413,7 @@ public class SystemBotService
             var user = _userService.GetByUsername(username);
             if (user == null) return;
 
-            var channel = _chatService.GetOrCreateDm(_botUserId, user.Id);
+            var channel = ConversationOf(user);
             if (channel is null) return;
 
             var methodLabel = loginMethod switch
@@ -411,7 +424,7 @@ public class SystemBotService
             };
             var message = $"🔐 New device sign-in detected for your account using **{methodLabel}** from IP `{ip}`. If this wasn't you, open **Settings** and use **Sign out all other devices** immediately.";
 
-            _chatService.Send(new SendMessage(channel.Id, _botUserId, _botUsername, message));
+            Post(channel, message);
         }
         catch (Exception ex)
         {
@@ -430,11 +443,11 @@ public class SystemBotService
 
         try
         {
-            var channel = _chatService.GetOrCreateDm(_botUserId, user.Id);
+            var channel = ConversationOf(user);
             if (channel is null) return;
-            _chatService.Send(new SendMessage(channel.Id, _botUserId, _botUsername,
+            Post(channel,
                 $"🔗 An admin created a new login link for you: {_accessLinks.BuildUrl(link.Code, user.Id)}\n" +
-                "Your previous link no longer works. Save this one somewhere safe."));
+                "Your previous link no longer works. Save this one somewhere safe.");
         }
         catch (Exception ex)
         {
@@ -448,9 +461,9 @@ public class SystemBotService
         try
         {
             if (AdminDm() is not { } channel) return;
-            _chatService.Send(new SendMessage(channel.Id, _botUserId, _botUsername,
+            Post(channel,
                 $"🚨 {failures} failed login-link attempts in the last few minutes. Code sign-ins are paused for 10 minutes. " +
-                "Someone may be guessing codes — check the Logs tab in Admin for LOGIN_FAIL entries."));
+                "Someone may be guessing codes — check the Logs tab in Admin for LOGIN_FAIL entries.");
         }
         catch (Exception ex)
         {
@@ -459,7 +472,8 @@ public class SystemBotService
     }
 
     /// <summary>
-    /// When someone DMs the bot, auto-reply with a placeholder (debounced).
+    /// When the admin writes to the bot, auto-reply with a placeholder (debounced). Only the admin can open the
+    /// bot's conversation in this build; a person's messages go to the admin and never reach the bot.
     /// </summary>
     private async void HandleMessageReceived(ChatMessage message)
     {
@@ -487,8 +501,7 @@ public class SystemBotService
             // Small delay to feel more natural
             await Task.Delay(800);
 
-            _chatService.Send(new SendMessage(dmChannel.Id, _botUserId, _botUsername,
-                "Beep boop! 🤖 I'm not interactive yet, but hopefully soon!"));
+            Post(dmChannel, "Beep boop! 🤖 I'm not interactive yet, but hopefully soon!");
         }
         catch (Exception ex)
         {

@@ -12,10 +12,13 @@ using Yap.Services.Presence;
 namespace Yap.Services.Chat;
 
 /// <summary>
-/// The chat: rooms, direct messages, messages, reactions and read states, in memory, in one instance. This
-/// is the source of truth. Every change happens here first, raises one event, and is enqueued on the
-/// persistence writer. The database is read once, at startup. See docs/architecture/message-path.md and
-/// chat-hub.md.
+/// The chat: direct messages, messages, reactions and read states, in memory, in one instance. This is the
+/// source of truth. Every change happens here first, raises one event, and is enqueued on the persistence
+/// writer. The database is read once, at startup. See docs/architecture/message-path.md and chat-hub.md.
+///
+/// This build has no rooms (docs/dmonly.md). Every conversation is between two people, and one of the two is
+/// the admin: a person talks to the admin and to nobody else. The bot may write into a person's conversation
+/// with the admin as a system sender.
 /// </summary>
 public class ChatService
 {
@@ -43,8 +46,6 @@ public class ChatService
     private readonly ConcurrentDictionary<(Guid UserId, Guid ClientId), (Guid MessageId, DateTime At)> _byClientId = new();
     private static readonly TimeSpan ClientIdMemory = TimeSpan.FromDays(1);
 
-    private Guid _lobbyId;
-
     public const int MaxTextLength = 4000;      // IB-14, MR-11
     public const int MaxMediaPerMessage = 10;   // IB-32
 
@@ -56,7 +57,6 @@ public class ChatService
     public event Action<ChatMessage>? OnPreviewsReady;            // a link card or a cached media player is ready (MR-22, MR-23)
     public event Action<Guid, Guid, int>? OnUnreadChanged;        // userId, channelId, count
     public event Action<Channel>? OnDmStarted;                    // a direct message got its first message (SH-29)
-    public event Action? OnRoomsChanged;                          // created, updated, reordered or deleted (SH-25)
 
     public ChatService(IServiceProvider services, PersistenceWriter writer, PushNotificationService pushService, UserService userService,
         PresenceService presence, LinkPreviewService linkPreviewService, LinkPreviewSettingsService linkPreviewSettings,
@@ -84,12 +84,6 @@ public class ChatService
             _linkPreviewService.AttachMedia(url, entry);
             RaisePreviewsReady(messageId);
         };
-
-        // The lobby exists from the first second. The startup load replaces it when the database has one.
-        var lobby = Channel.CreateRoom("lobby", createdById: null, createdBy: null, isDefault: true);
-        _lobbyId = lobby.Id;
-        _channels[lobby.Id] = lobby;
-        _channelMessages[lobby.Id] = [];
     }
 
     #region Startup and diagnostics
@@ -102,7 +96,9 @@ public class ChatService
 
         _channels.Clear();
         _channelMessages.Clear();
-        foreach (var channel in snapshot.Channels)
+        // A database from the room build may hold rooms. They are not loaded: this build has no page for them,
+        // and a row nobody can open must not count or push (docs/dmonly.md).
+        foreach (var channel in snapshot.Channels.Where(c => c.IsDirectMessage))
         {
             _channels[channel.Id] = channel;
             var messages = snapshot.MessagesByChannel.GetValueOrDefault(channel.Id, []);
@@ -114,41 +110,24 @@ public class ChatService
                     _byClientId[(m.UserId, clientId)] = (m.Id, m.Timestamp);
             }
         }
-        foreach (var state in snapshot.ReadStates)
+        foreach (var state in snapshot.ReadStates.Where(s => _channels.ContainsKey(s.ChannelId)))
             _readStates[(state.UserId, state.ChannelId)] = state;
 
-        var orphaned = _channels.Values.Count(c => c.IsDirectMessage
-            && (_userService.GetByUsername(c.Participant1 ?? "") is null || _userService.GetByUsername(c.Participant2 ?? "") is null));
+        var orphaned = _channels.Values.Count(c =>
+            _userService.GetByUsername(c.Participant1 ?? "") is null || _userService.GetByUsername(c.Participant2 ?? "") is null);
         if (orphaned > 0)
             _logger.LogWarning("{Count} direct message channel(s) name a participant that no longer exists", orphaned);
 
-        var lobby = _channels.Values.FirstOrDefault(c => c.Type == ChannelType.Room && c.IsDefault);
-        if (lobby is not null)
-        {
-            _lobbyId = lobby.Id;
-        }
-        else
-        {
-            lobby = Channel.CreateRoom("lobby", createdById: null, createdBy: null, isDefault: true);
-            _lobbyId = lobby.Id;
-            _channels[lobby.Id] = lobby;
-            _channelMessages[lobby.Id] = [];
-            _writer.Enqueue(Writes.Channel(lobby));
-        }
-
-        _logger.LogInformation("Loaded {Channels} channels, {Messages} messages, {ReadStates} read states",
-            snapshot.Channels.Count, _channelOfMessage.Count, snapshot.ReadStates.Count);
+        _logger.LogInformation("Loaded {Channels} direct messages, {Messages} messages, {ReadStates} read states",
+            _channels.Count, _channelOfMessage.Count, _readStates.Count);
     }
-
-    public Guid LobbyId => _lobbyId;
 
     public ChatDiagnostics GetDiagnostics() => new()
     {
         UserSessions = _presence.Stats().Connected,
         UniqueUsers = _presence.ConnectedUserIds().Count,
         Channels = _channels.Count,
-        RoomChannels = _channels.Values.Count(c => c.Type == ChannelType.Room),
-        DmChannels = _channels.Values.Count(c => c.Type == ChannelType.DirectMessage),
+        DmChannels = _channels.Count,
         TotalMessages = _channelOfMessage.Count,
         EventSubscribers = new Dictionary<string, int>
         {
@@ -159,114 +138,26 @@ public class ChatService
             ["OnPreviewsReady"] = OnPreviewsReady?.GetInvocationList().Length ?? 0,
             ["OnUnreadChanged"] = OnUnreadChanged?.GetInvocationList().Length ?? 0,
             ["OnDmStarted"] = OnDmStarted?.GetInvocationList().Length ?? 0,
-            ["OnRoomsChanged"] = OnRoomsChanged?.GetInvocationList().Length ?? 0,
         },
         AdminUser = _userService.GetAdminUsername(),
     };
 
     #endregion
 
-    #region Rooms
-
-    public List<Channel> Rooms() =>
-        _channels.Values.Where(c => c.Type == ChannelType.Room).OrderBy(c => c.SortOrder).ThenBy(c => c.CreatedAt).ToList();
+    #region Direct messages
 
     public Channel? GetChannel(Guid channelId) => _channels.GetValueOrDefault(channelId);
 
-    public Channel? GetRoom(Guid channelId) => _channels.TryGetValue(channelId, out var c) && !c.IsDirectMessage ? c : null;
-
-    /// <summary>AD-30 to AD-34. Returns the room, or the reason the admin sees.</summary>
-    public (Channel? Room, string? Error) CreateRoom(Guid adminUserId, string name, string? description,
-        ChannelPermission writePermission, HistoryLimit historyLimit, bool sinceJoined)
-    {
-        if (!_userService.IsAdmin(adminUserId)) return (null, "Not authorized.");
-        name = name.Trim().ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(name)) return (null, "Channel name is required.");
-        if (name.Contains(' ')) return (null, "Lowercase, no spaces.");
-        if (_channels.Values.Any(c => c.Type == ChannelType.Room && c.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
-            return (null, "A channel with that name already exists.");
-
-        var bottom = _channels.Values.Where(c => c.Type == ChannelType.Room).Select(c => c.SortOrder).DefaultIfEmpty(-1).Max() + 1;
-        var admin = _userService.GetById(adminUserId);
-        var room = Channel.CreateRoom(name, adminUserId, admin?.Username, description: Clean(description), sortOrder: bottom,
-            writePermission: writePermission, historyLimit: historyLimit, sinceJoined: sinceJoined);
-        _channels[room.Id] = room;
-        _channelMessages[room.Id] = [];
-
-        OnRoomsChanged?.Invoke();
-        _writer.Enqueue(Writes.Channel(room));
-        return (room, null);
-    }
-
-    public string? UpdateRoom(Guid adminUserId, Guid channelId, string name, string? description,
-        ChannelPermission writePermission, HistoryLimit historyLimit, bool sinceJoined)
-    {
-        if (!_userService.IsAdmin(adminUserId)) return "Not authorized.";
-        if (GetRoom(channelId) is not { } room) return "Channel not found.";
-        name = name.Trim().ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(name)) return "Channel name is required.";
-        if (name.Contains(' ')) return "Lowercase, no spaces.";
-        if (_channels.Values.Any(c => c.Type == ChannelType.Room && c.Id != channelId && c.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
-            return "A channel with that name already exists.";
-
-        room.Name = name;
-        room.Description = Clean(description);
-        room.WritePermission = writePermission;
-        room.HistoryLimit = historyLimit;
-        room.SinceJoined = sinceJoined;
-
-        OnRoomsChanged?.Invoke();
-        _writer.Enqueue(Writes.Channel(room));
-        return null;
-    }
-
-    /// <summary>Swaps the sort order with the neighbour (AD-33).</summary>
-    public bool MoveRoom(Guid adminUserId, Guid channelId, bool up)
-    {
-        if (!_userService.IsAdmin(adminUserId)) return false;
-        var rooms = Rooms();
-        var index = rooms.FindIndex(r => r.Id == channelId);
-        var other = up ? index - 1 : index + 1;
-        if (index < 0 || other < 0 || other >= rooms.Count) return false;
-
-        (rooms[index].SortOrder, rooms[other].SortOrder) = (rooms[other].SortOrder, rooms[index].SortOrder);
-        OnRoomsChanged?.Invoke();
-        _writer.Enqueue(Writes.Channel(rooms[index]));
-        _writer.Enqueue(Writes.Channel(rooms[other]));
-        return true;
-    }
-
-    /// <summary>The lobby cannot be deleted (AD-35). The mutes of every person for the room are cleared.</summary>
-    public bool DeleteRoom(Guid adminUserId, Guid channelId)
-    {
-        if (!_userService.IsAdmin(adminUserId)) return false;
-        if (GetRoom(channelId) is not { } room || room.IsDefault) return false;
-
-        _channels.TryRemove(channelId, out _);
-        if (_channelMessages.TryRemove(channelId, out var messages))
-            foreach (var m in messages) _channelOfMessage.TryRemove(m.Id, out _);
-        _channelLocks.TryRemove(channelId, out _);
-        foreach (var key in _readStates.Keys.Where(k => k.ChannelId == channelId).ToList())
-            _readStates.TryRemove(key, out _);
-        _presence.ForgetChannel(channelId);
-        _notifications.ClearOverridesForChannel(channelId);
-
-        OnRoomsChanged?.Invoke();
-        _writer.Enqueue(Writes.DeleteChannel(channelId));
-        return true;
-    }
-
-    private static string? Clean(string? description) =>
-        string.IsNullOrWhiteSpace(description) ? null : description.Trim();
-
-    #endregion
-
-    #region Direct messages
-
-    /// <summary>The direct message between two people, created on first open. Null when the other person is unknown.</summary>
+    /// <summary>
+    /// The direct message between two people, created on first open. Null when the other person is unknown, or
+    /// when neither of the two is the admin: a person talks to the admin only (docs/dmonly.md). The bot reaches
+    /// the admin through this rule too (the admin is one side), and reaches a person through the person's
+    /// conversation with the admin, never through one of its own.
+    /// </summary>
     public Channel? GetOrCreateDm(Guid userId, Guid otherUserId)
     {
         if (userId == otherUserId) return null;
+        if (!_userService.IsAdmin(userId) && !_userService.IsAdmin(otherUserId)) return null;
         if (_channels.Values.FirstOrDefault(c => c.IsDMBetween(userId, otherUserId)) is { } existing) return existing;
         if (_userService.GetById(userId) is not { } me || _userService.GetById(otherUserId) is not { } other) return null;
 
@@ -281,9 +172,9 @@ public class ChatService
         _userService.GetByUsername(otherUsername) is { } other ? GetOrCreateDm(userId, other.Id) : null;
 
     public List<Channel> DmChannelsOf(Guid userId) =>
-        _channels.Values.Where(c => c.IsDirectMessage && c.CanAccess(userId)).ToList();
+        _channels.Values.Where(c => c.CanAccess(userId)).ToList();
 
-    /// <summary>The person's direct messages with at least one message, for the sidebar (SH-29).</summary>
+    /// <summary>The person's direct messages with at least one message (SH-29): the admin's people list orders by them.</summary>
     public List<(Channel Channel, string Partner, DateTime LastMessageAt)> DmConversations(Guid userId)
     {
         var me = _userService.GetById(userId);
@@ -300,27 +191,30 @@ public class ChatService
         return result;
     }
 
+    /// <summary>Whether the conversation holds a message from this sender. The bot's welcome guard across restarts.</summary>
+    public bool HasMessageFrom(Guid channelId, Guid userId)
+    {
+        if (!_channelMessages.TryGetValue(channelId, out var messages)) return false;
+        lock (LockOf(channelId)) return messages.Any(m => m.UserId == userId);
+    }
+
     #endregion
 
     #region Reading
 
-    /// <summary>The newest messages of a conversation, within the viewer's history cutoff (TL-01, TL-05).</summary>
-    public (List<ChatMessage> Messages, bool HasMore, bool Restricted) Tail(Guid channelId, int count, Guid viewerId) =>
+    /// <summary>The newest messages of a conversation (TL-01).</summary>
+    public (List<ChatMessage> Messages, bool HasMore) Tail(Guid channelId, int count, Guid viewerId) =>
         Page(channelId, count, viewerId, before: null);
 
     /// <summary>The messages before the oldest loaded one (TL-06). The cursor is found by id; when that message
     /// was deleted meanwhile, the timestamp takes over.</summary>
-    public (List<ChatMessage> Messages, bool HasMore) Older(Guid channelId, DateTime beforeTimestamp, Guid beforeId, int count, Guid viewerId)
-    {
-        var (messages, hasMore, _) = Page(channelId, count, viewerId, before: (beforeTimestamp, beforeId));
-        return (messages, hasMore);
-    }
+    public (List<ChatMessage> Messages, bool HasMore) Older(Guid channelId, DateTime beforeTimestamp, Guid beforeId, int count, Guid viewerId) =>
+        Page(channelId, count, viewerId, before: (beforeTimestamp, beforeId));
 
-    private (List<ChatMessage>, bool HasMore, bool Restricted) Page(Guid channelId, int count, Guid viewerId, (DateTime Timestamp, Guid Id)? before)
+    private (List<ChatMessage>, bool HasMore) Page(Guid channelId, int count, Guid viewerId, (DateTime Timestamp, Guid Id)? before)
     {
         if (!_channels.TryGetValue(channelId, out var channel) || !channel.CanAccess(viewerId) || !_channelMessages.TryGetValue(channelId, out var all))
-            return ([], false, false);
-        var cutoff = Cutoff(channel, viewerId);
+            return ([], false);
 
         lock (LockOf(channelId))
         {
@@ -331,33 +225,16 @@ public class ChatService
                 if (end < 0) end = all.FindIndex(m => m.Timestamp >= cursor.Timestamp);
                 if (end < 0) end = all.Count;
             }
-            var first = cutoff is { } c ? all.FindIndex(m => m.Timestamp >= c) : 0;   // the oldest message the viewer may see
-            if (first < 0) first = all.Count;
-            var start = Math.Max(first, end - count);
+            var start = Math.Max(0, end - count);
             var page = start < end ? all.GetRange(start, end - start) : [];
-            return (page, start > first, first > 0);
+            return (page, start > 0);
         }
     }
 
-    /// <summary>A non-admin sees a room from the later of the room's history window and, when the room says so,
-    /// the person's own account creation. Admins and direct messages have no cutoff (TL-05).</summary>
-    private DateTime? Cutoff(Channel channel, Guid viewerId)
-    {
-        if (channel.IsDirectMessage || _userService.IsAdmin(viewerId)) return null;
-        var window = channel.GetHistoryCutoff();
-        var joined = channel.SinceJoined ? _userService.GetById(viewerId)?.CreatedAt : null;
-        if (window is null) return joined;
-        if (joined is null) return window;
-        return window > joined ? window : joined;
-    }
-
-    /// <summary>Whether a room hides part of its past from non-admins (TL-05): a time window, or "since joined".</summary>
-    public bool IsRestricted(Channel channel) => !channel.IsDirectMessage && (channel.HistoryLimit != HistoryLimit.Unlimited || channel.SinceJoined);
-
-    /// <summary>Whether the person may read this message: access to the conversation, and the message inside the
-    /// person's history cutoff. The one rule for history pages, the quote of a reply and live events (TL-05).</summary>
+    /// <summary>Whether the person may read this message: the person is one of the two in its conversation. The one
+    /// rule for history pages, the quote of a reply and live events.</summary>
     public bool MayRead(Guid viewerId, ChatMessage m) =>
-        _channels.TryGetValue(m.ChannelId, out var channel) && channel.CanAccess(viewerId) && (Cutoff(channel, viewerId) is not { } c || m.Timestamp >= c);
+        _channels.TryGetValue(m.ChannelId, out var channel) && channel.CanAccess(viewerId);
 
     public ChatMessage? GetMessage(Guid messageId)
     {
@@ -375,10 +252,8 @@ public class ChatService
     /// </summary>
     public SendResult Send(SendMessage request)
     {
-        if (!_channels.TryGetValue(request.ChannelId, out var channel) || !channel.CanAccess(request.UserId))
+        if (!_channels.TryGetValue(request.ChannelId, out var channel) || !(request.System || channel.CanAccess(request.UserId)))
             return SendResult.Refused("Unknown conversation", 404);
-        if (!channel.CanWrite(request.UserId, _userService.IsAdmin(request.UserId)))
-            return SendResult.Refused("You do not have permission to send messages in this channel", 403);   // IB-62
 
         var text = request.Text ?? "";
         var media = (request.ImageUrls?.Count ?? 0) + (request.VideoUrls?.Count ?? 0) + (request.GifAttachments?.Count ?? 0);
@@ -386,8 +261,7 @@ public class ChatService
         if (media > MaxMediaPerMessage) return SendResult.Refused($"Choose at most {MaxMediaPerMessage} files.");   // IB-32
         if (string.IsNullOrWhiteSpace(text) && media == 0) return SendResult.Refused("The message is empty.");
         // A reply quotes its original to every reader of the conversation. An original from another conversation
-        // would carry that conversation's text here, a direct message's included (GEN-04). An original that is gone
-        // passes: the quote then says so (MR-35).
+        // would carry that conversation's text here (GEN-04). An original that is gone passes: the quote then says so (MR-35).
         if (request.ReplyToMessageId is { } replyId && _channelOfMessage.TryGetValue(replyId, out var home) && home != channel.Id)
             return SendResult.Refused("The original message is not in this conversation.");
 
@@ -409,11 +283,11 @@ public class ChatService
             request.ImageUrls, request.ReplyToMessageId, request.VideoUrls, request.GifAttachments) { ClientId = request.ClientId };
         _gifService.IncrementReferences(request.GifAttachments);   // an entry in chat history is never evicted
 
-        bool firstInDm;
+        bool first;
         lock (LockOf(channel.Id))
         {
             var messages = _channelMessages.GetOrAdd(channel.Id, _ => []);
-            firstInDm = channel.IsDirectMessage && messages.Count == 0;
+            first = messages.Count == 0;
             messages.Add(message);
         }
         _channelOfMessage[message.Id] = channel.Id;
@@ -423,7 +297,7 @@ public class ChatService
         _presence.StopTyping(channel.Id, request.Username);   // IB-59
 
         OnMessageReceived?.Invoke(message);
-        if (firstInDm) OnDmStarted?.Invoke(channel);
+        if (first) OnDmStarted?.Invoke(channel);
         foreach (var (userId, count) in unread) OnUnreadChanged?.Invoke(userId, channel.Id, count);
 
         _writer.Enqueue(Writes.Message(message));
@@ -470,22 +344,22 @@ public class ChatService
         if (GetMessage(messageId) is { } message) OnPreviewsReady?.Invoke(message);
     }
 
-    /// <summary>
-    /// Web push for the people who are not looking (NT-25, NT-26). Away does not suppress it: a phone in a pocket
-    /// must get it, and an idle but visible desktop still gets it. Muted conversations get nothing.
-    /// </summary>
     private List<ChatMessage> RepliesTo(ChatMessage original)
     {
         lock (LockOf(original.ChannelId))
             return _channelMessages.TryGetValue(original.ChannelId, out var list) ? list.Where(m => m.ReplyToMessageId == original.Id).ToList() : [];
     }
 
+    /// <summary>
+    /// Web push for the people who are not looking (NT-25, NT-26). Away does not suppress it: a phone in a pocket
+    /// must get it, and an idle but visible desktop still gets it. Muted conversations get nothing.
+    /// </summary>
     private void DispatchPush(Channel channel, string senderUsername, ChatMessage message)
     {
         var preview = !string.IsNullOrWhiteSpace(message.Content) ? message.Content : message.HasGifs ? "[GIF]" : "[Attachment]";   // NT-27: a caption is the text
         var senderName = _userService.GetByUsername(senderUsername)?.DisplayName ?? senderUsername;        // NT-27: the display name
 
-        foreach (var recipient in PushRecipients(channel, senderUsername))
+        foreach (var recipient in PushRecipients(channel, message.UserId))
         {
             var lookingNow = _presence.IsOnlineAndVisible(recipient.Id);
             var sessions = _presence.Describe(recipient.Id);
@@ -499,25 +373,18 @@ public class ChatService
             }
             _audit.RecordPushDecision(senderUsername, recipient.Username, "push", sessions, subscriptions, totalUnread);
 
-            _ = channel.IsDirectMessage
-                ? _pushService.SendDmNotificationAsync(recipient.Username, senderUsername, preview, totalUnread, senderName)
-                : _pushService.SendRoomNotificationAsync(recipient.Username, channel.Name, channel.Id, senderUsername, preview, totalUnread, senderName);
+            // The notification opens the conversation the message is in: for a person that is the admin's, whoever
+            // wrote it (the bot writes into it as a system sender).
+            var partner = channel.GetOtherParticipant(recipient.Username) ?? senderUsername;
+            _ = _pushService.SendDmNotificationAsync(recipient.Username, partner, senderUsername, preview, totalUnread, senderName);
         }
     }
 
-    private IEnumerable<User> PushRecipients(Channel channel, string senderUsername)
+    // The participants other than the sender: the one other person, or both when the bot wrote into their conversation.
+    private IEnumerable<User> PushRecipients(Channel channel, Guid senderId)
     {
-        if (channel.IsDirectMessage)
-        {
-            var other = channel.GetOtherParticipant(senderUsername);
-            var user = other is null ? null : _userService.GetByUsername(other);
-            if (user is not null && !_notifications.IsMuted(user, channel.Id, isDirectMessage: true)) yield return user;
-            yield break;
-        }
-        // Rooms are muted by default, so this normally yields nobody and the scan stays cheap.
-        foreach (var user in _userService.GetAllUsers())
-            if (!user.Username.Equals(senderUsername, StringComparison.OrdinalIgnoreCase) && !_notifications.IsMuted(user, channel.Id, isDirectMessage: false))
-                yield return user;
+        foreach (var id in channel.ParticipantIds.Where(id => id != senderId))
+            if (_userService.GetById(id) is { } user && !_notifications.IsMuted(user, channel.Id, isDirectMessage: true)) yield return user;
     }
 
     #endregion
@@ -628,7 +495,7 @@ public class ChatService
         var user = _userService.GetById(userId);
         if (user is null) return 0;
         return _readStates.Where(e => e.Key.UserId == userId && e.Value.UnreadCount > 0)
-            .Where(e => _channels.TryGetValue(e.Key.ChannelId, out var ch) && !_notifications.IsMuted(user, ch.Id, ch.IsDirectMessage))
+            .Where(e => _channels.ContainsKey(e.Key.ChannelId) && !_notifications.IsMuted(user, e.Key.ChannelId, isDirectMessage: true))
             .Sum(e => e.Value.UnreadCount);
     }
 
@@ -649,65 +516,44 @@ public class ChatService
         }
         if (had == 0) return;
 
-        if (channel.IsDirectMessage)   // AD-27: the unread audit covers direct messages only
-        {
-            var session = callerConnectionId is null ? null : _presence.Get(callerConnectionId);
-            _audit.RecordUnreadChange(_userService.GetById(userId)?.Username ?? "?", Describe(channel), "clear", had, source,
-                _audit.DescribeCallerSession(session, _presence.EffectiveOf(userId)));
-        }
+        var session = callerConnectionId is null ? null : _presence.Get(callerConnectionId);   // AD-27: the unread audit
+        _audit.RecordUnreadChange(_userService.GetById(userId)?.Username ?? "?", Describe(channel), "clear", had, source,
+            _audit.DescribeCallerSession(session, _presence.EffectiveOf(userId)));
         OnUnreadChanged?.Invoke(userId, channelId, 0);
         _writer.Enqueue(Writes.ReadState(state));
     }
 
     /// <summary>
-    /// NT-02, NT-03: a direct message counts for the other person; a room message counts for everyone who has Yap
-    /// open and everyone who has the room unmuted, minus the sender and the people reading the room right now
-    /// (NT-07, see <see cref="PresenceService.Looking"/>). Returns each affected person's new count.
+    /// NT-02: a message counts for the participants other than the sender: the one other person, or both when the
+    /// bot wrote into their conversation. Returns each affected person's new count.
     /// </summary>
     private List<(Guid UserId, int Count)> IncrementUnread(Channel channel, Guid senderId)
     {
-        IEnumerable<Guid> recipients;
-        if (channel.IsDirectMessage)
-            recipients = channel.GetOtherParticipantId(senderId) is { } other ? [other] : [];
-        else
-        {
-            // A person who is reading the room sees the message. A count, an `unread` event and a read-state
-            // write for them is work the client undoes with markRead a moment later; in a room of 800 on the
-            // 2026-10-16 load test that was nearly all of the unread cost (one send and one write per member).
-            var looking = _presence.Looking(channel.Id);
-            recipients = _presence.ConnectedUserIds()
-                .Concat(_userService.GetAllUsers().Where(u => !_notifications.IsMuted(u, channel.Id, isDirectMessage: false)).Select(u => u.Id))
-                .Where(id => id != senderId && !looking.Contains(id)).Distinct();
-        }
-
         var result = new List<(Guid, int)>();
-        foreach (var userId in recipients)
+        foreach (var userId in channel.ParticipantIds.Where(id => id != senderId))
         {
             var state = _readStates.GetOrAdd((userId, channel.Id), _ => new ChannelReadState { UserId = userId, ChannelId = channel.Id, LastReadAt = DateTime.MinValue });
             int count;
             lock (state) count = ++state.UnreadCount;
             result.Add((userId, count));
-
-            if (channel.IsDirectMessage)
-                _audit.RecordUnreadChange(_userService.GetById(userId)?.Username ?? "?", Describe(channel), "+1", count,
-                    $"msg from {_userService.GetById(senderId)?.Username}", "—");
+            _audit.RecordUnreadChange(_userService.GetById(userId)?.Username ?? "?", Describe(channel), "+1", count,
+                $"msg from {_userService.GetById(senderId)?.Username}", "—");
         }
         return result;
     }
 
-    private static string Describe(Channel channel) =>
-        channel.IsDirectMessage ? $"{channel.Participant1} ↔ {channel.Participant2}" : $"#{channel.Name}";
+    private static string Describe(Channel channel) => $"{channel.Participant1} ↔ {channel.Participant2}";
 
     #endregion
 
     #region Test data
 
-    /// <summary>AD-08: real messages from the admin and five fictional people, spread over a span in bursts. No unread counts, no push.</summary>
-    public int GenerateTestMessages(Guid channelId, Guid userId, string username, int count, TimeSpan span)
+    /// <summary>AD-08: test messages from the two people of the conversation, spread over a span in bursts. No unread counts, no push.</summary>
+    public int GenerateTestMessages(Guid channelId, int count, TimeSpan span)
     {
-        if (!_channels.ContainsKey(channelId) || count <= 0) return 0;
-        var speakers = new List<(Guid Id, string Name)> { (userId, username) };
-        speakers.AddRange(_fakeUsers);
+        if (!_channels.TryGetValue(channelId, out var channel) || count <= 0) return 0;
+        var speakers = channel.ParticipantIds.Select(id => _userService.GetById(id)).OfType<User>().Select(u => (u.Id, u.Username)).ToList();
+        if (speakers.Count == 0) return 0;
 
         var now = DateTime.UtcNow;
         var cursor = now - span;
@@ -724,21 +570,23 @@ public class ChatService
             made.Add(new ChatMessage(channelId, id, name, $"[Test #{i + 1}/{count}] {_testPhrases[rng.Next(_testPhrases.Length)]}", cursor));
             if (--burst <= 0)
             {
-                var next = rng.Next(speakers.Count - 1);
-                speaker = next >= speaker ? next + 1 : next;
+                speaker = (speaker + 1) % speakers.Count;
                 burst = rng.Next(1, 6);
             }
         }
 
+        bool first;
         lock (LockOf(channelId))
         {
             var messages = _channelMessages.GetOrAdd(channelId, _ => []);
+            first = messages.Count == 0;
             messages.AddRange(made);
             messages.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
         }
         foreach (var m in made) _channelOfMessage[m.Id] = channelId;
 
         OnMessageReceived?.Invoke(made[^1]);   // only the last one is announced: the rows are history, seen whole at the next open
+        if (first) OnDmStarted?.Invoke(channel);
         _writer.Enqueue(Writes.Messages(made));
         return count;
     }
@@ -765,15 +613,6 @@ public class ChatService
         "Bazinga!",
         "It's dangerous to go alone! Take this.",
         "The cake is a lie",
-    ];
-
-    private static readonly (Guid Id, string Name)[] _fakeUsers =
-    [
-        (Guid.Parse("aa000000-0000-0000-0000-000000000001"), "Alice"),
-        (Guid.Parse("aa000000-0000-0000-0000-000000000002"), "Bob"),
-        (Guid.Parse("aa000000-0000-0000-0000-000000000003"), "Charlie"),
-        (Guid.Parse("aa000000-0000-0000-0000-000000000004"), "Diana"),
-        (Guid.Parse("aa000000-0000-0000-0000-000000000005"), "Eve"),
     ];
 
     #endregion

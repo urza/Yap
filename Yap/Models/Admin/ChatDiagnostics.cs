@@ -8,7 +8,6 @@ public class ChatDiagnostics
     public int UserSessions { get; set; }
     public int UniqueUsers { get; set; }
     public int Channels { get; set; }
-    public int RoomChannels { get; set; }
     public int DmChannels { get; set; }
     public int TotalMessages { get; set; }
     public Dictionary<string, int> EventSubscribers { get; set; } = new();

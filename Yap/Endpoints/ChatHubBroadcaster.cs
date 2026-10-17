@@ -12,9 +12,10 @@ namespace Yap.Endpoints;
 
 /// <summary>
 /// Listens to the services' events and sends one hub message for each. The services know nothing about
-/// SignalR. A room event goes to the connections that have the room open; a direct message goes to the two
-/// people on every device; presence, rooms and profiles go to everyone. The table is in
-/// docs/architecture/bootstrap-and-events.md.
+/// SignalR. A conversation event goes to its two people on every device. Presence and profiles go to the
+/// people who may see that person: everyone for the admin and the bot, the admin and the person themself for
+/// anyone else, because a person's client knows the admin, the bot and itself only (docs/dmonly.md). The table
+/// is in docs/architecture/bootstrap-and-events.md.
 /// </summary>
 public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService chat, PresenceService presence, UserService users,
     NotificationSettingsService mutes, GifService gifs, RegistrationGateService gate, SystemBotService bot, MessageMapper map,
@@ -24,29 +25,23 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        // A new message is inside everyone's history; only the quote of a reply can differ between readers (TL-05).
-        On<ChatMessage>(h => chat.OnMessageReceived += h, h => chat.OnMessageReceived -= h, m =>
-        {
-            if (m.ReplyToMessageId is null) ToChannel(m.ChannelId, "message", map.From(m, null));
-            else ToReaders(m, "message", viewer => [map.From(m, viewer)]);
-        });
-        On<ChatMessage>(h => chat.OnMessageEdited += h, h => chat.OnMessageEdited -= h, m => ToReaders(m, "messageEdited", viewer => [map.From(m, viewer)]));
+        On<ChatMessage>(h => chat.OnMessageReceived += h, h => chat.OnMessageReceived -= h, m => ToChannel(m.ChannelId, "message", map.From(m, null)));
+        On<ChatMessage>(h => chat.OnMessageEdited += h, h => chat.OnMessageEdited -= h, m => ToChannel(m.ChannelId, "messageEdited", map.From(m, null)));
         On<Guid, Guid>(h => chat.OnMessageDeleted += h, h => chat.OnMessageDeleted -= h, (channelId, id) => ToChannel(channelId, "messageDeleted", channelId, id));
-        On<ChatMessage>(h => chat.OnReactionChanged += h, h => chat.OnReactionChanged -= h, m => ToReaders(m, "reactions", _ => [m.Id, map.Reactions(m)]));
-        On<ChatMessage>(h => chat.OnPreviewsReady += h, h => chat.OnPreviewsReady -= h, m => ToReaders(m, "previews", _ => [m.Id, map.Previews(m)]));
+        On<ChatMessage>(h => chat.OnReactionChanged += h, h => chat.OnReactionChanged -= h, m => ToChannel(m.ChannelId, "reactions", m.Id, map.Reactions(m)));
+        On<ChatMessage>(h => chat.OnPreviewsReady += h, h => chat.OnPreviewsReady -= h, m => ToChannel(m.ChannelId, "previews", m.Id, map.Previews(m)));
         On<Guid, Guid, int>(h => chat.OnUnreadChanged += h, h => chat.OnUnreadChanged -= h, (userId, channelId, count) => ToUser(userId, "unread", channelId, count));
         On<Channel>(h => chat.OnDmStarted += h, h => chat.OnDmStarted -= h, DmStarted);
-        On(h => chat.OnRoomsChanged += h, h => chat.OnRoomsChanged -= h, () => ToAll("rooms", chat.Rooms().Select(RoomDto.From).ToList()));
 
         On<string, EffectiveStatus, PresenceChange>(h => presence.OnPresenceChanged += h, h => presence.OnPresenceChanged -= h,
-            (username, status, change) => ToAll("presence", username, status, change));
+            (username, status, change) => ToWatchersOf(username, "presence", username, status, change));
         On<Guid, string, bool>(h => presence.OnTypingChanged += h, h => presence.OnTypingChanged -= h,
             (channelId, username, on) => ToChannel(channelId, "typing", channelId, username, on));
         On<Guid, UserStatus>(h => presence.OnChosenStatusChanged += h, h => presence.OnChosenStatusChanged -= h,
             (userId, status) => ToUser(userId, "me", new { status }));
 
         On<User>(h => users.OnProfileChanged += h, h => users.OnProfileChanged -= h,
-            u => ToAll("profile", UserDto.From(u, users.IsAdmin(u.Id), bot.IsBotUser(u.Username))));
+            u => ToWatchersOf(u.Username, "profile", UserDto.From(u, users.IsAdmin(u.Id), bot.IsBotUser(u.Username))));
         On<Guid, object>(h => users.OnSettingsChanged += h, h => users.OnSettingsChanged -= h, (userId, partial) => ToUser(userId, "me", partial));
         On<Guid, List<string>>(h => users.OnRecentEmojiChanged += h, h => users.OnRecentEmojiChanged -= h,
             (userId, recent) => ToUser(userId, "me", new { emoji = new { recent, quickReactions = chat.QuickReactions(userId) } }));   // MR-41
@@ -76,36 +71,29 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
         if (c.Participant2Id is { } p2 && c.Participant1 is { } n1) ToUser(p2, "dm", new DmDto(c.Id, n1, at));
     }
 
-    // A room message goes to the connections that have the room open. A direct message goes to the two
-    // people, on all their devices. The channel type decides.
+    // A conversation event goes to its two people, on all their devices.
     private void ToChannel(Guid channelId, string name, params object?[] args)
     {
         var channel = chat.GetChannel(channelId);
         if (channel is null) return;
-        var target = channel.IsDirectMessage
-            ? hub.Clients.Users(new[] { channel.Participant1Id, channel.Participant2Id }.OfType<Guid>().Select(id => id.ToString()).ToList())
-            : hub.Clients.Group(ChatHub.Group(channelId));
-        Fire(target.SendCoreAsync(name, args));
+        Fire(hub.Clients.Users(channel.ParticipantIds.Select(id => id.ToString()).ToList()).SendCoreAsync(name, args));
     }
 
-    // A room with a history cutoff (TL-05) has a different past for each reader: an event about a message goes to
-    // the connections whose person may read that message, with the arguments built for that person (the quote of
-    // a reply). A direct message and an unrestricted room have one truth for everyone and get one send.
-    private void ToReaders(ChatMessage m, string name, Func<Guid?, object?[]> argsFor)
+    // Who may learn about a person: everyone for the admin and the bot (every client lists them); for anyone else
+    // the admin and the person themself, the only clients whose directory holds that person.
+    private void ToWatchersOf(string username, string name, params object?[] args)
     {
-        var channel = chat.GetChannel(m.ChannelId);
-        if (channel is null) return;
-        if (!chat.IsRestricted(channel)) { ToChannel(m.ChannelId, name, argsFor(null)); return; }
-        foreach (var person in presence.All().Where(s => s.Connected && s.Viewing == channel.Id).GroupBy(s => s.UserId))
+        if (users.IsAdmin(username) || bot.IsBotUser(username) || users.GetByUsername(username) is not { } subject)
         {
-            if (!chat.MayRead(person.Key, m)) continue;
-            Fire(hub.Clients.Clients(person.Select(s => s.ConnectionId).ToList()).SendCoreAsync(name, argsFor(person.Key)));
+            Fire(hub.Clients.All.SendCoreAsync(name, args));
+            return;
         }
+        var watchers = new List<string> { subject.Id.ToString() };
+        if (users.GetAdminUserId() is { } admin) watchers.Add(admin.ToString());
+        Fire(hub.Clients.Users(watchers).SendCoreAsync(name, args));
     }
 
     private void ToUser(Guid userId, string name, params object?[] args) => Fire(hub.Clients.User(userId.ToString()).SendCoreAsync(name, args));
-
-    private void ToAll(string name, params object?[] args) => Fire(hub.Clients.All.SendCoreAsync(name, args));
 
     // The service events are synchronous. The send is not awaited, so a slow client never delays a service.
     private void Fire(Task send)

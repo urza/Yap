@@ -46,17 +46,24 @@ public class AccountTests : IClassFixture<YapFactory>
         await laptop.DisposeAsync();
     }
 
-    [Fact(DisplayName = "SH-33: a new account reaches the open clients as a profile message")]
+    [Fact(DisplayName = "SH-33, dmonly: a new account reaches the admin as a profile message, and no other person")]
     public async Task New_account_is_announced()
     {
+        var admin = await _app.AdminAsync();
         var watcher = await _app.SignInAsync("watcher_profile");
-        var hub = await watcher.ConnectAsync();
+        var adminHub = await admin.ConnectAsync();
+        var watcherHub = await watcher.ConnectAsync();
         var seen = new Expectation<string>();
-        hub.On<UserDto>("profile", u => { if (u.Username == "newcomer_profile") seen.Set(u.Username); });
+        var leaked = new Expectation<string>();
+        adminHub.On<UserDto>("profile", u => { if (u.Username == "newcomer_profile") seen.Set(u.Username); });
+        watcherHub.On<UserDto>("profile", u => { if (u.Username == "newcomer_profile") leaked.Set(u.Username); });
 
         await _app.SignInAsync("newcomer_profile");
         Assert.Equal("newcomer_profile", await seen.Within());
-        await hub.DisposeAsync();
+        await Task.Delay(300);   // the admin's copy arrived; a copy for the watcher would have been sent in the same call
+        Assert.False(leaked.Completed, "a person learned about another person's account");
+        await adminHub.DisposeAsync();
+        await watcherHub.DisposeAsync();
     }
 
     [Fact(DisplayName = "AU-22: sign out clears this device's cookie only")]
@@ -77,8 +84,8 @@ public class AccountTests : IClassFixture<YapFactory>
             await using (var app = new YapFactory { SqlitePath = db })
             {
                 var ivan = await app.SignInAsync("ivan_persist");
-                var lobby = app.Service<Yap.Services.Chat.ChatService>().LobbyId;
-                var sent = await ivan.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId = Guid.NewGuid(), text = "stored" });
+                var boss = (await app.AdminAsync()).Username;
+                var sent = await ivan.Http.PostAsJsonAsync($"/api/dm/{boss}/messages", new { clientId = Guid.NewGuid(), text = "stored" });
                 Assert.Equal(HttpStatusCode.OK, sent.StatusCode);
             }   // disposing the factory stops the host, and StopAsync drains the queue
 
@@ -149,8 +156,8 @@ public class AccountTests : IClassFixture<YapFactory>
             {
                 var jon = await app.SignInAsync("jon_retry");
                 token = jon.Token;
-                var lobby = app.Service<Yap.Services.Chat.ChatService>().LobbyId;
-                var first = await jon.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId, text = "retry me" });
+                var boss = (await app.AdminAsync()).Username;
+                var first = await jon.Http.PostAsJsonAsync($"/api/dm/{boss}/messages", new { clientId, text = "retry me" });
                 Assert.Equal(HttpStatusCode.OK, first.StatusCode);
                 firstId = (await first.Content.ReadFromJsonAsync<Yap.Models.Chat.MessageDto>())!.Id;
             }
@@ -158,8 +165,8 @@ public class AccountTests : IClassFixture<YapFactory>
             {
                 var client = app.CreateClient();
                 client.DefaultRequestHeaders.Add("Cookie", $"yap_auth={token}");
-                var lobby = app.Service<Yap.Services.Chat.ChatService>().LobbyId;
-                var again = await client.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId, text = "retry me" });
+                var boss = app.Service<Yap.Services.Accounts.UserService>().GetAdminUsername();   // loaded from the database: the same account
+                var again = await client.PostAsJsonAsync($"/api/dm/{boss}/messages", new { clientId, text = "retry me" });
                 Assert.Equal(HttpStatusCode.OK, again.StatusCode);
                 Assert.Equal(firstId, (await again.Content.ReadFromJsonAsync<Yap.Models.Chat.MessageDto>())!.Id);
             }

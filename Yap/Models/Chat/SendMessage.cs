@@ -10,6 +10,12 @@ public sealed record SendMessage(Guid ChannelId, Guid UserId, string Username, s
     public List<string>? VideoUrls { get; init; }
     public List<GifAttachment>? GifAttachments { get; init; }
 
+    /// <summary>
+    /// A server-made message from a sender who is not one of the two participants: the bot writing into a
+    /// person's conversation with the admin (docs/dmonly.md). Only server code sets this; the send endpoint
+    /// never does, so a client cannot write into a conversation it is not part of.
+    /// </summary>
+    public bool System { get; init; }
 }
 
 /// <summary>Either the stored message or the reason the server refused it (GEN-02).</summary>

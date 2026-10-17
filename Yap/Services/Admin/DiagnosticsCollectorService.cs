@@ -59,7 +59,6 @@ public class DiagnosticsCollectorService : BackgroundService
                 UserSessions: diag.UserSessions,
                 UniqueUsers: diag.UniqueUsers,
                 Channels: diag.Channels,
-                RoomChannels: diag.RoomChannels,
                 DmChannels: diag.DmChannels,
                 TotalMessages: diag.TotalMessages,
                 ActiveConnections: active,
