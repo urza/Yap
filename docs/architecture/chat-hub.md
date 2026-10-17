@@ -141,7 +141,7 @@ IEnumerable<Guid> UnreadRecipients(Channel channel, Guid sender)
 }
 ```
 
-`Looking` is the server's view of NT-07: a connected session on the room, visible, input in the last five minutes, and the person not away. The scroll position is not known to the server; a person scrolled up gets the new-messages pill (TL-13) and no count. The set is built once per message, so a room of N members costs one pass over the sessions, not N.
+`Looking` is the server's view of NT-07: a connected session on the room, visible with a heartbeat in the last 35 seconds (the away sweep's rule), input in the last five minutes, and the person not away. The scroll position is not known to the server; a person scrolled up gets the new-messages pill (TL-13) and no count. The set is built once per message, so a room of N members costs one pass over the sessions, not N.
 
 An offline person with the room muted gets no count and no dot (the *Why* of NT-03). Generated test messages add no counts (AD-08). For each recipient, ChatService increments the count by one and raises `OnUnreadChanged(userId, channelId, count)`. The broadcaster sends `unread` to the devices of that person.
 
@@ -160,7 +160,7 @@ public void MarkRead(Guid userId, Guid channelId, string source)
 }
 ```
 
-Mark-read clears the whole conversation. There is no partial read (NT-08). The hub calls it on open (`source: "open"`). The hub also calls it when the client sends `markRead`. The client sends `markRead` when the page is visible, the person is not away, and the view is at the bottom (NT-07). The server trusts the client. The read state belongs to the person. `typing` is different: the hub forwards it only when `channelId` is the connection's open conversation, because a typing event reaches the people of that conversation (PR-19) and the id alone must not be an entry ticket.
+Mark-read clears the whole conversation. There is no partial read (NT-08). The hub calls it on open (`source: "open"`). The hub also calls it when the client sends `markRead`. The client sends `markRead` only after an `unread` event gave the open conversation a count, and then when the page is visible, the person is not away, and the view is at the bottom (NT-07). A person the server took as reading gets no count and sends nothing, so a busy room costs no hub call per message per reader. The server trusts the client. The read state belongs to the person. `typing` is different: the hub forwards it only when `channelId` is the connection's open conversation, because a typing event reaches the people of that conversation (PR-19) and the id alone must not be an entry ticket.
 
 The write is an upsert. Today the increment runs an UPDATE. The UPDATE does not create a missing row. The first unread of a person in a room is then lost on a restart (NT-05). The upsert corrects this. The writer batches, so one message to a room with fifty persons becomes one transaction.
 

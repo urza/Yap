@@ -271,16 +271,20 @@ public sealed class PresenceService(UserService users, LoadCounters load, ILogge
 
     /// <summary>
     /// The people reading a conversation right now, by the server's view of NT-07: a connected session on it,
-    /// visible, with input in the last five minutes, and the person not away. The scroll position is the
-    /// client's alone; a person scrolled up gets the new-messages pill (TL-13) instead of a badge. One pass over
-    /// the sessions per call, so a message in a big room costs O(sessions), not O(sessions × recipients).
+    /// visible with a recent heartbeat, with input in the last five minutes, and the person not away. The
+    /// heartbeat age is the same rule the away sweep uses for "visible": a client that stopped beating (a sleeping
+    /// laptop) keeps its Visible flag until the hub drops it, and must not swallow counts meanwhile. The scroll
+    /// position is the client's alone; a person scrolled up gets the new-messages pill (TL-13) instead of a badge.
+    /// One pass over the sessions per call, so a message in a big room costs O(sessions), not O(sessions × recipients).
     /// </summary>
     public HashSet<Guid> Looking(Guid channelId)
     {
         var now = DateTime.UtcNow;
         lock (_gate)
             return _sessions.Values
-                .Where(s => s.Connected && !s.Permanent && s.Viewing == channelId && s.Visible && now - s.LastInputAt < IdleToAway)
+                .Where(s => s.Connected && !s.Permanent && s.Viewing == channelId
+                            && s.Visible && now - s.LastHeartbeatAt <= ForegroundWindow
+                            && now - s.LastInputAt < IdleToAway)
                 .Select(s => s.UserId)
                 .Where(id => EffectiveLocked(id) != EffectiveStatus.Away)
                 .ToHashSet();
