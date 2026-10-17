@@ -2,6 +2,10 @@
 
 Self hosted community chat inspired by Discord aesthetics
 
+> **Branch `dmonly`:** this branch has no rooms. Every person talks to the admin and to nobody else; the admin
+> sees a people page and opens a conversation from it. The design and the decisions are in
+> [docs/dmonly.md](docs/dmonly.md). The rest of this README describes the app that both builds share.
+
 ![Screenshot](screenshot.png)
 
 
