@@ -83,12 +83,12 @@ footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--rule)
 <header class="top">
   <div class="eyebrow">Load test · hz.urza.cc · 2026-10-16</div>
   <h1>How much Yap handles on a 4-core box, and what gives first</h1>
-  <p class="lede">Ten runs with synthetic users against a test instance, with persistence off and on. The report records what the current design does at each size and why. No code was changed because of these results.</p>
+  <p class="lede">Ten runs with synthetic users against a test instance, with persistence off and on. The report records what the current design does at each size and why. No code was changed during the series. The changes made on 2026-10-17 are listed at the end.</p>
   <div class="facts">
     <div class="fact"><b>10</b><span>runs, 6 traffic shapes</span></div>
     <div class="fact"><b>2,200</b><span>users at once in the last run</span></div>
     <div class="fact"><b>800</b><span>active users in one room: fine</span></div>
-    <div class="fact"><b>~4,500</b><span>writes/s before the database writer stalls</span></div>
+    <div class="fact"><b>~1,000</b><span>writes/s before the database writer stalls</span></div>
     <div class="fact"><b>2 min</b><span>to recover after a full collapse, no restart</span></div>
   </div>
 </header>
@@ -99,8 +99,8 @@ footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--rule)
   <li><b>Connections are cheap.</b> 500 idle users with heartbeats cost 5 % of one core and about 0.1 MB each.</li>
   <li><b>One active room of 800 is fine.</b> 12.5 messages a second, p95 send-to-appear 150 ms, CPU 58 %. The CPU slope points at a knee around 1,200 for one room.</li>
   <li><b>2,000 in one room saturate the box.</b> Messages still arrive (p95 750 ms) but HTTP requests take 5 to 75 seconds. Each message costs one send per member for the message, one per member for the unread count, and two per member for typing.</li>
-  <li><b>Small rooms do not help the two expensive paths.</b> The unread event goes to every connected user and the read-state write to every account, whatever room the message is in. 1,500 users in twenty rooms cost the same as 2,000 in one.</li>
-  <li><b>With persistence on, the database writer is the first limit.</b> It sustains about 4,000 to 5,000 read-state writes a second. One room message writes one row per account, so with 1,500 accounts that is 3 messages a second across the whole server. Past that, the writer stalls for good until a restart, and the disk falls minutes behind memory.</li>
+  <li><b>Small rooms do not help the two expensive paths.</b> The unread event and the read-state write go to every connected user, whatever room the message is in. 1,500 users in twenty rooms cost the same as 2,000 in one.</li>
+  <li><b>With persistence on, the database writer is the first limit.</b> It sustains about 1,000 read-state writes a second. One room message writes one row per connected user, so with 300 people online that is 3 messages a second across the whole server. (Corrected 2026-10-17: the first version of this report multiplied by the 1,500 accounts. The default room mode is mute all, so the accounts that were not connected got no write.) Past that, the writer stalls for good until a restart, and the disk falls minutes behind memory.</li>
   <li><b>Media is not a limit at 300 users.</b> Bursty CPU for thumbnails, idle disk, no errors.</li>
   <li><b>Everything at once collapses, then recovers.</b> 2,200 users across all six shapes: within a minute the thread pool queue passed 4,000, the server served one HTTP request a second, heartbeats timed out and 3,600 reconnects followed. Two minutes after the load stopped the server was idle again, same process, no restart.</li>
   <li><b>A person feels the browser before the server.</b> In a room with 20 to 30 messages a second the admin's tab needed seconds to post and a minute to see its own echo, while the server answered in under 100 ms and the synthetic users saw 75 ms.</li>
@@ -164,7 +164,7 @@ footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--rule)
 <thead><tr><th>Action</th><th class="n">Sends</th><th>Path in the code</th></tr></thead>
 <tbody>
 <tr><td>A message</td><td class="n">2,000</td><td><code>ChatHubBroadcaster.ToChannel</code>, one group send</td></tr>
-<tr><td>Its unread count</td><td class="n">2,000 + 2,000 writes</td><td><code>ChatService.IncrementUnread</code>: every connected user and every account with the room unmuted, including people who have the room open</td></tr>
+<tr><td>Its unread count</td><td class="n">2,000 + 2,000 writes</td><td><code>ChatService.IncrementUnread</code>: every connected user and every account with the room unmuted (none in the test: the default mode is mute all), including people who have the room open</td></tr>
 <tr><td>Typing before it</td><td class="n">4,000</td><td><code>PresenceService.SetTyping</code>, on and off</td></tr>
 <tr><td>A presence change</td><td class="n">2,000</td><td><code>PresenceService.Changes.Raise</code>, one event per change to everyone</td></tr>
 </tbody></table></div>
@@ -183,7 +183,7 @@ footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--rule)
 
 <section>
 <h2>The persistence writer</h2>
-<p>With persistence on, every room message queues one read-state write per account. The writer drains the whole queue in one transaction, and each write runs its own <code>SaveChangesAsync</code> on one shared <code>DbContext</code>. Each save checks every entity the context already tracks, and the context tracks every row touched so far in the batch. A batch of N writes costs about N² compares. A bigger backlog makes a bigger batch, a bigger batch makes each write slower, and the backlog grows further.</p>
+<p>With persistence on, every room message queues one read-state write per connected user. The writer drains the whole queue in one transaction, and each write runs its own <code>SaveChangesAsync</code> on one shared <code>DbContext</code>. Each save checks every entity the context already tracks, and the context tracks every row touched so far in the batch. A batch of N writes costs about N² compares. A bigger backlog makes a bigger batch, a bigger batch makes each write slower, and the backlog grows further.</p>
 <figure class="chart"><figcaption><span class="ctitle">Run 2: writer depth during the 1000-user step</span><span class="cunit">queued writes</span></figcaption>
 <svg viewBox="0 0 640 220" role="img" aria-label="Run 2: writer depth during the 1000-user step">
 <line x1="56" x2="624" y1="186.0" y2="186.0" class="grid"/><text x="48" y="190.0" class="tick" text-anchor="end">0</text><line x1="56" x2="624" y1="146.5" y2="146.5" class="grid"/><text x="48" y="150.5" class="tick" text-anchor="end">296,336</text><line x1="56" x2="624" y1="107.0" y2="107.0" class="grid"/><text x="48" y="111.0" class="tick" text-anchor="end">592,673</text><line x1="56" x2="624" y1="67.5" y2="67.5" class="grid"/><text x="48" y="71.5" class="tick" text-anchor="end">889,009</text><line x1="56" x2="624" y1="28.0" y2="28.0" class="grid"/><text x="48" y="32.0" class="tick" text-anchor="end">1,185,345</text><text x="120.7" y="204" class="tick" text-anchor="middle">17:25:00</text><text x="228.6" y="204" class="tick" text-anchor="middle">17:26:00</text><text x="336.4" y="204" class="tick" text-anchor="middle">17:27:00</text><text x="444.3" y="204" class="tick" text-anchor="middle">17:28:00</text><text x="552.1" y="204" class="tick" text-anchor="middle">17:29:00</text><line x1="171.0" x2="171.0" y1="28" y2="186.0" class="mark"/><text x="176.0" y="40" class="marklabel">plateau reached</text>
@@ -195,25 +195,26 @@ footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--rule)
 </svg></figure>
 <p>The depth grows by about 3,500 a second from the moment the plateau is reached, at the same rate in a quiet second with one message as in a busy one with sixteen: the writer is no longer draining. The working set grows with it, about 300 bytes per queued write. The clients see nothing, send-to-appear stays at 150 ms, because the unread counts are served from memory. On the VPS the database command rate fell from 14,000 a minute to 200 while one transaction kept running; nothing committed until the restart.</p>
 <h3>Where the limit sits</h3>
-<p>The writer's input is room messages per second × accounts with the room unmuted (all 1,500 here), whatever the room size or the connection count:</p>
+<p>The writer's input is room messages per second × connected users, whatever the room size. (Corrected 2026-10-17: the first version counted all 1,500 accounts per message. <code>IncrementUnread</code> adds the accounts with the room unmuted, but the default room mode is mute all, and the test accounts never changed it.)</p>
 <div class="tscroll"><table>
 <thead><tr><th>Run, step</th><th class="n">Room msg/s</th><th class="n">Writes/s arriving</th><th>Writer</th></tr></thead>
 <tbody>
-<tr><td>idle-crowd 500</td><td class="n">0.6</td><td class="n">~900</td><td class="ok">kept up</td></tr>
-<tr><td>big-room 200</td><td class="n">2.5</td><td class="n">~3,750</td><td class="ok">kept up</td></tr>
-<tr><td>media-heavy 300</td><td class="n">2.9</td><td class="n">~4,400</td><td class="ok">kept up</td></tr>
-<tr><td>dm-heavy 300</td><td class="n">~3.4</td><td class="n">~5,000</td><td class="bad">lost</td></tr>
-<tr><td>idle-crowd 1,000</td><td class="n">4.0</td><td class="n">~6,000</td><td class="bad">lost</td></tr>
-<tr><td>small-rooms 500</td><td class="n">6.0</td><td class="n">~9,000</td><td class="bad">lost</td></tr>
-<tr><td>big-room 800</td><td class="n">12.5</td><td class="n">~19,000</td><td class="bad">lost</td></tr>
+<tr><td>idle-crowd 500</td><td class="n">0.6</td><td class="n">~300</td><td class="ok">kept up</td></tr>
+<tr><td>big-room 200</td><td class="n">2.5</td><td class="n">~500</td><td class="ok">kept up</td></tr>
+<tr><td>media-heavy 300</td><td class="n">2.9</td><td class="n">~870</td><td class="ok">kept up</td></tr>
+<tr><td>dm-heavy 300</td><td class="n">~3.4</td><td class="n">~1,000</td><td class="bad">lost</td></tr>
+<tr><td>big-room 400 (23 s)</td><td class="n">3.1</td><td class="n">~1,240</td><td class="ok">kept up, too short to tell</td></tr>
+<tr><td>small-rooms 500</td><td class="n">6.0</td><td class="n">~3,000</td><td class="bad">lost</td></tr>
+<tr><td>idle-crowd 1,000</td><td class="n">4.0</td><td class="n">~4,000</td><td class="bad">lost</td></tr>
+<tr><td>big-room 800</td><td class="n">12.5</td><td class="n">~10,000</td><td class="bad">lost</td></tr>
 </tbody></table></div>
-<p>The limit is about 4,000 to 5,000 writes a second on this box. The dm-heavy run settles the reading: it lost the writer at 300 users with about a thousand TCP connections, where big-room with 400 users kept it, because the room message rates differed. After the dm-heavy run the database held everything up to 18:20:21, so the last three and a half minutes of the run were lost on disk.</p>
+<p>The limit is about 1,000 writes a second on this box as the writer was written then. The dm-heavy run at 300 users lost it at that rate; big-room at 400 users ran above it for 23 seconds only. After the dm-heavy run the database held everything up to 18:20:21, so the last three and a half minutes of the run were lost on disk.</p>
 <div class="callout warn"><p>The queue is unbounded, with a comment in <code>PersistenceWriter</code> that a chat this size never outruns SQLite. At 1,000 members in one room it does. The failure is silent for users and visible to the operator only as memory growth and as data missing after a restart.</p></div>
 </section>
 
 <section>
 <h2>Small rooms</h2>
-<p>Run 5 put 500 users in twenty rooms of 25. The hub sent 501 events per message: 25 for the message itself and about 475 unread events, one to every connected user whatever room they were in. The writer took one read-state write per account, 1,500 per message, and was lost at 7 messages a second. At 1,500 users the run looked like run 1 at 2,000 in one room: 27,000 to 30,000 hub sends a second, HTTP p95 at 5 seconds, 64 upload timeouts, a working set of 1.2 GB. Twenty rooms of 25 cost the same unread work as one room of 500. The only savings of small rooms are the message and typing sends.</p>
+<p>Run 5 put 500 users in twenty rooms of 25. The hub sent 501 events per message: 25 for the message itself and about 475 unread events, one to every connected user whatever room they were in. The writer took one read-state write per connected user, 500 per message, and was lost at 7 messages a second. At 1,500 users the run looked like run 1 at 2,000 in one room: 27,000 to 30,000 hub sends a second, HTTP p95 at 5 seconds, 64 upload timeouts, a working set of 1.2 GB. Twenty rooms of 25 cost the same unread work as one room of 500. The only savings of small rooms are the message and typing sends.</p>
 </section>
 
 <section>
@@ -276,26 +277,33 @@ footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--rule)
 </section>
 
 <section>
-<h2>Possible changes, not applied</h2>
-<p>Recorded for a later decision. None are in the code.</p>
+<h2>Possible changes, with their status</h2>
+<p>Recorded for a later decision during the series. The status of each item as of 2026-10-17 follows it.</p>
 <h3>Writer</h3>
 <ul>
-  <li><code>db.ChangeTracker.Clear()</code> after each save in the batch loop. Turns the cost of a batch from N² to N.</li>
-  <li>A fixed batch size, for example 500 writes per transaction, so one commit never waits on minutes of work and the disk stays close to memory.</li>
-  <li>Coalesce read-state writes inside a batch: the same (user, room) row is upserted once per message, and only the last value matters.</li>
-  <li>A bound on the queue, or a log warning when the depth passes a threshold, so a runaway shows before the working set does.</li>
+  <li><code>db.ChangeTracker.Clear()</code> after each save in the batch loop. Turns the cost of a batch from N² to N. <b>Done 2026-10-17</b>, commit 61416022.</li>
+  <li>A fixed batch size, for example 500 writes per transaction, so one commit never waits on minutes of work and the disk stays close to memory. <b>Done 2026-10-17</b>, commit 61416022.</li>
+  <li>Coalesce read-state writes inside a batch: the same (user, room) row is upserted once per message, and only the last value matters. <b>Not now</b>, decided 2026-10-17: wait for a run with the changes above in place.</li>
+  <li>A bound on the queue, or a log warning when the depth passes a threshold, so a runaway shows before the working set does. <b>Not now</b>, decided 2026-10-17.</li>
 </ul>
 <h3>Fan-out</h3>
 <ul>
-  <li>No unread event and no read-state write for a person who has the room open. In a big room that removes almost all unread traffic.</li>
-  <li>Typing events only below a room-size threshold, or one coalesced event per second per room.</li>
-  <li>Presence changes collected for about 500 ms and sent as one event with a list.</li>
+  <li>No unread event and no read-state write for a person who has the room open. In a big room that removes almost all unread traffic. <b>Done 2026-10-17</b>, commit 26424384: the server decides from the session (open, visible, not away, not idle). A heartbeat on every tab visibility change closes the gap, commit 0bb6f700.</li>
+  <li>Typing events only below a room-size threshold, or one coalesced event per second per room. <b>Not now</b>, decided 2026-10-17.</li>
+  <li>Presence changes collected for about 500 ms and sent as one event with a list. <b>Not now</b>, decided 2026-10-17.</li>
 </ul>
 <h3>Deployment</h3>
 <ul>
-  <li><code>Logging:LogLevel:Microsoft.EntityFrameworkCore.Database.Command</code> set to <code>Warning</code> in production.</li>
-  <li>A host filter before yt-dlp. Every URL in a message starts a yt-dlp process today, including Wikipedia, GitHub and links to the server itself. YouTube failed every time from this VPS, which points at its IP being blocked.</li>
+  <li><code>Logging:LogLevel:Microsoft.EntityFrameworkCore.Database.Command</code> set to <code>Warning</code> in production. <b>Done 2026-10-17</b>, commit e32140a6: <code>Microsoft.EntityFrameworkCore</code> at Warning in <code>appsettings.json</code>, and the admin Diagnostics page says how to switch it on.</li>
+  <li>A host filter before yt-dlp. Every URL in a message starts a yt-dlp process today, including Wikipedia, GitHub and links to the server itself. YouTube failed every time from this VPS, which points at its IP being blocked. <b>Not now</b>, decided 2026-10-17.</li>
 </ul>
+<h3>Client</h3>
+<ul>
+  <li>A room opens at once with the input box; a "Loading messages..." line shows after 400 ms while the server answers. <b>Done 2026-10-17</b>, commit 55485f88.</li>
+  <li>The sidebar scrolls with many rooms and people, with a fade at the bottom edge on phones. <b>Done 2026-10-17</b>, commit 0f17a091.</li>
+</ul>
+<h3>Next run</h3>
+<p>Rerun big-room 200, 400, 800 and dm-heavy 300, 800 with persistence on against the changed code. Expected: writer depth flat, hub sends per message well under 100 in a room where most people have it open, and the thread-pool queue at 800 users far below 804. If the queue is still high, run <code>dotnet-counters</code> or <code>dotnet-trace</code> on the VPS during the step to see what holds the threads.</p>
 </section>
 
 <footer>
