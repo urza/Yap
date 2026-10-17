@@ -374,12 +374,37 @@
 
 /* ==== ChatSidebar (was Yap/Components/ChatSidebar.razor.css) ==== */
 
-/* Desktop: always visible */
+/* Desktop: always visible. One scroll area for rooms and people together: a long list scrolls, a short one
+   shows no bar. In the 2026-10-16 load test with 1,500 accounts the list was cut off (overflow hidden). */
 .users-sidebar {
     width: 240px;
     background: var(--bg-sidebar);
     padding: 1rem;
-    overflow: hidden;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--bg-header) transparent;
+}
+
+/* A fade over the last rows while more are below, so a phone with no visible scrollbar still shows there is
+   more. frame.js toggles .has-more from the scroll position; sticky keeps the fade at the panel's bottom edge. */
+.users-sidebar::after {
+    content: '';
+    display: block;
+    position: sticky;
+    bottom: -1rem;
+    height: 2.5rem;
+    margin: -2.5rem -1rem -1rem;
+    background: linear-gradient(transparent, var(--bg-sidebar));
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+/* The fade is for the phone, where the scrollbar shows only during a touch. The desktop has the thin bar. */
+@media (max-width: 768px) {
+    .users-sidebar.has-more::after {
+        opacity: 1;
+    }
 }
 
 /* Mobile: slide-in overlay */

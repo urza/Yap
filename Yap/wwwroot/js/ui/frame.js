@@ -32,6 +32,7 @@ export function mount(appRoot) {
   header.querySelector('.users-toggle').addEventListener('click', () => toggleSidebar());
   frame.querySelector('.sidebar-backdrop').addEventListener('click', () => toggleSidebar(false));
   wireConnectionDot(header.querySelector('.connection-dot'));
+  wireSidebarFade(frame.querySelector('.users-sidebar'));
 
   offs = [
     on('user', renderChip), on('users', renderChip), on('presence', renderChip), on('connection', renderChip),
@@ -203,6 +204,16 @@ function toggleSidebar(force) {
   const open = force ?? !sidebar.classList.contains('sidebar-open');
   sidebar.classList.toggle('sidebar-open', open);
   frame.querySelector('.sidebar-backdrop').classList.toggle('show', open);
+}
+
+// The fade at the bottom of the sidebar shows only while rows are hidden below the edge (frame.css .has-more).
+// The observer covers the two things that change that besides a scroll: the panel's height and the lists' length.
+function wireSidebarFade(sidebar) {
+  const update = () => sidebar.classList.toggle('has-more', sidebar.scrollTop + sidebar.clientHeight < sidebar.scrollHeight - 1);
+  sidebar.addEventListener('scroll', update, { passive: true });
+  const sizes = new ResizeObserver(update);
+  sizes.observe(sidebar);
+  sidebar.querySelectorAll('.sidebar-section').forEach(s => sizes.observe(s));
 }
 
 function lobbyId() { return lobby()?.id; }   // marked by the server; the sidebar order says nothing about it (SH-43)

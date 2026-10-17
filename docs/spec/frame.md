@@ -86,7 +86,7 @@ The frame contains all parts around a conversation. The header shows the title, 
 
 **SH-26** A tap on a room opens it and closes the sidebar on narrow screens.
 
-**SH-27** The sidebar scrolls when its content is taller than the screen.
+**SH-27** The sidebar scrolls as one area when its content is taller than the screen. A short list shows no scrollbar. On a narrow screen a fade at the bottom edge shows while rows are hidden below it.
 
 ### Sidebar: people
 
