@@ -19,6 +19,9 @@ server, runs its steps, prints PASS or FAIL for each step, and stops the server 
   reaches the other tab of the device, Admin (users, invites, registration and approval, bot, debug, the
   persistence-only tabs, GIFs, diagnostics), Create Channel / Channel Settings (with `/lobby` after a reorder),
   the keyboard on the sidebar rows and the + button, and the notification choices at 20 px on a 320 px phone.
+- `latency.mjs` checks the latency table of the admin's Diagnostics tab (AD-26): one person loads a room, taps
+  a room, loads an older page, sends a text, loses and regains the connection, and every wait shows up on
+  the person and on the connection.
 - `screenshots.mjs` regenerates the images of the product spec in `docs/spec/img/`. It seeds people, rooms,
   messages, mutes and statuses, builds the state that each image's caption names, and overwrites the image. A
   step that fails keeps the old image. The run takes about three minutes: it waits for an offline person
@@ -42,6 +45,7 @@ npm run smoke
 npm run offline
 npm run features
 npm run pages
+npm run latency
 npm run screenshots
 ```
 

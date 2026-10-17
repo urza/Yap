@@ -59,7 +59,7 @@ The client calls the methods with these camelCase names; SignalR matches the ser
 | `older` | channelId, beforeTimestamp, beforeId | `{ messages[], hasMore }` | Next 50 before the oldest loaded message (TL-06). The server finds the cursor by id and falls back to the timestamp when that message was deleted. History limits apply (TL-05). |
 | `markRead` | channelId | | The client decides by NT-06 and NT-07. Clears the whole conversation (NT-08). Dropped for a conversation the person cannot access. |
 | `typing` | channelId, on | | `on` at the first non-blank input and then at most every 2 s; `off` by IB-59. Dropped unless `channelId` is the connection's open conversation (Viewing): a typist shows only to the people who share the conversation (PR-19). |
-| `heartbeat` | visible, idleSeconds, lastRttMs, sendToAppearMs[] | serverTimeMs | Every 10 s visible, 60 s hidden. Feeds presence and the latency table (AD-25, AD-26). |
+| `heartbeat` | visible, idleSeconds, lastRttMs, samples[] | serverTimeMs | Every 10 s visible, 60 s hidden. A sample is `{ name, ms }`; the name is send, open, older, start or reconnect. A hidden tab sends no lastRttMs. Feeds presence and the latency table (AD-25, AD-26). |
 | `setStatus` | "online" \| "away" \| "invisible" | | Account-wide (PR-01). |
 | `react` | messageId, emoji | error | Toggle (MR-40). Also updates recent emoji (MR-44). |
 | `edit` | messageId, text | error | Own text rows only (MR-57). |

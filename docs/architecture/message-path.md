@@ -176,7 +176,7 @@ So the event and the response mean the same thing: the message is in memory and 
 
 ### 8. The sender's screen
 
-Client A receives the `message` event with its own `clientId`, usually before the 200. The pending row becomes the real row in place: no jump, no flicker, same position (MR-69). Send-to-appear is the time from step 1 to this moment, and it goes out with the next heartbeat (AD-26). When the 200 arrives, the outbox row is deleted. Both the event and the response carry the message, and both are handled by the same `timeline.confirm(message)`, which is idempotent on `clientId`. This order independence matters: when the hub is reconnecting, the event is lost but the response still arrives; when the request is slow, the event is faster.
+Client A receives the `message` event with its own `clientId`, usually before the 200. The pending row becomes the real row in place: no jump, no flicker, same position (MR-69). The send wait of AD-26 runs from step 1 to the own row rendered on the 200, and it goes out with the next heartbeat; `ApiLatencyFilter` times the server's part of the same send. When the 200 arrives, the outbox row is deleted. Both the event and the response carry the message, and both are handled by the same `timeline.confirm(message)`, which is idempotent on `clientId`. This order independence matters: when the hub is reconnecting, the event is lost but the response still arrives; when the request is slow, the event is faster.
 
 The sender's other devices receive the message like any reader. They receive no `unread` for it (NT-02).
 

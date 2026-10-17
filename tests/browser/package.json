@@ -8,6 +8,7 @@
     "offline": "node offline.mjs",
     "features": "node features.mjs",
     "pages": "node pages.mjs",
+    "latency": "node latency.mjs",
     "screenshots": "node screenshots.mjs"
   },
   "devDependencies": {

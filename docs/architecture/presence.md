@@ -117,9 +117,9 @@ public override async Task OnConnectedAsync()
 public override Task OnDisconnectedAsync(Exception? exception)
     => presence.Disconnect(Context.ConnectionId, closedByClient: exception is null);
 
-public long Heartbeat(bool visible, int idleSeconds, int? lastRttMs, int[] sendToAppearMs)
+public long Heartbeat(bool visible, int idleSeconds, int? lastRttMs, WaitSample[]? samples)
 {
-    presence.Heartbeat(Context.ConnectionId, visible, idleSeconds, lastRttMs, sendToAppearMs);
+    presence.Heartbeat(Context.ConnectionId, visible, idleSeconds, lastRttMs, samples);
     return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 }
 
@@ -129,7 +129,7 @@ public void Typing(Guid channelId, bool on) => presence.SetTyping(Context.Connec
 
 `Connect` is a join when the person had no session (PR-17). `Disconnect` only stamps `ClosedAt` or `DroppedAt`; the sweep does the rest. The hub also tells PresenceService the open conversation from `openRoom`, `openDm` and `leave`, for the diagnostics table and for typing.
 
-The heartbeat is the single source of liveness, as it is today. The client sends it every 10 seconds while visible and every 60 seconds while hidden, and at once when the tab becomes visible or hidden or the hub reconnects. The hidden beat matters: the server reads the flag for unread counts (NT-07), for push, and for the away sweep. It carries the idle time since the last input, the previous round trip and any send-to-appear samples since the last beat (AD-26). The return value lets the client measure the round trip.
+The heartbeat is the single source of liveness, as it is today. The client sends it every 10 seconds while visible and every 60 seconds while hidden, and at once when the tab becomes visible or hidden or the hub reconnects. The hidden beat matters: the server reads the flag for unread counts (NT-07), for push, and for the away sweep. It carries the idle time since the last input, the previous round trip and the waits the client measured since the last beat (AD-26): send, open, older, start and reconnect, each as a name and milliseconds. A hidden tab sends no round trip; its throttled timers would measure the throttle. The return value lets the client measure the round trip.
 
 ## Events out
 
@@ -161,7 +161,7 @@ PresenceService depends on UserService for the chosen status and on nothing else
 ## The client around it
 
 - **Input tracker.** One listener each for key, pointer, wheel and visibility records the last input time. Incoming messages are not input (PR-10).
-- **Heartbeat.** One interval, re-armed at 10 s or 60 s when visibility changes, fired at once on visibility and on reconnect. It times its own invoke to measure the round trip.
+- **Heartbeat.** One interval, re-armed at 10 s or 60 s when visibility changes, fired at once on visibility and on reconnect. It times its own invoke to measure the round trip. It also carries the named waits: `hub.report(name, ms)` queues one, at most 50. The chat page reports `open` and `start` when the server's rows are on screen, the timeline `older`, the sender `send` after the own row is rendered, and the connection loop `reconnect` when the room is back in sync.
 - **Status menu.** A pick recolours the chip at once and invokes `setStatus`. Without a connection the three items are dimmed (SH-13).
 - **Chip colour.** From the person's own `presence` event, so automatic away shows orange while the menu, fed by `me`, still marks Online (PR-04).
 - **People list and count.** From the `presence` map in the store, merged with the person's DM partners from the bootstrap (SH-29, SH-30). Invisible and offline partners are grey and not counted.
@@ -170,7 +170,7 @@ PresenceService depends on UserService for the chosen status and on nothing else
 
 ## Diagnostics
 
-The sessions table (AD-25) is a dump of the session objects: user, device and address, transport, connected, visible, effective status, viewing, last input, last heartbeat, age. A row with `Visible` true and `Connected` false shows in the warning colour. The connections table (AD-26) is the `Latency` of each session, plus a ring of the last 50 removed sessions. A hub filter times every inbound invocation and counts those over 100 ms as slow events, which replaces the circuit handler's inbound timing.
+The sessions table (AD-25) is a dump of the session objects: user, device and address, transport, connected, visible, effective status, viewing, last input, last heartbeat, age. A row with `Visible` true and `Connected` false shows in the warning colour. The latency table (AD-26) is one `LatencyStats` per person, kept in PresenceService since the restart, with the `Latency` of each live session under it and a ring of the last 50 removed sessions. A stat is one `Wait` (rtt, send, post, open, older, start, reconnect) with last, average, maximum and count; the record is replaced whole on each sample, so the admin endpoint reads it outside the lock. A hub filter times every inbound invocation and `ApiLatencyFilter` times the message send; both count calls over 100 ms as slow events. The send lands on the person only, because the request carries no connection id.
 
 ## Spec notes met here
 

@@ -464,7 +464,7 @@ await step(13, 'Admin: bot, debug, logs, media, GIFs, diagnostics, visitors', as
   const users = (await sessCard.locator('tbody tr td:first-child').allInnerTexts()).map(t => t.trim());
   check(dcards.length > 0 && ['boss', 'guest', 'tom'].every(u => users.includes(u)), `diag stat cards ${JSON.stringify(dcards)}; session rows ${JSON.stringify(users)}`);
   const transports = (await sessCard.locator('tbody tr td:nth-child(3)').allInnerTexts()).map(t => t.trim());
-  check(transports.length > 0 && transports.every(t => t === 'WS' || t === '⚠ Fallback'), `sessions Transport column ${JSON.stringify(transports)}; latency table ${JSON.stringify((await A.locator('.page-admin .diag-chart-card', { hasText: 'Connections — latency' }).locator('tbody tr td:nth-child(3)').allInnerTexts()).map(t => t.trim()))}`);
+  check(transports.length > 0 && transports.every(t => t === 'WS' || t === '⚠ Fallback'), `sessions Transport column ${JSON.stringify(transports)}; latency table ${JSON.stringify((await A.locator('.page-admin .diag-chart-card', { hasText: 'Latency by user' }).locator('tbody tr td:nth-child(2)').allInnerTexts()).map(t => t.trim()))}`);
   const t0 = Date.now();
   const drawn = await waitTrue(async () => A.evaluate(() => { const c = [...document.querySelectorAll('.page-admin canvas')]; return c.length === 3 && c.every(x => x.clientHeight > 0) && !!window.Chart && c.every(x => window.Chart.getChart(x)); }), 5000, 100);
   const canv = await A.evaluate(() => ({ chart: !!window.Chart, version: window.Chart?.version ?? null, sizes: [...document.querySelectorAll('.page-admin canvas')].map(x => `${x.id} ${x.clientWidth}x${x.clientHeight} chart=${!!window.Chart?.getChart?.(x)}`) }));
