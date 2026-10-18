@@ -11,7 +11,7 @@
 // may never report (the phone's Wi-Fi went away mid-upload): a wake-up gives up an upload with no progress for a
 // few seconds, and the run that follows sends the files that are not done.
 
-import { state, changed, setPending, addMessage, on } from './store.js';
+import { state, changed, setPending, addMessage, on, hasMedia } from './store.js';
 import { api, ApiError } from './api.js';
 import * as hub from './hub.js';
 import * as outbox from './offline/outbox.js';
@@ -37,7 +37,7 @@ function publish(row, detail) {
 
 function quoteOf(id) {
   const m = state.open?.messages.find(x => x.id === id);
-  return m ? { id, username: m.username, text: m.text, hasMedia: !!(m.images.length || m.videos.length || m.gifs.length || m.voice), voice: !!m.voice } : { id, unavailable: true };
+  return m ? { id, username: m.username, text: m.text, hasMedia: hasMedia(m), voice: !!m.voice } : { id, unavailable: true };
 }
 
 // The names a pending row shows while its files upload (IB-34). A voice message is one Blob with a made-up name.

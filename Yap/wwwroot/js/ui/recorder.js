@@ -34,7 +34,12 @@ export function record({ maxMs, onLevel, onTick }) {
   const start = async () => {
     try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
     catch (e) { release(); finish(null); throw e; }
-    if (cancelled) { release(); finish(null); return; }   // the trash came before the permission answer
+    if (cancelled) { release(); finish(null); return; }   // the trash came before the permission answer: the microphone goes back at once
+    try { begin(); }
+    catch (e) { release(); finish(null); throw e; }   // no recorder for this stream on this browser: the microphone goes back, the composer hears nothing
+  };
+
+  const begin = () => {
     const mimeType = MIME_TYPES.find(t => MediaRecorder.isTypeSupported(t));
     recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
     recorder.addEventListener('dataavailable', e => { if (e.data.size) chunks.push(e.data); });
@@ -65,7 +70,9 @@ export function record({ maxMs, onLevel, onTick }) {
   };
 
   const stop = () => { if (recorder?.state === 'recording') recorder.stop(); };
-  const cancel = () => { cancelled = true; stop(); };   // before the stream arrived, start() sees the flag
+  // Before the stream arrived the job ends now, so the composer is free again even if the permission prompt never
+  // answers (Firefox keeps getUserMedia pending when its prompt is dismissed); start() still releases a late stream.
+  const cancel = () => { cancelled = true; stop(); if (!stream) finish(null); };
   return { ready: start(), done, stop, cancel };
 }
 

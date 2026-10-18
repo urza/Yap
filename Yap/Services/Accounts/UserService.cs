@@ -105,13 +105,13 @@ public class UserService
             isAdmin = _adminUserId == null;
         }
 
-        // No passphrase at birth any more. New accounts get a login link instead, minted by
-        // the caller (AuthEndpoints) because AccessLinkService sits above this service, and
-        // the link's code doubles as the typed secret code. Accounts that already have a
-        // passphrase keep it, and Settings can still enable one. The reason a credential
-        // must exist from day one stands: a context that starts signed out (installed PWA,
-        // second browser) otherwise has no way back in, and one real user forked into
-        // seven accounts that way.
+        // No passphrase at birth. New accounts get a login link instead, minted by the caller
+        // (AuthEndpoints) because AccessLinkService sits above this service; the link's code
+        // is what the verification page takes typed (AU-12). The secret code is retired
+        // (AU-13): an account from before links keeps its passphrase, and Settings can only
+        // disable it. The reason a credential must exist from day one stands: a context that
+        // starts signed out (installed PWA, second browser) otherwise has no way back in, and
+        // one real user forked into seven accounts that way.
         var user = new User(username, token) { IsAdmin = isAdmin };
 
         // Atomic uniqueness check — TryAdd returns false if username already exists

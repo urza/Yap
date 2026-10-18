@@ -38,7 +38,7 @@ function takeReturnTo() {
 export async function signedIn({ tell = true } = {}) {
   const doc = await api.get('/api/bootstrap');
   if (!doc.user) return false;
-  notice = null;   // back in: the login page has nothing to say next time (AU-21)
+  setNotice(null);   // back in: the login page has nothing to say next time (AU-21)
   store.applyBootstrap(doc);
   loadCatalog();
   hub.resume();
@@ -52,12 +52,15 @@ export async function signedIn({ tell = true } = {}) {
 // `elsewhere` is a sign-out this device did not ask for: sign-out-others, or a cookie that died while the device
 // was away. The login page then says so (AU-21). The note stays until the next sign-in, not until the first login
 // page: the clean-up below mounts that page twice (store.reset() sends the chat page to /lobby, the route guard sends
-// it on to /login, then this function navigates once more), and a note taken by the first mount was lost.
+// it on to /login, then this function navigates once more), and a note taken by the first mount was lost. It also
+// sits in sessionStorage: a tab from before a deploy loads the login page fresh (SH-50), and the note must survive that.
+const NOTICE_KEY = 'yap.signInNotice';
 let notice = null;
-export const signInNotice = () => notice;
+export const signInNotice = () => { try { return notice ?? sessionStorage.getItem(NOTICE_KEY); } catch { return notice; } };
+const setNotice = value => { notice = value; try { if (value) sessionStorage.setItem(NOTICE_KEY, value); else sessionStorage.removeItem(NOTICE_KEY); } catch {} };
 export function signedOut({ elsewhere = false } = {}) {
   if (!store.state.user && router.current.page === 'login') return;   // done already: a 401 or an 'ended' that lands during the clean-up must not run it twice
-  if (elsewhere) notice = 'elsewhere';
+  if (elsewhere) setNotice('elsewhere');
   hub.stop();
   store.reset();
   snapshot.clearAll();
@@ -87,10 +90,10 @@ export async function signOut() {
   // The server ended this device's hub connections with the sign-out. Stop the hub before anything else, or its
   // retry would get 401 and report a sign-out from elsewhere (AU-21).
   hub.stop();
+  tabs?.postMessage('ended');   // now, not after the unsubscribe: the other tabs' hub retries get 401 meanwhile and would read a sign-out from elsewhere (AU-21)
   // The server removed the push subscription in the same request (NT-24); only the browser's half is left. Not
   // push.unsubscribe(): its POST would get 401 now that the cookie is gone, and run the clean-up a second time.
   if (sub) await sub.unsubscribe().catch(() => {});
-  tabs?.postMessage('ended');
   signedOut();                         // the last route stays: a device convenience (GEN-05)
   return true;
 }

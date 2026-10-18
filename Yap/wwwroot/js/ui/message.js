@@ -2,7 +2,7 @@
 // the action bar with its popups, the editor, and the pending and failed states. The row draws from a
 // message object; a pending row is a message object with `pending` from sender.js.
 
-import { state, displayName, toggleReactionLocally, editLocally, removeLocally, toggleFavoriteLocally, mayPin, isPinned, pinLocally, unpinLocally } from '../store.js';
+import { state, displayName, hasMedia, toggleReactionLocally, editLocally, removeLocally, toggleFavoriteLocally, mayPin, isPinned, pinLocally, unpinLocally } from '../store.js';
 import { clone, el, replace, classes } from '../render/dom.js';
 import { inline, messageText, imageFailed } from '../render/text.js';
 import { messageTime } from '../render/time.js';
@@ -45,7 +45,6 @@ export function needsHeader(prev, m) {
   return new Date(m.timestamp) - new Date(prev.timestamp) >= 3_600_000;
 }
 
-const hasMedia = m => m.images.length > 0 || m.videos.length > 0 || m.gifs.length > 0 || !!m.voice || (m.files?.length ?? 0) > 0;   // files: a pending row's Blobs before the upload (IB-34)
 const isOwn = m => m.username === state.user?.username;
 
 export function renderRow(m, { header }) {

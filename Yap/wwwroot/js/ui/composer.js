@@ -197,7 +197,10 @@ export function Composer(root) {
   // ---- send (IB-18 to IB-28) ----
 
   function send() {
-    if (recording) { recording.stop(); return; }                                            // Send ends the recording and sends it (IB-69)
+    if (recording) {                                                                         // Send ends the recording and sends it (IB-69)
+      if (container.dataset.recording !== undefined) { recording.stop(); return; }
+      recording.cancel();                                                                    // still waiting for the microphone: the person typed instead, the text goes
+    }
     if (!area.value.trim() && !files.length) return;                                        // IB-21
     if (!key) { sendWanted = true; return; }                                               // the conversation is still opening
     if (needsConnection(files.map(f => f.file))) { overlays.reason(container, 'Needs a connection'); return; }   // picked online, sent offline (OF-09)

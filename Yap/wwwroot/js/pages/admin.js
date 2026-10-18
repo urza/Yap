@@ -422,23 +422,28 @@ export function mount(root, route) {
     columns: ['Date', 'User', 'Action', 'IP', 'Info'],
     rowOf: r => el('tr', null, td(stamp(r.date), 'date-cell'), td(r.username), td(pill(r.action, actionClass(r.action))), td(r.ip ?? '-', 'ip-mono'), td(r.info ?? '-', 'info-cell')) });
   const actionClass = a => a === 'LOGIN' ? 'action-login' : a === 'LOGOUT' || a === 'LOGIN_FAIL' ? 'action-logout' : a === 'SMART_LOGIN' ? 'action-smart' : 'action-default';
-  // One upload's delete (AD-19): the first tap arms it, the second asks the server. A 409 means a message still
-  // shows the file, with the count in its text; the admin decides in a dialog. A GIF goes the GIFs tab's way
-  // (AD-23): its file stays while those messages show it, so its dialog promises no broken picture.
-  const deleteButton = (r, remove) => {
+  // A row's delete that asks with a second tap: the first turns the button into "Sure?" for four seconds, the
+  // second runs the action. The Media and the GIFs rows share it (AD-19, AD-23).
+  const armedDelete = (action, title) => {
     let armed = null;
-    const b = el('button', { class: 'gif-row-btn danger', type: 'button', onclick: async () => {
+    const b = el('button', { class: 'gif-row-btn danger', type: 'button', title, onclick: async () => {
       if (!armed) { b.textContent = 'Sure?'; armed = setTimeout(() => { armed = null; b.textContent = 'Delete'; }, 4000); return; }
       clearTimeout(armed); armed = null; b.textContent = 'Delete';
-      let inUse;
-      try { await api.delete(`/api/admin/media/${r.id}`); remove(); return; }
-      catch (e) { if (e.status !== 409) { fail(e); return; } inUse = e.message; }
-      const gif = r.fileType === 'gif';
-      if (!await confirm({ title: gif ? 'Delete this GIF?' : 'Delete this file?', text: `${r.originalFileName}: ${inUse.toLowerCase()} ${gif ? 'It leaves every library; the file stays while those messages show it.' : 'The messages keep a broken picture.'}` })) return;
-      try { await api.delete(`/api/admin/media/${r.id}?force=true`); remove(); } catch (err) { fail(err); }
+      await action();
     } }, 'Delete');
     return b;
   };
+  // One upload's delete (AD-19). A 409 means a message still shows the file, with the count in its text; the admin
+  // decides in a dialog. A GIF goes the GIFs tab's way (AD-23): its file stays while those messages show it, so its
+  // dialog promises no broken picture.
+  const deleteButton = (r, remove) => armedDelete(async () => {
+    let inUse;
+    try { await api.delete(`/api/admin/media/${r.id}`); remove(); return; }
+    catch (e) { if (e.status !== 409) { fail(e); return; } inUse = e.message; }
+    const gif = r.fileType === 'gif';
+    if (!await confirm({ title: gif ? 'Delete this GIF?' : 'Delete this file?', text: `${r.originalFileName}: ${inUse.toLowerCase()} ${gif ? 'It leaves every library; the file stays while those messages show it.' : 'The messages keep a broken picture.'}` })) return;
+    try { await api.delete(`/api/admin/media/${r.id}?force=true`); remove(); } catch (err) { fail(err); }
+  });
   // The uploads no message shows any more (AD-19): a count first, then the delete. Memory may hold only the
   // newest messages (AD-03), so the box also scans the saved history; without it an upload whose message the
   // start did not load counts as unused.
@@ -452,7 +457,7 @@ export function mount(root, route) {
     find.addEventListener('click', async () => {
       find.disabled = true; del.hidden = true; status.textContent = 'Scanning...';
       try {
-        found = await api.get(`/api/admin/media/unreferenced?database=${scan.checked}`);
+        found = { ...await api.get(`/api/admin/media/unreferenced?database=${scan.checked}`), database: scan.checked };   // the delete goes with the scan the count came from
         status.textContent = found.files ? `${plural(found.files)} in no message, ${size(found.bytes)} on disk.` : 'Every upload is in a message.';
         if (found.recent) status.textContent += ` ${plural(found.recent)} from the last hour kept: their messages may still be on the way.`;
         del.textContent = `Delete ${plural(found.files)}`; del.hidden = !found.files;
@@ -460,12 +465,13 @@ export function mount(root, route) {
       find.disabled = false;
     });
     del.addEventListener('click', async () => {
-      if (!await confirm({ title: 'Delete unused uploads?', text: `${plural(found.files)}, ${size(found.bytes)}, with their thumbnails. No message${scan.checked ? '' : ' in memory'} shows them. This cannot be undone.` })) return;
+      if (!await confirm({ title: 'Delete unused uploads?', text: `${plural(found.files)}, ${size(found.bytes)}, with their thumbnails. No message${found.database ? '' : ' in memory'} shows them. This cannot be undone.` })) return;
       del.disabled = true;
-      try { const r = await api.post('/api/admin/media/prune', { database: scan.checked }); status.textContent = `Deleted ${plural(r.files)}, ${size(r.bytes)} freed.`; del.hidden = true; setTimeout(reload, 1500); }   // the writer drops the rows a moment later
+      try { const r = await api.post('/api/admin/media/prune', { database: found.database }); status.textContent = `Deleted ${plural(r.files)}, ${size(r.bytes)} freed.`; del.hidden = true; setTimeout(reload, 1500); }   // the writer drops the rows a moment later
       catch (e) { status.textContent = e.message; }
       del.disabled = false;
     });
+    scan.addEventListener('change', () => { del.hidden = true; });   // a changed scan needs a new count before a delete
     return el('div', { class: 'media-prune' },
       el('div', { class: 'media-prune-row' }, find, del, el('label', { class: 'media-prune-scan' }, scan, 'Scan the whole database'), status),
       el('p', { class: 'section-hint' }, 'Deleting a message keeps its files. This finds the uploads that no message shows any more, in rooms and in direct messages, and deletes them with their thumbnails. Memory may hold only the newest messages: tick the box to scan the saved history too, so an upload in an older message stays.'));
@@ -493,7 +499,7 @@ export function mount(root, route) {
 
   // ---- GIFs (AD-21 to AD-23) ----
   function gifs(host) {
-    let data = null, filterValue = 'all', visible = 24, armed = null;
+    let data = null, filterValue = 'all', visible = 24;
     const libraryHost = el('div');
     const unmountLibrary = GifLibrary(libraryHost, { server: true });
     const tableHost = el('div');
@@ -506,7 +512,7 @@ export function mount(root, route) {
         td(stamp(e.createdAt), 'date-cell'), td([pill(e.source, 'action-default'), e.card.isServer ? pill('server', 'server-pill') : null]), td(e.card.uploader ?? ''), td(pill(e.format ?? '', 'action-default')), td(`${e.card.width} × ${e.card.height}`), td(size(e.card.sizeBytes ?? 0)), td(String(e.uses ?? 0)), td(e.favorites ? `⭐ ${e.favorites}` : '—'),
         tagsCell(e.card), td([
           el('button', { class: `gif-row-btn${e.card.isServer ? ' active' : ''}`, type: 'button', title: e.card.isServer ? 'Remove from server library' : 'Add to server library', onclick: async () => { try { await api.put(`/api/admin/gifs/${e.card.id}/server`, { on: !e.card.isServer }); await load(); } catch (err) { fail(err); } } }, e.card.isServer ? '★ server' : '☆ server'),
-          el('button', { class: 'gif-row-btn danger', type: 'button', title: 'Delete this GIF everywhere', onclick: async ev => { if (armed !== e) { armed = e; ev.target.textContent = 'Sure?'; return; } armed = null; try { const r = await api.delete(`/api/admin/gifs/${e.card.id}`); note.textContent = r?.note ?? 'Deleted.'; await load(); } catch (err) { fail(err); } } }, 'Delete')], 'gif-actions-cell')))),
+          armedDelete(async () => { try { const r = await api.delete(`/api/admin/gifs/${e.card.id}`); note.textContent = r?.note ?? 'Deleted.'; await load(); } catch (err) { fail(err); } }, 'Delete this GIF everywhere')], 'gif-actions-cell')))),
         rows.length > visible ? el('button', { class: 'show-more', type: 'button', onclick: () => { visible += 24; draw(); } }, `Show ${Math.min(24, rows.length - visible)} more (${Math.max(0, rows.length - visible - 24)} left)`) : null]
         : [empty(data.entries.length ? 'No GIFs match this filter.' : 'No GIFs in the library yet.')]);
     };

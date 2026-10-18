@@ -10,8 +10,9 @@ namespace Yap.Services.Accounts;
 /// <summary>
 /// The admin's account deletion (AD-37 to AD-39): one call that reaches every service that knows a person, in the
 /// order the data depends on. The user leaves memory last, after its sessions are ended and its conversations are
-/// gone, so a request that races the delete still finds a consistent world. The row delete goes to the database
-/// behind every other write of the purge, so the cascades meet nothing the queue still had to store.
+/// gone: a request that races the delete meets a conversation that is gone, and a send is refused for an unknown
+/// user (ChatService.Send). The row delete goes to the database behind every other write of the purge, so the
+/// cascades meet nothing the queue still had to store.
 /// </summary>
 public sealed class AccountDeletionService(UserService users, ChatService chat, PresenceService presence, AccessLinkService links,
     PushSubscriptionStore push, GifService gifs, NotificationSettingsService mutes, SystemBotService bot, ImageService images,
@@ -39,7 +40,7 @@ public sealed class AccountDeletionService(UserService users, ChatService chat, 
     /// with a live session is active now, whatever the row says; the admin and the bot are never listed.</summary>
     public List<User> Inactive(int days)
     {
-        var cutoff = DateTime.UtcNow.AddDays(-days);
+        var cutoff = DateTime.UtcNow.AddDays(-Math.Clamp(days, 1, 36_500));   // a century at most: AddDays throws below year 1
         return users.GetAllUsers()
             .Where(u => Refusal(u) is null && !presence.HasSession(u.Id) && LastActiveAt(u) < cutoff)
             .OrderBy(LastActiveAt).ToList();
@@ -57,7 +58,7 @@ public sealed class AccountDeletionService(UserService users, ChatService chat, 
         presence.ForgetUser(user.Id);
 
         var ghost = GhostName(user.Username);
-        var dms = chat.RemoveAccount(user.Id, ghost);
+        var dms = chat.RemoveAccount(user, ghost);
         mutes.ClearOverridesForUser(user.Id);
         gifs.RemoveAccount(user.Id);
         links.ForgetUser(user.Id);

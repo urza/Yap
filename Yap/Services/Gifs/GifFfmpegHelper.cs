@@ -134,12 +134,10 @@ public class GifFfmpegHelper
     public Task<bool> TranscodeToPreviewWebpAsync(string srcPath, string dstPath, CancellationToken ct = default)
         => TranscodeToWebpCoreAsync(srcPath, dstPath, fps: 12, maxWidth: 320, quality: 60, ct);
 
-    private async Task<bool> TranscodeToWebpCoreAsync(string srcPath, string dstPath, int fps, int maxWidth, int quality, CancellationToken ct)
+    private Task<bool> TranscodeToWebpCoreAsync(string srcPath, string dstPath, int fps, int maxWidth, int quality, CancellationToken ct)
     {
-        if (!IsAvailable) return false;
-
-        await _transcodeSemaphore.WaitAsync(ct);
-        try
+        if (!IsAvailable) return Task.FromResult(false);
+        return LimitedAsync(async () =>
         {
             // -vcodec libwebp + multi-frame input → animated webp.
             // -loop 0               → infinite loop
@@ -161,11 +159,16 @@ public class GifFfmpegHelper
                 return false;
             }
             return File.Exists(dstPath) && new FileInfo(dstPath).Length > 0;
-        }
-        finally
-        {
-            _transcodeSemaphore.Release();
-        }
+        }, ct);
+    }
+
+    /// <summary>Runs one ffmpeg pass inside the limit of two at a time. The GIF previews and the voice messages
+    /// (VoiceService) share it: a burst of either must not start more encoders than the box has cores.</summary>
+    internal async Task<T> LimitedAsync<T>(Func<Task<T>> transcode, CancellationToken ct)
+    {
+        await _transcodeSemaphore.WaitAsync(ct);
+        try { return await transcode(); }
+        finally { _transcodeSemaphore.Release(); }
     }
 
     // Internal, not private: VoiceService runs its one ffmpeg pass through here instead of a fourth process runner.
@@ -202,14 +205,15 @@ public class GifFfmpegHelper
         }
     }
 
-    private static void TryDelete(string path)
+    // Internal, not private: VoiceService shares the two helpers below instead of carrying copies.
+    internal static void TryDelete(string path)
     {
         try { if (File.Exists(path)) File.Delete(path); } catch { }
     }
 
     // ffmpeg puts the actionable error at the END of stderr — the head is banner/config/input-dump
     // noise (a full banner alone once ate the whole 400-char budget and hid a prod failure's cause).
-    private static string TruncateTail(string s, int max = 600)
+    internal static string TruncateTail(string s, int max = 600)
         => s.Length <= max ? s : "…" + s[^max..];
 }
 

@@ -14,6 +14,9 @@ public sealed class VoiceService(ILogger<VoiceService> logger, GifFfmpegHelper f
     /// over it for the recorder's own imprecision.</summary>
     public const int MaxSeconds = 300;
     private const int ToleranceSeconds = 10;
+
+    /// <summary>What a send may claim (ChatService.Send) and what the transcode accepts: the cap plus the tolerance.</summary>
+    public const int MaxDurationMs = (MaxSeconds + ToleranceSeconds) * 1000;
     private const int TranscodeTimeoutMs = 60_000;
 
     /// <summary>ffmpeg is one binary for the GIF pipeline, the video pipeline and this: the GIF helper's detection serves.</summary>
@@ -34,20 +37,20 @@ public sealed class VoiceService(ILogger<VoiceService> logger, GifFfmpegHelper f
         // minute about 360 KB. -map_metadata -1: the recording's own tags carry nothing worth keeping.
         var args = $"-hide_banner -nostats -y -i \"{sourcePath}\" -vn -map_metadata -1 " +
                    $"-ac 1 -ar 48000 -c:a aac -b:a 48k -movflags +faststart \"{outputPath}\"";
-        var (exit, _, stderr) = await ffmpeg.RunProcessAsync("ffmpeg", args, TranscodeTimeoutMs, ct);
+        var (exit, _, stderr) = await ffmpeg.LimitedAsync(() => ffmpeg.RunProcessAsync("ffmpeg", args, TranscodeTimeoutMs, ct), ct);
         if (exit != 0 || !File.Exists(outputPath))
         {
-            logger.LogWarning("Voice transcode failed for {Source} (exit={Exit}): {Stderr}", sourcePath, exit, Tail(stderr));
-            TryDelete(outputPath);
+            logger.LogWarning("Voice transcode failed for {Source} (exit={Exit}): {Stderr}", sourcePath, exit, GifFfmpegHelper.TruncateTail(stderr));
+            GifFfmpegHelper.TryDelete(outputPath);
             return null;
         }
 
         var probe = await ffmpeg.ProbeAsync(outputPath, ct);
         var seconds = probe?.DurationSeconds ?? 0;
-        if (probe is not { HasAudio: true } || seconds <= 0 || seconds > MaxSeconds + ToleranceSeconds)
+        if (probe is not { HasAudio: true } || seconds <= 0 || seconds * 1000 > MaxDurationMs)
         {
             logger.LogWarning("Voice message rejected after transcode: {Source}, {Seconds}s", sourcePath, seconds);
-            TryDelete(outputPath);
+            GifFfmpegHelper.TryDelete(outputPath);
             return null;
         }
         return new Result(outputPath, (int)Math.Round(seconds * 1000));
@@ -59,11 +62,4 @@ public sealed class VoiceService(ILogger<VoiceService> logger, GifFfmpegHelper f
         var seconds = (durationMs + 500) / 1000;
         return $"{seconds / 60}:{seconds % 60:00}";
     }
-
-    private static void TryDelete(string path)
-    {
-        try { if (File.Exists(path)) File.Delete(path); } catch { }
-    }
-
-    private static string Tail(string s, int max = 600) => s.Length <= max ? s : "…" + s[^max..];
 }

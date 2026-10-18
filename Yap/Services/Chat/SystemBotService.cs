@@ -49,7 +49,7 @@ public class SystemBotService
     private const string DefaultLinkMessage = "🔗 One more thing — this is your personal login link: {link}\n" +
         "Open it on any device or browser and you're straight back in this account (new phone, reinstalled app, second browser). " +
         "Save it somewhere safe, like your notes. Don't share it — anyone who has it can sign in as you. " +
-        "On the login page you can also type its code, {code}, as your secret code. You can manage the link anytime in Settings.";
+        "Can't open it? On the login page, type your username and this code: {code}. You can manage the link anytime in Settings.";
 
     public SystemBotService(
         UserService userService,
@@ -412,31 +412,26 @@ public class SystemBotService
         var channel = ConversationOf(user);
         if (channel is null) return;
 
-        // The welcome DM is three parts the admin edits (AD-09): the welcome, the phone part on a phone, and
-        // the way back in. An empty part is left out. The link fills {link} and {code} in any part.
+        // The welcome DM is three parts the admin edits (AD-09): the welcome, the phone part on a phone, and the way
+        // back in. An empty part is left out, its separator with it. The link fills {link} and {code} in any part.
         var link = _accessLinks.GetActiveForUser(user.Id) is { } active ? ((string, string)?)(_accessLinks.BuildUrl(active.Code, user.Id), active.Code) : null;
-        var message = Fill(WelcomeMessage, link);
-
-        if (_presence.IsMobile(user.Id) && PhoneMessage.Length > 0)
-            message += "\n\n" + Fill(PhoneMessage, link);
+        var parts = new List<string> { Fill(WelcomeMessage, link) };
+        if (_presence.IsMobile(user.Id)) parts.Add(Fill(PhoneMessage, link));
 
         // Their way back in, born with the account. This DM is the one place they can always
         // find it again: when a fresh context greets them with the login page (installed app,
         // new browser, new device), the link is the way back into THIS account instead of
         // registering a doppelgänger. New accounts get a login link; accounts from before
         // links existed still carry a passphrase.
-        if (link is not null)
-        {
-            if (LinkMessage.Length > 0) message += "\n\n" + Fill(LinkMessage, link);
-        }
+        if (link is not null) parts.Add(Fill(LinkMessage, link));
         else if (user.Password != null)
-        {
-            message += $"\n\n🔑 One more thing — your secret code is: {user.Password}\n" +
-                       "If you ever see the login screen again (new device, new browser, reinstalled app), " +
-                       "enter your username and this code to get back into your account. " +
-                       "You can view or change it anytime in Settings.";
-        }
+            parts.Add($"🔑 One more thing — your secret code is: {user.Password}\n" +
+                      "If you ever see the login screen again (new device, new browser, reinstalled app), " +
+                      "enter your username and this code to get back into your account. " +
+                      "You can view or change it anytime in Settings.");
 
+        var message = string.Join("\n\n", parts.Where(p => !string.IsNullOrWhiteSpace(p)));
+        if (message.Length == 0) return;   // the admin emptied every part
         Post(channel, message);
         _logger.LogInformation("Sent welcome to {Username} (mobile={IsMobile})", user.Username, _presence.IsMobile(user.Id));
     }

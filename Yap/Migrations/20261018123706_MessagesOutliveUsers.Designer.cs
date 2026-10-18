@@ -299,6 +299,17 @@ namespace Yap.Migrations
                     b.Property<Guid?>("Participant2Id")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("PinPermission")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Pinners")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Pins")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("SinceJoined")
                         .HasColumnType("INTEGER");
 

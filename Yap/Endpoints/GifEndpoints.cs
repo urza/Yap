@@ -27,7 +27,7 @@ public static class GifEndpoints
         gifs.MapGet("/server", (ClaimsPrincipal me, GifService lib, UserService users) =>
             Results.Ok(new FolderedDto(lib.GetServerFolders(), lib.GetServerGifs().Select(e => Card(e, me.Id(), lib, users)).ToList())));   // PK-37
 
-        gifs.MapGet("/trending", async (string? cursor, GifService lib, CancellationToken ct) =>   // PK-17
+        gifs.MapGet("/trending", async (string? cursor, GifService lib, CancellationToken ct) =>   // PK-18: the Browse grid
         {
             if (!lib.IsConfigured) return Results.Problem("No GIF provider is configured.", statusCode: 404);
             var page = await lib.GetTrendingAsync(cursor, ProviderPage, ct);
