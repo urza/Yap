@@ -698,7 +698,9 @@
     background: rgba(0,0,0,0.15);
 }
 
-.play-icon {
+/* Scoped to the overlay: the voice button (voice.js) also has a .play-icon, and this 64 px box pushed its triangle
+   out of the 36 px circle. */
+.video-play-overlay .play-icon {
     width: 64px;
     height: 64px;
     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
