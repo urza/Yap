@@ -7,10 +7,11 @@ namespace Yap.LoadTest.Orchestrator;
 /// <summary>The live view: the users, the kinds, the pace, the messages, the latency, the server, the last log lines.</summary>
 public static class Dashboard
 {
-    public static IRenderable Render(Aggregate.View v, Session.Snapshot s, Uri server, TimeSpan running)
+    public static IRenderable Render(Aggregate.View v, Session.Snapshot s, Uri server, string? adminLink, TimeSpan running)
     {
         var grid = new Grid().AddColumn(new GridColumn().PadRight(2)).AddColumn();
         Row(grid, "[bold]Yap load test[/]", $"{Esc(server.ToString())}   running {Clock(running)}   settings held {Clock(DateTime.UtcNow - s.ChangedAt)}   [bold]q[/] quit and write the summary");
+        if (adminLink is not null) Row(grid, "admin", $"{Esc(adminLink)}   [dim]opens the admin page; the Diagnostics tab shows the server load[/]");
         grid.AddEmptyRow();
 
         var status = v.Status is { } st ? $"   [yellow]{Esc(st)}[/]" : "";
