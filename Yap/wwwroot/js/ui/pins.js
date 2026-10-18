@@ -71,6 +71,6 @@ export function openPins(anchor, onClose) {
   ];
   const close = overlays.open({ element: panel, keep: [anchor], onClose: () => { offs.forEach(off => off()); layer.remove(); onClose?.(); } });
   draw();
-  if (layer.isConnected) overlays.place(panel, anchor);   // after the entries exist: the height decides below or above
+  if (layer.isConnected) overlays.place(panel, anchor, { gap: 12 });   // after the entries exist: the height decides below or above; 12 px clears the header line
   return close;
 }
