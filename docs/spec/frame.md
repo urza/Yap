@@ -58,7 +58,7 @@ The frame contains all parts around a conversation. The header shows the title, 
 
 **SH-14** "Notification settings" shows a crossed bell while the user's server-wide mute is on. This makes the mute visible from every page.
 
-**SH-15** Sign Out ends only the session on this device. Other devices stay signed in. When the user has no login link and no secret code, a confirmation warns that the user cannot get back into the account. When this device has unsent messages, a confirmation warns that these messages are lost. A sign-out removes the notification subscription and the local data of the device. See [Sign-in and sessions](sessions.md).
+**SH-15** Sign Out ends only the session on this device. Other devices stay signed in. When the account has no login link (and no retired secret code, [AU-13](sessions.md#AU-13)), a confirmation says what is left: smart login from the same network for 14 days, when it is on, and a new link from an admin. The only admin has nobody to ask. When this device has unsent messages, a confirmation warns that these messages are lost. Both are Yap's own dialogs in the theme, like the delete dialog ([MR-65](message-row.md#MR-65)), never the browser's. A sign-out removes the notification subscription and the local data of the device. See [Sign-in and sessions](sessions.md).
 
 ### Connection state
 
@@ -190,7 +190,7 @@ The frame contains all parts around a conversation. The header shows the title, 
 | Header tooltips | "Back to lobby"; "Toggle sidebar"; "{n} unread messages"; "{n} pinned messages" and "1 pinned message" |
 | Pinned messages panel | "Pinned Messages"; "Pinned by {name}"; "GIF attachment"; image alt "Attachment"; "✕" (titles "Close" and "Unpin"); "Not in the loaded history" |
 | Status menu | "Online"; "Away"; "Invisible"; "Settings"; "Notification settings"; "Admin"; "Sign Out" |
-| Sign-out confirmations | "You have no login link. Without one, you won't be able to get back into this account. Continue signing out?"; "Unsent messages on this device will be lost. Continue signing out?" |
+| Sign-out confirmations | "Sign out without a login link?"; "You have no login link. Smart login can still sign you in from this network for 14 days. After that, only an admin can make you a new link. Create a link in Settings before you sign out." (with smart login off: "Without one, only an admin can make you a new link."; for the only admin: "nobody can make you a new link, because you are the only admin."); "Unsent messages"; "Unsent messages on this device will be lost."; "Cancel"; "Sign out" |
 | Connection bubble | "Connecting…"; "Reconnecting…"; "Offline. Messages are sent when the connection returns."; "Signed out"; "Update available" |
 | Notice strip | "You are awesome and so is the new version of this app. Please refresh." with "Reload"; "Sign in to continue." with "Sign in" |
 | Sidebar | "ROOMS"; "Add Room"; " (you)"; tooltips "Channel settings", "Notifications muted", "Admin", "Bot", "View profile" |

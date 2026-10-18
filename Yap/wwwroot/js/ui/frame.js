@@ -8,6 +8,7 @@ import { inline, pick, pickTemplate, fill } from '../render/text.js';
 import { avatar, gradient } from '../render/avatar.js';
 import * as hub from '../hub.js';
 import * as overlays from './overlays.js';
+import { confirm } from './confirm.js';
 import { openPins } from './pins.js';
 import * as router from '../router.js';
 import * as session from '../session.js';
@@ -137,13 +138,25 @@ function openStatusMenu() {
   closeMenu = overlays.open({ element: menu.querySelector('.status-dropdown'), keep: [frame.querySelector('.status-button')], onClose: () => { menu.remove(); closeMenu = null; } });
 }
 
-// SH-15: a warning when the account has no way back, and one when unsent messages exist.
+// SH-15: a warning when the account has no link, and one when unsent messages exist. Yap's own dialogs, not the
+// browser's: those ignore the theme.
 async function confirmSignOut() {
   const me = state.user;
-  if (!me.hasLink && !me.hasPassphrase
-      && !confirm("You have no login link. Without one, you won't be able to get back into this account. Continue signing out?")) return;
-  if (hasQueued() && !confirm('Unsent messages on this device will be lost. Continue signing out?')) return;
+  if (!me.hasLink && !me.hasPassphrase && !await confirm({ title: 'Sign out without a login link?', text: waysBack(me), action: 'Sign out' })) return;
+  if (hasQueued() && !await confirm({ title: 'Unsent messages', text: 'Unsent messages on this device will be lost.', action: 'Sign out' })) return;
   if (!await session.signOut()) overlays.reason(frame.querySelector('.status-dropdown-container'), 'Needs a connection');   // GEN-10: the server removes the cookie
+}
+
+// What is left after a sign-out without a link, so the warning tells the truth (AU-22): smart login from the same
+// network for 14 days when the server and the account allow it (AU-09), then a new link from an admin (AD-06).
+// The only admin has nobody to ask. hasPassphrase is a legacy secret code; it counts as a way back (AU-13).
+function waysBack(me) {
+  const smart = state.config?.smartLoginAllowed && !me.smartLoginOptOut;
+  const alone = me.isAdmin && !Object.values(state.users).some(u => u.isAdmin && u.username !== me.username);
+  return 'You have no login link. '
+    + (smart ? 'Smart login can still sign you in from this network for 14 days. After that, ' : 'Without one, ')
+    + (alone ? 'nobody can make you a new link, because you are the only admin.' : 'only an admin can make you a new link.')
+    + ' Create a link in Settings before you sign out.';
 }
 
 // ---- the pin button and its panel (SH-47 to SH-49) ----

@@ -1154,7 +1154,8 @@
 }
 
 .confirm-cancel,
-.confirm-delete {
+.confirm-delete,
+.confirm-ok {
     padding: 8px 18px;
     border: none;
     border-radius: 4px;
@@ -1179,6 +1180,16 @@
 }
 
 .confirm-delete:hover {
+    filter: brightness(0.9);
+}
+
+/* The one button of a notice: the accent, not the danger red */
+.confirm-ok {
+    background: var(--accent-primary);
+    color: white;
+}
+
+.confirm-ok:hover {
     filter: brightness(0.9);
 }
 

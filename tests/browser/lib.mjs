@@ -123,7 +123,9 @@ export function watchContext(ctx, name) {
 
 // Console errors and warnings, page errors, and dialogs. Every dialog is accepted and recorded, so a step reads
 // its confirms from the log instead of adding a second handler (two handlers on one dialog throw).
+const names = new WeakMap();   // page -> its name in the logs
 export function watchPage(page, name) {
+  names.set(page, name);
   page.on('console', m => {
     if (m.type() !== 'error' && m.type() !== 'warning') return;
     const at = m.location()?.url ? ` @ ${short(m.location().url)}:${m.location().lineNumber}` : '';
@@ -131,6 +133,19 @@ export function watchPage(page, name) {
   });
   page.on('pageerror', e => logs.push({ step: currentStep, page: name, kind: 'pageerror', text: e.message + ' | ' + ((e.stack || '').split('\n')[1]?.trim() ?? '') }));
   page.on('dialog', async d => { logs.push({ step: currentStep, page: name, kind: 'dialog', text: d.message() }); await d.accept(); });
+}
+
+// The sign-out confirmations are Yap's own dialogs (SH-15), not the browser's. This presses their red button while
+// one shows, up to `ms` after the last, and records each text as a 'dialog' log line, so a step reads them as before.
+export async function acceptDialogs(page, ms = 600) {
+  const name = names.get(page) ?? '?';
+  for (;;) {
+    const overlay = page.locator('.delete-confirm-overlay');
+    if (!await waitTrue(async () => (await overlay.count()) > 0, ms, 50)) return;
+    logs.push({ step: currentStep, page: name, kind: 'dialog', text: await overlay.locator('.delete-confirm-text').innerText().catch(() => '') });
+    await overlay.locator('.confirm-delete').click().catch(() => {});
+    await waitTrue(async () => (await overlay.count()) === 0, 1000, 50);
+  }
 }
 
 export const stepLogs = (n, page) => logs.filter(l => l.step === n && (!page || l.page.startsWith(page)));
