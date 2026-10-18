@@ -83,3 +83,44 @@ frames, worked through one rebuild at a time. The load tool cannot see this; its
 Fix in bc0d7d53: the people list renders at most once per frame and at most every 250 ms, and skips the
 rebuild when a signature of everything a row shows is unchanged; scroll-to-bottom does one layout per frame.
 Next step if the rebuild itself still costs too much: rows keyed by username with in-place updates.
+
+## Run 2 (21:14 to 21:38 local, previews off, 1,000 users for 18 minutes)
+
+The client-side files of this run are lost: the orchestrator's `results\` folder and the `state\` file were
+deleted by a sandbox cleanup of `loadtest/*/bin` after the run (Wren's mistake; the folder was the user's
+Windows build output, which the orchestrator ran from). What remains: `run2/server-load.csv`, the server's own
+one-second samples pulled from `/api/admin/load` before its one-hour buffer aged out (19:10 to 19:48 UTC), the
+host CSV on the VPS, and the host-side summary the user made (CPU 99 %, Yap at 304 % of 400, RSS 1,650 MB,
+network out 27 MB/s, five writes dropped with "FOREIGN KEY constraint failed").
+
+| At 1,000 users, 1,068 s | Value |
+|---|---|
+| Yap process CPU | 68 % of 400 (2.7 cores) |
+| Load average | 11.9 |
+| Messages per second | 19.9 |
+| Hub sends per second | 9,126 |
+| Thread pool queue | mean 227, median 17, max 1,346 |
+| Thread pool threads | 20 |
+| Server request p95 | 15 s mean, 211 s max |
+| Writer queue | 1 to 6,343,346 |
+| Working set, heap | 1,597 MB, 1,089 MB max |
+| Gen 2 collections | 17 per minute |
+| Presence sweep | 41 ms |
+
+**The chat ceiling of the 4-core box is about 1,000 users in one room at normal pace.** With previews off,
+nothing but chat ran, and the box was still at 99 %: fan-out of 9,000 hub sends a second, the read-state writes,
+and the garbage collector over a growing backlog. The pool queue's median moved from 0 (run 1, 800 users) to 17.
+
+**The slow requests are most likely the image uploads from the load machine.** Request p95 of 15 s and a maximum
+of 211 s at a message POST cost of 200 to 400 ms (measured from a third machine during the run) point at the tus
+PATCH requests, whose duration is the client's upload time plus the inline medium thumbnail on a saturated box.
+The seconds with a request p95 above 5 s had a lower message rate (10.9 against 19.9), which fits a saturated
+uplink on the load machine. The VPS request log (`data/RequestLogs/2026-10-18.csv`, column 5 is the duration)
+can confirm the paths.
+
+**Five dropped writes.** `Send` broadcast the message and sent the unread events before it queued the message's
+own write; a reaction from a nearby client landed in the queue ahead of the insert and failed its foreign key.
+Fixed in ea61d31e: the write is queued first.
+
+**The next server change is the read-state dirty set.** 6.3 million queued writes after 24 minutes, 1.6 GB of
+memory and 17 gen 2 collections a minute are all that backlog. After it, the fan-out is the cost that remains.
