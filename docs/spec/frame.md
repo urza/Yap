@@ -12,7 +12,7 @@ The frame contains all parts around a conversation. The header shows the title, 
 
 ![Frame, phone, sidebar open. The sidebar slid in from the right over the conversation, the header still visible above it.](img/frame-phone-sidebar.png)
 
-1. **Header.** One row with the title area on the left. On the right are the status chip, the pin button when the conversation has pinned messages, the mailbox when there are unread messages, and the people button with the online count. Below the header is a 3 px line, turquoise in rooms and purple in direct messages.
+1. **Header.** One row with the title area on the left. On a desktop the pin button follows the title when the conversation has pinned messages. On the right are the status chip, on a narrow window the pin button, the mailbox when there are unread messages, and the people button with the online count. Below the header is a 3 px line, turquoise in rooms and purple in direct messages.
 2. **Title area.** In a room, a title from the configured list, built from the room name. In a direct message, a back arrow and the partner's small avatar and name. On Settings, a back arrow and "Settings".
 3. **Status chip.** A small coloured chip with a dot, the user's display name and a gear. Its colour shows the user's current status. It opens the status menu.
 4. **Mailbox.** A tray icon with a red count of unread messages. It shows only when the count is above zero.
@@ -138,9 +138,9 @@ The frame contains all parts around a conversation. The header shows the title, 
 
 ### Pinned messages
 
-**SH-47** A pin icon with the count of pins shows in the header controls, before the mailbox, when the open conversation has pinned messages. It is absent when there are none and on the Settings and Admin pages. A tap opens the pinned messages panel. A second tap closes it. The [message row page](message-row.md#MR-77) specifies who can pin.
+**SH-47** A pin icon with the count of pins shows when the open conversation has pinned messages. On a desktop it follows the title, over the conversation column and not over the sidebar. In a narrow window, where the sidebar is a slide-in, it sits among the controls on the right, before the mailbox. It is absent when there are none and on the Settings and Admin pages. A tap opens the pinned messages panel. A second tap closes it. The [message row page](message-row.md#MR-77) specifies who can pin.
 
-**SH-48** The panel has the title "Pinned Messages" and a close control. On desktop, it is a panel below the button, at most 70 % of the window height, with its own scroll. On a phone, it is a sheet from the bottom over a dimmed page. It has one entry per pin, the newest pin first, at most three. An entry shows the author's avatar, display name and time, the whole text, the first image or the video poster when there is one, "GIF attachment" for a GIF without text, and "Pinned by {name}". For readers who may pin, an entry has an "✕" control that unpins the message. The panel follows changes while it is open: an edit of a pinned message changes its text, a delete or an unpin removes its entry, and a new pin adds an entry. It closes when the last pin goes. In a room with a history limit (TL-05), a reader sees only the pins of messages inside their own history. The pins stay through a restart of the server, also when the pinned message is older than the history the server keeps in memory. Escape, the close control and a tap outside close the panel.
+**SH-48** The panel has the title "Pinned Messages" and a close control. On desktop, it is a panel below the button, aligned to the button's side of the row, at most 70 % of the window height, with its own scroll. On a phone, it is a sheet from the bottom over a dimmed page. It has one entry per pin, the newest pin first, at most three. An entry shows the author's avatar, display name and time, the whole text, the first image or the video poster when there is one, "GIF attachment" for a GIF without text, and "Pinned by {name}". For readers who may pin, an entry has a trash control in the danger colour that unpins the message. The panel follows changes while it is open: an edit of a pinned message changes its text, a delete or an unpin removes its entry, and a new pin adds an entry. It closes when the last pin goes. In a room with a history limit (TL-05), a reader sees only the pins of messages inside their own history. The pins stay through a restart of the server, also when the pinned message is older than the history the server keeps in memory. Escape, the close control and a tap outside close the panel.
 
 **SH-49** A tap on an entry scrolls the list to the message and highlights it, like a tap on a reply quote. Older messages load on the way when the row is not loaded yet. The panel closes when the row is on screen. When the message is older than the history that the reader can load, the panel stays and the entry shows "Not in the loaded history" for two seconds.
 
@@ -176,7 +176,7 @@ The frame contains all parts around a conversation. The header shows the title, 
 | Tab hidden, arrivals | all | "({n}) " before the title. |
 | Pin button tap | mouse, touch, keyboard | The pinned messages panel opens; a second tap closes it. |
 | Pinned entry tap | mouse, touch, keyboard | The list scrolls to the message and highlights it, and the panel closes; or "Not in the loaded history" at the entry. |
-| Pinned entry ✕ | mouse, touch | The entry goes for every reader; the last one closes the panel and hides the button. |
+| Pinned entry trash | mouse, touch | The entry goes for every reader; the last one closes the panel and hides the button. |
 
 ## Wording
 
@@ -188,7 +188,7 @@ The frame contains all parts around a conversation. The header shows the title, 
 | People section fallback | "Online Users ({0})" |
 | Header titles | "Settings"; "#{room} Settings"; "New Channel" |
 | Header tooltips | "Back to lobby"; "Toggle sidebar"; "{n} unread messages"; "{n} pinned messages" and "1 pinned message" |
-| Pinned messages panel | "Pinned Messages"; "Pinned by {name}"; "GIF attachment"; image alt "Attachment"; "✕" (titles "Close" and "Unpin"); "Not in the loaded history" |
+| Pinned messages panel | "Pinned Messages"; "Pinned by {name}"; "GIF attachment"; image alt "Attachment"; "✕" (title "Close"); trash icon (title "Unpin"); "Not in the loaded history" |
 | Status menu | "Online"; "Away"; "Invisible"; "Settings"; "Notification settings"; "Admin"; "Sign Out" |
 | Sign-out confirmations | "Sign out without a login link?"; "You have no login link. Smart login can still sign you in from this network for 14 days. After that, only an admin can make you a new link. Create a link in Settings before you sign out." (with smart login off: "Without one, only an admin can make you a new link."; for the only admin: "nobody can make you a new link, because you are the only admin."); "Unsent messages"; "Unsent messages on this device will be lost."; "Cancel"; "Sign out" |
 | Connection bubble | "Connecting…"; "Reconnecting…"; "Offline. Messages are sent when the connection returns."; "Signed out"; "Update available" |

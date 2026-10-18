@@ -103,11 +103,18 @@
     flex-shrink: 0;
 }
 
+/* The controls take the rest of the row and pack to the right. The pin button's auto margin (below) pulls it
+   out of the group to the left, next to the title: on a desktop the pins belong to the conversation column, and
+   a button over the sidebar read as a sidebar control (user feedback 2026-10-18). No shrink: a long title gives
+   way, the buttons never overlap. The margin keeps air between a long title and the first control; the header
+   itself has no gap. */
 .header-controls {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 0.75rem;
-    flex-shrink: 0;
+    flex: 1 0 auto;
+    margin-left: 0.5rem;
 }
 
 /* Mailbox button */
@@ -153,9 +160,13 @@
     line-height: 1.2;
 }
 
-/* The pin button (SH-47): the mailbox's shape, with the count of pins as a badge. Hidden without pins. */
+/* The pin button (SH-47): the mailbox's shape, with the count of pins as a badge. Hidden without pins.
+   order and margin-right: auto put it first in the controls and push the rest to the right edge, so it sits
+   right after the title. The phone rule below undoes both. */
 .pins-button {
     position: relative;
+    order: -1;
+    margin-right: auto;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -186,6 +197,14 @@
     min-width: 14px;
     text-align: center;
     line-height: 1.2;
+}
+
+@media (max-width: 768px) {
+    /* The pin button goes back among the controls, before the mailbox, where the user found it right on a phone. */
+    .pins-button {
+        order: 0;
+        margin: 0;
+    }
 }
 
 /* Status dropdown container */
@@ -358,6 +377,13 @@
     .status-username {
         max-width: 80px;
     }
+
+    /* Five controls on a 390 px row: the gaps and the people button's padding shrink, the hit areas keep their
+       size (user feedback 2026-10-18). */
+    .header-controls {
+        gap: 0.25rem;
+    }
+
 }
 
 /* ==== People rows: the status dot, the badges, the bells (shared by the people page) ==== */
@@ -1112,6 +1138,9 @@
 .pins-close,
 .pin-unpin {
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 28px;
     height: 28px;
     background: none;
@@ -1122,10 +1151,20 @@
     cursor: pointer;
 }
 
-.pins-close:hover,
-.pin-unpin:hover {
+.pins-close:hover {
     color: var(--text-primary);
     background: rgba(79, 84, 92, 0.4);
+}
+
+/* The unpin control is a trash icon in the danger colour, like "Delete Message" in the More menu: a grey ✕ next
+   to the panel's own ✕ read as "close", not "remove" (user feedback 2026-10-18). */
+.pin-unpin {
+    color: var(--color-danger);
+}
+
+.pin-unpin:hover {
+    color: white;
+    background: var(--color-danger);
 }
 
 .pins-list {
