@@ -106,7 +106,7 @@ public HubError? React(Guid messageId, string emoji)
 
 public HubError? Edit(Guid messageId, string text) => chat.Edit(Me, messageId, text);   // MR-57, MR-61
 public HubError? Delete(Guid messageId) => chat.Delete(Me, messageId);                   // MR-64
-public HubError? Pin(Guid channelId, Guid messageId) => chat.Pin(Me, MyName, channelId, messageId);       // MR-76
+public HubError? Pin(Guid channelId, Guid messageId) => chat.Pin(Me, MyName, channelId, messageId);       // MR-77
 public HubError? Unpin(Guid channelId, Guid messageId) => chat.Unpin(Me, MyName, channelId, messageId);
 public void EmojiUsed(string emoji) => users.RecordEmojiUse(Me, emoji);                  // IB-44
 ```
@@ -116,7 +116,7 @@ ChatService holds the rules. Each rule is one or two lines:
 - A reaction toggles per person and per emoji. Every person who can see the message can react. This includes a read-only room (MR-45). The event carries the reactions of the message, grouped by emoji in first-use order, with usernames. The client resolves the display names for the tooltip (MR-38, MR-39).
 - An edit is permitted on the author's own text rows only (MR-57). Unchanged, empty or blank text changes nothing. The method returns `null` and raises no event (MR-61). Otherwise ChatService replaces the text, sets `Edited`, queues the link previews again (MR-22), and raises `messageEdited`.
 - A delete is permitted on the author's own rows only, media rows included (MR-64). ChatService removes the message from the list, decrements the GIF reference counts, and raises `messageDeleted`. Replies keep their rows. The client sets their quotes to "Original message unavailable" when it receives the event (MR-68). The server stores nothing about the deletion.
-- A pin is permitted for both people of a direct message; in a room for the admin, or for whoever the room's `PinPermission` and `Pinners` allow (MR-76, AD-37). The channel row holds up to three pins, newest first, each a copy of the author, text, time and first picture (`Pin`), so a pin outlives the startup load window. Every change assigns a new list, raises `pins` with the whole list, and writes the channel row. An edit of a pinned message updates the copy; a delete removes the pin (SH-48). In a restricted room the list is filtered per reader by the history cutoff (TL-05).
+- A pin is permitted for both people of a direct message; in a room for the admin, or for whoever the room's `PinPermission` and `Pinners` allow (MR-77, AD-37). The channel row holds up to three pins, newest first, each a copy of the author, text, time and first picture (`Pin`), so a pin outlives the startup load window. Every change assigns a new list, raises `pins` with the whole list, and writes the channel row. An edit of a pinned message updates the copy; a delete removes the pin (SH-48). In a restricted room the list is filtered per reader by the history cutoff (TL-05).
 - Edits and deletes do not change unread counts (NT-02).
 
 Each method changes memory, raises its event, and enqueues its write on the persistence writer. No method waits for the database.

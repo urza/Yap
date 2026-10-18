@@ -1,7 +1,7 @@
 // The pinned messages panel (SH-47 to SH-49): opened from the header's pin button, a popup under the button on
 // desktop and a bottom sheet on a phone. One entry per pin, the newest first, with the author, the time, the whole
 // text or the first picture, and who pinned it. A tap on an entry jumps to the message. The ✕ unpins, for the
-// people who may pin (MR-76). The panel draws from state.open.pins and keeps no copy; it follows every change
+// people who may pin (MR-77). The panel draws from state.open.pins and keeps no copy; it follows every change
 // while it is open, and it closes when the last pin goes.
 
 import { state, on, mayPin, unpinLocally, displayName } from '../store.js';

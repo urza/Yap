@@ -114,7 +114,7 @@ public sealed class ChatHub(ChatService chat, PresenceService presence, UserServ
 
     public HubError? Delete(Guid messageId) => chat.Delete(Me, messageId) is { } error ? new(error) : null;
 
-    /// <summary>MR-76. Both name the conversation too: an unpin may concern a message older than the ones in memory.</summary>
+    /// <summary>MR-77. Both name the conversation too: an unpin may concern a message older than the ones in memory.</summary>
     public HubError? Pin(Guid channelId, Guid messageId) => chat.Pin(Me, MyName, channelId, messageId) is { } error ? new(error) : null;
 
     public HubError? Unpin(Guid channelId, Guid messageId) => chat.Unpin(Me, MyName, channelId, messageId) is { } error ? new(error) : null;

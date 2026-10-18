@@ -13,8 +13,11 @@ import { EmojiPicker } from './emoji-picker.js';
 import { setReplyTarget } from './message.js';
 import { GifPicker } from './gif-picker.js';
 import { keyOf } from '../offline/snapshot.js';
+import { record, supported as canRecord } from './recorder.js';
+import { drawBars, formatTime } from './voice.js';
 
 const MAX_TEXT = 4000;      // IB-14
+const LIVE_BARS = 48;       // the recorder shows the last 4.8 s of levels (IB-68)
 const SPRITE_COLS = 20, SPRITE_COUNT = 73;   // the emoji toggle sprite: 48 px cells (IB-45)
 
 // The pickers live once per page, not once per conversation: the GIF picker keeps its tab and folder, and
@@ -64,6 +67,7 @@ export function Composer(root) {
     const next = open ? keyOf(open) : null;
     target = open ? { channelId: open.channelId ?? null, partner: open.partner ?? null } : null;   // a direct message gains its channel id when the connection returns; its key stays
     if (next === key) { renderReadOnly(); return; }
+    recording?.cancel();   // a recording belongs to the conversation it started in (IB-69)
     const typedBeforeOpen = key === null && area.value;   // text typed while the first conversation was still opening
     if (key) saveDraft();
     key = next;
@@ -204,6 +208,7 @@ export function Composer(root) {
   // ---- send (IB-18 to IB-28) ----
 
   function send() {
+    if (recording) { recording.stop(); return; }                                            // Send ends the recording and sends it (IB-69)
     if (!area.value.trim() && !files.length) return;                                        // IB-21
     if (!key) { sendWanted = true; return; }                                               // the conversation is still opening
     if (needsConnection(files.map(f => f.file))) { overlays.reason(container, 'Needs a connection'); return; }   // picked online, sent offline (OF-09)
@@ -222,13 +227,71 @@ export function Composer(root) {
   // ---- attachments: the tray (IB-29 to IB-37) ----
 
   fileInput.addEventListener('change', () => { const picked = [...fileInput.files]; fileInput.value = ''; if (picked.length) addFiles(picked); });   // IB-37
-  // + is a button that opens the chooser itself; a label around the input took no keyboard focus (U03 of the 2026-10-15 user test).
+  // + is a button, not a label around the input: a label took no keyboard focus (U03 of the 2026-10-15 user test).
   const uploadButton = box.querySelector('.image-upload-button');
   uploadButton.addEventListener('pointerdown', e => e.preventDefault());                   // never moves the focus, like Send (IB-22)
   uploadButton.addEventListener('click', () => {
     if (container.dataset.picker) closePicker();                                            // a tap on + with a picker open only closes it (IB-42)
-    else fileInput.click();
+    else openAttachMenu();
   });
+
+  // The + menu (IB-67): the chooser, or the recorder. It lives on the body like the delete dialog, so no ancestor's
+  // stacking context traps it (the phone sheet of the More menu comes with its classes).
+  function openAttachMenu() {
+    const layer = clone('t-attach-menu');
+    const menu = layer.querySelector('.more-menu');
+    const voiceItem = layer.querySelector('[data-action="voice"]');
+    if (!canRecord()) voiceItem.remove();   // a browser without a recorder gets the chooser item alone
+    for (const item of layer.querySelectorAll('.more-menu-item')) item.addEventListener('pointerdown', e => e.preventDefault());   // the keyboard stays as it is (IB-22)
+    layer.querySelector('[data-action="files"]').addEventListener('click', () => { close(); fileInput.click(); });   // the tap on the item is the gesture the chooser needs
+    voiceItem.addEventListener('click', () => { close(); startRecording(); });
+    layer.querySelector('.more-menu-backdrop').addEventListener('click', () => close());
+    document.body.append(layer);
+    overlays.place(menu, uploadButton, { align: 'left' });
+    const close = overlays.open({ element: menu, keep: [uploadButton], onClose: () => layer.remove() });
+  }
+
+  // ---- voice messages (IB-68 to IB-70) ----
+
+  const recorderBox = box.querySelector('.recorder');
+  const recorderTime = recorderBox.querySelector('.recorder-time');
+  const recorderBars = recorderBox.querySelector('.recorder-bars');
+  let recording = null;   // the job of recorder.js while a voice message records
+
+  // Inside the tap of the menu item: the recorder's audio context needs the gesture (recorder.js).
+  function startRecording() {
+    if (!key || recording) return;
+    closePicker();
+    if (overlays.isPhone()) area.blur();   // the recorder takes the pill; the keyboard goes
+    const job = record({
+      maxMs: (state.config?.voiceMaxSeconds ?? 300) * 1000,
+      // The live bars: the last LIVE_BARS levels enter from the right, lifted so a normal voice fills the height.
+      onLevel: levels => { const recent = levels.slice(-LIVE_BARS).map(l => Math.min(1, l * 3)); drawBars(recorderBars, new Array(LIVE_BARS - recent.length).fill(0).concat(recent), 1); },
+      onTick: ms => { recorderTime.textContent = formatTime(ms); },
+    });
+    recording = job;
+    job.ready
+      .then(() => { if (recording !== job) return; recorderTime.textContent = '0:00'; drawBars(recorderBars, new Array(LIVE_BARS).fill(0), 1); container.dataset.recording = ''; })
+      .catch(() => warn('Microphone unavailable', 'Yap cannot use the microphone. Allow it in the browser settings and try again.'));
+    job.done.then(result => {
+      if (recording === job) { recording = null; delete container.dataset.recording; }
+      if (!result) return;
+      if (result.durationMs < 1000) { overlays.reason(container, 'Too short'); return; }   // a tap and a tap again (IB-69)
+      sendVoice(result);
+    });
+  }
+  recorderBox.querySelector('.recorder-trash').addEventListener('pointerdown', e => e.preventDefault());
+  recorderBox.querySelector('.recorder-trash').addEventListener('click', () => recording?.cancel());
+
+  // The recording goes as one message, alone (IB-70). It is a Blob until the sender uploads it; the pending row plays
+  // the Blob with the same bars, so the accepted row looks the same (voice.js).
+  function sendVoice({ blob, durationMs, peaks }) {
+    if (!key) return;
+    const ext = blob.type.includes('mp4') ? 'mp4' : blob.type.includes('ogg') ? 'ogg' : 'webm';
+    const file = new File([blob], `voice.${ext}`, { type: blob.type });
+    const reply = replyTo; setReply(null);   // a reply, as a GIF is (IB-47)
+    sender.queueMessage({ ...target, replyToId: reply?.id ?? null, files: [file], voice: { durationMs, peaks } });
+  }
 
   // Without a connection the send goes to the outbox on disk, which holds 25 MB per message (IB-64, OF-09).
   const needsConnection = blobs => state.connection !== 'connected' && blobs.reduce((s, f) => s + f.size, 0) > 25 * 1024 * 1024;
@@ -427,7 +490,7 @@ export function Composer(root) {
   if (pickers) { pickers.current = handlers; layoutPickers(); }
   onOpen();
   return () => {
-    saveDraft(); stopTyping(); offs.forEach(off => off()); aborter.abort();
+    saveDraft(); stopTyping(); recording?.cancel(); offs.forEach(off => off()); aborter.abort();
     if (pickers) for (const p of [pickers.emoji.element, pickers.gif.element, pickers.combined]) p?.remove();   // the pickers survive; the box does not
     box.remove();
   };

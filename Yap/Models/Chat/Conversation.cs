@@ -11,7 +11,7 @@ public sealed record HubError(string Error);
 
 /// <summary>A room as the client sees it (SH-22, AD-30 to AD-32). Read-only is derived on the client from AdminOnly and the person's admin flag.
 /// IsLobby names the room that /lobby opens (SH-43); the sidebar order is the admin's and says nothing about identity (AD-33).
-/// PinPermission and Pinners let the client decide whether to offer Pin (MR-76, AD-37); the server decides again on the call.</summary>
+/// PinPermission and Pinners let the client decide whether to offer Pin (MR-77, AD-37); the server decides again on the call.</summary>
 public sealed record RoomDto(Guid Id, string Name, string? Description, int SortOrder, bool AdminOnly, HistoryLimit HistoryLimit, bool SinceJoined, bool IsLobby,
     PinPermission PinPermission, IReadOnlyList<string> Pinners)
 {

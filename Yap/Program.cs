@@ -147,6 +147,7 @@ builder.Services.AddSingleton<EmojiCatalog>();
 builder.Services.AddSingleton<UploadPaths>();
 builder.Services.AddSingleton<ImageService>();
 builder.Services.AddSingleton<VideoService>();
+builder.Services.AddSingleton<VoiceService>();
 builder.Services.AddSingleton<PushSubscriptionStore>();
 builder.Services.AddSingleton<PushNotificationService>();
 builder.Services.AddSingleton<PresenceService>();
@@ -171,6 +172,7 @@ builder.Services.AddHostedService<RequestLogWriter>();
 
 builder.Services.AddSingleton<UserActionLogService>();
 builder.Services.AddSingleton<MediaUploadLogService>();
+builder.Services.AddSingleton<MediaCleanupService>();
 
 // Diagnostics collector (captures snapshots every 30s for admin charts)
 builder.Services.AddSingleton<DiagnosticsCollectorService>();
@@ -207,6 +209,7 @@ await app.Services.GetRequiredService<AccessLinkService>().LoadAsync();
 await app.Services.GetRequiredService<NotificationSettingsService>().InitializeAsync();
 await app.Services.GetRequiredService<ChatService>().InitializeAsync();
 app.Services.GetRequiredService<VideoService>();   // the ffmpeg probe (a child process, up to 3 s) runs here, not inside the first upload
+app.Services.GetRequiredService<VoiceService>();   // its ffmpeg detection (the GIF helper's) must be done before the first voice upload is judged
 await app.Services.GetRequiredService<GifService>().InitializeAsync();
 await app.Services.GetRequiredService<PushSubscriptionStore>().InitializeAsync();
 await app.Services.GetRequiredService<SystemBotService>().InitializeAsync();
@@ -315,12 +318,15 @@ app.UseStaticFiles(new StaticFileOptions
         ctx.Context.Response.Headers.CacheControl = "public, max-age=300"
 });
 
-// Everything else under /uploads (image thumbnails, gif/webp, video posters) is content-addressed.
+// Everything else under /uploads (image thumbnails, gif/webp, video posters, voice messages) is content-addressed.
 // Registered before the generic UseStaticFiles so it wins for /uploads/* and attaches the header.
+var uploadContentTypes = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+uploadContentTypes.Mappings[".m4a"] = "audio/mp4";   // voice messages (VoiceService); spelled out so the answer never depends on the default map
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(uploadsRoot),
     RequestPath = "/uploads",
+    ContentTypeProvider = uploadContentTypes,
     OnPrepareResponse = cacheImmutable
 });
 

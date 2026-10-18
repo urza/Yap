@@ -17,11 +17,17 @@ public sealed record MessageDto(
     IReadOnlyList<ImageDto> Images,
     IReadOnlyList<VideoDto> Videos,
     IReadOnlyList<GifDto> Gifs,
+    VoiceDto? Voice,
     IReadOnlyList<ReactionGroupDto> Reactions,
     IReadOnlyList<PreviewDto> Previews);
 
-/// <summary>The quoted original of a reply (MR-32). <see cref="Unavailable"/> when the original was deleted (MR-35).</summary>
-public sealed record ReplyToDto(Guid Id, string? Username, string? Text, bool HasMedia, bool Unavailable);
+/// <summary>The quoted original of a reply (MR-32). <see cref="Unavailable"/> when the original was deleted (MR-35).
+/// <see cref="Voice"/> names a voice message, which the quote says in words instead of "attachment".</summary>
+public sealed record ReplyToDto(Guid Id, string? Username, string? Text, bool HasMedia, bool Voice, bool Unavailable);
+
+/// <summary>A voice message (MR-76): the file, its length, and the bars of its waveform as the recorder measured them
+/// (one base-36 digit per bar, see <see cref="VoiceAttachment"/>).</summary>
+public sealed record VoiceDto(string Src, int DurationMs, string Peaks);
 
 /// <summary>Two sizes of one uploaded image: the row shows the medium one, the viewer the large one (MR-24, TL-22).</summary>
 public sealed record ImageDto(string Medium, string Large);

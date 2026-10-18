@@ -37,8 +37,11 @@ function publish(row, detail) {
 
 function quoteOf(id) {
   const m = state.open?.messages.find(x => x.id === id);
-  return m ? { id, username: m.username, text: m.text, hasMedia: !!(m.images.length || m.videos.length || m.gifs.length) } : { id, unavailable: true };
+  return m ? { id, username: m.username, text: m.text, hasMedia: !!(m.images.length || m.videos.length || m.gifs.length || m.voice), voice: !!m.voice } : { id, unavailable: true };
 }
+
+// The names a pending row shows while its files upload (IB-34). A voice message is one Blob with a made-up name.
+const namesOf = row => row.voice ? ['Voice message'] : row.files.map(f => f.name ?? 'file');
 
 // One GIF of a pending row: the fields the row renderer draws, plus what the server needs to resolve the
 // GIF (an entry of the library, or a provider item and the search text that becomes its tag, PK-20).
@@ -49,15 +52,17 @@ function gifEntry(pick) {
 const gifRequest = g => g.entryId ? { entryId: g.entryId, searchText: g.searchText } : { provider: g.provider, searchText: g.searchText };
 
 // A pending row has the shape of a message plus pending, failed, uploading and files, so the row renderer
-// draws both. `files` are the picked Blobs until the sender uploads them (OF-08).
-export function queueMessage({ channelId = null, partner = null, text = '', replyToId = null, files = [], gif = null }) {
+// draws both. `files` are the picked Blobs until the sender uploads them (OF-08). A voice message is the one
+// file plus `voice` { durationMs, peaks }; its `src` is the Blob's URL until the upload gives the file's (IB-70).
+export function queueMessage({ channelId = null, partner = null, text = '', replyToId = null, files = [], gif = null, voice = null }) {
   const row = {
     id: crypto.randomUUID(), clientId: crypto.randomUUID(), channelId, partner,
     username: state.user.username, text, timestamp: new Date().toISOString(), edited: false,
     replyTo: replyToId ? quoteOf(replyToId) : null, replyToId,
-    files, images: [], videos: [], gifs: gif ? [gifEntry(gif)] : [], reactions: [], previews: [],
-    pending: true, failed: null, uploading: files.length ? { names: files.map(f => f.name), percent: 0 } : null, queuedAt: Date.now(),
+    files, images: [], videos: [], gifs: gif ? [gifEntry(gif)] : [], voice: voice ? { ...voice, url: null, src: URL.createObjectURL(files[0]) } : null, reactions: [], previews: [],
+    pending: true, failed: null, queuedAt: Date.now(),
   };
+  row.uploading = files.length ? { names: namesOf(row), percent: 0 } : null;
   queue.push(row);
   publish(row, { type: 'queued' });   // the timeline goes to the bottom for a send only (TL-14)
   flush();
@@ -74,7 +79,7 @@ export function remove(row) {
 
 export function retry(row) {
   row.failed = null; row.queuedAt = Date.now();
-  if (row.files?.length) row.uploading = { names: row.files.map(f => f.name), percent: 0 };
+  if (row.files?.length) row.uploading = { names: namesOf(row), percent: 0 };
   publish(row);
   flush();
 }
@@ -109,6 +114,7 @@ async function flush() {
           clientId: row.clientId, text: row.text || null, replyToId: row.replyToId,
           images: row.images.length ? row.images : null, videos: row.videos.length ? row.videos : null,
           gifs: row.gifs.length ? row.gifs.map(gifRequest) : null,
+          voice: row.voice?.url ? { url: row.voice.url, durationMs: row.voice.durationMs, peaks: row.voice.peaks } : null,
         });
         queue = queue.filter(r => r !== row);
         await outbox.remove(row);
@@ -142,7 +148,7 @@ async function uploadFiles(row) {
     live.lastProgressAt = Date.now();
     row.uploading = { ...row.uploading, percent, label: `${done}/${total}` };
     changed('pending');
-  });
+  }, row.voice ? { kind: 'voice' } : {});   // the server transcodes a voice recording instead of sorting it by extension
   row.cancel = live.job.cancel;
   const result = await live.job.promise;
   current = null;
@@ -151,10 +157,14 @@ async function uploadFiles(row) {
   for (const f of result.files) {
     if (f.type === 'gif') row.gifs.push(gifEntry({ entryId: f.gifEntryId, width: f.width, height: f.height }));   // every GIF of the pick, one message (IB-33)
     else if (f.type === 'video') row.videos.push(f.url);
+    else if (f.type === 'voice') {
+      if (row.voice?.src?.startsWith('blob:')) URL.revokeObjectURL(row.voice.src);
+      row.voice = { ...row.voice, url: f.url, src: f.url, durationMs: f.durationMs };   // the file's own length, read by the server
+    }
     else row.images.push(f.url);
   }
   row.files = result.retry;
-  if (row.files.length) { row.uploading = { names: row.files.map(f => f.name), percent: 0 }; publish(row); return false; }
+  if (row.files.length) { row.uploading = { names: namesOf(row), percent: 0 }; publish(row); return false; }
   if (!result.files.length) { fail(row, result.errors[0] ?? 'Upload failed'); return true; }
   row.uploading = null;
   publish(row);
@@ -169,10 +179,13 @@ function ready() {
     queue = rows.map(r => {
       const live = mine.get(r.clientId);
       if (live?.cancel) return live;   // mid-upload here: the disk copy is older
-      return { ...r, edited: false, gifs: r.gifs ?? [], reactions: [], previews: [], pending: true,
+      const row = { ...r, edited: false, gifs: r.gifs ?? [], reactions: [], previews: [], pending: true,
         tappedAt: live?.tappedAt, cancel: null,
-        uploading: r.files?.length ? { names: r.files.map(f => f.name ?? 'file'), percent: 0 } : null,
+        // a voice row plays its file once uploaded, else the Blob it still holds (the disk keeps no Blob URL)
+        voice: r.voice ? { ...r.voice, src: r.voice.url ?? (r.files?.[0] ? URL.createObjectURL(r.files[0]) : null) } : null,
         failed: r.failed ?? (Date.now() - r.queuedAt > DAY ? 'Waited more than a day' : null) };
+      row.uploading = r.files?.length ? { names: namesOf(row), percent: 0 } : null;
+      return row;
     });
     queue.sort((a, b) => a.queuedAt - b.queuedAt);
     publish();

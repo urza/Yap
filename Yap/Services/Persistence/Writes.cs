@@ -132,6 +132,9 @@ public static class Writes
         db.MediaUploadLogs.Where(l => l.StoredFileName == storedFileName)
           .ExecuteUpdateAsync(s => s.SetProperty(l => l.CompressDurationMs, durationMs), ct);
 
+    public static Write DeleteMediaUploadLog(int id) => (db, ct) =>
+        db.MediaUploadLogs.Where(l => l.Id == id).ExecuteDeleteAsync(ct);
+
     // ---- helpers -------------------------------------------------------------------------------------
 
     private static async Task Upsert<T>(ChatDbContext db, DbSet<T> set, T row, CancellationToken ct, params object[] key) where T : class
@@ -155,6 +158,6 @@ public static class Writes
     // repeated across a restart finds its first copy instead of storing a second one.
     private static ChatMessage Detached(ChatMessage m) =>
         new(m.ChannelId, m.UserId, m.Username, m.Content, m.Timestamp, m.ImageUrls.ToList(),
-            m.ReplyToMessageId, m.VideoUrls.ToList(), m.GifAttachments.ToList())
+            m.ReplyToMessageId, m.VideoUrls.ToList(), m.GifAttachments.ToList(), m.Voice)
         { Id = m.Id, IsEdited = m.IsEdited, ClientId = m.ClientId };
 }

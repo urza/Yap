@@ -7,6 +7,7 @@ using Yap.Models.Admin;
 using Yap.Models.Chat;
 using Yap.Services.Accounts;
 using Yap.Services.Gifs;
+using Yap.Services.Media;
 using Yap.Services.Notifications;
 using Yap.Services.Persistence;
 using Yap.Services.Presence;
@@ -50,6 +51,8 @@ public class ChatService
 
     public const int MaxTextLength = 4000;      // IB-14, MR-11
     public const int MaxMediaPerMessage = 10;   // IB-32
+    // The waveform of a voice message: one base-36 digit per bar, at most 64 bars (VoiceAttachment).
+    private static readonly System.Text.RegularExpressions.Regex VoicePeaks = new("^[0-9a-z]{0,64}$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
     // Every change raises one event. The broadcaster turns each into one hub message; the bot listens too.
     public event Action<ChatMessage>? OnMessageReceived;
@@ -415,6 +418,14 @@ public class ChatService
 
         var text = request.Text ?? "";
         var media = (request.ImageUrls?.Count ?? 0) + (request.VideoUrls?.Count ?? 0) + (request.GifAttachments?.Count ?? 0);
+        if (request.Voice is { } voice)
+        {
+            // A voice message carries nothing else (IB-70): the row has no caption and no gallery to draw with it.
+            if (media > 0 || !string.IsNullOrWhiteSpace(text)) return SendResult.Refused("A voice message is sent alone.");
+            if (voice.DurationMs <= 0 || voice.DurationMs > (VoiceService.MaxSeconds + 10) * 1000) return SendResult.Refused("The voice message is too long.");
+            if (!VoicePeaks.IsMatch(voice.Peaks ?? "")) return SendResult.Refused("The voice message is malformed.");
+            media = 1;
+        }
         if (text.Length > MaxTextLength) return SendResult.Refused($"A message has at most {MaxTextLength} characters.");
         if (media > MaxMediaPerMessage) return SendResult.Refused($"Choose at most {MaxMediaPerMessage} files.");   // IB-32
         if (string.IsNullOrWhiteSpace(text) && media == 0) return SendResult.Refused("The message is empty.");
@@ -439,7 +450,7 @@ public class ChatService
         }
 
         var message = new ChatMessage(channel.Id, request.UserId, request.Username, text, DateTime.UtcNow,
-            request.ImageUrls, request.ReplyToMessageId, request.VideoUrls, request.GifAttachments) { ClientId = request.ClientId };
+            request.ImageUrls, request.ReplyToMessageId, request.VideoUrls, request.GifAttachments, request.Voice) { ClientId = request.ClientId };
         _gifService.IncrementReferences(request.GifAttachments);   // an entry in chat history is never evicted
 
         bool firstInDm;
@@ -515,7 +526,9 @@ public class ChatService
 
     private void DispatchPush(Channel channel, string senderUsername, ChatMessage message)
     {
-        var preview = !string.IsNullOrWhiteSpace(message.Content) ? message.Content : message.HasGifs ? "[GIF]" : "[Attachment]";   // NT-27: a caption is the text
+        var preview = !string.IsNullOrWhiteSpace(message.Content) ? message.Content   // NT-27: a caption is the text
+            : message.Voice is { } voice ? $"[Voice message {VoiceService.FormatDuration(voice.DurationMs)}]"
+            : message.HasGifs ? "[GIF]" : "[Attachment]";
         var senderName = _userService.GetByUsername(senderUsername)?.DisplayName ?? senderUsername;        // NT-27: the display name
 
         foreach (var recipient in PushRecipients(channel, senderUsername))
@@ -631,7 +644,7 @@ public class ChatService
 
     #region Pins
 
-    /// <summary>MR-76, MR-77. Pins a message of the conversation for everyone in it: at most <see cref="Channel.MaxPins"/>, the newest pin first.</summary>
+    /// <summary>MR-77, MR-78. Pins a message of the conversation for everyone in it: at most <see cref="Channel.MaxPins"/>, the newest pin first.</summary>
     public string? Pin(Guid userId, string username, Guid channelId, Guid messageId)
     {
         if (!_channels.TryGetValue(channelId, out var channel)) return "Conversation not found.";
@@ -647,7 +660,7 @@ public class ChatService
         return null;
     }
 
-    /// <summary>MR-76. The pin goes; the message stays. Named by conversation and message, because a pinned message may be
+    /// <summary>MR-77. The pin goes; the message stays. Named by conversation and message, because a pinned message may be
     /// older than the messages in memory.</summary>
     public string? Unpin(Guid userId, string username, Guid channelId, Guid messageId)
     {
@@ -710,6 +723,21 @@ public class ChatService
                     lock (message.Reactions)
                         mine.AddRange(message.Reactions.Where(r => r.UserId == userId).Select(r => r.Emoji));
         return mine.GroupBy(e => e).OrderByDescending(g => g.Count()).Take(count).Select(g => g.Key).ToList();
+    }
+
+    /// <summary>Every image, video and voice URL a message in memory carries. The admin's media clean-up matches uploads against it.</summary>
+    public List<string> MediaUrls()
+    {
+        var urls = new List<string>();
+        foreach (var (channelId, messages) in _channelMessages)
+            lock (LockOf(channelId))
+                foreach (var message in messages)
+                {
+                    urls.AddRange(message.ImageUrls);
+                    urls.AddRange(message.VideoUrls);
+                    if (message.Voice is { } voice) urls.Add(voice.Url);
+                }
+        return urls;
     }
 
     #endregion

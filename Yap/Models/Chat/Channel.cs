@@ -52,7 +52,7 @@ public class Channel
     public List<string> Pinners { get; set; } = new();
 
     /// <summary>
-    /// The pinned messages, newest pin first, at most <see cref="MaxPins"/> (MR-76). A change assigns a new list and
+    /// The pinned messages, newest pin first, at most <see cref="MaxPins"/> (MR-77). A change assigns a new list and
     /// never edits this one in place: the persistence writer may be serializing the old list on its own thread.
     /// </summary>
     public List<Pin> Pins { get; set; } = new();
@@ -176,7 +176,7 @@ public class Channel
         isAdmin;
 
     /// <summary>
-    /// Whether a person may pin and unpin in this conversation (MR-76). Both people of a direct message may. In a room,
+    /// Whether a person may pin and unpin in this conversation (MR-77). Both people of a direct message may. In a room,
     /// the admin always may; the others follow <see cref="PinPermission"/>.
     /// </summary>
     public bool CanPin(Guid userId, string username, bool isAdmin) => Type switch

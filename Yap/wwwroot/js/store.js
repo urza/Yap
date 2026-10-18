@@ -94,7 +94,7 @@ export function closeOpen() {
 
 function openMessage(id) { return state.open?.messages.find(m => m.id === id); }
 
-// ---- pins (SH-47 to SH-49, MR-76) ----
+// ---- pins (SH-47 to SH-49, MR-77) ----
 
 // The server's list for the open conversation. A list for another conversation is dropped: its open answer carries one.
 export function setPins(channelId, pins) {
@@ -105,7 +105,7 @@ export function setPins(channelId, pins) {
 
 export function isPinned(id) { return !!state.open?.pins?.some(p => p.messageId === id); }
 
-// Who may pin and unpin here (MR-76, AD-37): both people of a direct message; in a room the admin, everyone, or the
+// Who may pin and unpin here (MR-77, AD-37): both people of a direct message; in a room the admin, everyone, or the
 // selected people. The server decides again on the call; this only shows or hides the menu item and the ✕.
 export function mayPin() {
   const open = state.open, me = state.user;

@@ -56,8 +56,8 @@ export function uploadOne(file, endpoint, metadata = {}) {
 // to { files: [info], errors: [line], retry: [file], cancelled }. `retry` holds the files the server never
 // answered for (the network, or the server, is down): they are not failures, the sender keeps them for the next
 // wake-up (OF-08). `errors` are the answers that refused a file. cancel() aborts the rest and resolves the promise
-// at once; giveUp() does the same but keeps what is done.
-export function upload(files, endpoint, onProgress) {
+// at once; giveUp() does the same but keeps what is done. `metadata` goes to the server with every file (kind: 'voice').
+export function upload(files, endpoint, onProgress, metadata = {}) {
   const total = files.reduce((s, f) => s + f.size, 0);
   const sent = new Array(files.length).fill(0);
   const settled = new Array(files.length);   // a file's outcome once it has one: { info } | { error } | { retry }
@@ -72,7 +72,7 @@ export function upload(files, endpoint, onProgress) {
     const finish = r => { settled[i] = r; resolve(r); };
     const u = new tus.Upload(file, {
       endpoint, chunkSize: 5 * 1024 * 1024, retryDelays: [0, 1000, 3000, 5000], withCredentials: true,
-      metadata: { filename: file.name, filetype: file.type },
+      metadata: { filename: file.name, filetype: file.type, ...metadata },
       onProgress: bytes => { sent[i] = bytes; report(); },
       // tus gives up after its own retries (about nine seconds). No response at all means nobody was reached.
       onError: error => finish(error?.originalResponse ? { error: `"${file.name}" — ${error?.message || 'Upload failed'}` } : { retry: file }),
@@ -80,7 +80,8 @@ export function upload(files, endpoint, onProgress) {
         done++; sent[i] = file.size; report();
         const { info: result, reached } = await info(u.url, 30, report);
         if (cancelled) return;   // the promise settled at the cancel; nobody reads this
-        if (result) finish({ info: result });
+        if (result?.type === 'error') finish({ error: `"${file.name}" — ${result.error ?? 'Upload failed'}` });   // the server took the file and refused it (a voice message it could not transcode)
+        else if (result) finish({ info: result });
         else finish(reached ? { error: `"${file.name}" — server processing timeout` } : { retry: file });   // no answer at all: the network, not the server (OF-08)
       },
     });

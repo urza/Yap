@@ -4,20 +4,22 @@
 
 import { state, on, setRegistrations } from '../store.js';
 import { api } from '../api.js';
-import { clone, el, replace, classes } from '../render/dom.js';
+import { clone, el, replace, classes, append } from '../render/dom.js';
 import { inline } from '../render/text.js';
 import { avatar } from '../render/avatar.js';
 import { ago, messageTime } from '../render/time.js';
 import * as router from '../router.js';
 import { setTitle } from '../notify.js';
 import { GifLibrary, size } from '../ui/gif-library.js';
+import { tooltips } from '../ui/tooltip.js';
+import { confirm } from '../ui/confirm.js';
 
 const TABS = [['users', 'Users'], ['debug', 'Debug'], ['bot', 'Bot'], ['settings', 'Settings'], ['invites', 'Invites'], ['logs', 'Logs'], ['media', 'Media'], ['gifs', 'GIFs'], ['diagnostics', 'Diagnostics'], ['visitors', 'Visitors']];
 const CHART_CDN = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js';
 
 const stamp = iso => iso ? new Date(iso).toISOString().slice(0, 16).replace('T', ' ') : '—';
 const header = (title, count, extra) => el('div', { class: 'section-header' }, el('h3', null, title), el('span', { class: 'section-count' }, count ?? ''), extra ?? null);
-const table = (headers, rows, cls = 'users-table') => el('div', { class: 'table-wrapper' }, el('table', { class: cls }, el('thead', null, el('tr', null, headers.map(h => el('th', typeof h === 'string' ? null : { title: h.title }, typeof h === 'string' ? h : h.text)))), el('tbody', null, rows)));
+const table = (headers, rows, cls = 'users-table') => el('div', { class: 'table-wrapper' }, el('table', { class: cls }, el('thead', null, el('tr', null, headers.map(h => el('th', typeof h === 'string' ? null : { 'data-tip': h.title }, typeof h === 'string' ? h : h.text)))), el('tbody', null, rows)));   // { text, title }: the bubble of tooltip.js
 const td = (content, cls) => el('td', cls ? { class: cls } : null, content);
 const pill = (text, cls) => el('span', { class: `action-pill ${cls ?? ''}` }, text);
 const statCard = (label, value) => el('div', { class: 'media-stat-card' }, el('span', { class: 'media-stat-label' }, label), el('span', { class: 'media-stat-value' }, value));
@@ -34,6 +36,7 @@ export function mount(root, route) {
   let active = null;
   const seen = {};   // tab -> loaded once
   setTitle('Admin');
+  const offTips = tooltips(page);   // every data-tip on the page shows in the bubble (AD-25)
 
   page.querySelector('.back-button').addEventListener('click', () => router.navigate('/lobby'));
   replace(page.querySelector('.admin-tabs'), TABS.map(([id, label]) => el('button', { class: 'tab-item', type: 'button', 'data-tab': id, onclick: () => open(id) }, label)));
@@ -60,11 +63,11 @@ export function mount(root, route) {
           const tr = el('tr', { class: 'clickable-row', onclick: () => { selected = selected === u ? null : u; render(); } },
             td([avatar(u.username, u.avatarUrl, 'small'), el('div', { class: 'user-info' }, el('span', { class: 'user-name' }, inline(u.displayName || u.username), u.isAdmin ? el('span', { class: 'admin-badge', title: 'Admin' }, inline('👑')) : null), u.displayName ? el('span', { class: 'user-username' }, u.username) : null)], 'user-cell'),
             td(el('span', { class: `status-pill ${u.status}` }, el('span', { class: 'status-dot' }), u.status[0].toUpperCase() + u.status.slice(1))),
-            td(u.pwaInstalledAt ? el('span', { class: 'pwa-badge', title: `Last seen as installed PWA: ${stamp(u.pwaInstalledAt)}` }, 'Installed') : el('span', { class: 'no-data' }, '—'), 'pwa-cell'),
+            td(u.pwaInstalledAt ? el('span', { class: 'pwa-badge', 'data-tip': `Last seen as installed PWA: ${stamp(u.pwaInstalledAt)}` }, 'Installed') : el('span', { class: 'no-data' }, '—'), 'pwa-cell'),
             td(stamp(u.createdAt), 'date-cell'),
             td(u.lastAction ? [el('span', { class: 'action-type' }, u.lastAction.action), el('span', { class: 'action-date' }, stamp(u.lastAction.at))] : el('span', { class: 'no-data' }, '—'), 'action-cell'),
-            td(u.timeZone || u.locale ? [el('span', { class: 'locale-tz', title: u.timeZone ?? '' }, u.timeZone ?? ''), el('span', { class: 'locale-lang' }, u.locale ?? '')] : el('span', { class: 'no-data' }, '—'), 'locale-cell'),
-            td(u.recentIps.length ? u.recentIps.map(ip => el('span', { class: 'ip-tag', title: ip.country ?? '' }, ip.ip)) : el('span', { class: 'no-data' }, '—'), 'ip-cell'));
+            td(u.timeZone || u.locale ? [el('span', { class: 'locale-tz', 'data-tip': u.timeZone ?? null }, u.timeZone ?? ''), el('span', { class: 'locale-lang' }, u.locale ?? '')] : el('span', { class: 'no-data' }, '—'), 'locale-cell'),
+            td(u.recentIps.length ? u.recentIps.map(ip => el('span', { class: 'ip-tag', 'data-tip': ip.country ?? null }, ip.ip)) : el('span', { class: 'no-data' }, '—'), 'ip-cell'));
           tr.classList.toggle('selected', selected === u);
           const out = [tr];
           if (selected === u) out.push(el('tr', { class: 'detail-row' }, el('td', { colspan: 7 }, detail(u))));
@@ -87,7 +90,7 @@ export function mount(root, route) {
           el('div', { class: 'detail-tags' },
             el('span', { class: `detail-tag ${d.pushSubscriptions ? 'tag-green' : 'tag-muted'}` }, el('span', null, d.pushSubscriptions ? `Push ${d.pushSubscriptions} sub(s)` : 'No push')),
             el('span', { class: `detail-tag ${d.pwaInstalledAt ? 'tag-green' : 'tag-muted'}` }, el('span', null, d.pwaInstalledAt ? `PWA installed (${stamp(d.pwaInstalledAt).slice(0, 10)})` : 'No PWA')),
-            el('span', { class: 'detail-tag tag-muted', title: d.theme.chosen ?? 'never picked a theme' }, el('span', { class: 'theme-swatch', style: { background: (state.config.themes.find(t => t.id === d.theme.effective) ?? {}).previewBg ?? '' } }), el('span', null, `${d.theme.name}${d.theme.chosen ? '' : ' (default)'}`))),
+            el('span', { class: 'detail-tag tag-muted', 'data-tip': d.theme.chosen ?? 'never picked a theme' }, el('span', { class: 'theme-swatch', style: { background: (state.config.themes.find(t => t.id === d.theme.effective) ?? {}).previewBg ?? '' } }), el('span', null, `${d.theme.name}${d.theme.chosen ? '' : ' (default)'}`))),
           el('div', { class: 'detail-tables' },
             el('div', { class: 'detail-section' }, el('h5', null, 'IP Addresses'), d.ips.length ? table(['IP Address', 'Location', 'Last Seen'], d.ips.map(i => el('tr', null, td(i.ip, 'ip-mono'), td(i.country ?? '—', 'geo-cell'), td(stamp(i.lastSeen), 'date-cell'))), 'detail-table') : el('span', { class: 'no-data' }, 'No IP data')),
             el('div', { class: 'detail-section' }, el('h5', null, 'User Agents'), d.userAgents.length ? table(['User Agent', 'Last Seen'], d.userAgents.map(a => el('tr', null, td(a.userAgent, 'ua-cell'), td(stamp(a.lastSeen), 'date-cell'))), 'detail-table') : el('span', { class: 'no-data' }, 'No user agent data'))));
@@ -117,24 +120,62 @@ export function mount(root, route) {
       el('div', { class: 'debug-form' }, el('div', { class: 'form-group' }, el('label', null, 'Channel'), channel), el('div', { class: 'form-group' }, el('label', null, 'Number of messages'), count), el('div', { class: 'form-group' }, el('label', null, 'Spread across'), span), button, result));
   }
 
-  // ---- Bot (AD-09) ----
+  // ---- Bot (AD-09): the picture, the display name, and the three parts of the welcome DM ----
   function bot(host) {
+    let b = null;
     const name = el('input', { type: 'text', class: 'form-input', maxlength: 32 });
-    const welcome = el('textarea', { class: 'form-input form-textarea', rows: 3, maxlength: 500 });
     const username = el('input', { type: 'text', class: 'form-input disabled', disabled: true });
+    const part = rows => el('textarea', { class: 'form-input form-textarea', rows, maxlength: 1000 });
+    const welcome = part(3), phone = part(3), link = part(4);
     const result = el('span', { class: 'save-result' });
+    const preview = el('pre', { class: 'bot-preview' });
+    const avatarHost = el('div', { class: 'bot-avatar' });
+    const avatarResult = el('span', { class: 'form-hint' });
+    // The DM as a phone user with a login link would get it, from the parts as typed. The same fill as the server's.
+    const drawPreview = () => {
+      const server = b?.serverName ?? 'Yap';
+      const fill = t => t.replaceAll('{server}', server).replaceAll('{0}', server).replaceAll('{link}', `${location.origin}/invite/CODE-1234`).replaceAll('{code}', 'CODE-1234');
+      preview.textContent = [welcome.value, phone.value, link.value].map(t => t.trim()).filter(Boolean).map(fill).join('\n\n');
+    };
+    for (const t of [welcome, phone, link]) t.addEventListener('input', drawPreview);
+    // The picture goes the way a person's own does (ST-04); the profile broadcast redraws it in every open chat.
+    const drawAvatar = () => replace(avatarHost, [
+      avatar(b?.username ?? '', b?.avatarUrl, 'large'),
+      el('div', { class: 'bot-avatar-actions' },
+        el('label', { class: 'upload-button' }, 'Upload picture', el('input', { type: 'file', accept: 'image/*', hidden: true, onchange: async e => {
+          const file = e.target.files?.[0]; e.target.value = '';
+          if (!file) return;
+          if (!file.type.startsWith('image/') || file.size > 10 * 1024 * 1024) { avatarResult.textContent = 'Choose an image up to 10 MB'; return; }
+          const form = new FormData(); form.append('file', file);
+          avatarResult.textContent = 'Uploading...';
+          try { const r = await api.put('/api/admin/bot/avatar', form); b.avatarUrl = r.avatarUrl; b.customAvatar = true; avatarResult.textContent = 'Picture saved'; drawAvatar(); }
+          catch (err) { avatarResult.textContent = err.message; }
+        } })),
+        b?.customAvatar ? el('button', { class: 'reject-btn', type: 'button', onclick: async () => {
+          try { await api.delete('/api/admin/bot/avatar'); const fresh = await api.get('/api/admin/bot'); b.avatarUrl = fresh.avatarUrl; b.customAvatar = false; avatarResult.textContent = 'Default picture restored'; drawAvatar(); }
+          catch (err) { avatarResult.textContent = err.message; }
+        } }, 'Use the default') : null,
+        avatarResult)]);
     const save = el('button', { class: 'save-btn', type: 'button', onclick: async () => {
       save.disabled = true; save.textContent = 'Saving...';
-      try { await api.put('/api/admin/bot', { displayName: name.value, welcomeMessage: welcome.value }); result.textContent = 'Saved!'; }
+      try { await api.put('/api/admin/bot', { displayName: name.value, welcomeMessage: welcome.value, phoneMessage: phone.value, linkMessage: link.value }); result.textContent = 'Saved!'; }
       catch (e) { result.textContent = e.message; }
       save.disabled = false; save.textContent = 'Save';
     } }, 'Save');
-    api.get('/api/admin/bot').then(b => { username.value = b.username ?? ''; name.value = b.displayName ?? ''; welcome.value = b.welcomeMessage ?? ''; }).catch(e => { result.textContent = e.message; });
+    api.get('/api/admin/bot').then(d => {
+      b = d; username.value = b.username ?? ''; name.value = b.displayName ?? '';
+      welcome.value = b.welcomeMessage ?? ''; phone.value = b.phoneMessage ?? ''; link.value = b.linkMessage ?? '';
+      drawAvatar(); drawPreview();
+    }).catch(e => { result.textContent = e.message; });
     host.append(header('Bot Settings', 'System bot configuration'),
       el('div', { class: 'bot-settings' },
+        el('div', { class: 'form-group' }, el('label', null, 'Picture'), avatarHost),
         el('div', { class: 'form-group' }, el('label', null, 'Username'), username, hint('Username cannot be changed after creation')),
         el('div', { class: 'form-group' }, el('label', null, 'Display Name'), name),
-        el('div', { class: 'form-group' }, el('label', null, 'Welcome Message'), welcome, hint('Sent to new users as a DM. Use {0} for the server name. Every new user also gets their login link; mobile users get a PWA install link.')),
+        el('div', { class: 'form-group' }, el('label', null, 'Welcome Message'), welcome, hint('Sent to every new user as a DM, one minute after their first session. {server} is the server name.')),
+        el('div', { class: 'form-group' }, el('label', null, 'Phone part'), phone, hint('Added when the new user is on a phone. [pwa-install] becomes the install link. Empty: nothing is added.')),
+        el('div', { class: 'form-group' }, el('label', null, 'Login link part'), link, hint('Added when the new user has a login link. {link} is the link, {code} its code. Empty: nothing is added.')),
+        el('div', { class: 'form-group' }, el('label', null, 'Preview'), preview, hint('As a phone user with a login link receives it.')),
         el('div', { class: 'bot-actions' }, save, result)));
   }
 
@@ -191,7 +232,7 @@ export function mount(root, route) {
       el('div', { class: 'registration-settings' },
         toggle('Close registration', 'Block all new signups. Login page shows "temporarily closed".', 'registrationClosed'),
         toggle('Require approval', 'New users must wait for admin approval before joining.', 'requireApproval'),
-        toggle('Smart login', 'Auto-login returning users from the same IP address without secret code.', 'smartLogin')),
+        toggle('Smart login', 'Auto-login returning users from the same IP address without secret code. Users can disable it individually in Settings.', 'smartLogin')),
       el('div', { class: 'section-header', style: { marginTop: '2rem' } }, el('h3', null, 'Link Previews'), el('span', { class: 'section-count' }, 'OpenGraph preview cards')),
       el('div', { class: 'registration-settings' },
         toggle('Enable link previews', 'Show OpenGraph preview cards below messages with URLs.', 'linkPreviews'),
@@ -200,7 +241,7 @@ export function mount(root, route) {
       el('div', { class: 'registration-settings' }, el('label', { class: 'toggle-row' },
         el('div', { class: 'toggle-info' }, el('span', { class: 'toggle-label' }, 'Content rating'), el('span', { class: 'toggle-hint' }, 'How strictly Klipy filters search and trending results. G = strictest (kid-friendly). PG = mild (default). PG-13 = some edgy content. R = anything goes.')),
         Object.assign(el('select', { class: 'log-filter-select', onchange: e => api.put('/api/admin/settings', { gifRating: e.target.value }).catch(err => alert(err.message)) }, [['g', 'G'], ['pg', 'PG'], ['pg13', 'PG-13'], ['r', 'R']].map(([v, l]) => el('option', { value: v }, l))), { value: s.gifRating ?? 'pg' })),
-        hint(s.gifProviderConfigured ? 'Provider: configured' : 'Provider: not configured')),
+        el('div', { class: `provider-status${s.gifProviderConfigured ? ' on' : ''}` }, el('span', { class: `status-dot ${s.gifProviderConfigured ? 'status-online' : 'status-offline'}` }), s.gifProviderConfigured ? 'Provider: configured' : 'Provider: not configured')),
       el('div', { class: 'howto-list' }, howto('Klipy API key', s.gifProviderConfigured ? 'configured' : '', 'off — no GIF search, no trending', [
         'Without a key the picker has no search and no trending. Own uploads, favourites and the server library (the GIFs tab here) work without it.',
         ['Make a free account at partner.klipy.com and create an app. Copy its API key.', 'Put the key in appsettings.json under ChatSettings:GifSettings:Klipy:ApiKey, or set the environment variable ChatSettings__GifSettings__Klipy__ApiKey.', 'Restart Yap. The picker then searches Klipy and shows trending GIFs.'],
@@ -265,7 +306,7 @@ export function mount(root, route) {
         data.users.length ? table(['User', 'Status', 'Link', 'Created', 'Used', 'Expires', ''], data.users.map(l => el('tr', null,
           td(l.username ?? '(deleted)'),
           td(el('span', { class: `status-pill ${l.active ? 'online' : 'offline'}` }, el('span', { class: 'status-dot' }), l.revoked ? 'Revoked' : l.expired ? 'Expired' : 'Active')),
-          td(l.url ? [el('span', { class: 'link-code' }, l.url), copyButton(l.url)] : el('span', { class: 'link-hidden', title: 'Only the user can see this code' }, '🔒 hidden'), 'link-cell'),   // AD-17
+          td(l.url ? [el('span', { class: 'link-code' }, l.url), copyButton(l.url)] : el('span', { class: 'link-hidden', 'data-tip': 'Only the user can see this code' }, '🔒 hidden'), 'link-cell'),   // AD-17
           td(`${ago(l.createdAt)}${l.byAdmin ? ' by admin' : ''}`, 'date-cell'), td(l.useCount ? `${l.useCount}× · ${ago(l.lastUsedAt)}` : 'never', 'date-cell'), td(expiryLabel(l), 'date-cell'), td(l.active ? actions(l) : null)))) : hint('No user links yet.'),
       ]);
     };
@@ -275,7 +316,7 @@ export function mount(root, route) {
   }
 
   // ---- Logs (AD-18), Media (AD-19), Visitors (AD-20): one page of 100, Load more for the next ----
-  function paged(host, { title, route, filters, stats, columns, rowOf, emptyText, countOf }) {
+  function paged(host, { title, route, filters, stats, toolbar, columns, rowOf, emptyText, countOf, onRemove }) {
     let rows = [], skip = 0, data = null, selected = null;
     const filterValues = {};
     const list = el('div');
@@ -292,9 +333,12 @@ export function mount(root, route) {
       skip = rows.length;
       draw();
     }
+    // A row the admin deleted leaves the list at once; the stats are fixed up by the tab, not read again,
+    // because the writer drops the row a moment after the answer.
+    const removeRow = r => { rows = rows.filter(x => x !== r); if (data?.stats) onRemove?.(r, data.stats); draw(); drawStats(); };
     const draw = () => {
       countNode.textContent = countOf(rows, data);
-      replace(list, rows.length ? [table(columns, rows.map(r => rowOf(r, () => { selected = selected === r ? null : r; drawDetail(); })), 'users-table logs-table')] : [empty(emptyText)]);
+      replace(list, rows.length ? [table(columns, rows.map(r => rowOf(r, () => { selected = selected === r ? null : r; drawDetail(); }, () => removeRow(r))), 'users-table logs-table')] : [empty(emptyText)]);
       more.hidden = !(rows.length && rows.length % 100 === 0);
       drawDetail();
     };
@@ -306,8 +350,9 @@ export function mount(root, route) {
     const statsHost = el('div', { class: 'media-stats' });
     const drawStats = () => { if (stats && data?.stats) replace(statsHost, stats(data.stats)); };
     const originalDraw = draw;
-    host.append(el('div', { class: 'section-header' }, el('h3', null, title), countNode), statsHost, el('div', { class: 'log-filters' }, filterNodes), list, more, detailHost);
-    load().then(drawStats);
+    const reload = () => load().then(drawStats);
+    append(host, [el('div', { class: 'section-header' }, el('h3', null, title), countNode), statsHost, toolbar ? toolbar({ reload }) : null, el('div', { class: 'log-filters' }, filterNodes), list, more, detailHost]);   // dom.js append skips the null
+    reload();
     return () => {};
   }
   const logs = host => paged(host, { title: 'Action Logs', route: '/api/admin/logs', emptyText: 'No log entries found.', countOf: rows => `${rows.length} loaded`,
@@ -315,18 +360,69 @@ export function mount(root, route) {
     columns: ['Date', 'User', 'Action', 'IP', 'Info'],
     rowOf: r => el('tr', null, td(stamp(r.date), 'date-cell'), td(r.username), td(pill(r.action, actionClass(r.action))), td(r.ip ?? '-', 'ip-mono'), td(r.info ?? '-', 'info-cell')) });
   const actionClass = a => a === 'LOGIN' ? 'action-login' : a === 'LOGOUT' || a === 'LOGIN_FAIL' ? 'action-logout' : a === 'SMART_LOGIN' ? 'action-smart' : 'action-default';
+  // One upload's delete (AD-19): the first tap arms it, the second asks the server. A 409 means a message still
+  // shows the file, with the count in its text; the admin decides in a dialog.
+  const deleteButton = (r, remove) => {
+    let armed = null;
+    const b = el('button', { class: 'gif-row-btn danger', type: 'button', onclick: async () => {
+      if (!armed) { b.textContent = 'Sure?'; armed = setTimeout(() => { armed = null; b.textContent = 'Delete'; }, 4000); return; }
+      clearTimeout(armed); armed = null; b.textContent = 'Delete';
+      let inUse;
+      try { await api.delete(`/api/admin/media/${r.id}`); remove(); return; }
+      catch (e) { if (e.status !== 409) { alert(e.message); return; } inUse = e.message; }
+      if (!await confirm({ title: 'Delete this file?', text: `${r.originalFileName}: ${inUse.toLowerCase()} The messages keep a broken picture.` })) return;
+      try { await api.delete(`/api/admin/media/${r.id}?force=true`); remove(); } catch (err) { alert(err.message); }
+    } }, 'Delete');
+    return b;
+  };
+  // The uploads no message shows any more (AD-19): a count first, then the delete. Memory may hold only the
+  // newest messages (AD-03), so the box also scans the saved history; without it an upload whose message the
+  // start did not load counts as unused.
+  const prunePanel = ({ reload }) => {
+    const scan = el('input', { type: 'checkbox' });
+    const status = el('span', { class: 'form-hint' });
+    const find = el('button', { class: 'upload-button', type: 'button' }, 'Find unused uploads');
+    const del = el('button', { class: 'reject-btn', type: 'button', hidden: true });
+    const plural = n => `${n} upload${n === 1 ? '' : 's'}`;
+    let found = null;
+    find.addEventListener('click', async () => {
+      find.disabled = true; del.hidden = true; status.textContent = 'Scanning...';
+      try {
+        found = await api.get(`/api/admin/media/unreferenced?database=${scan.checked}`);
+        status.textContent = found.files ? `${plural(found.files)} in no message, ${size(found.bytes)} on disk.` : 'Every upload is in a message.';
+        if (found.recent) status.textContent += ` ${plural(found.recent)} from the last hour kept: their messages may still be on the way.`;
+        del.textContent = `Delete ${plural(found.files)}`; del.hidden = !found.files;
+      } catch (e) { status.textContent = e.message; }
+      find.disabled = false;
+    });
+    del.addEventListener('click', async () => {
+      if (!await confirm({ title: 'Delete unused uploads?', text: `${plural(found.files)}, ${size(found.bytes)}, with their thumbnails. No message${scan.checked ? '' : ' in memory'} shows them. This cannot be undone.` })) return;
+      del.disabled = true;
+      try { const r = await api.post('/api/admin/media/prune', { database: scan.checked }); status.textContent = `Deleted ${plural(r.files)}, ${size(r.bytes)} freed.`; del.hidden = true; setTimeout(reload, 1500); }   // the writer drops the rows a moment later
+      catch (e) { status.textContent = e.message; }
+      del.disabled = false;
+    });
+    return el('div', { class: 'media-prune' },
+      el('div', { class: 'media-prune-row' }, find, del, el('label', { class: 'media-prune-scan' }, scan, 'Scan the whole database'), status),
+      el('p', { class: 'section-hint' }, 'Deleting a message keeps its files. This finds the uploads that no message shows any more, in rooms and in direct messages, and deletes them with their thumbnails. Memory may hold only the newest messages: tick the box to scan the saved history too, so an upload in an older message stays.'));
+  };
   const media = host => paged(host, { title: 'Media', route: '/api/admin/media', emptyText: 'No media uploads found.', countOf: (rows, d) => `${d?.stats?.totalFiles ?? rows.length} files`,
-    stats: s => [statCard('FFmpeg', el('span', null, el('span', { class: `status-dot ${s.ffmpeg ? 'status-online' : 'status-offline'}` }), s.ffmpeg ? 'Available' : 'Unavailable')), statCard('Total Storage', size(s.totalBytes ?? 0)), statCard('Images', String(s.images ?? 0)), statCard('Videos', String(s.videos ?? 0))],
-    filters: [{ key: 'type', options: [['', 'All types'], ['image', 'Image'], ['video', 'Video'], ['gif', 'GIF']] }, { key: 'user', placeholder: 'Filter by username...' }],
-    columns: ['Preview', 'Date', 'User', 'File', 'Type', 'Size', 'Processing'],
-    rowOf: r => el('tr', null, td(r.thumb ? el('a', { href: r.link ?? r.thumb, target: '_blank', rel: 'noopener' }, el('img', { src: r.thumb, alt: '', class: 'admin-thumb', loading: 'lazy' })) : null),
-      td(stamp(r.date), 'date-cell'), td(r.username), td(r.originalFileName, 'info-cell'), td(pill(r.fileType, r.fileType === 'video' ? 'action-video' : 'action-default')), td(size(r.fileSize ?? 0)), td(r.compressDurationMs ? `${(r.compressDurationMs / 1000).toFixed(1)}s` : '-')) });
-  const visitorsRow = (r, toggle) => el('tr', { class: 'clickable-row', onclick: toggle }, td(stamp(r.date), 'date-cell'), td(r.ip ?? '---', 'ip-mono'), td(pill(r.action, actionClass(r.action))), td(r.reason ?? r.info ?? ''), td((r.userAgent ?? '').slice(0, 60), 'ua-cell'));
+    stats: s => [statCard('FFmpeg', el('span', null, el('span', { class: `status-dot ${s.ffmpeg ? 'status-online' : 'status-offline'}` }), s.ffmpeg ? 'Available' : 'Unavailable')), statCard('Total Storage', size(s.totalBytes ?? 0)), statCard('Images', String(s.images ?? 0)), statCard('Videos', String(s.videos ?? 0)), statCard('Voice messages', String(s.voices ?? 0))],
+    toolbar: prunePanel,
+    onRemove: (r, s) => { s.totalFiles--; s.totalBytes -= r.fileSize ?? 0; if (r.fileType === 'image') s.images--; if (r.fileType === 'video') s.videos--; if (r.fileType === 'voice') s.voices--; },
+    filters: [{ key: 'type', options: [['', 'All types'], ['image', 'Image'], ['video', 'Video'], ['voice', 'Voice'], ['gif', 'GIF']] }, { key: 'user', placeholder: 'Filter by username...' }],
+    columns: ['Preview', 'Date', 'User', 'File', 'Type', 'Size', 'Processing', ''],
+    // A voice message has no picture: a small player stands in the preview cell (AD-19).
+    rowOf: (r, _, remove) => el('tr', null, td(r.thumb ? el('a', { href: r.link ?? r.thumb, target: '_blank', rel: 'noopener' }, el('img', { src: r.thumb, alt: '', class: 'admin-thumb', loading: 'lazy' }))
+                                              : r.fileType === 'voice' && r.link ? el('audio', { controls: true, preload: 'none', src: r.link, class: 'admin-audio' }) : null),
+      td(stamp(r.date), 'date-cell'), td(r.username), td(r.originalFileName, 'info-cell'), td(pill(r.fileType, r.fileType === 'video' ? 'action-video' : 'action-default')), td(size(r.fileSize ?? 0)), td(r.compressDurationMs ? `${(r.compressDurationMs / 1000).toFixed(1)}s` : '-'),
+      td(r.deletable ? deleteButton(r, remove) : null, 'gif-actions-cell')) });
+  const visitorsRow = (r, toggle) => el('tr', { class: 'clickable-row', onclick: toggle }, td(stamp(r.date), 'date-cell'), td(r.ip ?? '---', 'ip-mono'), td(pill(r.action, actionClass(r.action))), td(r.reason ?? r.url ?? r.info ?? ''), td((r.userAgent ?? '').slice(0, 60), 'ua-cell'));
   visitorsRow.detail = r => el('div', { class: 'user-detail-panel' },
     el('div', { class: 'detail-header' }, el('div', { class: 'detail-header-info' }, el('h4', null, r.ip ?? 'Unknown IP'), r.country ? el('span', { class: 'user-username' }, r.country) : null)),
     el('div', { class: 'detail-tags' }, el('span', { class: 'detail-tag tag-muted' }, ago(r.date)), el('span', { class: 'detail-tag tag-muted' }, r.action), r.reason ? el('span', { class: 'detail-tag tag-muted' }, r.reason) : null),
     el('div', { class: 'detail-section' }, el('h5', null, 'User Agent'), el('span', { class: 'ua-cell', style: { wordBreak: 'break-all' } }, r.userAgent ?? '---')));
-  const visitors = host => paged(host, { title: 'Visitors', route: '/api/admin/visitors', emptyText: 'No visitor data yet. Visitors are tracked when they load the login page.', countOf: (rows, d) => `${d?.stats?.visits ?? rows.length} visits tracked`,
+  const visitors = host => paged(host, { title: 'Visitors', route: '/api/admin/visitors', emptyText: 'No visitor data yet. Visitors are tracked when they load the login page or an invite while signed out.', countOf: (rows, d) => `${d?.stats?.visits ?? rows.length} visits tracked`,
     stats: s => [statCard('Total Visits', String(s.visits ?? 0)), statCard('Login Failures', String(s.failures ?? 0)), statCard('Unique IPs', String(s.uniqueIps ?? 0)), statCard('Today', String(s.today ?? 0))],
     filters: [{ key: 'action', options: [['', 'All'], ['VISIT', 'Visits only'], ['LOGIN_FAIL', 'Login failures only']] }],
     columns: ['Date', 'IP', 'Action', 'Details', 'User-Agent'], rowOf: visitorsRow });
@@ -386,7 +482,7 @@ export function mount(root, route) {
     host.append(header('Diagnostics', 'Live system metrics'), load.node, body);
     const ms = v => v == null ? '—' : `${Math.round(v)}`;
     const sessionRow = s => el('tr', s.ghost ? { style: { color: 'var(--color-warning)' } } : null,
-      td(s.username), td([s.isMobile ? '📱' : '🖥️', ' ', s.clientIp ?? '—', s.clientIpv4 && s.clientIpv4 !== s.clientIp ? el('span', { style: { color: 'var(--text-secondary)' }, title: 'IPv4 reported by the beacon' }, ` · v4 ${s.clientIpv4}`) : null]),
+      td(s.username), td([s.isMobile ? '📱' : '🖥️', ' ', s.clientIp ?? '—', s.clientIpv4 && s.clientIpv4 !== s.clientIp ? el('span', { style: { color: 'var(--text-secondary)' }, 'data-tip': 'IPv4 reported by the beacon' }, ` · v4 ${s.clientIpv4}`) : null]),
       td(s.transport === 'WebSockets' ? 'WS' : s.transport ? '⚠ Fallback' : '—'), td(s.connected ? '✓' : `✗ ${ago(s.closedAt ?? s.droppedAt)}`), td(s.visible ? '👁 yes' : 'no'), td(s.status ?? '—'), td(s.viewing ?? '—'), td(ago(s.lastInputAt)), td(ago(s.lastHeartbeatAt)), td(ago(s.connectedAt)));
     // The waits per person (AD-26): a row per user with the numbers since the restart, then that user's live
     // connections, then the closed ones in grey. The same cells serve all three rows; a connection never has
@@ -402,7 +498,7 @@ export function mount(root, route) {
     ];
     const waitCell = (latency, w) => {
       const s = latency.stats?.[w.key];
-      return el('td', s ? { title: `${s.count} sample${s.count === 1 ? '' : 's'}, last ${ms(s.last)} ms ${ago(s.at)}` } : null, s ? w.show.map(k => ms(s[k])).join(' / ') : '—');
+      return el('td', s ? { 'data-tip': `${s.count} sample${s.count === 1 ? '' : 's'}, last ${ms(s.last)} ms ${ago(s.at)}` } : null, s ? w.show.map(k => ms(s[k])).join(' / ') : '—');
     };
     const waitCells = latency => [...WAITS.map(w => waitCell(latency, w)), td(latency.slowEventCount ? `${latency.slowEventCount}× (max ${ms(latency.maxEventMs)}ms)` : '—')];
     const laggy = latency => (latency.stats?.rtt?.avg ?? 0) > 250;
@@ -427,7 +523,7 @@ export function mount(root, route) {
         el('div', { class: 'diag-stats' }, statCard('Users', String(latest.uniqueUsers ?? 0)), statCard('Sessions', String(latest.userSessions ?? 0)), statCard('Messages', String(latest.totalMessages ?? 0)), statCard('Connections', String((latest.activeConnections ?? 0) + (latest.disconnectedConnections ?? 0))), statCard('Channels', String(latest.channels ?? latest.totalChannels ?? 0))),
         el('div', { class: 'diag-chart-card', style: { marginBottom: '16px' } }, el('h4', null, 'Sessions — presence truth table'), d.sessions.length ? table(['User', 'Device', 'Transport', 'Connected', { text: 'Visible', title: 'Page visibility as last reported — a visible session suppresses push for the whole account' }, 'Status', { text: 'Viewing', title: 'Channel this session has open' }, { text: 'Last input', title: 'Time since last real user input (client-reported)' }, { text: 'Heartbeat', title: 'Time since last client-state report' }, 'Age'], d.sessions.map(sessionRow)) : el('p', { style: { color: 'var(--text-secondary)', margin: 0 } }, 'No active sessions.')),
         el('div', { class: 'diag-chart-card', style: { marginBottom: '16px' } }, el('h4', null, 'Latency by user'),
-          el('p', { class: 'section-hint', style: { margin: '0 0 8px' } }, 'Milliseconds since the last restart. A user row covers all their connections; under it are the live connections, in grey the recently closed. Hover a header for what it measures.'),
+          el('p', { class: 'section-hint', style: { margin: '0 0 8px' } }, 'Milliseconds since the last restart. A user row covers all their connections; under it are the live connections, in grey the recently closed. Hover or tap a header for what it measures.'),
           d.users.length || d.sessions.length || d.recentlyClosed.length ? table(['Who', { text: 'Connection', title: 'Fallback (SSE/long-polling) instead of WebSockets is the first latency suspect' }, ...WAITS.map(w => ({ text: w.text, title: w.title })), { text: 'Slow calls', title: 'Hub calls and message sends the server took ≥100 ms to process' }],
             latencyRows(d), 'users-table logs-table') : el('p', { style: { color: 'var(--text-secondary)', margin: 0 } }, 'No connections tracked yet.')),
         el('div', { class: 'diag-chart-card', style: { marginBottom: '16px' } }, el('h4', null, 'Push notifications'),
@@ -476,16 +572,20 @@ export function mount(root, route) {
   }
 
   // Server load: the 1 s samples of /api/admin/load, polled every 2 s. Built for stress tests, so it has its own
-  // clock; the 30 s rhythm of the rest of the tab would hide the moment the server bends.
+  // clock; the 30 s rhythm of the rest of the tab would hide the moment the server bends. The range select asks
+  // for up to an hour; the server buckets a long range so the chart gets at most 300 points.
   function loadCard() {
     const stats = el('div', { class: 'diag-stats', style: { marginBottom: '0.75rem' } });
     const canvas = el('canvas');
-    const node = el('div', { class: 'diag-chart-card', style: { marginBottom: '16px' } }, el('h4', null, 'Server load — last minute'), stats, el('div', { class: 'diag-chart-wrapper' }, canvas));
-    let chart = null;
+    let seconds = 60, chart = null, timer = null;
+    const range = el('select', { class: 'log-filter-select diag-range', onchange: () => { seconds = Number(range.value); chart?.destroy(); chart = null; restart(); } },
+      [[60, 'Last minute'], [300, 'Last 5 minutes'], [900, 'Last 15 minutes'], [3600, 'Last hour']].map(([v, l]) => el('option', { value: v }, l)));
+    const node = el('div', { class: 'diag-chart-card', style: { marginBottom: '16px' } }, el('div', { class: 'diag-card-head' }, el('h4', null, 'Server load'), range), stats, el('div', { class: 'diag-chart-wrapper' }, canvas));
     const n = v => v == null ? '—' : String(v);
     async function tick() {
       let d;
-      try { d = await api.get('/api/admin/load?seconds=60'); } catch (e) { replace(stats, [empty(e.message)]); return; }
+      const step = Math.ceil(seconds / 300);
+      try { d = await api.get(`/api/admin/load?seconds=${seconds}&step=${step}`); } catch (e) { replace(stats, [empty(e.message)]); return; }
       const l = d.latest;
       if (!l) { replace(stats, [empty('No samples yet.')]); return; }
       replace(stats, [
@@ -496,7 +596,7 @@ export function mount(root, route) {
         statCard('Host load', n(l.machineLoad1)), statCard('Host free', l.machineMemAvailableMB == null ? '—' : `${l.machineMemAvailableMB} MB`),
       ]);
       if (!window.Chart) return;   // the diagnostics tab loads Chart.js on its first draw; until then the numbers alone
-      const labels = d.series.map(s => new Date(s.at).toTimeString().slice(3, 8));
+      const labels = d.series.map(s => new Date(s.at).toTimeString().slice(seconds > 300 ? 0 : 3, seconds > 300 ? 5 : 8));   // mm:ss up to 5 min, then hh:mm
       const data = [
         { label: 'CPU %', data: d.series.map(s => s.cpuPercent), borderColor: '#faa61a', yAxisID: 'y' },
         { label: 'Hub sends/s', data: d.series.map(s => s.hubSendsPerSec), borderColor: '#5865f2', yAxisID: 'y1' },
@@ -507,8 +607,8 @@ export function mount(root, route) {
       chart = new window.Chart(canvas, { type: 'line', data: { labels, datasets: data.map(ds => ({ ...ds, pointRadius: 0, borderWidth: 2, tension: 0.2 })) },
         options: { animation: false, maintainAspectRatio: false, scales: { x: { ticks: { maxTicksLimit: 6 } }, y: { beginAtZero: true, max: 100, position: 'left' }, y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } } } } });
     }
-    tick();
-    const timer = setInterval(tick, 2_000);
+    function restart() { clearInterval(timer); tick(); timer = setInterval(tick, seconds > 300 ? 5_000 : 2_000); }   // a long range moves slowly; poll it less
+    restart();
     return { node, stop: () => { clearInterval(timer); chart?.destroy(); } };
   }
 
@@ -530,5 +630,5 @@ export function mount(root, route) {
   }).catch(() => {});
   root.replaceChildren(page);
   open(route?.hash && TABS.some(([id]) => id === route.hash) ? route.hash : 'users');   // /admin#settings opens that tab (AD-02)
-  return () => { unmountTab(); offs.forEach(off => off()); Object.values(timers).forEach(clearInterval); page.remove(); };
+  return () => { unmountTab(); offTips(); offs.forEach(off => off()); Object.values(timers).forEach(clearInterval); page.remove(); };
 }

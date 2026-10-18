@@ -15,6 +15,7 @@ import { openGallery } from './gallery.js';
 import { reactionPicker } from './emoji-picker.js';
 import { api } from '../api.js';
 import { openInstallDialog } from '../pwa.js';
+import { voicePlayer } from './voice.js';
 
 const MAX_TEXT = 4000;   // MR-11
 
@@ -44,7 +45,7 @@ export function needsHeader(prev, m) {
   return new Date(m.timestamp) - new Date(prev.timestamp) >= 3_600_000;
 }
 
-const hasMedia = m => m.images.length > 0 || m.videos.length > 0 || m.gifs.length > 0 || (m.files?.length ?? 0) > 0;   // files: a pending row's Blobs before the upload (IB-34)
+const hasMedia = m => m.images.length > 0 || m.videos.length > 0 || m.gifs.length > 0 || !!m.voice || (m.files?.length ?? 0) > 0;   // files: a pending row's Blobs before the upload (IB-34)
 const isOwn = m => m.username === state.user?.username;
 
 export function renderRow(m, { header }) {
@@ -65,7 +66,7 @@ export function renderRow(m, { header }) {
       const ru = state.users[m.replyTo.username];
       quote.prepend(avatar(m.replyTo.username, ru?.avatarUrl, 'small', displayName(m.replyTo.username)));
       replace(quote.querySelector('.reply-author'), inline(displayName(m.replyTo.username)));
-      replace(quote.querySelector('.reply-text'), m.replyTo.text ? inline(m.replyTo.text, 'inline') : ['Click to see attachment']);
+      replace(quote.querySelector('.reply-text'), m.replyTo.text ? inline(m.replyTo.text, 'inline') : [m.replyTo.voice ? 'Voice message' : 'Click to see attachment']);   // MR-32
       quote.addEventListener('click', () => jumpTo(m.replyTo.id));
     }
   } else quote.remove();
@@ -95,6 +96,7 @@ function renderContent(row, m) {
   const content = row.querySelector('.message-content');
   if (hasMedia(m)) {
     if (m.text) content.append(caption(m));                                                  // the text above the media (MR-24)
+    if (m.voice) content.append(voicePlayer(m.voice, m.clientId ?? m.id));                   // alone in its row (MR-76); the key survives the pending-to-accepted swap
     if (m.images.length) content.append(imageGallery(m));
     if (m.videos.length) content.append(el('div', { class: 'video-gallery' }, m.videos.map(video)));
     if (m.gifs.length) content.append(el('div', { class: 'gif-message-gallery' }, m.gifs.map(g => gif(g, m))));
@@ -313,7 +315,7 @@ function renderActions(rowNode, m) {
   // a failed row is pending too: Edit corrects the text and sends it again (MR-72)
   if (isOwn(m) && (m.text || !hasMedia(m))) { edit.hidden = false; edit.addEventListener('click', () => startEdit(rowNode, m)); } else edit.remove();   // a text row, or a media row with a caption (MR-57)
   const more = bar.querySelector('.action-more');
-  if (m.text || isOwn(m) || (!m.pending && mayPin())) { more.hidden = false; more.addEventListener('click', e => openMore(rowNode, m, e.currentTarget, e)); } else more.remove();   // MR-47; Pin for a media row of someone else (MR-76)
+  if (m.text || isOwn(m) || (!m.pending && mayPin())) { more.hidden = false; more.addEventListener('click', e => openMore(rowNode, m, e.currentTarget, e)); } else more.remove();   // MR-47; Pin for a media row of someone else (MR-77)
 }
 
 function openReactionPicker(rowNode, m, anchor) {
@@ -327,7 +329,7 @@ function openMore(rowNode, m, anchor, event) {
   const copy = layer.querySelector('[data-action="copy"]'), del = layer.querySelector('[data-action="delete"]'), remove = layer.querySelector('[data-action="remove"]');
   const pin = layer.querySelector('[data-action="pin"]');
   if (m.pending || !mayPin()) pin.remove();
-  else {   // MR-76
+  else {   // MR-77
     const pinned = isPinned(m.id);
     pin.querySelector('span').textContent = pinned ? 'Unpin Message' : 'Pin Message';
     pin.addEventListener('click', () => { close(); togglePin(rowNode, m, pinned); });
@@ -358,6 +360,7 @@ function confirmDelete(rowNode, m) {
   if (m.images[0]) { thumb.hidden = false; thumb.src = m.images[0].medium; label.remove(); }
   else if (m.videos[0]) { thumb.hidden = false; thumb.src = m.videos[0].poster; thumb.alt = 'Video attachment'; label.remove(); }
   else if (m.gifs[0]) { thumb.remove(); label.hidden = false; }
+  else if (m.voice) { thumb.remove(); label.hidden = false; label.textContent = 'Voice message'; }
   else { thumb.remove(); label.remove(); }
   if (overlays.isTouch()) overlay.querySelector('.delete-confirm-tip').remove();   // MR-66
   overlay.querySelector('.confirm-cancel').addEventListener('click', () => close());
@@ -376,7 +379,7 @@ async function deleteNow(rowNode, m) {
   if (result?.error) { undo?.(); overlays.reason(document.getElementById(`msg-${m.id}`) ?? rowNode, result.error); }
 }
 
-// MR-76, MR-77: the header count and the panel change at once; the server's refusal undoes it and shows at the row.
+// MR-77, MR-78: the header count and the panel change at once; the server's refusal undoes it and shows at the row.
 async function togglePin(rowNode, m, pinned) {
   if (state.connection !== 'connected') { overlays.reason(rowNode, 'Needs a connection'); return; }   // MR-75
   const channelId = state.open.channelId;

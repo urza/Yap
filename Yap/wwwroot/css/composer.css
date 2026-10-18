@@ -235,10 +235,10 @@
 }
 
 /* The button collapses away while the box is empty (no text, no file in the tray) AND no picker is
-   open (:placeholder-shown reacts to the value itself; has-files and data-picker are the tray and
-   picker states composer.js flips). It collapses instead of
+   open AND nothing records (:placeholder-shown reacts to the value itself; has-files, data-picker and
+   data-recording are the tray, picker and recorder states composer.js flips). It collapses instead of
    display:none so the width animates AND the Enter handler's .click() keeps a live target. */
-.message-input-container:not([data-picker]):not(.has-files):has(.message-input:placeholder-shown) .send-button {
+.message-input-container:not([data-picker]):not(.has-files):not([data-recording]):has(.message-input:placeholder-shown) .send-button {
     flex-basis: 0;
     width: 0;
     margin-left: 0;
@@ -273,6 +273,79 @@
 
 .image-upload-button:hover {
     color: var(--text-primary);
+}
+
+/* The recorder (IB-68). While a voice message records it takes the pill's line: +, the draft, the toggles and the
+   tray hide, and Send stays (the collapse rule above excludes [data-recording]). The draft keeps its text. */
+.recorder {
+    display: none;
+    flex: 1 1 0%;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding-right: 14px;
+}
+
+.message-input-container[data-recording] .recorder {
+    display: flex;
+}
+
+.message-input-container[data-recording] .image-upload-button,
+.message-input-container[data-recording] .message-input,
+.message-input-container[data-recording] .emoji-toggle-wrapper,
+.message-input-container[data-recording] .attachment-tray {
+    display: none;
+}
+
+.recorder-trash {
+    flex: 0 0 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.recorder-trash:hover {
+    color: var(--color-danger);
+}
+
+.recorder-dot {
+    flex: 0 0 10px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--color-danger);
+    animation: recorderPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes recorderPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+.recorder-time {
+    flex: 0 0 auto;
+    font-size: 0.9375rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-primary);
+}
+
+/* The live bars: the levels of the last seconds, in the accent colour (voice.js draws them). */
+.recorder-bars {
+    flex: 1 1 0%;
+    min-width: 0;
+    height: 28px;
+    --voice-bar: var(--text-placeholder);
+    --voice-bar-played: var(--accent-primary);
 }
 
 /* Toggle wrapper — holds the gif + emoji buttons together. position:relative anchors the
@@ -575,6 +648,13 @@
     }
 
     .send-button {
+        flex: 0 0 40px;
+        width: 40px;
+        height: 40px;
+        margin-bottom: 2px;
+    }
+
+    .recorder-trash {
         flex: 0 0 40px;
         width: 40px;
         height: 40px;

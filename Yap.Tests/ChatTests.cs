@@ -4,7 +4,9 @@ using System.Text.Json;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Data.Sqlite;
 using Yap.Models.Chat;
+using Yap.Models.Media;
 using Yap.Services.Chat;
+using Yap.Services.Media;
 
 namespace Yap.Tests;
 
@@ -58,6 +60,84 @@ public class ChatTests : IClassFixture<YapFactory>
         var empty = await alice.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId = Guid.NewGuid(), text = "   " });
         Assert.Equal(HttpStatusCode.BadRequest, empty.StatusCode);
         await bobHub.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "IB-70, MR-76: a voice message is sent alone, from an upload of this server, and reaches the row with its bars")]
+    public async Task Voice_message_is_sent_alone()
+    {
+        var alice = await _app.SignInAsync("alice_voice");
+        var lobby = _app.Service<ChatService>().LobbyId;
+        var voice = new { url = "/uploads/voice.m4a", durationMs = 4200, peaks = "0369cfilorux" };
+
+        var withText = await alice.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId = Guid.NewGuid(), text = "hi", voice });
+        Assert.Equal(HttpStatusCode.BadRequest, withText.StatusCode);
+        var remote = await alice.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId = Guid.NewGuid(), voice = voice with { url = "https://elsewhere.example/x.m4a" } });
+        Assert.Equal(HttpStatusCode.BadRequest, remote.StatusCode);
+        var malformed = await alice.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId = Guid.NewGuid(), voice = voice with { peaks = "<script>" } });
+        Assert.Equal(HttpStatusCode.BadRequest, malformed.StatusCode);
+
+        var sent = await alice.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId = Guid.NewGuid(), voice });
+        Assert.Equal(HttpStatusCode.OK, sent.StatusCode);
+        var dto = (await sent.Content.ReadFromJsonAsync<MessageDto>())!;
+        Assert.Equal("", dto.Text);
+        Assert.Equal("/uploads/voice.m4a", dto.Voice?.Src);
+        Assert.Equal(4200, dto.Voice?.DurationMs);
+        Assert.Equal("0369cfilorux", dto.Voice?.Peaks);
+
+        // A reply quotes it in words (MR-32), and an edit is refused: there is no caption to change (MR-57).
+        var reply = await (await alice.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId = Guid.NewGuid(), text = "nice", replyToId = dto.Id })).Content.ReadFromJsonAsync<MessageDto>();
+        Assert.True(reply!.ReplyTo!.Voice);
+        Assert.Null(reply.ReplyTo.Text);
+        Assert.NotNull(_app.Service<ChatService>().Edit(_app.Service<ChatService>().GetMessage(dto.Id)!.UserId, dto.Id, "a caption"));
+    }
+
+    [Fact(DisplayName = "AD-19: the media clean-up sees a voice message's file as in use, and as unused once the message is gone")]
+    public async Task Media_cleanup_counts_voice_files()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"yap-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            await using var app = new YapFactory { SqlitePath = db };
+            var alice = await app.SignInAsync("alice_prune");
+            var chat = app.Service<ChatService>();
+            var log = app.Service<MediaUploadLogService>();
+            var cleanup = app.Service<MediaCleanupService>();
+            var aliceId = app.Service<Yap.Services.Accounts.UserService>().GetByUsername(alice.Username)!.Id;
+
+            // The upload's log row, as the tus path writes it, and a message that carries the file.
+            var stem = Guid.NewGuid();
+            log.Log(aliceId, alice.Username, "voice.webm", $"{stem}.m4a", 1234, "voice", ".m4a");
+            var sent = await alice.Http.PostAsJsonAsync($"/api/channels/{chat.LobbyId}/messages", new { clientId = Guid.NewGuid(), voice = new { url = $"/uploads/{stem}.m4a", durationMs = 3000, peaks = "0z" } });
+            Assert.Equal(HttpStatusCode.OK, sent.StatusCode);
+            var message = (await sent.Content.ReadFromJsonAsync<MessageDto>())!;
+
+            // The writer lands the rows a moment later: every check waits for it.
+            static async Task<T> Eventually<T>(Func<Task<T>> probe, Func<T, bool> ok)
+            {
+                T last = await probe();
+                for (var i = 0; i < 50 && !ok(last); i++) { await Task.Delay(100); last = await probe(); }
+                return last;
+            }
+            var row = await Eventually(async () => (await log.GetUploadsAsync()).FirstOrDefault(r => r.StoredFileName == $"{stem}.m4a"), r => r is not null);
+            Assert.NotNull(row);
+
+            var (outcome, uses, _) = await cleanup.DeleteAsync(row.Id, force: false);   // the Voice column answers the LIKE
+            Assert.Equal(MediaCleanupService.DeleteOutcome.InUse, outcome);
+            Assert.Equal(1, uses);
+            var referenced = await Eventually(() => cleanup.UnreferencedAsync(scanDatabase: true), u => u.Files == 0 && u.Recent == 0);   // the scan reads the Voice column
+            Assert.Equal(0, referenced.Recent);
+
+            Assert.Null(chat.Delete(aliceId, message.Id));
+            var orphaned = await Eventually(() => cleanup.UnreferencedAsync(scanDatabase: true), u => u.Recent == 1);
+            Assert.Equal((0, 1), (orphaned.Files, orphaned.Recent));   // unused now, but inside the grace period
+            var deleted = await Eventually(() => cleanup.DeleteAsync(row.Id, force: false), r => r.Outcome == MediaCleanupService.DeleteOutcome.Deleted);
+            Assert.Equal(MediaCleanupService.DeleteOutcome.Deleted, deleted.Outcome);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            foreach (var f in Directory.GetFiles(Path.GetDirectoryName(db)!, Path.GetFileName(db) + "*")) File.Delete(f);
+        }
     }
 
     [Fact(DisplayName = "AD-03: the startup load keeps the newest messages of each conversation, within the count and the days")]
@@ -322,7 +402,7 @@ public class ChatTests : IClassFixture<YapFactory>
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
     }
 
-    [Fact(DisplayName = "MR-76, MR-77, SH-48: in a direct message both people pin and unpin, three at most, the other side hears the change")]
+    [Fact(DisplayName = "MR-77, MR-78, SH-48: in a direct message both people pin and unpin, three at most, the other side hears the change")]
     public async Task Dm_pins_both_ways_and_the_limit()
     {
         var alice = await _app.SignInAsync("alice_pin");
@@ -358,7 +438,7 @@ public class ChatTests : IClassFixture<YapFactory>
         await bobHub.DisposeAsync();
     }
 
-    [Fact(DisplayName = "MR-76, AD-37, TL-05: in a room the admin always pins, the others follow the pin setting, a late joiner sees no pin from before their time")]
+    [Fact(DisplayName = "MR-77, AD-37, TL-05: in a room the admin always pins, the others follow the pin setting, a late joiner sees no pin from before their time")]
     public async Task Room_pin_permission_modes()
     {
         var boss = await _app.AdminAsync();

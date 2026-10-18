@@ -34,7 +34,7 @@ public static class MessagesEndpoints
     {
         // Media URLs come from this server's own upload endpoint. Anything else would let a message embed a
         // remote image, which is a tracking pixel for everyone who reads the room.
-        if (body.Images?.Any(NotAnUpload) == true || body.Videos?.Any(NotAnUpload) == true)
+        if (body.Images?.Any(NotAnUpload) == true || body.Videos?.Any(NotAnUpload) == true || (body.Voice is { } v && NotAnUpload(v.Url ?? "")))
             return Results.Problem("Media must be uploaded first.", statusCode: 400);
 
         // Every GIF of the pick goes into the one message (IB-33); one that is gone refuses the whole send (PK-20).
@@ -56,6 +56,7 @@ public static class MessagesEndpoints
             ImageUrls = body.Images,
             VideoUrls = body.Videos,
             GifAttachments = attachments,
+            Voice = body.Voice,
         });
         return result.Message is { } message
             ? Results.Ok(map.From(message, me.Id()))
@@ -65,8 +66,9 @@ public static class MessagesEndpoints
     private static bool NotAnUpload(string url) => !url.StartsWith("/uploads/", StringComparison.Ordinal);
 }
 
-/// <summary>The body of a send. Text, media or both. Each GIF is one entry of the library or one item from the provider.</summary>
-public sealed record SendMessageRequest(Guid? ClientId, string? Text, Guid? ReplyToId, List<string>? Images, List<string>? Videos, List<GifRequest>? Gifs);
+/// <summary>The body of a send. Text, media or both. Each GIF is one entry of the library or one item from the provider.
+/// A voice message comes alone, with the upload's URL and duration and the recorder's waveform (IB-70).</summary>
+public sealed record SendMessageRequest(Guid? ClientId, string? Text, Guid? ReplyToId, List<string>? Images, List<string>? Videos, List<GifRequest>? Gifs, VoiceAttachment? Voice);
 
 /// <summary><see cref="SearchText"/> becomes a tag of the GIF (PK-20).</summary>
 public sealed record GifRequest(Guid? EntryId, GifSearchItem? Provider, string? SearchText);
