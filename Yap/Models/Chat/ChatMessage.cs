@@ -1,5 +1,3 @@
-using Yap.Models.Accounts;
-
 namespace Yap.Models.Chat;
 
 public class ChatMessage
@@ -8,12 +6,14 @@ public class ChatMessage
     public Guid ChannelId { get; set; }
 
     /// <summary>
-    /// The user who sent this message (foreign key to User).
+    /// The sender's id. Deliberately no foreign key: a deleted account's messages stay (AD-39), so the id may
+    /// name nobody. Author checks compare ids; a deleted account's id matches no one who can sign in.
     /// </summary>
     public Guid UserId { get; set; }
 
     /// <summary>
-    /// Denormalized username for display (avoids joins for common reads).
+    /// Denormalized username for display (avoids joins for common reads). The client resolves it in its users
+    /// directory; after an account deletion it reads "{name} (deleted)", which no directory entry matches.
     /// </summary>
     public string Username { get; set; } = "";
 
@@ -36,7 +36,6 @@ public class ChatMessage
 
     // Navigation properties
     public Channel Channel { get; set; } = null!;
-    public User User { get; set; } = null!;
     public List<Reaction> Reactions { get; set; } = new();
 
     public bool HasImages => ImageUrls.Count > 0;

@@ -160,6 +160,36 @@ public class ChatService
 
     public Channel? GetChannel(Guid channelId) => _channels.GetValueOrDefault(channelId);
 
+    // A conversation leaves memory with everything keyed on it; the database cascade follows the one write.
+    private void Purge(Guid channelId)
+    {
+        _channels.TryRemove(channelId, out _);
+        if (_channelMessages.TryRemove(channelId, out var messages))
+            foreach (var m in messages) _channelOfMessage.TryRemove(m.Id, out _);
+        _channelLocks.TryRemove(channelId, out _);
+        foreach (var key in _readStates.Keys.Where(k => k.ChannelId == channelId).ToList())
+            _readStates.TryRemove(key, out _);
+        _presence.ForgetChannel(channelId);
+        _notifications.ClearOverridesForChannel(channelId);
+        _writer.Enqueue(Writes.DeleteChannel(channelId));
+    }
+
+    /// <summary>
+    /// An account is deleted (AD-39). Its direct messages go on both sides: a conversation with nobody could not be
+    /// opened or answered, and nothing lets the other person dismiss it. Every conversation is a direct message in this
+    /// build, so no message of the person stays in memory; the database-wide relabel to <paramref name="ghostName"/>
+    /// still runs for rows a startup did not load (a room build's database). Returns the deleted direct messages.
+    /// </summary>
+    public List<Guid> RemoveAccount(Guid userId, string ghostName)
+    {
+        var dms = DmChannelsOf(userId).Select(c => c.Id).ToList();
+        foreach (var id in dms) Purge(id);
+        foreach (var key in _readStates.Keys.Where(k => k.UserId == userId).ToList()) _readStates.TryRemove(key, out _);
+        foreach (var key in _byClientId.Keys.Where(k => k.UserId == userId).ToList()) _byClientId.TryRemove(key, out _);
+        _writer.Enqueue(Writes.RelabelAuthor(userId, ghostName));
+        return dms;
+    }
+
     /// <summary>
     /// The direct message between two people, created on first open. Null when the other person is unknown, or
     /// when neither of the two is the admin: a person talks to the admin only (docs/dmonly.md). The bot reaches

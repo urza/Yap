@@ -162,6 +162,7 @@ builder.Services.AddSingleton<MessageMapper>();   // the one mapping from a mess
 builder.Services.AddSingleton<ChatHubBroadcaster>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ChatHubBroadcaster>());   // service events -> hub messages
 builder.Services.AddSingleton<SystemBotService>();
+builder.Services.AddSingleton<AccountDeletionService>();   // the admin's account deletion, across every service that knows a person (AD-39)
 builder.Services.AddSingleton<RegistrationGateService>();
 builder.Services.AddSingleton<SignInService>();
 builder.Services.AddSingleton<ServerConfig>();

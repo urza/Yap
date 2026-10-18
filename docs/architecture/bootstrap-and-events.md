@@ -155,6 +155,7 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
 | NotificationSettingsService `OnChanged` | `me` | the one person, all devices | `{ mutes }` |
 | GifService `OnFavoritesChanged` | `gifFavorites` | the one person, all devices | the favourite ids |
 | RegistrationGateService `OnPendingChanged` | `pending` | the admin | the waiting list |
+| AccountDeletionService `OnAccountDeleted` | `accountDeleted` | everyone | the username. Clients drop the person and the direct message with them (AD-39) |
 | the sign-out-others endpoint | `signedOut` | the connections of the other devices | nothing. The endpoint sends this itself, then closes those connections |
 
 ### Rules

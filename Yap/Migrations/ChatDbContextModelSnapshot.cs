@@ -729,15 +729,7 @@ namespace Yap.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Yap.Models.Accounts.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.Navigation("Channel");
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Yap.Models.Chat.Reaction", b =>
@@ -748,15 +740,7 @@ namespace Yap.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Yap.Models.Accounts.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.Navigation("Message");
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Yap.Models.Gifs.FavoriteGif", b =>

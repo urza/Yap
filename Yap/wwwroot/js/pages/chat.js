@@ -49,9 +49,10 @@ export function mount(root, params) {
   const open = () => openConversation(partner, me, painted, timing, root, params.path);
   open();
   const offConnected = hub.onConnected(open);                 // after a reconnect: the newest messages again (TL-35)
+  const offUsers = on('users', d => { if (d?.removed === partner) router.navigate('/', { replace: true }); });   // the partner's account was deleted (AD-39): the home
 
   return () => {
-    offConnected();
+    offConnected(); offUsers();
     // leaving for another page marks the conversation read when the person was looking (NT-06)
     if (hub.connected() && hub.looking()) hub.send('markRead', state.open.channelId);
     unmounts.forEach(u => u());

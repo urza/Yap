@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.SignalR;
 using Yap.Helpers;
 using Yap.Configuration;
 using Yap.Models.Accounts;
@@ -62,6 +63,33 @@ public static class AdminEndpoints
                 ips = ips.Select(i => new IpDto(i.IP, geo.Lookup(i.IP)?.Country, i.LastSeen)).ToList(),
                 userAgents = agents.Select(a => new { userAgent = a.UserAgent, lastSeen = a.LastSeen }).ToList(),
             });
+        });
+
+        // ---- Danger zone (AD-37 to AD-39) ---------------------------------------------------------------------
+
+        // Oldest first, so the admin reads the list from the surest case down. Not under /users/: a person may be
+        // named "inactive", and the literal segment would shadow their detail route.
+        admin.MapGet("/inactive", (int? days, AccountDeletionService deletion) =>
+            Results.Ok(new { users = deletion.Inactive(Math.Max(1, days ?? AccountDeletionService.DefaultInactiveDays))
+                .Select(u => new InactiveUserDto(u.Username, u.DisplayName, u.ProfilePictureUrl, AccountDeletionService.LastActiveAt(u))).ToList() }));
+
+        // One route for one account and for the sweep: the client sends the names it showed the admin, so what was
+        // confirmed is what goes. A refusal (the admin, the bot) stops the whole request before anything is deleted;
+        // a name that is gone already is skipped, it may have been deleted from another tab.
+        admin.MapPost("/users/delete", async (DeleteUsersRequest body, UserService users, PresenceService presence,
+            AccountDeletionService deletion, IHubContext<ChatHub> hub) =>
+        {
+            var targets = (body.Usernames ?? []).Select(users.GetByUsername).OfType<User>().DistinctBy(u => u.Id).ToList();
+            if (targets.Select(deletion.Refusal).FirstOrDefault(r => r is not null) is { } refusal)
+                return Results.Problem(refusal, statusCode: 400);
+            var deleted = 0;
+            foreach (var user in targets)
+            {
+                foreach (var session in presence.SessionsOf(user.Id))
+                    await hub.Clients.Client(session.ConnectionId).SendAsync("signedOut");   // the login page now, not after a failed reconnect
+                if (await deletion.DeleteAsync(user.Id) is null) deleted++;
+            }
+            return Results.Ok(new { deleted });
         });
 
         // ---- Debug (AD-08) ----------------------------------------------------------------------------------
@@ -413,6 +441,8 @@ public static class AdminEndpoints
 public sealed record AdminUserDto(Guid Id, string Username, string? DisplayName, string? AvatarUrl, bool IsAdmin, bool IsBot, string Status,
     DateTime? PwaInstalledAt, DateTime CreatedAt, LastActionDto? LastAction, string? TimeZone, string? Locale, List<IpDto> RecentIps);
 public sealed record LastActionDto(string Action, DateTime At);
+public sealed record InactiveUserDto(string Username, string? DisplayName, string? AvatarUrl, DateTime LastActiveAt);
+public sealed record DeleteUsersRequest(List<string>? Usernames);
 public sealed record IpDto(string Ip, string? Country, DateTime? LastSeen);
 public sealed record ThemeUseDto(string Id, string Name, string PreviewBg, string PreviewAccent, int Count);
 public sealed record GenerateRequest(string Username, int Count = 200, int Hours = 168);

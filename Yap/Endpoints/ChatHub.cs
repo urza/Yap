@@ -55,6 +55,7 @@ public sealed class ChatHub(ChatService chat, PresenceService presence, UserServ
     public override Task OnDisconnectedAsync(Exception? exception)
     {
         presence.Disconnect(Context.ConnectionId, closedByClient: exception is null);
+        users.UpdateLastSeen(Me);   // a long session counts to its end, not to its start (AD-38: the inactive sweep reads this)
         return Task.CompletedTask;
     }
 

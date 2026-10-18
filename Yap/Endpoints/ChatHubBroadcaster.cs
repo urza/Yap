@@ -18,8 +18,8 @@ namespace Yap.Endpoints;
 /// is in docs/architecture/bootstrap-and-events.md.
 /// </summary>
 public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService chat, PresenceService presence, UserService users,
-    NotificationSettingsService mutes, GifService gifs, RegistrationGateService gate, SystemBotService bot, MessageMapper map,
-    LoadCounters load, ILogger<ChatHubBroadcaster> log) : IHostedService
+    NotificationSettingsService mutes, GifService gifs, RegistrationGateService gate, SystemBotService bot, AccountDeletionService deletion,
+    MessageMapper map, LoadCounters load, ILogger<ChatHubBroadcaster> log) : IHostedService
 {
     private readonly List<Action> _unsubscribe = [];
 
@@ -44,6 +44,7 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
         On<User>(h => users.OnProfileChanged += h, h => users.OnProfileChanged -= h,
             u => ToWatchersOf(u.Username, "profile", UserDto.From(u, users.IsAdmin(u.Id), bot.IsBotUser(u.Username))));
         On<Guid, object>(h => users.OnSettingsChanged += h, h => users.OnSettingsChanged -= h, (userId, partial) => ToUser(userId, "me", partial));
+        On<string>(h => deletion.OnAccountDeleted += h, h => deletion.OnAccountDeleted -= h, username => ToAll("accountDeleted", username));   // AD-39
         On<Guid, List<string>>(h => users.OnRecentEmojiChanged += h, h => users.OnRecentEmojiChanged -= h,
             (userId, recent) => ToUser(userId, "me", new { emoji = new { recent, quickReactions = chat.QuickReactions(userId) } }));   // MR-41
         On<Guid>(h => mutes.OnChanged += h, h => mutes.OnChanged -= h, userId => ToUser(userId, "me", new { mutes = mutes.For(userId) }));
