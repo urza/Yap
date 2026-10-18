@@ -1,6 +1,6 @@
 // The pinned messages panel (SH-47 to SH-49): opened from the header's pin button, a popup under the button on
 // desktop and a bottom sheet on a phone. One entry per pin, the newest first, with the author, the time, the whole
-// text or the first picture, and who pinned it. A tap on an entry jumps to the message. The ✕ unpins, for the
+// text or the first picture, and who pinned it. A tap on an entry jumps to the message. The trash control unpins, for the
 // people who may pin (MR-77). The panel draws from state.open.pins and keeps no copy; it follows every change
 // while it is open, and it closes when the last pin goes.
 
@@ -71,6 +71,12 @@ export function openPins(anchor, onClose) {
   ];
   const close = overlays.open({ element: panel, keep: [anchor], onClose: () => { offs.forEach(off => off()); layer.remove(); onClose?.(); } });
   draw();
-  if (layer.isConnected) overlays.place(panel, anchor, { gap: 12 });   // after the entries exist: the height decides below or above; 12 px clears the header line
+  // After the entries exist: the height decides below or above. The button ends 8 px above the header's edge and the
+  // 3 px header line follows, so a gap of 18 px leaves 7 px of air under the line (12 px touched it). The button sits
+  // after the title on a desktop and on the right in a narrow window (SH-47): the panel grows from the button's side.
+  if (layer.isConnected) {
+    const align = anchor.getBoundingClientRect().left < innerWidth / 2 ? 'left' : 'right';
+    overlays.place(panel, anchor, { align, gap: 18 });
+  }
   return close;
 }
