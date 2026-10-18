@@ -91,6 +91,9 @@ builder.Services.AddAuthorizationBuilder()
 
 // Persistence (optional database support)
 builder.Services.AddChatPersistence(builder.Configuration);
+// A stop waits for the writer to put the queue and the coalesced read states on disk. The default grace is 30 s; a
+// backlog of tens of thousands of writes needs more, and systemd's default stop timeout is 90 s, so 60 s fits under it.
+builder.Services.Configure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromSeconds(60));
 
 // Push subscription persistence (Json file or Database)
 var pushStorage = builder.Configuration.GetValue<string>("ChatSettings:PushSubscriptionStorage") ?? "Json";
