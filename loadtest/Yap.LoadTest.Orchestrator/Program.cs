@@ -7,17 +7,17 @@ using Yap.LoadTest.Shared;
 // + and - step the user count, digits and Enter set it, t r l i d switch the kinds of traffic, < and > the pace.
 //
 //   dotnet Yap.LoadTest.Orchestrator.dll --server http://host:5221
-//     [--users 0] [--kinds all] [--pace normal] [--previews on] [--rooms 1] [--visible 0.3] [--rate 10] [--per-worker 250]
+//     [--users 0] [--kinds all] [--pace normal] [--previews off] [--rooms 1] [--visible 0.3] [--rate 10] [--per-worker 250]
 //     [--admin loadadmin] [--admin-code "blue fox 42"] [--prefix lt_u] [--links links.txt]
 //     [--state state] [--out results] [--for 30m] [--plain] [--worker path/to/Yap.LoadTest.Worker.dll]
 
 var a = new Args(args);
 if (a.Has("help") || !a.Has("server"))
 {
-    Console.WriteLine("usage: --server URL [--users 0] [--kinds all] [--pace normal] [--previews on] [--rooms 1] [--visible 0.3] [--rate 10] [--per-worker 250]");
+    Console.WriteLine("usage: --server URL [--users 0] [--kinds all] [--pace normal] [--previews off] [--rooms 1] [--visible 0.3] [--rate 10] [--per-worker 250]");
     Console.WriteLine("       [--admin NAME] [--admin-code CODE] [--prefix lt_u] [--links FILE] [--state DIR] [--out DIR] [--for 30m] [--plain] [--worker DLL]");
     Console.WriteLine("keys:  + -  50 users   PgUp PgDn  250 users   digits, Enter  an exact count   t r l i d  text, reactions, links, images, DMs on or off   < >  pace   q  quit");
-    Console.WriteLine("kinds: all, none, or a list such as text,links   pace: calm, normal, busy, frantic   previews: on (link previews and media caching) or off");
+    Console.WriteLine("kinds: all, none, or a list such as text,links   pace: calm, normal, busy, frantic   previews: off (the default: no fetches of the shared links) or on (previews and media caching, as in production)");
     return 2;
 }
 
@@ -29,7 +29,9 @@ var visible = a.Double("visible", 0.3);
 var prefix = a.Get("prefix") ?? "lt_u";
 var stateDir = a.Get("state") ?? "state";
 var links = a.Get("links");
-var previews = (a.Get("previews") ?? "on").ToLowerInvariant() switch { "on" => true, "off" => false, var v => throw new ArgumentException($"--previews takes on or off, not '{v}'") };
+// Off by default: with previews on, one IP asks YouTube and the other platforms for the same few links over and over,
+// they refuse, and the box spends cores on yt-dlp and ffmpeg (the 2026-10-18 run lost half of them). On measures that cost on purpose.
+var previews = (a.Get("previews") ?? "off").ToLowerInvariant() switch { "on" => true, "off" => false, var v => throw new ArgumentException($"--previews takes on or off, not '{v}'") };
 var runFor = a.Get("for") is { } f ? Duration(f) : (TimeSpan?)null;
 var workerDll = a.Get("worker") ?? Path.Combine(AppContext.BaseDirectory, "Yap.LoadTest.Worker.dll");
 if (!File.Exists(workerDll)) { Console.Error.WriteLine($"worker not found: {workerDll} (pass --worker)"); return 2; }
