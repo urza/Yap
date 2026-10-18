@@ -6,14 +6,14 @@ The emoji picker and the GIF picker open from the input box. The emoji picker pu
 
 ![Emoji picker, desktop. The category bar on the left with Recent active, the search field on top, the Recent row, then the first pack section.](img/pickers-desktop-emoji.png)
 
-![GIF picker, desktop, Browse tab without a provider. The tab rail on the left with Trending disabled, the library search field with the upload button, and the Favorites tile. With a provider, a Trending header and grid and the attribution badge follow.](img/pickers-desktop-gif-browse.png)
+![GIF picker, desktop, Browse tab without a provider. The tab rail on the left, the library search field with the upload button, and the Favorites tile. With a provider, a Trending header and grid and the attribution badge follow.](img/pickers-desktop-gif-browse.png)
 
 ![Phone sheet, GIFs tab, Favorites open. The tab row GIFs and Emoji with the keyboard button and the chevrons at its right end, the GIF rail and the search row, a favourite card with its gold star, the Settings link.](img/pickers-phone-sheet-gifs.png)
 
 1. **Category bar.** A 40 px rail on the left of the emoji picker, with one icon for each section: Recent, each custom pack, then the ten categories. The icon of the section in view is highlighted.
 2. **Emoji search.** A search field with a clear button, at the top of the grid. Results update on every keystroke.
 3. **Emoji grid.** Sections, each with a header in small capitals: Recent, the custom packs, then the categories. Each cell is 48 px with a 40 px image. On a phone, each cell is 36 px with a 28 px image.
-4. **GIF rail.** A 40 px rail on the left of the GIF picker, with the tabs Recent, Favorites, Server library, Trending and Browse.
+4. **GIF rail.** A 40 px rail on the left of the GIF picker, with the tabs Recent, Favorites, Server library and Browse.
 5. **GIF search row.** The search field, its clear button, a spinner and the upload button. The spinner shows while the provider searches.
 6. **GIF results.** A two-column masonry layout of cards. Each card has the aspect ratio of its GIF and plays a preview. Library cards have a favourite star.
 7. **Attribution.** A small "Powered by Klipy" badge in a footer strip. It shows while provider results show.
@@ -49,7 +49,7 @@ The emoji picker and the GIF picker open from the input box. The emoji picker pu
 
 ### GIF picker
 
-**PK-13** On desktop, the GIF picker is 500 px wide and at most 460 px high. The rail on the left has Recent, Favorites, Server library, Trending and Browse. Server library is hidden while the server has no GIFs. Trending is disabled while no provider is configured.
+**PK-13** On desktop, the GIF picker is 500 px wide and at most 460 px high. The rail on the left has Recent, Favorites, Server library and Browse. Server library is hidden while the server has no GIFs.
 
 **PK-14** The first open shows Browse when a provider is configured, the reader has favourites, or the server has GIFs. Otherwise it shows Recent. The picker keeps its tab and its open folder when it closes and opens again. A reopen clears the search and refreshes Recent.
 
@@ -57,9 +57,9 @@ The emoji picker and the GIF picker open from the input box. The emoji picker pu
 
 **PK-16** Recent shows the last 30 GIFs that the reader sent from the picker, newest first, without duplicates. A GIF uploaded from the picker is not added to Recent. The list belongs to the account. When the list is empty, it shows "No recent GIFs yet".
 
-**PK-17** Trending shows the trending GIFs of the provider in a grid, without a header. While the GIFs load, the tab shows "Loading…". When the GIFs cannot load, the tab shows "Could not load GIFs". The picker tries again on the next open.
+**PK-17** Retired 2026-10-18. The Trending tab is removed. The trending GIFs show only in Browse (PK-18).
 
-**PK-18** Browse shows shortcut tiles first. A "Favorites" tile shows when the reader has favourites. A tile with the project name shows when the server has GIFs. When a provider is configured, Browse shows a "Trending" header and the trending grid below the tiles, or "Could not load GIFs" in place of the grid when trending cannot load. When there is no provider, no favourites and no server GIFs, Browse shows "Nothing here yet". A tile opens its tab.
+**PK-18** Browse shows shortcut tiles first. A "Favorites" tile shows when the reader has favourites. A tile with the project name shows when the server has GIFs. When a provider is configured, Browse shows a "Trending" header and the trending grid below the tiles, While the GIFs load, "Loading…" stands in place of the grid. When the GIFs cannot load, "Could not load GIFs" stands there, and the picker tries again on the next open. When there is no provider, no favourites and no server GIFs, Browse shows "Nothing here yet". A tile opens its tab.
 
 **PK-19** Cards are in two masonry columns with 6 px gaps. Each card has the aspect ratio of its GIF. It shows a small, muted preview that loops. When a preview cannot start, it starts on the next tap or key press anywhere.
 
@@ -81,11 +81,11 @@ The emoji picker and the GIF picker open from the input box. The emoji picker pu
 
 **PK-27** A GIF gets tags from the search text of each send. It also gets the provider's title and tags at a send or a star, and the words in the name of an uploaded file. An edit in My GIFs or in the admin's library replaces the tags of the GIF for everyone.
 
-**PK-28** Provider results come in pages of 30. In Trending, Browse and search, "Load more" at the end of the list adds the next page.
+**PK-28** Provider results come in pages of 30. In Browse and search, "Load more" at the end of the list adds the next page.
 
-**PK-29** The provider is Klipy. It is configured with a key on the server. Without a key, Trending is disabled and the field searches only the library. There is then no provider section and no attribution. The admin's content rating setting applies to search and trending.
+**PK-29** The provider is Klipy. It is configured with a key on the server. Without a key, Browse has no trending grid and the field searches only the library. There is then no provider section and no attribution. The admin's content rating setting applies to search and trending.
 
-**PK-30** When a provider is configured, a footer strip shows the "Powered by Klipy" badge. The strip shows while the field has text, or while Trending or Browse is open.
+**PK-30** When a provider is configured, a footer strip shows the "Powered by Klipy" badge. The strip shows while the field has text, or while Browse is open.
 
 **PK-31** When the provider does not respond, there is no provider section and no error. Library hits or "No matches" show instead.
 
@@ -133,7 +133,7 @@ The emoji picker and the GIF picker open from the input box. The emoji picker pu
 
 ### Without a connection
 
-**PK-49** Without a connection, the emoji picker works fully for the draft. A reaction pick needs a connection, as the [message row page](message-row.md#MR-75) says. In the GIF picker, Recent, Favorites, Server library and the Browse tiles show the data that was last loaded. Search, Trending, "Load more", the upload button and the star show "Needs a connection". A tap on a card queues the GIF as a message, the same as any other message.
+**PK-49** Without a connection, the emoji picker works fully for the draft. A reaction pick needs a connection, as the [message row page](message-row.md#MR-75) says. In the GIF picker, Recent, Favorites, Server library and the Browse tiles show the data that was last loaded. Search, the trending grid, "Load more", the upload button and the star show "Needs a connection". A tap on a card queues the GIF as a message, the same as any other message.
 
 ## States
 
@@ -148,7 +148,7 @@ The emoji picker and the GIF picker open from the input box. The emoji picker pu
 | Pointer over a cell | mouse | Cell background and a slight enlargement. |
 | Cell tap, composer picker | mouse, touch | Emoji added to the draft; picker stays open; Recent unchanged until reopen. |
 | Cell tap, reaction picker | mouse, touch | Picker closes; reaction toggled. |
-| GIF picker opens, first time | mouse | Browse (or Recent) with its data; Trending loading if needed. |
+| GIF picker opens, first time | mouse | Browse (or Recent) with its data; the trending grid loading if needed. |
 | GIF picker reopens | mouse, touch | Same tab and folder, search cleared, Recent refreshed. |
 | Tab tap | mouse, touch | Search cleared, tab data refreshed. |
 | Type in GIF search | keyboard | After a quarter second, library hits, then provider hits; a spinner until the provider hits show. |
@@ -167,7 +167,7 @@ The emoji picker and the GIF picker open from the input box. The emoji picker pu
 | Trending unavailable | all | "Could not load GIFs". |
 | Phone: tab switch | touch | Instant; each tab keeps its state. |
 | Phone: emoji cell tap with the keyboard open | touch | Keyboard closes, emoji inserted, sheet stays open. |
-| No connection, GIF search, Trending, upload or star | all | "Needs a connection"; the lists and the Browse tiles show the data that was last loaded. |
+| No connection, GIF search, trending, upload or star | all | "Needs a connection"; the lists and the Browse tiles show the data that was last loaded. |
 
 ## Wording
 
@@ -177,7 +177,7 @@ The emoji picker and the GIF picker open from the input box. The emoji picker pu
 | Emoji sections and bar tooltips | "Recent", "Custom", the pack names ("Wechat"), "Smileys", "Gestures", "Animals", "Nature", "Food", "Activities", "Travel", "Objects", "Symbols", "Flags" |
 | Recent empty | "No recent emojis yet" |
 | Pack cell tooltip | ":{shortcode}:" |
-| GIF rail tooltips | "Recent", "Favorites", "Server library", "Trending", "Browse" |
+| GIF rail tooltips | "Recent", "Favorites", "Server library", "Browse" |
 | GIF search | placeholder "Search Klipy..." or "Search your library..."; clear tooltip "Clear"; spinner tooltip "Searching..."; upload tooltip "Upload a GIF", while busy "Adding GIF…" |
 | GIF section headers | "From your library"; the provider name ("Klipy"); "Unsorted"; "Trending" |
 | GIF empty and status texts | "No matches"; "No recent GIFs yet"; "⭐ Tap the star on any GIF to save it here"; "No server GIFs yet"; "Loading…"; "Nothing here yet"; "Could not load GIFs"; "Load more" |
