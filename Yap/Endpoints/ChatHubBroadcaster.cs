@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.AspNetCore.SignalR;
 using Yap.Models.Accounts;
 using Yap.Models.Chat;
@@ -23,6 +24,16 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
 {
     private readonly List<Action> _unsubscribe = [];
 
+    // The latest unread count per person and channel, sent four times a second at most. A room message raises the
+    // count of every recipient, and sending each raise at once meant one hub call per recipient per message: 9,000 a
+    // second at 1,000 users on the 2026-10-18 load test, most of the hub-send rate. The badge is a number, and the
+    // latest number is all a tab needs. A markRead's zero goes through the same key, so a stale count cannot
+    // overtake it. The wire event stays `unread(channelId, count)`; the client does not know the difference.
+    private static readonly TimeSpan UnreadTick = TimeSpan.FromMilliseconds(250);
+    private readonly ConcurrentDictionary<(Guid User, Guid Channel), int> _unread = new();
+    private readonly CancellationTokenSource _stopping = new();
+    private Task? _unreadLoop;
+
     public Task StartAsync(CancellationToken cancellationToken)
     {
         On<ChatMessage>(h => chat.OnMessageReceived += h, h => chat.OnMessageReceived -= h, m => ToChannel(m.ChannelId, "message", map.From(m, null)));
@@ -30,7 +41,8 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
         On<Guid, Guid>(h => chat.OnMessageDeleted += h, h => chat.OnMessageDeleted -= h, (channelId, id) => ToChannel(channelId, "messageDeleted", channelId, id));
         On<ChatMessage>(h => chat.OnReactionChanged += h, h => chat.OnReactionChanged -= h, m => ToChannel(m.ChannelId, "reactions", m.Id, map.Reactions(m)));
         On<ChatMessage>(h => chat.OnPreviewsReady += h, h => chat.OnPreviewsReady -= h, m => ToChannel(m.ChannelId, "previews", m.Id, chat.Previews(m)));
-        On<Guid, Guid, int>(h => chat.OnUnreadChanged += h, h => chat.OnUnreadChanged -= h, (userId, channelId, count) => ToUser(userId, "unread", channelId, count));
+        On<Guid, Guid, int>(h => chat.OnUnreadChanged += h, h => chat.OnUnreadChanged -= h, (userId, channelId, count) => _unread[(userId, channelId)] = count);   // sent by SendUnreadAsync
+        _unreadLoop = SendUnreadAsync(_stopping.Token);
         On<Channel>(h => chat.OnDmStarted += h, h => chat.OnDmStarted -= h, DmStarted);
         On<Channel>(h => chat.OnPinsChanged += h, h => chat.OnPinsChanged -= h, c => ToChannel(c.Id, "pins", c.Id, chat.PinsFor(c.Id)));   // SH-48
 
@@ -58,11 +70,27 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
         return Task.CompletedTask;
     }
 
-    public Task StopAsync(CancellationToken cancellationToken)
+    public async Task StopAsync(CancellationToken cancellationToken)
     {
+        _stopping.Cancel();
+        if (_unreadLoop is not null) await _unreadLoop;
         foreach (var off in _unsubscribe) off();
         _unsubscribe.Clear();
-        return Task.CompletedTask;
+    }
+
+    private async Task SendUnreadAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(UnreadTick);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                // Remove, then send: a count written between the two lands in the next tick, never lost.
+                foreach (var key in _unread.Keys)
+                    if (_unread.TryRemove(key, out var count)) ToUser(key.User, "unread", key.Channel, count);
+            }
+        }
+        catch (OperationCanceledException) { }   // StopAsync: the hub goes down with us, and a tab bootstraps its counts on reconnect
     }
 
     // Each person gets their own partner name, so the same event becomes two messages.
