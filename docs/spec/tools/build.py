@@ -153,7 +153,7 @@ def paragraph(text: str) -> str:
 
 
 def table(rows):
-    cells = [[c.strip() for c in r.strip().strip("|").split("|")] for r in rows]
+    cells = [[c.strip() for c in re.sub(r"<!--.*?-->", "", r).strip().strip("|").split("|")] for r in rows]   # a lint comment in a row is not a cell
     head, body = cells[0], cells[2:]
     out = ['<div class="tablewrap"><table><thead><tr>']
     out += ["<th>%s</th>" % inline(c) for c in head]

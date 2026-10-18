@@ -52,7 +52,7 @@ Yap runs in the browser and can also be installed as an app on a phone or a desk
 | --- | --- | --- |
 | "install it" or "Install Yap" | touch, mouse | Install dialog; then the browser's install or the guide. |
 | Installed app launched | touch | Full screen, last conversation; signed in when installed from a signed-in browser within 72 hours, else the login page. |
-| New version | all | Notice strip with "Reload"; nothing changes until the tap. |
+| New version | all | Notice strip with "Reload"; an open page does not change until the tap. A page that this visit did not open yet loads fresh ([SH-50](frame.md#SH-50)). |
 | Connection lost | all | Grey ring; everything readable. |
 | Open a conversation seen before | all | Its last messages at once. |
 | Open a conversation never seen | all | Header and empty list with "Needs a connection". |
