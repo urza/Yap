@@ -163,3 +163,9 @@ collector that runs 25 to 90 gen 2 collections a minute with 16 to 23 ms of paus
 maximum was 95 to 136 s. The medium thumbnail runs inside the upload request and waits for a core on a saturated
 box. A queue for thumbnails with a concurrency limit, and the request answering before the thumbnail, would turn
 the timeouts into a slower appearance of the picture.
+
+**Host side of run 4** (`run4/host-04.csv`): the box reached 91 % at 1,500 and 98 % at 2,000. Yap took 1.4 cores at
+1,000, 2.6 at 1,500 and 2.8 at 2,000; the share outside the process grew from 0.7 to 1.1 cores, which is the
+kernel moving 39 MB/s out (310 Mbit/s) over 6,224 established connections at 2,000 users, about three per user
+through the proxy. iowait stayed under 1 %, RSS 611 MB, 2,424 open files. The proxy-off round shows what the
+same levels cost without that fan-in.
