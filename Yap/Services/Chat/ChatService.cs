@@ -521,6 +521,12 @@ public class ChatService
         _channelOfMessage[message.Id] = channel.Id;
         if (request.ClientId is { } id) _byClientId[(request.UserId, id)] = (message.Id, message.Timestamp);
 
+        // The message's own write goes into the queue before anyone hears of the message. A reaction that a fast
+        // client sends after the broadcast has a row with a foreign key to this message; queued ahead of the
+        // insert, it failed with "FOREIGN KEY constraint failed" and was dropped (five times on the 2026-10-18
+        // load test, when the broadcast and the unread sends below held this thread for tens of milliseconds).
+        _writer.Enqueue(Writes.Message(message));
+
         var unread = IncrementUnread(channel, request.UserId);
         _presence.StopTyping(channel.Id, request.Username);   // IB-59
 
@@ -528,7 +534,6 @@ public class ChatService
         if (firstInDm) OnDmStarted?.Invoke(channel);
         foreach (var (userId, count) in unread) OnUnreadChanged?.Invoke(userId, channel.Id, count);
 
-        _writer.Enqueue(Writes.Message(message));
         foreach (var (userId, _) in unread) _writer.Enqueue(Writes.ReadState(_readStates[(userId, channel.Id)]));
 
         QueuePreviews(message);
