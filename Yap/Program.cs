@@ -302,8 +302,10 @@ app.Use((context, next) =>
     return Task.CompletedTask;
 });
 
-// Profile pictures live at a STABLE url (/uploads/profiles/{userId}.webp) that's overwritten when
-// the avatar changes, so they must NOT be immutable. Short max-age = fast reuse + quick propagation.
+// Profile pictures live at a STABLE path (/uploads/profiles/{userId}.webp) that's overwritten when
+// the avatar changes, so they must NOT be immutable. The stored URL carries ?v=<upload time>, so a new
+// picture is a new URL for every client (ImageService). The short max-age covers a client that still
+// holds the old URL.
 // Registered before the general /uploads handler so it wins for the profiles subtree.
 app.UseStaticFiles(new StaticFileOptions
 {
