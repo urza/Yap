@@ -6,3 +6,4 @@ results/
 
 # The host monitor CSVs of a finished series stay with its report.
 !reports/**/*.csv
+runs/
