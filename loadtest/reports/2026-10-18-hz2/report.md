@@ -124,3 +124,10 @@ Fixed in ea61d31e: the write is queued first.
 
 **The next server change is the read-state dirty set.** 6.3 million queued writes after 24 minutes, 1.6 GB of
 memory and 17 gen 2 collections a minute are all that backlog. After it, the fan-out is the cost that remains.
+
+**Host side of run 2** (`host-02.csv`, the plateau 19:15:36 to 19:33:34 UTC): box CPU 92 % mean and 99 % max,
+Yap 271 % of 400 mean and 304 % max, so about one core went to everything outside the process (the kernel's
+work for 16 MB/s out, 27 MB/s at peak, and 3,200 TCP connections). Load average 11.8, iowait 0.1 %, disk write
+2.5 MB/s: the writer is bound by CPU in EF and SQLite, not by the disk. RSS 1,000 MB mean and 1,650 MB max, 56
+threads at most. For five minutes after the users left, Yap still used 1.5 cores and the disk wrote 2.5 MB/s:
+the backlog draining.

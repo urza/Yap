@@ -24,6 +24,15 @@ dotnet publish Yap.LoadTest.HostMonitor -c Release -o out/hostmonitor
 The orchestrator starts `dotnet Yap.LoadTest.Worker.dll` from its own folder. Pass `--worker <path>`
 when the worker lives elsewhere.
 
+Run it from `loadtest/runs/` (ignored by git), not from the build output: the `state/` and `results/` folders
+land where the prompt is, and a `bin/` folder is what a clean-up removes. The state file holds the tokens of
+the test accounts, so it stays out of the repository.
+
+```powershell
+mkdir D:\PROJECTS\Yap\loadtest\runs; cd D:\PROJECTS\Yap\loadtest\runs
+dotnet ..\Yap.LoadTest.Orchestrator\bin\Debug\net10.0\Yap.LoadTest.Orchestrator.dll --server https://test.example.org
+```
+
 ## Run
 
 Run the load from a different machine than the server. A worker uses real CPU for JSON, WebSockets
