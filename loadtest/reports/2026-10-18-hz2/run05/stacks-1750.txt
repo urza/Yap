@@ -1,0 +1,385 @@
+Thread (0x9D35):
+  [Native Frames]
+  System.Private.CoreLib!System.Threading.Monitor.Wait(class System.Object,int32)
+  System.Private.CoreLib!System.Threading.ManualResetEventSlim.Wait(int32,value class System.Threading.CancellationToken)
+  System.Private.CoreLib!System.Threading.Tasks.Task.SpinThenBlockingWait(int32,value class System.Threading.CancellationToken)
+  System.Private.CoreLib!System.Threading.Tasks.Task.InternalWaitCore(int32,value class System.Threading.CancellationToken)
+  System.Private.CoreLib!System.Threading.Tasks.Task.InternalWait(int32,value class System.Threading.CancellationToken)
+  System.Private.CoreLib!System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(class System.Threading.Tasks.Task,value class System.Threading.Tasks.ConfigureAwaitOptions)
+  Microsoft.Extensions.Hosting.Abstractions!Microsoft.Extensions.Hosting.HostingAbstractionsHostExtensions.Run(class Microsoft.Extensions.Hosting.IHost)
+  Yap!Program+<<Main>$>d__0.MoveNext()
+  System.Private.CoreLib!System.Runtime.CompilerServices.AsyncMethodBuilderCore.Start(!!0&)
+  System.Private.CoreLib!System.Runtime.CompilerServices.AsyncTaskMethodBuilder.Start(!!0&)
+  Yap!Program.<Main>$(class System.String[])
+  Yap!Program.<Main>(class System.String[])
+
+Thread (0x9D43):
+  [Native Frames]
+  System.IO.FileSystem.Watcher!System.IO.FileSystemWatcher+RunningInstance.TryReadEvent(value class NotifyEvent&)
+  System.IO.FileSystem.Watcher!System.IO.FileSystemWatcher+RunningInstance.ProcessEvents()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0x9D44):
+  [Native Frames]
+  System.IO.FileSystem.Watcher!System.IO.FileSystemWatcher+RunningInstance.TryReadEvent(value class NotifyEvent&)
+  System.IO.FileSystem.Watcher!System.IO.FileSystemWatcher+RunningInstance.ProcessEvents()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0x9D45):
+  [Native Frames]
+  Microsoft.Extensions.Logging.Console!Microsoft.Extensions.Logging.Console.ConsoleLoggerProcessor.TryDequeue(value class Microsoft.Extensions.Logging.Console.LogMessageEntry&)
+  Microsoft.Extensions.Logging.Console!Microsoft.Extensions.Logging.Console.ConsoleLoggerProcessor.ProcessLogQueue()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0x9D5B):
+  [Native Frames]
+  System.Private.CoreLib!System.Threading.ManualResetEventSlim.Wait(int32,value class System.Threading.CancellationToken)
+  Microsoft.AspNetCore.Server.Kestrel.Core!Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure.Heartbeat.TimerLoop()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0x9D47):
+  [Native Frames]
+  System.Private.CoreLib!System.Threading.WaitHandle.WaitOneNoCheck(int32,bool,class System.Object,value class WaitHandleWaitSourceMap)
+  System.Private.CoreLib!System.Threading.PortableThreadPool+GateThread.GateThreadStart()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0x9D4A):
+  [Native Frames]
+  System.Private.CoreLib!System.Threading.WaitHandle.WaitOneNoCheck(int32,bool,class System.Object,value class WaitHandleWaitSourceMap)
+  System.Private.CoreLib!System.Threading.TimerQueue.TimerThread()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0x9D4F):
+  [Native Frames]
+  ?!?
+  System.Net.Sockets!System.Net.Sockets.SocketAsyncEngine.EventLoop()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0xA15D):
+  [Native Frames]
+  System.Private.CoreLib!System.Threading.WaitHandle.WaitOneNoCheck(int32,bool,class System.Object,value class WaitHandleWaitSourceMap)
+  System.Private.CoreLib!System.Diagnostics.Tracing.CounterGroup.PollForValues()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0xA15E):
+  [Native Frames]
+  System.Private.CoreLib!System.Threading.WaitHandle.WaitOne(value class System.TimeSpan)
+  System.Diagnostics.DiagnosticSource!System.Diagnostics.Metrics.AggregationManager.CollectWorker()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0xA190):
+  CPU_TIME
+  System.Private.CoreLib!System.Threading.PortableThreadPool+WorkerThread.WorkerThreadStart()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0xA196):
+  CPU_TIME
+  ?!?
+  System.Net.Sockets!System.Net.Sockets.SocketPal.TryCompleteSendTo(class System.Net.Sockets.SafeSocketHandle,value class System.ReadOnlySpan`1<unsigned int8>,class System.Collections.Generic.IList`1<value class System.ArraySegment`1<unsigned int8>>,int32&,int32&,int32&,value class System.Net.Sockets.SocketFlags,value class System.ReadOnlySpan`1<unsigned int8>,int32&,value class System.Net.Sockets.SocketError&)
+  System.Net.Sockets!System.Net.Sockets.Socket.SendAsync(class System.Net.Sockets.SocketAsyncEventArgs,value class System.Threading.CancellationToken)
+  Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets!Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal.SocketConnection+<DoSend>d__28.MoveNext()
+  System.Private.CoreLib!System.Threading.ExecutionContext.RunInternal(class System.Threading.ExecutionContext,class System.Threading.ContextCallback,class System.Object)
+  Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets!Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal.IOQueue.System.Threading.IThreadPoolWorkItem.Execute()
+  System.Private.CoreLib!System.Threading.ThreadPoolWorkQueue.Dispatch()
+  System.Private.CoreLib!System.Threading.PortableThreadPool+WorkerThread.WorkerThreadStart()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0xA1E6):
+  CPU_TIME
+  System.Private.CoreLib!System.Threading.PortableThreadPool+WorkerThread.WorkerThreadStart()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0xA1F4):
+  [Native Frames]
+  System.Private.CoreLib!System.Threading.PortableThreadPool+WorkerThread.WorkerThreadStart()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0xA1F5):
+  CPU_TIME
+  Microsoft.Data.Sqlite!Microsoft.Data.Sqlite.SqliteDataReader.NextResult()
+  Microsoft.Data.Sqlite!Microsoft.Data.Sqlite.SqliteCommand.ExecuteReader(value class System.Data.CommandBehavior)
+  System.Data.Common!System.Data.Common.DbTransaction.CommitAsync(value class System.Threading.CancellationToken)
+  Microsoft.EntityFrameworkCore.Relational!Microsoft.EntityFrameworkCore.Storage.RelationalTransaction+<CommitAsync>d__17.MoveNext()
+  Yap!Yap.Services.Persistence.PersistenceWriter+<RunAsync>d__31.MoveNext()
+  Yap!Yap.Services.Persistence.PersistenceWriter+<ExecuteAsync>d__27.MoveNext()
+  System.Private.CoreLib!System.Threading.ExecutionContext.RunInternal(class System.Threading.ExecutionContext,class System.Threading.ContextCallback,class System.Object)
+  System.Private.CoreLib!System.Runtime.CompilerServices.AsyncTaskMethodBuilder`1+AsyncStateMachineBox`1[System.Threading.Tasks.VoidTaskResult,Yap.Services.Persistence.PersistenceWriter+<ExecuteAsync>d__27].MoveNext()
+  System.Private.CoreLib!System.Threading.ThreadPool+<>c.<.cctor>b__48_0(class System.Object)
+  System.Private.CoreLib!System.Threading.ThreadPoolWorkQueue.Dispatch()
+  System.Private.CoreLib!System.Threading.PortableThreadPool+WorkerThread.WorkerThreadStart()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0xA1F6):
+  CPU_TIME
+  System.Private.CoreLib!System.Threading.PortableThreadPool+WorkerThread.WorkerThreadStart()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0xA1F9):
+  [Native Frames]
+  System.Private.CoreLib!System.Threading.LowLevelLifoSemaphore.WaitForSignal(int32)
+  System.Private.CoreLib!System.Threading.LowLevelLifoSemaphore.Wait(int32,bool)
+  System.Private.CoreLib!System.Threading.PortableThreadPool+WorkerThread.WorkerThreadStart()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0xA20A):
+  CPU_TIME
+  System.Private.CoreLib!System.Array.CreateInstanceMDArray(int,unsigned int32,void*)
+  SixLabors.ImageSharp!SixLabors.ImageSharp.Formats.Webp.Lossy.QuantEnc.PickBestIntra16(class SixLabors.ImageSharp.Formats.Webp.Lossy.Vp8EncIterator,class SixLabors.ImageSharp.Formats.Webp.Lossy.Vp8ModeScore&,class SixLabors.ImageSharp.Formats.Webp.Lossy.Vp8SegmentInfo[],class SixLabors.ImageSharp.Formats.Webp.Lossy.Vp8EncProba)
+  SixLabors.ImageSharp!SixLabors.ImageSharp.Formats.Webp.Lossy.Vp8Encoder.Decimate(class SixLabors.ImageSharp.Formats.Webp.Lossy.Vp8EncIterator,class SixLabors.ImageSharp.Formats.Webp.Lossy.Vp8ModeScore&,value class SixLabors.ImageSharp.Formats.Webp.Lossy.Vp8RdLevel)
+  SixLabors.ImageSharp!SixLabors.ImageSharp.Formats.Webp.Lossy.Vp8Encoder.Encode(class System.IO.Stream,class SixLabors.ImageSharp.ImageFrame`1<!!0>,value class SixLabors.ImageSharp.Rectangle,class SixLabors.ImageSharp.Formats.Webp.WebpFrameMetadata,bool,class SixLabors.ImageSharp.Image`1<!!0>)
+  SixLabors.ImageSharp!SixLabors.ImageSharp.Formats.Webp.WebpEncoderCore.Encode(class SixLabors.ImageSharp.Image`1<!!0>,class System.IO.Stream,value class System.Threading.CancellationToken)
+  SixLabors.ImageSharp!SixLabors.ImageSharp.Formats.ImageEncoder.<EncodeWithSeekableStreamAsync>g__DoEncodeAsync|8_0(class System.IO.Stream,value class <>c__DisplayClass8_0`1<!!0>&)
+  SixLabors.ImageSharp!SixLabors.ImageSharp.Formats.ImageEncoder+<EncodeWithSeekableStreamAsync>d__8`1[SixLabors.ImageSharp.PixelFormats.Rgb24].MoveNext()
+  SixLabors.ImageSharp!SixLabors.ImageSharp.Formats.ImageEncoder.EncodeAsync(class SixLabors.ImageSharp.Image`1<!!0>,class System.IO.Stream,value class System.Threading.CancellationToken)
+  SixLabors.ImageSharp!SixLabors.ImageSharp.ImageExtensions+<SaveAsync>d__84.MoveNext()
+  SixLabors.ImageSharp!SixLabors.ImageSharp.ImageExtensions.SaveAsync(class SixLabors.ImageSharp.Image,class System.String,class SixLabors.ImageSharp.Formats.IImageEncoder,value class System.Threading.CancellationToken)
+  Yap!Yap.Services.Media.ImageService+<SaveThumbnailAsync>d__11.MoveNext()
+  Yap!Yap.Services.Media.ImageService.SaveThumbnailAsync(class SixLabors.ImageSharp.Image,class System.String,int32,class System.String,bool)
+  Yap!Yap.Services.Media.ImageService+<GenerateSingleThumbnailAsync>d__9.MoveNext()
+  System.Private.CoreLib!System.Threading.ExecutionContext.RunInternal(class System.Threading.ExecutionContext,class System.Threading.ContextCallback,class System.Object)
+  System.Private.CoreLib!System.Runtime.CompilerServices.AsyncTaskMethodBuilder`1+AsyncStateMachineBox`1[System.Threading.Tasks.VoidTaskResult,Yap.Services.Media.ImageService+<GenerateSingleThumbnailAsync>d__9].MoveNext()
+  System.Private.CoreLib!System.Threading.Tasks.AwaitTaskContinuation.RunOrScheduleAction(class System.Runtime.CompilerServices.IAsyncStateMachineBox,bool)
+  System.Private.CoreLib!System.Threading.Tasks.Task.RunContinuations(class System.Object)
+  System.Private.CoreLib!System.Runtime.CompilerServices.AsyncTaskMethodBuilder`1[System.__Canon].SetExistingTaskResult(class System.Threading.Tasks.Task`1<!0>,!0)
+  SixLabors.ImageSharp!SixLabors.ImageSharp.Image+<LoadAsync>d__66.MoveNext()
+  System.Private.CoreLib!System.Threading.ExecutionContext.RunInternal(class System.Threading.ExecutionContext,class System.Threading.ContextCallback,class System.Object)
+  System.Private.CoreLib!System.Runtime.CompilerServices.AsyncTaskMethodBuilder`1+AsyncStateMachineBox`1[System.__Canon,SixLabors.ImageSharp.Image+<LoadAsync>d__66].MoveNext()
+  System.Private.CoreLib!System.Threading.Tasks.AwaitTaskContinuation.RunOrScheduleAction(class System.Runtime.CompilerServices.IAsyncStateMachineBox,bool)
+  System.Private.CoreLib!System.Threading.Tasks.Task.RunContinuations(class System.Object)
+  System.Private.CoreLib!System.Runtime.CompilerServices.AsyncTaskMethodBuilder`1[System.__Canon].SetExistingTaskResult(class System.Threading.Tasks.Task`1<!0>,!0)
+  SixLabors.ImageSharp!SixLabors.ImageSharp.Image+<WithSeekableStreamAsync>d__88`1[System.__Canon].MoveNext()
+  System.Private.CoreLib!System.Threading.ExecutionContext.RunInternal(class System.Threading.ExecutionContext,class System.Threading.ContextCallback,class System.Object)
+  System.Private.CoreLib!System.Runtime.CompilerServices.AsyncTaskMethodBuilder`1+AsyncStateMachineBox`1[System.__Canon,SixLabors.ImageSharp.Image+<WithSeekableStreamAsync>d__88`1[System.__Canon]].MoveNext()
+  System.Private.CoreLib!System.Threading.Tasks.AwaitTaskContinuation.RunOrScheduleAction(class System.Runtime.CompilerServices.IAsyncStateMachineBox,bool)
+  System.Private.CoreLib!System.Threading.Tasks.Task.RunContinuations(class System.Object)
+  System.Private.CoreLib!System.Runtime.CompilerServices.AsyncTaskMethodBuilder`1[System.__Canon].SetExistingTaskResult(class System.Threading.Tasks.Task`1<!0>,!0)
+  SixLabors.ImageSharp!SixLabors.ImageSharp.Formats.ImageDecoder+<DecodeAsync>d__3.MoveNext()
+  System.Private.CoreLib!System.Threading.ExecutionContext.RunInternal(class System.Threading.ExecutionContext,class System.Threading.ContextCallback,class System.Object)
+  System.Private.CoreLib!System.Runtime.CompilerServices.AsyncTaskMethodBuilder`1+AsyncStateMachineBox`1[System.__Canon,SixLabors.ImageSharp.Formats.ImageDecoder+<DecodeAsync>d__3].MoveNext()
+  System.Private.CoreLib!System.Threading.Tasks.AwaitTaskContinuation.RunOrScheduleAction(class System.Runtime.CompilerServices.IAsyncStateMachineBox,bool)
+  System.Private.CoreLib!System.Threading.Tasks.Task.RunContinuations(class System.Object)
+  System.Private.CoreLib!System.Runtime.CompilerServices.AsyncTaskMethodBuilder`1[System.__Canon].SetExistingTaskResult(class System.Threading.Tasks.Task`1<!0>,!0)
+  SixLabors.ImageSharp!SixLabors.ImageSharp.Formats.ImageDecoder+<CopyToMemoryStreamAndActionAsync>d__13`1[System.__Canon].MoveNext()
+  System.Private.CoreLib!System.Threading.ExecutionContext.RunInternal(class System.Threading.ExecutionContext,class System.Threading.ContextCallback,class System.Object)
+  System.Private.CoreLib!System.Runtime.CompilerServices.AsyncTaskMethodBuilder`1+AsyncStateMachineBox`1[System.__Canon,SixLabors.ImageSharp.Formats.ImageDecoder+<CopyToMemoryStreamAndActionAsync>d__13`1[System.__Canon]].MoveNext()
+  System.Private.CoreLib!System.Threading.Tasks.AwaitTaskContinuation.RunOrScheduleAction(class System.Runtime.CompilerServices.IAsyncStateMachineBox,bool)
+  System.Private.CoreLib!System.Threading.Tasks.Task.RunContinuations(class System.Object)
+  System.Private.CoreLib!System.Runtime.CompilerServices.AsyncTaskMethodBuilder`1[System.Threading.Tasks.VoidTaskResult].SetExistingTaskResult(class System.Threading.Tasks.Task`1<!0>,!0)
+  System.Private.CoreLib!System.IO.Strategies.BufferedFileStreamStrategy+<CopyToAsyncCore>d__57.MoveNext()
+  System.Private.CoreLib!System.Threading.ExecutionContext.RunInternal(class System.Threading.ExecutionContext,class System.Threading.ContextCallback,class System.Object)
+  System.Private.CoreLib!System.Runtime.CompilerServices.AsyncTaskMethodBuilder`1+AsyncStateMachineBox`1[System.Threading.Tasks.VoidTaskResult,System.IO.Strategies.BufferedFileStreamStrategy+<CopyToAsyncCore>d__57].MoveNext()
+  System.Private.CoreLib!System.Threading.Tasks.AwaitTaskContinuation.RunOrScheduleAction(class System.Runtime.CompilerServices.IAsyncStateMachineBox,bool)
+  System.Private.CoreLib!System.Threading.Tasks.Task.RunContinuations(class System.Object)
+  System.Private.CoreLib!System.Runtime.CompilerServices.AsyncTaskMethodBuilder`1[System.Threading.Tasks.VoidTaskResult].SetExistingTaskResult(class System.Threading.Tasks.Task`1<!0>,!0)
+  System.Private.CoreLib!System.IO.Stream+<<CopyToAsync>g__Core|30_0>d.MoveNext()
+  System.Private.CoreLib!System.Threading.ExecutionContext.RunInternal(class System.Threading.ExecutionContext,class System.Threading.ContextCallback,class System.Object)
+  System.Private.CoreLib!System.Runtime.CompilerServices.AsyncTaskMethodBuilder`1+AsyncStateMachineBox`1[System.Threading.Tasks.VoidTaskResult,System.IO.Stream+<<CopyToAsync>g__Core|30_0>d].MoveNext()
+  System.Private.CoreLib!Microsoft.Win32.SafeHandles.SafeFileHandle+ThreadPoolValueTaskSource.ExecuteInternal()
+  System.Private.CoreLib!Microsoft.Win32.SafeHandles.SafeFileHandle+ThreadPoolValueTaskSource.System.Threading.IThreadPoolWorkItem.Execute()
+  System.Private.CoreLib!System.Threading.ThreadPoolWorkQueue.Dispatch()
+  System.Private.CoreLib!System.Threading.PortableThreadPool+WorkerThread.WorkerThreadStart()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0xA265):
+  [Native Frames]
+  System.Private.CoreLib!System.Threading.LowLevelLifoSemaphore.WaitForSignal(int32)
+  System.Private.CoreLib!System.Threading.LowLevelLifoSemaphore.Wait(int32,bool)
+  System.Private.CoreLib!System.Threading.PortableThreadPool+WorkerThread.WorkerThreadStart()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0xA2B6):
+  CPU_TIME
+  ?!?
+  System.Net.Sockets!System.Net.Sockets.SocketPal.TryCompleteSendTo(class System.Net.Sockets.SafeSocketHandle,value class System.ReadOnlySpan`1<unsigned int8>,class System.Collections.Generic.IList`1<value class System.ArraySegment`1<unsigned int8>>,int32&,int32&,int32&,value class System.Net.Sockets.SocketFlags,value class System.ReadOnlySpan`1<unsigned int8>,int32&,value class System.Net.Sockets.SocketError&)
+  System.Net.Sockets!System.Net.Sockets.Socket.SendAsync(class System.Net.Sockets.SocketAsyncEventArgs,value class System.Threading.CancellationToken)
+  Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets!Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal.SocketConnection+<DoSend>d__28.MoveNext()
+  System.Private.CoreLib!System.Threading.ExecutionContext.RunInternal(class System.Threading.ExecutionContext,class System.Threading.ContextCallback,class System.Object)
+  Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets!Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal.IOQueue.System.Threading.IThreadPoolWorkItem.Execute()
+  System.Private.CoreLib!System.Threading.ThreadPoolWorkQueue.Dispatch()
+  System.Private.CoreLib!System.Threading.PortableThreadPool+WorkerThread.WorkerThreadStart()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0xA2BD):
+  CPU_TIME
+  System.Private.CoreLib!System.Threading.Monitor.Enter_Slowpath(class System.Object)
+  System.Private.CoreLib!System.Threading.SemaphoreSlim.WaitCore(int64,value class System.Threading.CancellationToken)
+  Microsoft.AspNetCore.SignalR.Core!Microsoft.AspNetCore.SignalR.HubConnectionContext.WriteAsync(class Microsoft.AspNetCore.SignalR.SerializedHubMessage,value class System.Threading.CancellationToken)
+  Yap!Yap.Endpoints.ChatHubBroadcaster.<StartAsync>b__19_31(value class System.Guid,class System.String,bool)
+  Yap!Yap.Services.Presence.PresenceService+Changes.Raise(class Yap.Services.Presence.PresenceService)
+  Yap!Yap.Services.Presence.PresenceService.StopTyping(value class System.Guid,class System.String)
+  Yap!Yap.Services.Chat.ChatService.Send(class Yap.Models.Chat.SendMessage)
+  Yap!Yap.Endpoints.MessagesEndpoints+<SendAsync>d__1.MoveNext()
+  Yap!Yap.Endpoints.MessagesEndpoints.SendAsync(value class System.Guid,class Yap.Endpoints.SendMessageRequest,class System.Security.Claims.ClaimsPrincipal,class Yap.Services.Chat.ChatService,class Yap.Services.Gifs.GifService,class Yap.Services.Chat.MessageMapper)
+  Anonymously Hosted DynamicMethods Assembly!dynamicClass.lambda_method665(pMT: 0x7ace54e138a8,pMT: 0x7ace58014d88)
+  Yap!Yap.Endpoints.ApiLatencyFilter+<InvokeAsync>d__2.MoveNext()
+  Yap!Yap.Endpoints.ApiLatencyFilter.InvokeAsync(class Microsoft.AspNetCore.Http.EndpointFilterInvocationContext,class Microsoft.AspNetCore.Http.EndpointFilterDelegate)
+  Anonymously Hosted DynamicMethods Assembly!dynamicClass.lambda_method666(pMT: 0x7ace54e138a8,class System.Object,pMT: 0x7ace52567ba0,class System.Object)
+  Microsoft.AspNetCore.Http.Extensions!Microsoft.AspNetCore.Http.RequestDelegateFactory+<>c__DisplayClass102_2+<<HandleRequestBodyAndCompileRequestDelegateForJson>b__2>d.MoveNext()
+  Microsoft.AspNetCore.Http.Extensions!Microsoft.AspNetCore.Http.RequestDelegateFactory+<>c__DisplayClass102_2.<HandleRequestBodyAndCompileRequestDelegateForJson>b__2(class System.Object,class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.Routing!Microsoft.AspNetCore.Routing.EndpointMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Yap!Yap.Middleware.RequestLoggingMiddleware+<InvokeAsync>d__9.MoveNext()
+  Yap!Yap.Middleware.RequestLoggingMiddleware.InvokeAsync(class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.Authorization.Policy!Microsoft.AspNetCore.Authorization.AuthorizationMiddleware+<Invoke>d__11.MoveNext()
+  Microsoft.AspNetCore.Authorization.Policy!Microsoft.AspNetCore.Authorization.AuthorizationMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.Authentication!Microsoft.AspNetCore.Authentication.AuthenticationMiddleware+<Invoke>d__6.MoveNext()
+  Microsoft.AspNetCore.Authentication!Microsoft.AspNetCore.Authentication.AuthenticationMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.StaticFiles!Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.StaticFiles!Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.StaticFiles!Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.StaticFiles!Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.StaticFiles!Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.StaticFiles!Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.StaticFiles!Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.StaticFiles!Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Yap!Program+<>c__DisplayClass0_0+<<<Main>$>b__18>d.MoveNext()
+  Microsoft.AspNetCore.ResponseCompression!Microsoft.AspNetCore.ResponseCompression.ResponseCompressionMiddleware+<InvokeCore>d__4.MoveNext()
+  Microsoft.AspNetCore.HttpsPolicy!Microsoft.AspNetCore.HttpsPolicy.HttpsRedirectionMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.Diagnostics!Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddlewareImpl.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Yap!Program+<>c__DisplayClass0_0+<<<Main>$>b__17>d.MoveNext()
+  Yap!Program+<>c__DisplayClass0_0.<<Main>$>b__17(class Microsoft.AspNetCore.Http.HttpContext,class System.Func`1<class System.Threading.Tasks.Task>)
+  Microsoft.AspNetCore.Server.Kestrel.Core!Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http.HttpProtocol+<ProcessRequests>d__237`1[System.__Canon].MoveNext()
+  System.Private.CoreLib!System.Threading.ExecutionContext.RunFromThreadPoolDispatchLoop(class System.Threading.Thread,class System.Threading.ExecutionContext,class System.Threading.ContextCallback,class System.Object)
+  System.Private.CoreLib!System.Runtime.CompilerServices.AsyncTaskMethodBuilder`1+AsyncStateMachineBox`1[System.Threading.Tasks.VoidTaskResult,Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http.HttpProtocol+<ProcessRequests>d__237`1[System.__Canon]].ExecuteFromThreadPool(class System.Threading.Thread)
+  System.Private.CoreLib!System.Threading.ThreadPoolWorkQueue.Dispatch()
+  System.Private.CoreLib!System.Threading.PortableThreadPool+WorkerThread.WorkerThreadStart()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0xA2D0):
+  CPU_TIME
+  ?!?
+  System.Net.Sockets!System.Net.Sockets.SocketPal.TryCompleteSendTo(class System.Net.Sockets.SafeSocketHandle,value class System.ReadOnlySpan`1<unsigned int8>,class System.Collections.Generic.IList`1<value class System.ArraySegment`1<unsigned int8>>,int32&,int32&,int32&,value class System.Net.Sockets.SocketFlags,value class System.ReadOnlySpan`1<unsigned int8>,int32&,value class System.Net.Sockets.SocketError&)
+  System.Net.Sockets!System.Net.Sockets.Socket.SendAsync(class System.Net.Sockets.SocketAsyncEventArgs,value class System.Threading.CancellationToken)
+  Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets!Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal.SocketConnection+<DoSend>d__28.MoveNext()
+  System.Private.CoreLib!System.Threading.ExecutionContext.RunInternal(class System.Threading.ExecutionContext,class System.Threading.ContextCallback,class System.Object)
+  Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets!Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal.IOQueue.System.Threading.IThreadPoolWorkItem.Execute()
+  System.Private.CoreLib!System.Threading.ThreadPoolWorkQueue.Dispatch()
+  System.Private.CoreLib!System.Threading.PortableThreadPool+WorkerThread.WorkerThreadStart()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0xA2D7):
+  CPU_TIME
+  System.Private.CoreLib!System.Threading.Monitor.Enter_Slowpath(class System.Object)
+  System.Private.CoreLib!System.Threading.SemaphoreSlim.WaitCore(int64,value class System.Threading.CancellationToken)
+  Yap!Yap.Endpoints.ChatHubBroadcaster.<StartAsync>b__19_2(class Yap.Models.Chat.ChatMessage)
+  Yap!Yap.Services.Chat.ChatService.Send(class Yap.Models.Chat.SendMessage)
+  Yap!Yap.Endpoints.MessagesEndpoints+<SendAsync>d__1.MoveNext()
+  Yap!Yap.Endpoints.MessagesEndpoints.SendAsync(value class System.Guid,class Yap.Endpoints.SendMessageRequest,class System.Security.Claims.ClaimsPrincipal,class Yap.Services.Chat.ChatService,class Yap.Services.Gifs.GifService,class Yap.Services.Chat.MessageMapper)
+  Anonymously Hosted DynamicMethods Assembly!dynamicClass.lambda_method665(pMT: 0x7ace54e138a8,pMT: 0x7ace58014d88)
+  Yap!Yap.Endpoints.ApiLatencyFilter+<InvokeAsync>d__2.MoveNext()
+  Yap!Yap.Endpoints.ApiLatencyFilter.InvokeAsync(class Microsoft.AspNetCore.Http.EndpointFilterInvocationContext,class Microsoft.AspNetCore.Http.EndpointFilterDelegate)
+  Anonymously Hosted DynamicMethods Assembly!dynamicClass.lambda_method666(pMT: 0x7ace54e138a8,class System.Object,pMT: 0x7ace52567ba0,class System.Object)
+  Microsoft.AspNetCore.Http.Extensions!Microsoft.AspNetCore.Http.RequestDelegateFactory+<>c__DisplayClass102_2+<<HandleRequestBodyAndCompileRequestDelegateForJson>b__2>d.MoveNext()
+  Microsoft.AspNetCore.Http.Extensions!Microsoft.AspNetCore.Http.RequestDelegateFactory+<>c__DisplayClass102_2.<HandleRequestBodyAndCompileRequestDelegateForJson>b__2(class System.Object,class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.Routing!Microsoft.AspNetCore.Routing.EndpointMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Yap!Yap.Middleware.RequestLoggingMiddleware+<InvokeAsync>d__9.MoveNext()
+  Yap!Yap.Middleware.RequestLoggingMiddleware.InvokeAsync(class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.Authorization.Policy!Microsoft.AspNetCore.Authorization.AuthorizationMiddleware+<Invoke>d__11.MoveNext()
+  Microsoft.AspNetCore.Authorization.Policy!Microsoft.AspNetCore.Authorization.AuthorizationMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.Authentication!Microsoft.AspNetCore.Authentication.AuthenticationMiddleware+<Invoke>d__6.MoveNext()
+  Microsoft.AspNetCore.Authentication!Microsoft.AspNetCore.Authentication.AuthenticationMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.StaticFiles!Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.StaticFiles!Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.StaticFiles!Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.StaticFiles!Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.StaticFiles!Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.StaticFiles!Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.StaticFiles!Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.StaticFiles!Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Yap!Program+<>c__DisplayClass0_0+<<<Main>$>b__18>d.MoveNext()
+  Microsoft.AspNetCore.ResponseCompression!Microsoft.AspNetCore.ResponseCompression.ResponseCompressionMiddleware+<InvokeCore>d__4.MoveNext()
+  Microsoft.AspNetCore.HttpsPolicy!Microsoft.AspNetCore.HttpsPolicy.HttpsRedirectionMiddleware.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Microsoft.AspNetCore.Diagnostics!Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddlewareImpl.Invoke(class Microsoft.AspNetCore.Http.HttpContext)
+  Yap!Program+<>c__DisplayClass0_0+<<<Main>$>b__17>d.MoveNext()
+  Yap!Program+<>c__DisplayClass0_0.<<Main>$>b__17(class Microsoft.AspNetCore.Http.HttpContext,class System.Func`1<class System.Threading.Tasks.Task>)
+  Microsoft.AspNetCore.Server.Kestrel.Core!Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http.HttpProtocol+<ProcessRequests>d__237`1[System.__Canon].MoveNext()
+  System.Private.CoreLib!System.Threading.ExecutionContext.RunFromThreadPoolDispatchLoop(class System.Threading.Thread,class System.Threading.ExecutionContext,class System.Threading.ContextCallback,class System.Object)
+  System.Private.CoreLib!System.Runtime.CompilerServices.AsyncTaskMethodBuilder`1+AsyncStateMachineBox`1[System.Threading.Tasks.VoidTaskResult,Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http.HttpProtocol+<ProcessRequests>d__237`1[System.__Canon]].ExecuteFromThreadPool(class System.Threading.Thread)
+  System.Private.CoreLib!System.Threading.ThreadPoolWorkQueue.Dispatch()
+  System.Private.CoreLib!System.Threading.PortableThreadPool+WorkerThread.WorkerThreadStart()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0xA2DC):
+  CPU_TIME
+  System.Private.CoreLib!System.Threading.Thread.<PollGC>g__PollGCWorker|67_0()
+  Microsoft.AspNetCore.SignalR.Common!Microsoft.AspNetCore.Internal.MemoryBufferWriter.AddSegment(int32)
+  Microsoft.AspNetCore.SignalR.Common!Microsoft.AspNetCore.Internal.MemoryBufferWriter.GetMemory(int32)
+  System.Text.Json!System.Text.Json.Utf8JsonWriter.Grow(int32)
+  Microsoft.AspNetCore.SignalR.Protocols.Json!Microsoft.AspNetCore.SignalR.Protocol.JsonHubProtocol.WriteMessageCore(class Microsoft.AspNetCore.SignalR.Protocol.HubMessage,class System.Buffers.IBufferWriter`1<unsigned int8>)
+  Microsoft.AspNetCore.SignalR.Common!Microsoft.AspNetCore.SignalR.Protocol.HubProtocolExtensions.GetMessageBytes(class Microsoft.AspNetCore.SignalR.Protocol.IHubProtocol,class Microsoft.AspNetCore.SignalR.Protocol.HubMessage)
+  Microsoft.AspNetCore.SignalR.Core!Microsoft.AspNetCore.SignalR.HubConnectionContext.WriteCore(class Microsoft.AspNetCore.SignalR.SerializedHubMessage,value class System.Threading.CancellationToken)
+  Microsoft.AspNetCore.SignalR.Core!Microsoft.AspNetCore.SignalR.DefaultHubLifetimeManager`1[System.__Canon].SendToAllConnections(class System.String,class System.Object[],class System.Func`3<class Microsoft.AspNetCore.SignalR.HubConnectionContext,class System.Object,bool>,class System.Object,value class System.Threading.CancellationToken)
+  Yap!Yap.Endpoints.ChatHubBroadcaster.ToUser(value class System.Guid,class System.String,class System.Object[])
+  Yap!Yap.Endpoints.ChatHubBroadcaster+<SendBatchesAsync>d__21.MoveNext()
+  System.Private.CoreLib!System.Threading.ExecutionContext.RunInternal(class System.Threading.ExecutionContext,class System.Threading.ContextCallback,class System.Object)
+  System.Private.CoreLib!System.Runtime.CompilerServices.AsyncTaskMethodBuilder`1+AsyncStateMachineBox`1[System.Threading.Tasks.VoidTaskResult,Yap.Endpoints.ChatHubBroadcaster+<SendBatchesAsync>d__21].MoveNext()
+  System.Private.CoreLib!System.Threading.Tasks.Sources.ManualResetValueTaskSourceCore`1[System.Boolean].SignalCompletion()
+  System.Private.CoreLib!System.Threading.TimerQueue.FireNextTimers()
+  System.Private.CoreLib!System.Threading.ThreadPoolWorkQueue.Dispatch()
+  System.Private.CoreLib!System.Threading.PortableThreadPool+WorkerThread.WorkerThreadStart()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0xA2E0):
+  CPU_TIME
+  System.Private.CoreLib!System.Threading.Monitor.Enter_Slowpath(class System.Object)
+  System.Private.CoreLib!System.Threading.SemaphoreSlim.WaitCore(int64,value class System.Threading.CancellationToken)
+  Microsoft.AspNetCore.SignalR.Core!Microsoft.AspNetCore.SignalR.HubConnectionContext.WriteAsync(class Microsoft.AspNetCore.SignalR.SerializedHubMessage,value class System.Threading.CancellationToken)
+  Yap!Yap.Endpoints.ChatHubBroadcaster.<StartAsync>b__19_31(value class System.Guid,class System.String,bool)
+  Yap!Yap.Services.Presence.PresenceService+Changes.Raise(class Yap.Services.Presence.PresenceService)
+  Yap!Yap.Services.Presence.PresenceService.SetTyping(class System.String,value class System.Guid,bool)
+  Microsoft.AspNetCore.SignalR.Core!Microsoft.Extensions.Internal.ObjectMethodExecutor+<>c__DisplayClass36_0.<WrapVoidMethod>b__0(class System.Object,class System.Object[])
+  Microsoft.AspNetCore.SignalR.Core!Microsoft.AspNetCore.SignalR.Internal.DefaultHubDispatcher`1+<ExecuteMethod>d__27[System.__Canon].MoveNext()
+  Yap!Yap.Endpoints.HubLatencyFilter+<InvokeMethodAsync>d__2.MoveNext()
+  Microsoft.AspNetCore.SignalR.Core!Microsoft.AspNetCore.SignalR.Internal.HubFilterFactory+<InvokeMethodAsync>d__3.MoveNext()
+  Microsoft.AspNetCore.SignalR.Core!Microsoft.AspNetCore.SignalR.Internal.HubFilterFactory.InvokeMethodAsync(class Microsoft.AspNetCore.SignalR.HubInvocationContext,class System.Func`2<class Microsoft.AspNetCore.SignalR.HubInvocationContext,value class System.Threading.Tasks.ValueTask`1<class System.Object>>)
+  Microsoft.AspNetCore.SignalR.Core!Microsoft.AspNetCore.SignalR.Internal.DefaultHubDispatcher`1+<<Invoke>g__ExecuteInvocation|22_0>d[System.__Canon].MoveNext()
+  System.Private.CoreLib!System.Runtime.CompilerServices.AsyncMethodBuilderCore.Start(!!0&)
+  Microsoft.AspNetCore.SignalR.Core!Microsoft.AspNetCore.SignalR.Internal.DefaultHubDispatcher`1+<Invoke>d__22[System.__Canon].MoveNext()
+  Microsoft.AspNetCore.SignalR.Core!Microsoft.AspNetCore.SignalR.Internal.ChannelBasedSemaphore+<RunTask>d__7`1[System.ValueTuple`4[System.__Canon,System.__Canon,System.__Canon,System.__Canon]].MoveNext()
+  System.Private.CoreLib!System.Runtime.CompilerServices.AsyncMethodBuilderCore.Start(!!0&)
+  Microsoft.AspNetCore.SignalR.Core!Microsoft.AspNetCore.SignalR.Internal.DefaultHubDispatcher`1[System.__Canon].ProcessInvocation(class Microsoft.AspNetCore.SignalR.HubConnectionContext,class Microsoft.AspNetCore.SignalR.Protocol.HubMethodInvocationMessage,bool)
+  Microsoft.AspNetCore.SignalR.Core!Microsoft.AspNetCore.SignalR.Internal.DefaultHubDispatcher`1[System.__Canon].DispatchMessageAsync(class Microsoft.AspNetCore.SignalR.HubConnectionContext,class Microsoft.AspNetCore.SignalR.Protocol.HubMessage)
+  Microsoft.AspNetCore.SignalR.Core!Microsoft.AspNetCore.SignalR.HubConnectionHandler`1+<DispatchMessagesAsync>d__21[System.__Canon].MoveNext()
+  System.Private.CoreLib!System.Threading.ExecutionContext.RunFromThreadPoolDispatchLoop(class System.Threading.Thread,class System.Threading.ExecutionContext,class System.Threading.ContextCallback,class System.Object)
+  System.Private.CoreLib!System.Runtime.CompilerServices.AsyncTaskMethodBuilder`1+AsyncStateMachineBox`1[System.Threading.Tasks.VoidTaskResult,Microsoft.AspNetCore.SignalR.HubConnectionHandler`1+<DispatchMessagesAsync>d__21[System.__Canon]].ExecuteFromThreadPool(class System.Threading.Thread)
+  System.Private.CoreLib!System.Threading.ThreadPoolWorkQueue.Dispatch()
+  System.Private.CoreLib!System.Threading.PortableThreadPool+WorkerThread.WorkerThreadStart()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0xA2E4):
+  [Native Frames]
+  ?!?
+  System.Net.Sockets!System.Net.Sockets.SocketPal.TryCompleteSendTo(class System.Net.Sockets.SafeSocketHandle,value class System.ReadOnlySpan`1<unsigned int8>,class System.Collections.Generic.IList`1<value class System.ArraySegment`1<unsigned int8>>,int32&,int32&,int32&,value class System.Net.Sockets.SocketFlags,value class System.ReadOnlySpan`1<unsigned int8>,int32&,value class System.Net.Sockets.SocketError&)
+  System.Net.Sockets!System.Net.Sockets.Socket.SendAsync(class System.Net.Sockets.SocketAsyncEventArgs,value class System.Threading.CancellationToken)
+  Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets!Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal.SocketConnection+<DoSend>d__28.MoveNext()
+  System.Private.CoreLib!System.Threading.ExecutionContext.RunInternal(class System.Threading.ExecutionContext,class System.Threading.ContextCallback,class System.Object)
+  Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets!Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal.IOQueue.System.Threading.IThreadPoolWorkItem.Execute()
+  System.Private.CoreLib!System.Threading.ThreadPoolWorkQueue.Dispatch()
+  System.Private.CoreLib!System.Threading.PortableThreadPool+WorkerThread.WorkerThreadStart()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0xA2E5):
+  [Native Frames]
+  System.Private.CoreLib!System.Threading.LowLevelLifoSemaphore.WaitForSignal(int32)
+  System.Private.CoreLib!System.Threading.LowLevelLifoSemaphore.Wait(int32,bool)
+  System.Private.CoreLib!System.Threading.PortableThreadPool+WorkerThread.WorkerThreadStart()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0xA2EB):
+  [Native Frames]
+  System.Private.CoreLib!System.Threading.LowLevelLifoSemaphore.WaitForSignal(int32)
+  System.Private.CoreLib!System.Threading.LowLevelLifoSemaphore.Wait(int32,bool)
+  System.Private.CoreLib!System.Threading.PortableThreadPool+WorkerThread.WorkerThreadStart()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0xA2EC):
+  CPU_TIME
+  System.Private.CoreLib!System.Threading.PortableThreadPool+WorkerThread.WorkerThreadStart()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+
+Thread (0xA32B):
+  [Native Frames]
+  System.Private.CoreLib!System.Threading.LowLevelLifoSemaphore.WaitForSignal(int32)
+  System.Private.CoreLib!System.Threading.LowLevelLifoSemaphore.Wait(int32,bool)
+  System.Private.CoreLib!System.Threading.PortableThreadPool+WorkerThread.WorkerThreadStart()
+  System.Private.CoreLib!System.Threading.Thread.StartCallback()
+

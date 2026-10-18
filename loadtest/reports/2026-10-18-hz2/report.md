@@ -169,3 +169,54 @@ the timeouts into a slower appearance of the picture.
 kernel moving 39 MB/s out (310 Mbit/s) over 6,224 established connections at 2,000 users, about three per user
 through the proxy. iowait stayed under 1 %, RSS 611 MB, 2,424 open files. The proxy-off round shows what the
 same levels cost without that fan-in.
+
+## Run 5, the trace round (2026-10-19 00:50 to 00:58 local, main through bc08f2fb)
+
+Files in `run05/`: the orchestrator's results and `server-load.csv` as before, `host-05.csv`, two 30 s CPU traces
+(`plateau-1500.nettrace`, `plateau-2000.nettrace`, dotnet-trace cpu-sampling) and `stacks-1750.txt` (dotnet-stack).
+The levels were 1,500 (2 min 48 s), 1,750 (3 min 28 s) and 2,000 (1 min 19 s). The numbers match run 4: 1,500 at
+a p95 of 186 ms, 2,000 at 600 ms with a load average of 24; the box at 92 %, 97 % and 99 %, Yap at 2.5 to 2.9
+cores. 344 upload timeouts, most at 1,750 and 2,000.
+
+**How to read the traces.** The sample profiler walks every managed thread each millisecond, running or not, and
+the export marks a sample as CPU unless the top frame is a known idle wait. So the 377 s of "CPU" in a 30 s trace
+on four cores are thread time, not core time: a thread blocked in `Monitor.Enter_Slowpath` behind a lock counts
+as busy. The split below is where the non-idle threads were. The lock column is the share of a path that sat in
+such a wait; the rest of the path is close to real work.
+
+| Where the non-idle threads were | 1,500 | 2,000 | of it in a lock wait |
+|---|---|---|---|
+| Kestrel socket send, the bytes out | 24 % | 21 % | 5 to 7 % |
+| Thread pool dispatch, between work items | 14 % | 15 % | 1 % |
+| Typing broadcast (`ToWatching`) | 9 % | 15 % | 58 to 62 % |
+| WebSocket transport, its own send loop | 9 % | 11 % | 76 % |
+| Message broadcast (`ToChannel`) | 10 % | 10 % | 44 % |
+| Thumbnails (ImageSharp, WebP) | 14 % | 8 % | 0 % |
+| GC and finalizers | 6 % | 6 % | 0 % |
+| Persistence writer | 6 % | 5 % | 0 % |
+| The message POST itself | 4 % | 4 % | 21 % |
+| Unread and presence tick | 2 % | 2 % | 96 % |
+| Hub methods: markRead, open, heartbeat | 1 % | 2 % | 66 % |
+
+**The lock is SignalR's write lock per connection.** `dotnet-stack` at 1,750 caught it in the act: the thread of a
+message POST, inside `ChatService.Send`, goes through `StopTyping`, raises the typing change, and writes the typing
+event to the watchers' connections itself; another thread writes the message broadcast to the same connections;
+the tick thread writes the unread counts and the presence list; the transport's own loop writes too. Every write
+takes the connection's `SemaphoreSlim`, and with four writers the semaphore's monitor is contended on every
+connection. A broadcast to 2,000 connections then holds its thread for the whole walk, the thread pool grows from
+19 to 80 threads at 2,000, and the message POST waits in its own `Send` for the writes it caused. That is the
+mechanism behind the p95 climbing from 186 ms to 600 ms while the process stays under three cores.
+
+**The three fixes this points at.**
+
+1. **One sender.** All hub sends go through one queue drained by one loop, like the unread counts already do. The
+   per-connection locks are never contended, the sending threads are freed, and `ChatService.Send` returns as
+   soon as it has queued. The tick becomes the sender for everything; a message leaves within a few milliseconds.
+2. **Typing through the tick.** Typing on and off per conversation batched like presence, at most four lists a
+   second. At 2,000 users typing was 15 % of the non-idle thread time and the biggest Yap-side item.
+3. **Thumbnails off the request, one or two at a time.** 8 to 14 % of the threads' time was WebP encoding of the
+   test's uploads, inline in the upload request, on a box that had no core to spare. A bounded queue answers the
+   upload at once and makes the picture appear when it is ready; the 344 timeouts become a short wait.
+
+The socket sends and the GC are what the load costs: 40 MB/s out over 6,000 connections, and allocations the
+next trace can name with the GC provider on.
