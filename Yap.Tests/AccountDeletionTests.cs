@@ -14,7 +14,7 @@ public class AccountDeletionTests : IClassFixture<YapFactory>
     private readonly YapFactory _app;
     public AccountDeletionTests(YapFactory app) => _app = app;
 
-    [Fact(DisplayName = "AD-39: a deleted account is signed out, its direct messages go, its room messages stay as (deleted), the name is free")]
+    [Fact(DisplayName = "AD-39: a deleted account is signed out, its conversation with the admin goes, the name is free")]
     public async Task Delete_signs_out_relabels_and_frees_the_name()
     {
         var db = Path.Combine(Path.GetTempPath(), $"yap-test-{Guid.NewGuid():N}.db");
@@ -30,9 +30,10 @@ public class AccountDeletionTests : IClassFixture<YapFactory>
                 var users = app.Service<UserService>();
                 oldId = users.GetByUsername("emi_gone")!.Id;
 
-                Assert.Equal(HttpStatusCode.OK, (await emi.Http.PostAsJsonAsync($"/api/channels/{chat.LobbyId}/messages", new { clientId = Guid.NewGuid(), text = "hello from emi" })).StatusCode);
-                Assert.Equal(HttpStatusCode.OK, (await emi.Http.PostAsJsonAsync("/api/dm/tom_stays/messages", new { clientId = Guid.NewGuid(), text = "psst" })).StatusCode);
-                Assert.Single(chat.DmConversations(users.GetByUsername("tom_stays")!.Id));
+                // The person's one conversation is the admin's (docs/dmonly.md); every message of the person lives there.
+                var adminId = users.GetByUsername(admin.Username)!.Id;
+                Assert.Equal(HttpStatusCode.OK, (await emi.Http.PostAsJsonAsync($"/api/dm/{admin.Username}/messages", new { clientId = Guid.NewGuid(), text = "hello from emi" })).StatusCode);
+                Assert.Contains(chat.DmConversations(adminId), c => c.Partner == "emi_gone");
 
                 var emiHub = await emi.ConnectAsync("phone");
                 var told = new Expectation<bool>();
@@ -53,9 +54,7 @@ public class AccountDeletionTests : IClassFixture<YapFactory>
                 Assert.Equal(HttpStatusCode.Unauthorized, (await emi.Http.GetAsync("/api/account/devices?device=phone")).StatusCode);   // the saved sign-in is dead
 
                 Assert.Null(users.GetByUsername("emi_gone"));
-                Assert.Empty(chat.DmConversations(users.GetByUsername("tom_stays")!.Id));
-                var kept = chat.Tail(chat.LobbyId, 50, users.GetByUsername("boss")!.Id).Messages.Single(m => m.Content == "hello from emi");
-                Assert.Equal("emi_gone (deleted)", kept.Username);
+                Assert.DoesNotContain(chat.DmConversations(adminId), c => c.Partner == "emi_gone");   // the conversation went with the account
 
                 var again = await app.SignInAsync("emi_gone");   // the name is free: a new account, not the old one
                 Assert.NotEqual(oldId, users.GetByUsername("emi_gone")!.Id);
@@ -68,7 +67,7 @@ public class AccountDeletionTests : IClassFixture<YapFactory>
             await connection.OpenAsync();
             Assert.Equal(0L, await Scalar(connection, "select count(*) from Users where Id = @id", oldId));
             Assert.Equal(1L, await Scalar(connection, "select count(*) from Users where Username = 'emi_gone'"));
-            Assert.Equal(1L, await Scalar(connection, "select count(*) from Messages where Username = 'emi_gone (deleted)' and UserId = @id", oldId));
+            Assert.Equal(0L, await Scalar(connection, "select count(*) from Messages where UserId = @id", oldId));   // no room build here: the conversation's rows went with it
             Assert.Equal(0L, await Scalar(connection, "select count(*) from Channels where Participant1 = 'emi_gone' or Participant2 = 'emi_gone'"));
             Assert.Equal(0L, await Scalar(connection, "select count(*) from ChannelReadStates where UserId = @id", oldId));
         }
