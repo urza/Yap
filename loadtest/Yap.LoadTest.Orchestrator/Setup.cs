@@ -75,11 +75,16 @@ public sealed class Setup(YapApi api, RunState state, Action<string> log)
         return null;
     }
 
-    /// <summary>Registration open and approval off, so accounts can be created; previews and media caching on, so a link costs what it costs in production. The links switch on the dashboard turns that traffic off.</summary>
-    public async Task ApplySettingsAsync(string admin, CancellationToken ct)
+    /// <summary>
+    /// Registration open and approval off, so accounts can be created. With <paramref name="previews"/> on, link previews and
+    /// media caching are on, so a link costs what it costs in production (the links switch on the dashboard turns that
+    /// traffic off). Off, the server does nothing with a link: the run measures the chat alone, with no yt-dlp or ffmpeg
+    /// on the box (the 2026-10-18 run lost half of its cores to them).
+    /// </summary>
+    public async Task ApplySettingsAsync(string admin, bool previews, CancellationToken ct)
     {
-        var caching = true;
-        var body = new SettingsRequest(RegistrationClosed: false, RequireApproval: false, SmartLogin: null, LinkPreviews: true, MediaCaching: caching);
+        var caching = previews;
+        var body = new SettingsRequest(RegistrationClosed: false, RequireApproval: false, SmartLogin: null, LinkPreviews: previews, MediaCaching: caching);
         using var response = await api.SendJsonAsync(HttpMethod.Put, "/api/admin/settings", body, admin, ct);
         if (response.StatusCode == HttpStatusCode.BadRequest)
         {
@@ -90,7 +95,7 @@ public sealed class Setup(YapApi api, RunState state, Action<string> log)
             if (!retry.IsSuccessStatusCode) throw new InvalidOperationException($"PUT /api/admin/settings -> {(int)retry.StatusCode} {await YapApi.ProblemDetail(retry, ct)}");
         }
         else if (!response.IsSuccessStatusCode) throw new InvalidOperationException($"PUT /api/admin/settings -> {(int)response.StatusCode} {await YapApi.ProblemDetail(response, ct)}");
-        log($"settings: registration open, approval off, previews on, media caching {(caching ? "on" : "off")}");
+        log($"settings: registration open, approval off, previews {(previews ? "on" : "off")}, media caching {(caching ? "on" : "off")}");
     }
 
     /// <summary>Creates the accounts up to <paramref name="count"/> that are missing, eight at a time. Each sign-in is one POST; the token is the cookie.</summary>
