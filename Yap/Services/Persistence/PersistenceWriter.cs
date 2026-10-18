@@ -26,6 +26,7 @@ public sealed class PersistenceWriter : BackgroundService
     // for good past about 1,000 writes a second. A bounded batch keeps the disk seconds behind memory,
     // and a restart loses at most one batch.
     private const int BatchSize = 500;
+    private const int MaxBatchesPerPass = 20;   // 10,000 writes; more than that in one pass is a backlog, not a pass
 
     // Writes that are the same row again and again keep only the latest one per key, flushed at most once per
     // interval. Read states are the case: a message in a room of a thousand queued one write per recipient, 14,000
@@ -35,7 +36,7 @@ public sealed class PersistenceWriter : BackgroundService
     private static readonly TimeSpan CoalesceInterval = TimeSpan.FromSeconds(2);
     private readonly Lock _coalesceGate = new();
     private Dictionary<object, Write> _coalesced = new();
-    private readonly Dictionary<object, int> _coalesceFailures = new();   // keys whose flush failed, with the count
+    private int _flushFailures;   // flushes in a row whose slice failed whole; the third one is taken apart to find the bad row
     private int _coalescedCount;
     private DateTime _lastFlush = DateTime.UtcNow;
     private bool _closed;   // after StopAsync: a write that arrives now would miss the final flush
@@ -87,16 +88,23 @@ public sealed class PersistenceWriter : BackgroundService
                 try { more = await _queue.Reader.WaitToReadAsync(timeout.Token); }
                 catch (OperationCanceledException) { more = true; }   // a flush is due; the queue may be empty
             }
-            var batch = new List<Write>(BatchSize);
-            while (batch.Count < BatchSize && _queue.Reader.TryRead(out var write)) batch.Add(write);
-            if (batch.Count > 0)
+            // The queue, until it is empty: a read state's channel is queued at its creation, and the row may only be
+            // flushed once that insert is on disk. One batch per pass was not enough: a channel queued while the
+            // batch ran, or anywhere in a backlog, was still in the queue when the flush followed, and on the
+            // 2026-10-19 run the rows failed their foreign key by the thousand. A pass drains up to MaxBatchesPerPass
+            // batches; past that the queue is a backlog, the rows wait in memory (the latest state wins) and the
+            // load card shows them in the depth. At shutdown the queue is drained whole.
+            var emptied = false;
+            for (var passes = 0; !more || passes < MaxBatchesPerPass; passes++)
             {
+                var batch = new List<Write>(BatchSize);
+                while (batch.Count < BatchSize && _queue.Reader.TryRead(out var write)) batch.Add(write);
+                if (batch.Count == 0) { emptied = true; break; }
                 await RunAsync(batch);
                 Interlocked.Add(ref _depth, -batch.Count);   // after the pass: the depth counts writes not yet on disk
+                if (batch.Count < BatchSize) { emptied = true; break; }
             }
-            // The queue first, then the rows: a read state's channel is queued at its creation, so its insert
-            // is on disk before the row that points at it, as long as the row waits for the next flush.
-            if (!more || DateTime.UtcNow - _lastFlush >= CoalesceInterval) await FlushCoalescedAsync();
+            if (emptied && (!more || DateTime.UtcNow - _lastFlush >= CoalesceInterval)) await FlushCoalescedAsync();
             if (!more && _queue.Reader.Completion.IsCompleted && Volatile.Read(ref _coalescedCount) == 0) return;
         }
     }
@@ -115,9 +123,11 @@ public sealed class PersistenceWriter : BackgroundService
         await base.StopAsync(cancellationToken);   // waits for ExecuteAsync up to the host's shutdown timeout
     }
 
-    // The latest write of every key, in batches like the queue. A row whose write failed stays for the next flush:
-    // its channel's insert may still have been in the queue (a foreign key), and the queue drains before each
-    // flush. A row that fails three flushes in a row is dropped, so a row whose parent is gone cannot retry for ever.
+    // The latest write of every key, in slices like the queue's batches. A slice that fails stays whole for the
+    // next flush: the usual cause is a channel insert queued a moment ago, and by the next flush the queue has
+    // drained it. Taking a failed slice apart into single commits is the slow path on SQLite; done on every
+    // flush it built the backlog it was meant to clear (2026-10-19). The third failure in a row is taken apart,
+    // so a row whose parent is gone for good is found and dropped, and the rest of its slice goes in.
     private async Task FlushCoalescedAsync()
     {
         List<KeyValuePair<object, Write>> rows;
@@ -132,25 +142,25 @@ public sealed class PersistenceWriter : BackgroundService
         for (var i = 0; i < rows.Count; i += BatchSize)
         {
             var slice = rows.GetRange(i, Math.Min(BatchSize, rows.Count - i));
-            var dropped = await RunAsync(slice.Select(p => p.Value).ToList());
+            var dropped = await RunAsync(slice.Select(p => p.Value).ToList(), isolate: _flushFailures >= 2);
             lock (_coalesceGate)
             {
-                foreach (var (key, write) in slice)
+                if (dropped is null)   // the slice failed whole and nothing of it was written: every row waits for the next flush
                 {
-                    if (!dropped.Contains(write)) { _coalesceFailures.Remove(key); continue; }
-                    var failures = _coalesceFailures.GetValueOrDefault(key) + 1;
-                    if (failures >= 3) { _coalesceFailures.Remove(key); continue; }
-                    _coalesceFailures[key] = failures;
-                    _coalesced.TryAdd(key, write);   // a newer write for the key, if one came meanwhile, wins
+                    _flushFailures++;
+                    foreach (var (key, write) in slice) _coalesced.TryAdd(key, write);   // a newer write for the key, if one came meanwhile, wins
                 }
+                else _flushFailures = 0;
                 Volatile.Write(ref _coalescedCount, _coalesced.Count);
             }
         }
     }
 
     // Up to BatchSize writes go into one transaction: one commit, which is the expensive part on SQLite, for
-    // many rows. Returns the writes that failed and were dropped, so a coalesced flush can keep its rows.
-    private async Task<IReadOnlyList<Write>> RunAsync(List<Write> batch)
+    // many rows. Returns the writes that failed and were dropped. With <paramref name="isolate"/> off, a batch
+    // that fails is not taken apart: nothing of it is written and the result is null, for a caller that can
+    // simply try the whole batch again later.
+    private async Task<IReadOnlyList<Write>?> RunAsync(List<Write> batch, bool isolate = true)
     {
         try
         {
@@ -169,12 +179,17 @@ public sealed class PersistenceWriter : BackgroundService
             await tx.CommitAsync();
             return [];
         }
+        catch (Exception ex) when (batch.Count > 1 && !isolate)
+        {
+            _log.LogInformation("A flush of {Count} coalesced rows failed ({Reason}); they wait for the next flush", batch.Count, ex.Message);
+            return null;
+        }
         catch (Exception ex) when (batch.Count > 1)
         {
             // One bad write must not take the rest of the batch with it: redo them one at a time.
             _log.LogWarning(ex, "A batch of {Count} database writes failed; retrying them one by one", batch.Count);
             var dropped = new List<Write>();
-            foreach (var write in batch) dropped.AddRange(await RunAsync([write]));
+            foreach (var write in batch) dropped.AddRange(await RunAsync([write]) ?? []);   // a single write is always isolated
             return dropped;
         }
         catch (Exception ex)
