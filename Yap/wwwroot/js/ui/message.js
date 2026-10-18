@@ -2,7 +2,7 @@
 // the action bar with its popups, the editor, and the pending and failed states. The row draws from a
 // message object; a pending row is a message object with `pending` from sender.js.
 
-import { state, displayName, toggleReactionLocally, editLocally, removeLocally, toggleFavoriteLocally } from '../store.js';
+import { state, displayName, toggleReactionLocally, editLocally, removeLocally, toggleFavoriteLocally, mayPin, isPinned, pinLocally, unpinLocally } from '../store.js';
 import { clone, el, replace, classes } from '../render/dom.js';
 import { inline, messageText, imageFailed } from '../render/text.js';
 import { messageTime } from '../render/time.js';
@@ -315,7 +315,7 @@ function renderActions(rowNode, m) {
   // a failed row is pending too: Edit corrects the text and sends it again (MR-72)
   if (isOwn(m) && (m.text || !hasMedia(m))) { edit.hidden = false; edit.addEventListener('click', () => startEdit(rowNode, m)); } else edit.remove();   // a text row, or a media row with a caption (MR-57)
   const more = bar.querySelector('.action-more');
-  if (m.text || isOwn(m)) { more.hidden = false; more.addEventListener('click', e => openMore(rowNode, m, e.currentTarget, e)); } else more.remove();
+  if (m.text || isOwn(m) || (!m.pending && mayPin())) { more.hidden = false; more.addEventListener('click', e => openMore(rowNode, m, e.currentTarget, e)); } else more.remove();   // MR-47; Pin for a media row of someone else (MR-77)
 }
 
 function openReactionPicker(rowNode, m, anchor) {
@@ -327,6 +327,13 @@ function openMore(rowNode, m, anchor, event) {
   const layer = clone('t-more-menu');
   const menu = layer.querySelector('.more-menu');
   const copy = layer.querySelector('[data-action="copy"]'), del = layer.querySelector('[data-action="delete"]'), remove = layer.querySelector('[data-action="remove"]');
+  const pin = layer.querySelector('[data-action="pin"]');
+  if (m.pending || !mayPin()) pin.remove();
+  else {   // MR-77
+    const pinned = isPinned(m.id);
+    pin.querySelector('span').textContent = pinned ? 'Unpin Message' : 'Pin Message';
+    pin.addEventListener('click', () => { close(); togglePin(rowNode, m, pinned); });
+  }
   if (!m.text) copy.remove();   // the caption of a media row copies too (MR-56)
   if (!isOwn(m) || m.pending) del.remove();
   if (!m.pending) remove.remove();
@@ -369,6 +376,15 @@ async function deleteNow(rowNode, m) {
   if (state.connection !== 'connected') { overlays.reason(rowNode, 'Needs a connection'); return; }   // MR-75
   const undo = removeLocally(m.id);                                                                // MR-68, at once
   const result = await hub.invoke('delete', m.id);
+  if (result?.error) { undo?.(); overlays.reason(document.getElementById(`msg-${m.id}`) ?? rowNode, result.error); }
+}
+
+// MR-77, MR-78: the header count and the panel change at once; the server's refusal undoes it and shows at the row.
+async function togglePin(rowNode, m, pinned) {
+  if (state.connection !== 'connected') { overlays.reason(rowNode, 'Needs a connection'); return; }   // MR-75
+  const channelId = state.open.channelId;
+  const undo = pinned ? unpinLocally(m.id) : pinLocally(m);
+  const result = await hub.invoke(pinned ? 'unpin' : 'pin', channelId, m.id);
   if (result?.error) { undo?.(); overlays.reason(document.getElementById(`msg-${m.id}`) ?? rowNode, result.error); }
 }
 

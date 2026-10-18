@@ -114,8 +114,9 @@ public class ChatTests : IClassFixture<YapFactory>
     [Fact(DisplayName = "IB-70, MR-76: a voice message is sent alone, from an upload of this server, and reaches the row with its bars")]
     public async Task Voice_message_is_sent_alone()
     {
+        var admin = await _app.AdminAsync();
         var alice = await _app.SignInAsync("alice_voice");
-        var lobby = _app.Service<ChatService>().LobbyId;
+        var lobby = Chat.GetOrCreateDm(IdOf("alice_voice"), admin.Username)!.Id;   // the person's one conversation (docs/dmonly.md)
         var voice = new { url = "/uploads/voice.m4a", durationMs = 4200, peaks = "0369cfilorux" };
 
         var withText = await alice.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId = Guid.NewGuid(), text = "hi", voice });
@@ -147,6 +148,7 @@ public class ChatTests : IClassFixture<YapFactory>
         try
         {
             await using var app = new YapFactory { SqlitePath = db };
+            var boss = await app.AdminAsync();
             var alice = await app.SignInAsync("alice_prune");
             var chat = app.Service<ChatService>();
             var log = app.Service<MediaUploadLogService>();
@@ -156,7 +158,7 @@ public class ChatTests : IClassFixture<YapFactory>
             // The upload's log row, as the tus path writes it, and a message that carries the file.
             var stem = Guid.NewGuid();
             log.Log(aliceId, alice.Username, "voice.webm", $"{stem}.m4a", 1234, "voice", ".m4a");
-            var sent = await alice.Http.PostAsJsonAsync($"/api/channels/{chat.LobbyId}/messages", new { clientId = Guid.NewGuid(), voice = new { url = $"/uploads/{stem}.m4a", durationMs = 3000, peaks = "0z" } });
+            var sent = await alice.Http.PostAsJsonAsync($"/api/channels/{chat.GetOrCreateDm(aliceId, boss.Username)!.Id}/messages", new { clientId = Guid.NewGuid(), voice = new { url = $"/uploads/{stem}.m4a", durationMs = 3000, peaks = "0z" } });
             Assert.Equal(HttpStatusCode.OK, sent.StatusCode);
             var message = (await sent.Content.ReadFromJsonAsync<MessageDto>())!;
 
@@ -417,5 +419,89 @@ public class ChatTests : IClassFixture<YapFactory>
 
         var unknown = await gina.Http.PostAsJsonAsync("/api/dm/nobody_dm/messages", new { clientId = Guid.NewGuid(), text = "?" });
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+    }
+
+    [Fact(DisplayName = "MR-77, MR-78, SH-48: a person and the admin both pin and unpin, three at most, the other side hears the change")]
+    public async Task Dm_pins_both_ways_and_the_limit()
+    {
+        var admin = await _app.AdminAsync();
+        var alice = await _app.SignInAsync("alice_pin");
+        var aliceHub = await alice.ConnectAsync();
+        var adminHub = await admin.ConnectAsync();
+        var dm = (await aliceHub.InvokeAsync<Conversation>("OpenDm", admin.Username)).ChannelId;
+        await adminHub.InvokeAsync<Conversation>("OpenDm", "alice_pin");
+
+        var sent = new List<MessageDto>();
+        for (var i = 0; i < 4; i++)
+            sent.Add((await (await alice.Http.PostAsJsonAsync($"/api/dm/{admin.Username}/messages", new { clientId = Guid.NewGuid(), text = $"pin me {i}" })).Content.ReadFromJsonAsync<MessageDto>())!);
+
+        var adminSees = new Expectation<IReadOnlyList<Pin>>();
+        adminHub.On<Guid, IReadOnlyList<Pin>>("pins", (id, pins) => { if (id == dm) adminSees.Set(pins); });
+
+        Assert.Null(await aliceHub.InvokeAsync<HubError?>("Pin", dm, sent[0].Id));
+        var pins = await adminSees.Within();
+        Assert.Equal([sent[0].Id], pins.Select(p => p.MessageId));
+        Assert.Equal("alice_pin", pins[0].PinnedBy);
+        Assert.Equal("pin me 0", pins[0].Text);
+
+        Assert.Null(await adminHub.InvokeAsync<HubError?>("Pin", dm, sent[1].Id));   // the other side pins too
+        Assert.Null(await aliceHub.InvokeAsync<HubError?>("Pin", dm, sent[2].Id));
+        Assert.Equal("Up to 3 pinned messages. Unpin one first.", (await aliceHub.InvokeAsync<HubError?>("Pin", dm, sent[3].Id))?.Error);
+
+        var reopened = await adminHub.InvokeAsync<Conversation>("OpenDm", "alice_pin");
+        Assert.Equal([sent[2].Id, sent[1].Id, sent[0].Id], reopened.Pins.Select(p => p.MessageId));   // the newest pin first
+
+        Assert.Null(await adminHub.InvokeAsync<HubError?>("Unpin", dm, sent[0].Id));   // the other side's pin
+        Assert.Equal(2, _app.Service<ChatService>().PinsFor(dm).Count);
+        await aliceHub.DisposeAsync();
+        await adminHub.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "SH-48, AD-03: an edit changes the pinned text and a delete removes the pin; pins survive a restart, also for a message the startup load leaves in the database")]
+    public async Task Pins_follow_the_message_and_survive_a_restart()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"yap-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            Guid dm, oldId;
+            await using (var app = new YapFactory { SqlitePath = db })
+            {
+                var boss = await app.AdminAsync();
+                var pat = await app.SignInAsync("pat_pin");
+                var chat = app.Service<ChatService>();
+                var hub = await boss.ConnectAsync();
+                dm = (await hub.InvokeAsync<Conversation>("OpenDm", "pat_pin")).ChannelId;
+
+                var old = (await (await boss.Http.PostAsJsonAsync("/api/dm/pat_pin/messages", new { clientId = Guid.NewGuid(), text = "old but pinned" })).Content.ReadFromJsonAsync<MessageDto>())!;
+                var gone = (await (await boss.Http.PostAsJsonAsync("/api/dm/pat_pin/messages", new { clientId = Guid.NewGuid(), text = "soon deleted" })).Content.ReadFromJsonAsync<MessageDto>())!;
+                oldId = old.Id;
+                Assert.Null(await hub.InvokeAsync<HubError?>("Pin", dm, old.Id));
+                Assert.Null(await hub.InvokeAsync<HubError?>("Pin", dm, gone.Id));
+                Assert.Null(await hub.InvokeAsync<HubError?>("Edit", old.Id, "old, edited, pinned"));
+                Assert.Null(await hub.InvokeAsync<HubError?>("Delete", gone.Id));
+                var pins = chat.PinsFor(dm);
+                Assert.Equal([old.Id], pins.Select(p => p.MessageId));   // the deleted message left the panel
+                Assert.Equal("old, edited, pinned", pins[0].Text);       // the edit reached the copy
+
+                foreach (var text in new[] { "newer 1", "newer 2", "newer 3" })
+                    Assert.Equal(HttpStatusCode.OK, (await pat.Http.PostAsJsonAsync($"/api/dm/{boss.Username}/messages", new { clientId = Guid.NewGuid(), text })).StatusCode);
+                await hub.DisposeAsync();
+            }   // the stop drains the writer
+
+            // The count bound leaves the pinned message in the database; the pin still shows, with its copy of the text.
+            await using (var app = new YapFactory { SqlitePath = db, Settings = { ["ChatSettings:Persistence:Load:MaxMessagesPerChannel"] = "2" } })
+            {
+                var chat = app.Service<ChatService>();
+                Assert.Null(chat.GetMessage(oldId));
+                var pins = chat.PinsFor(dm);
+                Assert.Equal([oldId], pins.Select(p => p.MessageId));
+                Assert.Equal("old, edited, pinned", pins[0].Text);
+            }
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            foreach (var f in Directory.GetFiles(Path.GetDirectoryName(db)!, Path.GetFileName(db) + "*")) File.Delete(f);
+        }
     }
 }

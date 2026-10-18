@@ -1,7 +1,7 @@
 namespace Yap.Models.Chat;
 
-/// <summary>What <c>openDm</c> returns: the tail of the conversation and who types in it (chat-hub.md).</summary>
-public sealed record Conversation(Guid ChannelId, IReadOnlyList<MessageDto> Messages, bool HasMore, IReadOnlyList<string> Typists);
+/// <summary>What <c>openDm</c> returns: the tail of the conversation, who types in it, and its pinned messages (chat-hub.md, SH-48).</summary>
+public sealed record Conversation(Guid ChannelId, IReadOnlyList<MessageDto> Messages, bool HasMore, IReadOnlyList<string> Typists, IReadOnlyList<Pin> Pins);
 
 /// <summary>What <c>older</c> returns (TL-06).</summary>
 public sealed record Page(IReadOnlyList<MessageDto> Messages, bool HasMore);

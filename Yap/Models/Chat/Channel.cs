@@ -23,6 +23,18 @@ public class Channel
     public HistoryLimit HistoryLimit { get; set; } = HistoryLimit.Unlimited;
     public bool SinceJoined { get; set; }
 
+    /// <summary>Room columns of the pins migration (AD-37 on main). A direct message ignores them: both people may pin.</summary>
+    public PinPermission PinPermission { get; set; } = PinPermission.AdminOnly;
+    public List<string> Pinners { get; set; } = new();
+
+    /// <summary>
+    /// The pinned messages, newest pin first, at most <see cref="MaxPins"/> (MR-77). A change assigns a new list and
+    /// never edits this one in place: the persistence writer may be serializing the old list on its own thread.
+    /// </summary>
+    public List<Pin> Pins { get; set; } = new();
+
+    public const int MaxPins = 3;
+
     // The two participants (by UserId)
     public Guid? Participant1Id { get; set; }
     public Guid? Participant2Id { get; set; }
@@ -81,4 +93,8 @@ public class Channel
         Type == ChannelType.DirectMessage &&
         ((Participant1Id == userId1 && Participant2Id == userId2) ||
          (Participant1Id == userId2 && Participant2Id == userId1));
+
+    /// <summary>Whether a person may pin and unpin here (MR-77): both people of the conversation may, and the admin is
+    /// always one of them in this build (docs/dmonly.md).</summary>
+    public bool CanPin(Guid userId) => CanAccess(userId);
 }

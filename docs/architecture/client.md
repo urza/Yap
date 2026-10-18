@@ -190,6 +190,7 @@ const connection = new signalR.HubConnectionBuilder()
 connection.on('message',        m => store.addMessage(m));
 connection.on('messageEdited',  m => store.replaceMessage(m));
 connection.on('messageDeleted', (channelId, id) => store.removeMessage(channelId, id));
+connection.on('pins',           (channelId, pins) => store.setPins(channelId, pins));
 connection.on('reactions',      (id, reactions) => store.setReactions(id, reactions));
 connection.on('previews',       (id, previews) => store.setPreviews(id, previews));
 connection.on('typing',         (channelId, username, on) => store.setTyping(channelId, username, on));

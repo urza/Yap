@@ -63,6 +63,7 @@ public class ChatService
     public event Action<ChatMessage>? OnPreviewsReady;            // a link card or a cached media player is ready (MR-22, MR-23)
     public event Action<Guid, Guid, int>? OnUnreadChanged;        // userId, channelId, count
     public event Action<Channel>? OnDmStarted;                    // a direct message got its first message (SH-29)
+    public event Action<Channel>? OnPinsChanged;                  // a pin or an unpin, or an edit or a delete of a pinned message (SH-48)
 
     public ChatService(IServiceProvider services, PersistenceWriter writer, PushNotificationService pushService, UserService userService,
         PresenceService presence, LinkPreviewService linkPreviewService, LinkPreviewSettingsService linkPreviewSettings,
@@ -427,6 +428,11 @@ public class ChatService
         foreach (var reply in RepliesTo(message)) OnMessageEdited?.Invoke(reply);   // their quotes show the new text (MR-32)
         _writer.Enqueue(Writes.MessageEdit(message.Id, text));
         QueuePreviews(message);   // an edit that adds or removes a link adds or removes the card (MR-22)
+        if (_channels.TryGetValue(message.ChannelId, out var channel) && channel.Pins.Any(p => p.MessageId == message.Id))
+        {
+            lock (LockOf(channel.Id)) channel.Pins = channel.Pins.Select(p => p.MessageId == message.Id ? p with { Text = text } : p).ToList();   // the panel shows the new text (SH-48)
+            PinsChanged(channel);
+        }
         return null;
     }
 
@@ -448,6 +454,11 @@ public class ChatService
 
         OnMessageDeleted?.Invoke(channelId, messageId);
         _writer.Enqueue(Writes.DeleteMessage(messageId));
+        if (_channels.TryGetValue(channelId, out var channel) && channel.Pins.Any(p => p.MessageId == messageId))
+        {
+            lock (LockOf(channelId)) channel.Pins = channel.Pins.Where(p => p.MessageId != messageId).ToList();   // a deleted message leaves the panel (SH-48)
+            PinsChanged(channel);
+        }
         return null;
     }
 
@@ -471,6 +482,59 @@ public class ChatService
         _writer.Enqueue(added ? Writes.Reaction(messageId, userId, username, emoji) : Writes.DeleteReaction(messageId, userId, emoji));
         return null;
     }
+
+    #endregion
+
+    #region Pins
+
+    /// <summary>MR-77, MR-78. Pins a message of the conversation for everyone in it: at most <see cref="Channel.MaxPins"/>, the newest pin first.</summary>
+    public string? Pin(Guid userId, string username, Guid channelId, Guid messageId)
+    {
+        if (!_channels.TryGetValue(channelId, out var channel)) return "Conversation not found.";
+        if (GetMessage(messageId) is not { } message || message.ChannelId != channelId || !MayRead(userId, message)) return "Message not found.";
+        if (!channel.CanPin(userId)) return "You cannot pin messages here.";
+        lock (LockOf(channelId))
+        {
+            if (channel.Pins.Any(p => p.MessageId == messageId)) return null;   // someone else pinned it a moment ago: nothing to say
+            if (channel.Pins.Count >= Channel.MaxPins) return $"Up to {Channel.MaxPins} pinned messages. Unpin one first.";
+            channel.Pins = [Models.Chat.Pin.Of(message, username, Thumb(message)), .. channel.Pins];   // qualified: Pin is also this method
+        }
+        PinsChanged(channel);
+        return null;
+    }
+
+    /// <summary>MR-77. The pin goes; the message stays. Named by conversation and message, because a pinned message may be
+    /// older than the messages in memory.</summary>
+    public string? Unpin(Guid userId, string username, Guid channelId, Guid messageId)
+    {
+        if (!_channels.TryGetValue(channelId, out var channel) || !channel.CanAccess(userId)) return "Conversation not found.";
+        if (!channel.CanPin(userId)) return "You cannot unpin messages here.";
+        lock (LockOf(channelId))
+        {
+            if (channel.Pins.All(p => p.MessageId != messageId)) return null;
+            channel.Pins = channel.Pins.Where(p => p.MessageId != messageId).ToList();
+        }
+        PinsChanged(channel);
+        return null;
+    }
+
+    /// <summary>The pins of a conversation (SH-48). Both people see all of them: a direct message has no history cutoff.
+    /// The list is replaced, never edited in place, so the reference is a snapshot.</summary>
+    public List<Pin> PinsFor(Guid channelId) => _channels.TryGetValue(channelId, out var channel) ? channel.Pins : [];
+
+    // After a new pin list was assigned: the event, then the row write. The write reads the channel when it runs.
+    private void PinsChanged(Channel channel)
+    {
+        OnPinsChanged?.Invoke(channel);
+        _writer.Enqueue(Writes.Channel(channel));
+    }
+
+    // The picture the panel shows for a media message: the first image, else the first video's poster (SH-48). The same
+    // URLs the row uses (MessageMapper). A GIF has none: its file can move or go, and the panel shows a label instead.
+    private static string? Thumb(ChatMessage m) =>
+        m.ImageUrls.FirstOrDefault() is { } image ? Media.ImageService.GetMediumUrl(image)
+        : m.VideoUrls.FirstOrDefault() is { } video ? Media.VideoService.GetPosterUrl(video)
+        : null;
 
     private static readonly string[] DefaultQuickReactions = ["❤️", "😂", "👍"];
 

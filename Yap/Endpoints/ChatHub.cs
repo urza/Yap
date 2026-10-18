@@ -69,7 +69,8 @@ public sealed class ChatHub(ChatService chat, PresenceService presence, UserServ
         chat.MarkRead(Me, channel.Id, "open", Context.ConnectionId);
         var (messages, hasMore) = chat.Tail(channel.Id, PageSize, Me);
         chat.EnsurePreviews(messages);
-        return new Conversation(channel.Id, messages.Select(m => map.From(m, Me)).ToList(), hasMore, presence.Typists(channel.Id, except: MyName));
+        return new Conversation(channel.Id, messages.Select(m => map.From(m, Me)).ToList(), hasMore, presence.Typists(channel.Id, except: MyName),
+            chat.PinsFor(channel.Id));
     }
 
     /// <summary>Before Settings, Admin or the people list: the connection stays, the conversation is closed.</summary>
@@ -106,6 +107,11 @@ public sealed class ChatHub(ChatService chat, PresenceService presence, UserServ
     public HubError? Edit(Guid messageId, string text) => chat.Edit(Me, messageId, text) is { } error ? new(error) : null;
 
     public HubError? Delete(Guid messageId) => chat.Delete(Me, messageId) is { } error ? new(error) : null;
+
+    /// <summary>MR-77. Both name the conversation too: an unpin may concern a message older than the ones in memory.</summary>
+    public HubError? Pin(Guid channelId, Guid messageId) => chat.Pin(Me, MyName, channelId, messageId) is { } error ? new(error) : null;
+
+    public HubError? Unpin(Guid channelId, Guid messageId) => chat.Unpin(Me, MyName, channelId, messageId) is { } error ? new(error) : null;
 
     /// <summary>A pick in the composer's emoji picker counts as a use (IB-44, PK-07).</summary>
     public void EmojiUsed(string emoji) => users.RecordEmojiUse(Me, emoji);

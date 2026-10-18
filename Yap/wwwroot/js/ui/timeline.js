@@ -268,7 +268,7 @@ export function Timeline(root) {
       await new Promise(r => setTimeout(r, 50));
     }
     const r = rows.get(id);
-    if (!r) return;
+    if (!r) return false;   // older than the loaded history, or gone: the caller says so (TL-38)
     following = false;
     const target = r.node.offsetTop - list.offsetTop - list.clientHeight / 2 + r.node.offsetHeight / 2;
     const start = list.scrollTop, distance = target - start, t0 = performance.now();
@@ -280,6 +280,7 @@ export function Timeline(root) {
       else { r.node.classList.add('highlight-message'); setTimeout(() => r.node.classList.remove('highlight-message'), 2000); }
     };
     requestAnimationFrame(step);
+    return true;
   }
 
   const offs = [
@@ -299,4 +300,4 @@ export function Timeline(root) {
   };
 }
 
-export function jumpTo(id) { current?.jumpTo(id); }
+export function jumpTo(id) { return current?.jumpTo(id) ?? Promise.resolve(false); }

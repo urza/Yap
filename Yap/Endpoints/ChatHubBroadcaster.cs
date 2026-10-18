@@ -32,6 +32,7 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
         On<ChatMessage>(h => chat.OnPreviewsReady += h, h => chat.OnPreviewsReady -= h, m => ToChannel(m.ChannelId, "previews", m.Id, map.Previews(m)));
         On<Guid, Guid, int>(h => chat.OnUnreadChanged += h, h => chat.OnUnreadChanged -= h, (userId, channelId, count) => ToUser(userId, "unread", channelId, count));
         On<Channel>(h => chat.OnDmStarted += h, h => chat.OnDmStarted -= h, DmStarted);
+        On<Channel>(h => chat.OnPinsChanged += h, h => chat.OnPinsChanged -= h, c => ToChannel(c.Id, "pins", c.Id, chat.PinsFor(c.Id)));   // SH-48
 
         On<string, EffectiveStatus, PresenceChange>(h => presence.OnPresenceChanged += h, h => presence.OnPresenceChanged -= h,
             (username, status, change) => ToWatchersOf(username, "presence", username, status, change));

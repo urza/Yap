@@ -9,6 +9,7 @@ import { inline } from '../render/text.js';
 import { avatar, gradient } from '../render/avatar.js';
 import * as hub from '../hub.js';
 import * as overlays from './overlays.js';
+import { openPins } from './pins.js';
 import * as router from '../router.js';
 import * as session from '../session.js';
 import { hasQueued } from '../sender.js';
@@ -25,11 +26,13 @@ export function mount(appRoot) {
   const header = frame.querySelector('.chat-header');
   header.querySelector('.status-button').addEventListener('click', openStatusMenu);
   header.querySelector('.mailbox-button').addEventListener('click', () => router.navigate('/'));   // SH-09: the home holds the unread conversation
+  header.querySelector('.pins-button').addEventListener('click', togglePins);   // SH-47
   wireConnectionDot(header.querySelector('.connection-dot'));
 
   offs = [
     on('user', renderChip), on('users', renderChip), on('presence', renderChip), on('connection', renderChip),
     on('unread', renderMailbox), on('mutes', renderMailbox), on('open', renderMailbox),
+    on('pins', renderPins), on('open', renderPins),
     on('connection', renderConnection), on('users', renderTitle), on('user', renderTitle),
   ];
   renderAll();
@@ -42,7 +45,7 @@ export function unmount() {
   frame?.remove(); frame = null;
 }
 
-function renderAll() { renderChip(); renderMailbox(); renderConnection(); renderTitle(); }
+function renderAll() { renderChip(); renderMailbox(); renderPins(); renderConnection(); renderTitle(); }
 
 // ---- the title area (SH-05, SH-06, SH-07) and the context (SH-04) ----
 
@@ -131,6 +134,24 @@ async function confirmSignOut() {
       && !confirm("You have no login link and no secret code. Without one, you won't be able to get back into this account. Continue signing out?")) return;
   if (hasQueued() && !confirm('Unsent messages on this device will be lost. Continue signing out?')) return;
   if (!await session.signOut()) overlays.reason(frame.querySelector('.status-dropdown-container'), 'Needs a connection');   // GEN-10: the server removes the cookie
+}
+
+// ---- the pin button and its panel (SH-47 to SH-49) ----
+
+let closePins = null;
+
+function renderPins() {
+  if (!frame) return;
+  const count = state.open?.pins?.length ?? 0;
+  const button = frame.querySelector('.pins-button');
+  button.hidden = count === 0;   // a conversation without pins shows no button (SH-47); a page has no open conversation
+  button.title = count === 1 ? '1 pinned message' : `${count} pinned messages`;
+  button.querySelector('.pins-badge').textContent = String(count);
+}
+
+function togglePins() {
+  if (closePins) { closePins(); return; }   // a second tap closes it, like the status chip (SH-12)
+  closePins = openPins(frame.querySelector('.pins-button'), () => { closePins = null; });
 }
 
 // ---- the mailbox (SH-08, SH-09) ----
