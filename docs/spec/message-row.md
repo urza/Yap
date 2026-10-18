@@ -146,7 +146,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 **MR-51** On a touch screen, the bar is hidden 5 s after the last touch in the row, or after the list scrolls more than 50 px. Touches in the picker, menu or dialog of the row count as touches in the row. The tap that closes the picker, the menu or the dialog is also a touch in the row. The bar is never hidden while one of them is open. When the row changes while its bar shows, for example when a reaction arrives, the bar stays. An open picker or menu also stays. A mouse on a device with touch input uses the hover rule.
 
-**MR-52** On a phone, the buttons of the bar are larger. The bar also contains the GIF star for the first GIF of the row.
+**MR-52** On a phone, the buttons of the bar are larger. The bar also contains the GIF star for the first GIF of the row. On a voice row, the bar sits above the row, so it never covers the player.
 
 **MR-53** A long press on a row does nothing.
 

@@ -1272,6 +1272,14 @@
         width: 100%;
     }
 
+    /* A full-width player reaches under the bar's usual place, which hid the speed button, the time and the
+       end of the bars (MR-52). A voice row's bar sits above the row instead. Only here: a 320 px player on a
+       wider screen never meets the bar. */
+    .message-group:has(.voice-message) .message-actions {
+        top: auto;
+        bottom: 100%;
+    }
+
     .gallery-single .gallery-image {
         max-height: 450px;
     }
