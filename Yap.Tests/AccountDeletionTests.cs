@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Data.Sqlite;
+using Yap.Models.Chat;
 using Yap.Services.Accounts;
 using Yap.Services.Chat;
 
@@ -117,6 +118,32 @@ public class AccountDeletionTests : IClassFixture<YapFactory>
         var response = await admin.Http.PostAsJsonAsync("/api/admin/users/delete", new { usernames = new[] { "nobody_here" } });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(0, (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("deleted").GetInt32());
+    }
+
+    [Fact(DisplayName = "AD-40, AD-37: a deleted account leaves a room's pinners, its pins carry the (deleted) name, and a save without the pin fields changes nothing")]
+    public async Task Delete_cleans_the_pins_and_the_pinners()
+    {
+        var admin = await _app.AdminAsync();
+        var kim = await _app.SignInAsync("kim_pins");
+        var chat = _app.Service<ChatService>();
+        var created = await (await admin.Http.PostAsJsonAsync("/api/rooms", new { name = "pins-gone", description = (string?)null, adminOnly = false, pinPermission = "selected", pinners = new[] { "kim_pins" } })).Content.ReadFromJsonAsync<JsonElement>();
+        var room = created.GetProperty("id").GetGuid();
+        var message = (await (await kim.Http.PostAsJsonAsync($"/api/channels/{room}/messages", new { clientId = Guid.NewGuid(), text = "kim's words" })).Content.ReadFromJsonAsync<MessageDto>())!;
+        var kimHub = await kim.ConnectAsync();
+        await kimHub.InvokeAsync<Conversation>("OpenRoom", room);
+        Assert.Null(await kimHub.InvokeAsync<HubError?>("Pin", room, message.Id));
+        await kimHub.DisposeAsync();
+
+        Assert.Equal(HttpStatusCode.OK, (await admin.Http.PostAsJsonAsync("/api/admin/users/delete", new { usernames = new[] { "kim_pins" } })).StatusCode);
+
+        var pin = Assert.Single(chat.PinsFor(room, null));
+        Assert.Equal("kim_pins (deleted)", pin.Username);   // a newcomer called kim_pins lends the pin nothing
+        Assert.Equal("kim_pins (deleted)", pin.PinnedBy);
+        Assert.Empty(chat.GetRoom(room)!.Pinners);          // and gets no right to pin from the old account
+
+        // A save without the pin fields (a tab on an older build) leaves them as they are.
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.Http.PatchAsJsonAsync($"/api/rooms/{room}", new { name = "pins-gone", description = (string?)null, adminOnly = false })).StatusCode);
+        Assert.Equal(PinPermission.Selected, chat.GetRoom(room)!.PinPermission);
     }
 
     private static async Task<object?> Scalar(SqliteConnection connection, string sql, Guid? id = null)

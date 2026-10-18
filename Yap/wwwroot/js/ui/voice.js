@@ -9,14 +9,16 @@ import { el } from '../render/dom.js';
 
 const SPEEDS = [1, 1.5, 2];
 const FLAT = new Array(48).fill(0.25);   // a message whose recorder measured nothing
-let speed = Number(localStorage.getItem('yap.voiceSpeed'));
+const SPEED_KEY = 'yap.voiceSpeed';
+let speed = Number(readSpeed());
 if (!SPEEDS.includes(speed)) speed = 1;
+function readSpeed() { try { return localStorage.getItem(SPEED_KEY); } catch { return null; } }   // storage can be blocked (a private window): then 1× for the page
 
 const audio = new Audio();
 // The message that plays, or is paused part way: its key and `view`, the controls of its row as last drawn. The
 // key is the message's, not the file's: a pending row plays its Blob, and the accepted row that takes its place
 // carries another URL but the same message, so its controls take over the playback.
-let current = null;
+let current = null;   // { key, view, seek }: seek is a position to take once the file's metadata is in
 let frame = 0;
 
 export const formatTime = ms => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
@@ -66,7 +68,7 @@ export function voicePlayer(voice, key) {
   });
   speedButton.addEventListener('click', () => {
     speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
-    localStorage.setItem('yap.voiceSpeed', String(speed));
+    try { localStorage.setItem(SPEED_KEY, String(speed)); } catch {}
     audio.defaultPlaybackRate = audio.playbackRate = speed;
     for (const b of document.querySelectorAll('.voice-speed')) b.textContent = speedLabel();   // one speed, every row shows it
   });
@@ -89,13 +91,16 @@ function draw(view) {
 
 function start(view, at) {
   const previous = current?.view;
-  current = { key: view.key, view };
+  current = { key: view.key, view, seek: at };
   if (previous) draw(previous);   // its bars go back to the start
   audio.src = view.voice.src;
   audio.defaultPlaybackRate = audio.playbackRate = speed;
-  if (at > 0) audio.addEventListener('loadedmetadata', () => { audio.currentTime = at; }, { once: true });
   audio.play().catch(() => {});
 }
+
+// The seek of a tap on the bars waits for the length; it belongs to the message it was made on, so a play on
+// another row meanwhile drops it with `current`.
+audio.addEventListener('loadedmetadata', () => { if (current?.seek > 0) { audio.currentTime = current.seek; current.seek = 0; } });
 
 const tick = () => { if (current) draw(current.view); };
 const loop = () => { tick(); if (!audio.paused && !audio.ended) frame = requestAnimationFrame(loop); };   // smoother than timeupdate's four a second

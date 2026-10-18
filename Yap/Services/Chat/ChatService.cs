@@ -213,9 +213,10 @@ public class ChatService
         return (room, null);
     }
 
+    /// <summary>AD-30 to AD-34, AD-37. A null pin field stays as it is: a tab on an older build sends neither (SH-50).</summary>
     public string? UpdateRoom(Guid adminUserId, Guid channelId, string name, string? description,
         ChannelPermission writePermission, HistoryLimit historyLimit, bool sinceJoined,
-        PinPermission pinPermission = PinPermission.AdminOnly, IEnumerable<string>? pinners = null)
+        PinPermission? pinPermission = null, IEnumerable<string>? pinners = null)
     {
         if (!_userService.IsAdmin(adminUserId)) return "Not authorized.";
         if (GetRoom(channelId) is not { } room) return "Channel not found.";
@@ -232,8 +233,8 @@ public class ChatService
         room.WritePermission = writePermission;
         room.HistoryLimit = historyLimit;
         room.SinceJoined = sinceJoined;
-        room.PinPermission = pinPermission;
-        room.Pinners = names;
+        room.PinPermission = pinPermission ?? room.PinPermission;
+        if (pinners is not null) room.Pinners = names;
 
         OnRoomsChanged?.Invoke();
         _writer.Enqueue(Writes.Channel(room));
@@ -283,13 +284,14 @@ public class ChatService
 
     /// <summary>
     /// An account is deleted (AD-40). Its direct messages go on both sides: a conversation with nobody could not be
-    /// opened or answered, and nothing lets the other person dismiss it. Its room messages and reactions stay under
-    /// <paramref name="ghostName"/>, which no account can register, so a newcomer with the old name inherits nothing.
-    /// Rooms it created keep the name as text and lose the id, as the database does. Returns the deleted direct messages.
+    /// opened or answered, and nothing lets the other person dismiss it. Its room messages, reactions and pins stay
+    /// under <paramref name="ghostName"/>, which no account can register, so a newcomer with the old name inherits
+    /// nothing: not a row, not a pin's author or pinner, not a place among a room's pinners (AD-37). Rooms it created
+    /// lose the id and carry the ghost name as creator. Returns the deleted direct messages.
     /// </summary>
-    public List<Guid> RemoveAccount(Guid userId, string ghostName)
+    public List<Guid> RemoveAccount(User user, string ghostName)
     {
-        var dms = DmChannelsOf(userId).Select(c => c.Id).ToList();
+        var dms = DmChannelsOf(user.Id).Select(c => c.Id).ToList();
         foreach (var id in dms) Purge(id);
 
         foreach (var (channelId, messages) in _channelMessages)
@@ -297,20 +299,37 @@ public class ChatService
             lock (LockOf(channelId))
                 foreach (var m in messages)
                 {
-                    if (m.UserId == userId) m.Username = ghostName;
+                    if (m.UserId == user.Id) m.Username = ghostName;
                     lock (m.Reactions)
-                        foreach (var r in m.Reactions.Where(r => r.UserId == userId)) r.Username = ghostName;
+                        foreach (var r in m.Reactions.Where(r => r.UserId == user.Id)) r.Username = ghostName;
                 }
         }
-        foreach (var room in _channels.Values.Where(c => c.CreatedById == userId))
-        {
-            room.CreatedById = null;
-            room.CreatedBy = ghostName;
-        }
-        foreach (var key in _readStates.Keys.Where(k => k.UserId == userId).ToList()) _readStates.TryRemove(key, out _);
-        foreach (var key in _byClientId.Keys.Where(k => k.UserId == userId).ToList()) _byClientId.TryRemove(key, out _);
 
-        _writer.Enqueue(Writes.RelabelAuthor(userId, ghostName));
+        // The channel rows name the person by username: a pin's author and pinner, a room's pinners, the creator.
+        bool Theirs(string name) => name.Equals(user.Username, StringComparison.OrdinalIgnoreCase);
+        var roomsChanged = false;
+        foreach (var channel in _channels.Values)
+        {
+            var created = channel.CreatedById == user.Id;
+            var pinner = channel.Pinners.Any(Theirs);
+            var named = channel.Pins.Any(p => Theirs(p.Username) || Theirs(p.PinnedBy));
+            if (!created && !pinner && !named) continue;
+            if (created) { channel.CreatedById = null; channel.CreatedBy = ghostName; }
+            lock (LockOf(channel.Id))
+            {
+                if (pinner) channel.Pinners = channel.Pinners.Where(n => !Theirs(n)).ToList();   // or a newcomer with the name could pin, and every save of the room would fail on an unknown name
+                if (named) channel.Pins = channel.Pins.Select(p => p with { Username = Theirs(p.Username) ? ghostName : p.Username, PinnedBy = Theirs(p.PinnedBy) ? ghostName : p.PinnedBy }).ToList();
+            }
+            if (named) OnPinsChanged?.Invoke(channel);
+            roomsChanged |= pinner;
+            _writer.Enqueue(Writes.Channel(channel));
+        }
+        if (roomsChanged) OnRoomsChanged?.Invoke();   // the room settings page sends back the pinners it was given
+
+        foreach (var key in _readStates.Keys.Where(k => k.UserId == user.Id).ToList()) _readStates.TryRemove(key, out _);
+        foreach (var key in _byClientId.Keys.Where(k => k.UserId == user.Id).ToList()) _byClientId.TryRemove(key, out _);
+
+        _writer.Enqueue(Writes.RelabelAuthor(user.Id, ghostName));
         return dms;
     }
 
@@ -449,6 +468,7 @@ public class ChatService
     /// </summary>
     public SendResult Send(SendMessage request)
     {
+        if (_userService.GetById(request.UserId) is null) return SendResult.Refused("Unknown user.");   // the account is being deleted (AD-40): nothing is stored for nobody
         if (!_channels.TryGetValue(request.ChannelId, out var channel) || !channel.CanAccess(request.UserId))
             return SendResult.Refused("Unknown conversation", 404);
         if (!channel.CanWrite(request.UserId, _userService.IsAdmin(request.UserId)))
@@ -460,7 +480,7 @@ public class ChatService
         {
             // A voice message carries nothing else (IB-70): the row has no caption and no gallery to draw with it.
             if (media > 0 || !string.IsNullOrWhiteSpace(text)) return SendResult.Refused("A voice message is sent alone.");
-            if (voice.DurationMs <= 0 || voice.DurationMs > (VoiceService.MaxSeconds + 10) * 1000) return SendResult.Refused("The voice message is too long.");
+            if (voice.DurationMs <= 0 || voice.DurationMs > VoiceService.MaxDurationMs) return SendResult.Refused("The voice message is too long.");
             if (!VoicePeaks.IsMatch(voice.Peaks ?? "")) return SendResult.Refused("The voice message is malformed.");
             media = 1;
         }
@@ -649,7 +669,8 @@ public class ChatService
         QueuePreviews(message);   // an edit that adds or removes a link adds or removes the card (MR-22)
         if (_channels.TryGetValue(message.ChannelId, out var channel) && channel.Pins.Any(p => p.MessageId == message.Id))
         {
-            lock (LockOf(channel.Id)) channel.Pins = channel.Pins.Select(p => p.MessageId == message.Id ? p with { Text = text, Media = PinMediaOf(message) } : p).ToList();   // the panel shows the new text, and a link card that came or went with it (SH-48)
+            var media = PinMediaOf(message);   // outside the lock: it may read a cached card from disk
+            lock (LockOf(channel.Id)) channel.Pins = channel.Pins.Select(p => p.MessageId == message.Id ? p with { Text = text, Media = media } : p).ToList();   // the panel shows the new text, and a link card that came or went with it (SH-48)
             PinsChanged(channel);
         }
         return null;
@@ -712,11 +733,13 @@ public class ChatService
         if (!_channels.TryGetValue(channelId, out var channel)) return "Conversation not found.";
         if (GetMessage(messageId) is not { } message || message.ChannelId != channelId || !MayRead(userId, message)) return "Message not found.";   // MayRead covers access and the history cutoff (TL-05)
         if (!channel.CanPin(userId, username, _userService.IsAdmin(userId))) return "You cannot pin messages here.";
+        var media = PinMediaOf(message);   // outside the lock: it may read a cached card from disk
         lock (LockOf(channelId))
         {
+            if (!_channelMessages.TryGetValue(channelId, out var messages) || !messages.Contains(message)) return "Message not found.";   // deleted since the check above; Delete looks for the pin only after this lock (MR-64)
             if (channel.Pins.Any(p => p.MessageId == messageId)) return null;   // someone else pinned it a moment ago: nothing to say
             if (channel.Pins.Count >= Channel.MaxPins) return $"Up to {Channel.MaxPins} pinned messages. Unpin one first.";
-            channel.Pins = [Models.Chat.Pin.Of(message, username, PinMediaOf(message)), .. channel.Pins];   // qualified: Pin is also this method
+            channel.Pins = [Models.Chat.Pin.Of(message, username, media), .. channel.Pins];   // qualified: Pin is also this method
         }
         PinsChanged(channel);
         return null;
@@ -753,7 +776,6 @@ public class ChatService
         _writer.Enqueue(Writes.Channel(channel));
     }
 
-    // The picture the panel shows for a media message: the first image, else the first video's poster (SH-48). The same
     /// <summary>What the pin entry shows under the text (SH-48, <see cref="PinMedia"/>), in the row's order: the first
     /// picture, else the first video's poster, else the first GIF, else the voice note, else the first link card with
     /// a picture. The URLs are the row's own (MessageMapper), copied because the pin outlives the memory window.</summary>
@@ -819,7 +841,8 @@ public class ChatService
         return mine.GroupBy(e => e).OrderByDescending(g => g.Count()).Take(count).Select(g => g.Key).ToList();
     }
 
-    /// <summary>Every image, video and voice URL a message in memory carries. The admin's media clean-up matches uploads against it.</summary>
+    /// <summary>Every image, video and voice URL a message in memory carries, and the pictures the pins keep. The admin's
+    /// media clean-up matches uploads against it.</summary>
     public List<string> MediaUrls()
     {
         var urls = new List<string>();
@@ -831,6 +854,13 @@ public class ChatService
                     urls.AddRange(message.VideoUrls);
                     if (message.Voice is { } voice) urls.Add(voice.Url);
                 }
+        // A pin's copy outlives the memory window (SH-48): its picture or poster is in use as long as the pin is.
+        foreach (var channel in _channels.Values)
+            foreach (var pin in channel.Pins)
+            {
+                if (pin.Media?.Src is { } src) urls.Add(src);
+                if (pin.Media?.Poster is { } poster) urls.Add(poster);
+            }
         return urls;
     }
 

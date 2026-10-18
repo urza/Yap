@@ -56,7 +56,7 @@ export function GifPicker({ onSend, onWarn }) {
 
   for (const b of rail.querySelectorAll('.category-btn')) {
     b.addEventListener('click', () => {
-      if (b.disabled || b.dataset.tab === tab) return;                                                // PK-15
+      if (b.dataset.tab === tab) return;                                                              // PK-15
       tab = b.dataset.tab; folder = null;
       search.value = ''; searching = null; clear.hidden = true;
       load(tab === 'browse' ? null : tab);

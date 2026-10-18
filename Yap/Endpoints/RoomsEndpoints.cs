@@ -14,7 +14,7 @@ public static class RoomsEndpoints
 
         rooms.MapPost("", (RoomRequest body, ClaimsPrincipal me, ChatService chat) =>
         {
-            var (room, error) = chat.CreateRoom(me.Id(), body.Name, body.Description, Permission(body), body.HistoryLimit, body.SinceJoined, body.PinPermission, body.Pinners);
+            var (room, error) = chat.CreateRoom(me.Id(), body.Name, body.Description, Permission(body), body.HistoryLimit, body.SinceJoined, body.PinPermission ?? PinPermission.AdminOnly, body.Pinners);
             return room is null ? Results.Problem(error, statusCode: 400) : Results.Created($"/room/{room.Id}", RoomDto.From(room));
         });
 
@@ -35,6 +35,6 @@ public static class RoomsEndpoints
 }
 
 public sealed record RoomRequest(string Name, string? Description, bool AdminOnly, HistoryLimit HistoryLimit = HistoryLimit.OneMonth, bool SinceJoined = true,
-    PinPermission PinPermission = PinPermission.AdminOnly, List<string>? Pinners = null);
+    PinPermission? PinPermission = null, List<string>? Pinners = null);   // null: unchanged on a PATCH, a tab on an older build sends neither (SH-50)
 
 public sealed record MoveRequest(bool Up);

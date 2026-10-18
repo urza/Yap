@@ -23,7 +23,7 @@ public static class Loads
 
         // One query per conversation, so both bounds run in SQL on the (ChannelId, Timestamp) index: the newest rows,
         // at most MaxMessagesPerChannel of them and none older than MaxDays. The rest never leaves the database.
-        var since = DateTime.UtcNow.AddDays(-bounds.MaxDays);
+        var since = DateTime.UtcNow.AddDays(-Math.Min(bounds.MaxDays, 36_500));   // a century at most: a value meant as "forever" must not throw in AddDays
         var byChannel = new Dictionary<Guid, List<ChatMessage>>();
         foreach (var channel in channels)
         {

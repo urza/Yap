@@ -42,20 +42,25 @@ document.addEventListener('pointerdown', e => {
 
 // Places a popup below its anchor, or above when there is no space below, and inside the window (MR-42, MR-54).
 // On a phone the CSS makes the popup a bottom sheet, and this does nothing.
-export function place(popup, anchor, { align = 'right', gap = 6 } = {}) {
-  if (isPhone()) return;
-  const a = anchor.getBoundingClientRect();
+export function place(popup, anchor, options) {
+  if (isPhone()) return;   // a sheet there, by CSS
   popup.style.position = 'fixed';
   popup.style.visibility = 'hidden';
-  popup.style.top = '0px'; popup.style.left = '0px';
-  const w = popup.offsetWidth, h = popup.offsetHeight;
-  const below = a.bottom + gap + h <= innerHeight;
-  const top = below ? a.bottom + gap : Math.max(8, a.top - gap - h);
-  let left = align === 'right' ? a.right - w : a.left;
-  left = Math.min(Math.max(8, left), innerWidth - w - 8);
-  popup.style.top = `${top}px`;
-  popup.style.left = `${left}px`;
+  positionUnder(popup, anchor, options);
   popup.style.visibility = 'visible';
+}
+
+// The fixed coordinates of a box at an anchor: under it when it fits, else above; 8 px inside the window. align:
+// 'right' (the right edges meet), 'left', or 'center'. The box is measured at the origin first. The admin tooltip
+// (tooltip.js) uses this on a phone too, so the phone rule stays in place().
+export function positionUnder(box, anchor, { align = 'right', gap = 6 } = {}) {
+  const a = anchor.getBoundingClientRect();
+  box.style.top = '0px'; box.style.left = '0px';
+  const w = box.offsetWidth, h = box.offsetHeight;
+  const below = a.bottom + gap + h <= innerHeight;
+  const left = align === 'right' ? a.right - w : align === 'center' ? a.left + a.width / 2 - w / 2 : a.left;
+  box.style.top = `${below ? a.bottom + gap : Math.max(8, a.top - gap - h)}px`;
+  box.style.left = `${Math.min(Math.max(8, left), innerWidth - w - 8)}px`;
 }
 
 // A short text at an element for two seconds: the reason of a refusal (GEN-02, MR-75).

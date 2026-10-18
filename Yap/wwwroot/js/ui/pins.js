@@ -41,7 +41,7 @@ export function openPins(anchor, onClose) {
     else { media.remove(); label.remove(); }
     replace(node.querySelector('.pin-by'), inline(displayName(p.pinnedBy)));
     node.addEventListener('click', e => { if (!e.target.closest('a')) jump(node, p); });   // a link in the text opens as a link
-    node.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); jump(node, p); } });
+    node.addEventListener('keydown', e => { if (e.target === node && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); jump(node, p); } });   // the trash button and a link handle their own keys
     const unpin = node.querySelector('.pin-unpin');
     if (allowed) unpin.addEventListener('click', e => { e.stopPropagation(); unpinNow(node, p); }); else unpin.remove();
     return node;

@@ -2779,6 +2779,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    border: none;      /* a <button> keeps the browser's border and font without these; .danger-btn next to it has neither */
+    font: inherit;
     padding: 0.5rem 1rem;
     background: var(--accent-primary);
     color: var(--text-white);
@@ -3977,7 +3979,6 @@
 /* Bot (AD-09): the picture and the preview of the welcome DM */
 .bot-avatar { display: flex; align-items: center; gap: 1rem; }
 .bot-avatar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
-.bot-avatar-actions .upload-button { cursor: pointer; }
 .bot-preview {
     margin: 0;
     padding: 0.75rem;

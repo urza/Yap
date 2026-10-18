@@ -117,8 +117,9 @@
     margin-left: 0.5rem;
 }
 
-/* Mailbox button */
-.mailbox-button {
+/* The mailbox button, and the pin button in the same shape (SH-47) */
+.mailbox-button,
+.pins-button {
     position: relative;
     display: flex;
     align-items: center;
@@ -132,7 +133,8 @@
     transition: background-color 0.2s, color 0.2s;
 }
 
-.mailbox-button:hover {
+.mailbox-button:hover,
+.pins-button:hover {
     background: rgba(79, 84, 92, 0.4);
     color: var(--text-primary);
 }
@@ -145,7 +147,8 @@
     color: var(--status-away-hover);
 }
 
-.mailbox-badge {
+.mailbox-badge,
+.pins-badge {
     position: absolute;
     top: -4px;
     right: -4px;
@@ -160,43 +163,17 @@
     line-height: 1.2;
 }
 
-/* The pin button (SH-47): the mailbox's shape, with the count of pins as a badge. Hidden without pins.
+/* The pin button (SH-47): the mailbox's shape (above), with the count of pins as a badge in the accent colour,
+   not the mailbox's red: a pin asks for nothing. Hidden without pins.
    order and margin-right: auto put it first in the controls and push the rest to the right edge, so it sits
    right after the title. The phone rule below undoes both. */
 .pins-button {
-    position: relative;
     order: -1;
     margin-right: auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    transition: background-color 0.2s, color 0.2s;
-}
-
-.pins-button:hover {
-    background: rgba(79, 84, 92, 0.4);
-    color: var(--text-primary);
 }
 
 .pins-badge {
-    position: absolute;
-    top: -4px;
-    right: -4px;
     background: var(--accent-primary);
-    color: white;
-    font-size: 0.625rem;
-    font-weight: 700;
-    padding: 1px 4px;
-    border-radius: 8px;
-    min-width: 14px;
-    text-align: center;
-    line-height: 1.2;
 }
 
 .users-toggle {
@@ -1493,9 +1470,9 @@
 }
 
 .pin-entry-header .avatar {
-    width: 20px !important;
-    height: 20px !important;
-    font-size: 0.5rem !important;
+    width: 20px;
+    height: 20px;
+    font-size: 0.5rem;
     flex-shrink: 0;
 }
 
@@ -1548,7 +1525,6 @@
     transform: translate(-50%, -50%);
     border-radius: 50%;
     background: rgba(0, 0, 0, 0.6);
-    pointer-events: none;
 }
 
 .pin-play::after {
@@ -1574,16 +1550,6 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-}
-
-/* Links in the text look as in the row: message.css styles them under .message-content only. */
-.pin-text a.message-link {
-    color: var(--accent-focus);
-    text-decoration: none;
-}
-
-.pin-text a.message-link:hover {
-    text-decoration: underline;
 }
 
 .pin-attachment-label {

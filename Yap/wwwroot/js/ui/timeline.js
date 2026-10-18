@@ -293,7 +293,7 @@ export function Timeline(root) {
       await new Promise(r => setTimeout(r, 50));
     }
     const r = rows.get(id);
-    if (!r) return false;   // older than the loaded history, or gone: the caller says so (TL-38)
+    if (!r) return false;   // older than the loaded history, or gone: the caller says so (SH-49)
     following = false;
     const target = r.node.offsetTop - list.offsetTop - list.clientHeight / 2 + r.node.offsetHeight / 2;
     const start = list.scrollTop, distance = target - start, t0 = performance.now();

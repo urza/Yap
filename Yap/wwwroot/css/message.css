@@ -372,12 +372,14 @@
     overflow-x: hidden;
 }
 
-.message-content a.message-link {
+.message-content a.message-link,
+.pin-text a.message-link {   /* a pin's text (frame.css) shows its links as the row does */
     color: var(--accent-focus);
     text-decoration: none;
 }
 
-.message-content a.message-link:hover {
+.message-content a.message-link:hover,
+.pin-text a.message-link:hover {
     text-decoration: underline;
 }
 
@@ -1065,6 +1067,8 @@
     border-radius: 8px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
     width: min(440px, 100%);
+    max-height: calc(100dvh - 2rem);   /* a long list of names (the inactive sweep, AD-39) scrolls inside; the buttons stay in reach */
+    overflow-y: auto;
     padding: 1.25rem;
 }
 

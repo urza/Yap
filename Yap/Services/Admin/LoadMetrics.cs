@@ -60,7 +60,11 @@ public sealed class LoadMetrics(LoadCounters counters, ChatService chat, Presenc
     {
         var last = chunk[^1];
         double Avg(Func<LoadSample, double> of) => Math.Round(chunk.Average(of), 1);
-        double? AvgOrNull(Func<LoadSample, double?> of) => chunk.All(s => of(s) is null) ? null : Math.Round(chunk.Average(s => of(s) ?? 0), 1);
+        double? AvgOrNull(Func<LoadSample, double?> of)   // a sample without the value is left out, not counted as zero
+        {
+            var present = chunk.Select(of).OfType<double>().ToList();
+            return present.Count == 0 ? null : Math.Round(present.Average(), 1);
+        }
         return last with
         {
             CpuPercent = Avg(s => s.CpuPercent),

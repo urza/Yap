@@ -408,10 +408,6 @@
     color: var(--text-primary);
 }
 
-.gif-picker .category-btn:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-}
 
 .gif-content {
     flex: 1;

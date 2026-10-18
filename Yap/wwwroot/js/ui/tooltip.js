@@ -7,19 +7,12 @@
 // function at unmount.
 
 import { el } from '../render/dom.js';
-import { isTouch } from './overlays.js';
+import { isTouch, positionUnder } from './overlays.js';
 
 export function tooltips(root) {
   let bubble = null, current = null;
 
-  const place = target => {
-    const a = target.getBoundingClientRect();
-    bubble.style.top = '0px'; bubble.style.left = '0px';   // measure at the origin, then move
-    const w = bubble.offsetWidth, h = bubble.offsetHeight, gap = 8;
-    const below = a.bottom + gap + h <= innerHeight;
-    bubble.style.top = `${below ? a.bottom + gap : Math.max(8, a.top - gap - h)}px`;
-    bubble.style.left = `${Math.min(Math.max(8, a.left + a.width / 2 - w / 2), innerWidth - w - 8)}px`;
-  };
+  const place = target => positionUnder(bubble, target, { align: 'center', gap: 8 });
   const show = target => {
     const text = target.dataset.tip;
     if (!text) return;

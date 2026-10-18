@@ -121,13 +121,15 @@ export function mayPin() {
 export function pinLocally(m) {
   const open = state.open;
   if (!open || isPinned(m.id) || open.pins.length >= 3) return null;
-  const before = open.pins;
   open.pins = [{ messageId: m.id, username: m.username, text: m.text || null, timestamp: m.timestamp,
-                 hasMedia: m.images.length + m.videos.length + m.gifs.length > 0 || !!m.voice, media: pinMediaOf(m),
-                 pinnedBy: state.user.username, pinnedAt: new Date().toISOString() }, ...before];
+                 hasMedia: hasMedia(m), media: pinMediaOf(m),
+                 pinnedBy: state.user.username, pinnedAt: new Date().toISOString() }, ...open.pins];
   changed('pins');
-  return () => { if (state.open === open) { open.pins = before; changed('pins'); } };
+  return () => { if (state.open === open) { open.pins = open.pins.filter(p => p.messageId !== m.id); changed('pins'); } };   // only this pin goes: a pins event may have landed meanwhile
 }
+
+// Whether a row shows media (MR-14): pictures, videos, GIFs, a voice note, or a pending row's files before the upload (IB-34).
+export const hasMedia = m => m.images.length > 0 || m.videos.length > 0 || m.gifs.length > 0 || !!m.voice || (m.files?.length ?? 0) > 0;
 
 // The media of the local copy, as the server's Pin.Media (SH-48): the row's first picture, video poster, GIF, voice
 // note or link card. The server's copy replaces it with the pins event.
@@ -145,11 +147,17 @@ function pinMediaOf(m) {
 
 export function unpinLocally(id) {
   const open = state.open;
-  if (!open || !isPinned(id)) return null;
-  const before = open.pins;
-  open.pins = before.filter(p => p.messageId !== id);
+  const pin = open?.pins.find(p => p.messageId === id);
+  if (!pin) return null;
+  const index = open.pins.indexOf(pin);
+  open.pins = open.pins.filter(p => p !== pin);
   changed('pins');
-  return () => { if (state.open === open) { open.pins = before; changed('pins'); } };
+  return () => {   // only this pin returns, at its place: a pins event may have landed meanwhile
+    if (state.open !== open || isPinned(id)) return;
+    const at = Math.min(index, open.pins.length);
+    open.pins = [...open.pins.slice(0, at), pin, ...open.pins.slice(at)];
+    changed('pins');
+  };
 }
 
 export function addMessage(m) {
@@ -298,7 +306,9 @@ export function setRooms(rooms) { state.rooms = rooms; changed('rooms'); }
 export function removeUser(username) {
   delete state.users[username];
   delete state.presence[username];
-  state.dms = state.dms.filter(d => d.partner !== username);
+  const dm = state.dms.find(d => d.partner === username);
+  state.dms = state.dms.filter(d => d !== dm);
+  if (dm && dm.channelId in state.unread) { delete state.unread[dm.channelId]; changed('unread'); }   // the badge had no conversation to open any more
   changed('users', { removed: username });
   changed('dms');
 }
