@@ -29,7 +29,7 @@ The input box is the part of a conversation where the user writes and sends a me
 
 **IB-01** The input box is the last block of the conversation column, under the message list, on every conversation page.
 
-**IB-02** The pill has 22 px corners and the theme's input colour. The band around the pill stays transparent. *Why:* a coloured band takes attention from the message list. One theme had a coloured band, and it was removed.
+**IB-02** The pill has 22 px corners and the theme's input colour. The band around the pill stays transparent. A theme may draw a 1 px ring around the pill, in one colour or in a gradient (Ocean, Sunset, Aurora and Neon Glow do). The ring is dim while the text area has no focus and full while it has the focus. The ring adds no size to the pill. *Why:* a coloured band takes attention from the message list. One theme had a coloured band, and it was removed. The ring is a small touch that is specific to a theme, the way a selected browser tab has a lit border.
 
 **IB-03** The pill contains these items, from left to right: +, the text area, the GIF toggle, the emoji toggle. While files wait, the tray is a line above them, across the pill (IB-33). Send is outside the pill, with an 8 px gap. All items align to the bottom edge, so the buttons stay in place when the text grows.
 
