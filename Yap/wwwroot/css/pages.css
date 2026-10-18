@@ -1495,6 +1495,13 @@
     display: block;
 }
 
+/* A voice message's player in the Media table: narrow, so the row keeps the height of a thumbnail (AD-19). */
+.admin-audio {
+    display: block;
+    width: 180px;
+    height: 32px;
+}
+
 /* Inline tag editing in the GIFs table */
 .page-admin .gif-tags-cell {
     min-width: 200px;
