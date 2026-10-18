@@ -3534,8 +3534,39 @@
     color: var(--text-primary);
 }
 
-/* The admin's Danger Zone (AD-37 to AD-39), under the Users tab: the room page's danger items in the admin's own
-   box, with a full red frame. The items share the unprefixed rules of the room page (.danger-item and friends). */
+/* The admin's Danger Zone (AD-38 to AD-40), under the Users tab: a box with a full red frame. On main the items
+   share the room page's unprefixed rules (.danger-item and friends); this build has no room page, so they live here. */
+.danger-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.danger-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.danger-title {
+    color: var(--text-primary);
+    font-size: 0.9375rem;
+    font-weight: 500;
+}
+
+.danger-desc {
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+}
+
+@media (max-width: 600px) {
+    .danger-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
 .page-admin .danger-section {
     max-width: var(--admin-column);
     margin-top: 2rem;
