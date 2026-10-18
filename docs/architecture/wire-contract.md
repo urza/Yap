@@ -90,7 +90,7 @@ The client calls the methods with these camelCase names; SignalR matches the ser
 | `profile` | `User` | all | A new account, or a display name, avatar, bio or location changed (ST-07, SH-33). |
 | `accountDeleted` | username | all | The admin deleted the account (AD-40). The client drops the person from `users` and `presence`, and the direct message with them from `dms` and `unread`. |
 | `rooms` | rooms[] | all | Created, updated, reordered or deleted (SH-25). The client leaves a deleted open room (TL-21) and derives read-only from `adminOnly` and `user.isAdmin` (IB-62). |
-| `unread` | channelId, count | user | After a send or a read on any device (NT-01). |
+| `unread` | channelId, count | user | After a send or a read on any device (NT-01). Batched: the broadcaster keeps the latest count per person and conversation and sends it at most every 250 ms, so a busy room moves the badge in steps and a tab gets at most four counts a second per conversation. |
 | `dm` | `{ channelId, partner, lastMessageAt }` | both users | A direct message got its first message. Opening an empty DM sends nothing (SH-29). |
 | `me` | partial `user` + partial `mutes` + `emoji` | user | Theme, text size, date format, status, mutes or recent emoji changed on any device (ST-10, NT-22). |
 | `gifFavorites` | favoriteGifIds[] | user | A star changed anywhere (PK-36). |
