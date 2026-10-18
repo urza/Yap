@@ -4,7 +4,8 @@ Self hosted community chat inspired by Discord aesthetics
 
 > **Branch `dmonly`:** this branch has no rooms. Every person talks to the admin and to nobody else; the admin
 > sees a people page and opens a conversation from it. The design and the decisions are in
-> [docs/dmonly.md](docs/dmonly.md). The rest of this README describes the app that both builds share.
+> [docs/dmonly.md](docs/dmonly.md). The branch builds its own image, `ghcr.io/urza/yap-dmonly`, with its own
+> `latest`; the main image is untouched. The rest of this README describes the app that both builds share.
 
 ![Screenshot](screenshot.png)
 
@@ -12,7 +13,7 @@ Self hosted community chat inspired by Discord aesthetics
 ## Run with Docker
 
 ```bash
-docker run -d --name yap -p 5221:8080 -v ./uploads:/app/wwwroot/uploads -v ./data:/app/Data ghcr.io/urza/yap:latest
+docker run -d --name yap -p 5221:8080 -v ./uploads:/app/wwwroot/uploads -v ./data:/app/Data ghcr.io/urza/yap-dmonly:latest
 ```
 
 There are two volumes:

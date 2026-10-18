@@ -57,6 +57,26 @@ get already. It is still a trade-off; it is recorded here.
 - The push notification for a message opens the conversation the message is in: for a person that is the
   admin's, whoever wrote it.
 
+## Deployment
+
+The branch publishes its own package, `ghcr.io/urza/yap-dmonly`, with its own `latest` tag and a short commit
+hash tag. The main package, `ghcr.io/urza/yap`, is untouched: a push to either branch never moves the other's
+`latest`. The workflow file on the branch triggers on a push to `dmonly` only (and by hand). It has no `v*`
+trigger, so a release tag made on main cannot build with it. GitHub runs the workflow file of the pushed branch,
+so the file on main needs no change.
+
+The first push creates the package. A new package can start as private: set the visibility in the package
+settings on GitHub before a server pulls it, else the pull fails with `denied`. The volumes and the environment
+are the same as for the main image; only the image name changes:
+
+```bash
+docker run -d --name yap-dmonly -p 5222:8080 -v ./uploads:/app/wwwroot/uploads -v ./data:/app/Data ghcr.io/urza/yap-dmonly:latest
+```
+
+Use separate `uploads` and `data` folders for the two builds. The schema is shared, but the dmonly build skips
+rooms at load and would leave a main database with its rooms untouched yet invisible; two apps on one SQLite
+file is not a supported setup in either build.
+
 ## Decisions taken without the user (the user was asleep)
 
 1. **Branch name.** The request named the branch `dmonly` first and `onlydm` at the end. The branch is `dmonly`.

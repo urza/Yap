@@ -1,14 +1,18 @@
 name: Build and Push Docker Image
 
+# Branch dmonly publishes its own package, ghcr.io/<owner>/<repo>-dmonly, so the experiment never touches the
+# main image or its `latest` tag (docs/dmonly.md, "Deployment"). GitHub runs the workflow file of the pushed
+# branch, so this file governs dmonly builds only; the file on main is unchanged. No `v*` trigger here: a
+# release tag made on main must not build with this file.
+
 on:
   push:
-    branches: [main]
-    tags: ['v*']
+    branches: [dmonly]
   workflow_dispatch:  # Allow manual trigger
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: ${{ github.repository }}-dmonly
 
 jobs:
   build-and-push:
@@ -34,8 +38,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=semver,pattern={{version}}
+            type=raw,value=latest
             type=sha,prefix=
 
       - name: Build and push Docker image
