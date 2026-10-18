@@ -70,7 +70,9 @@ The frame contains all parts around a conversation. The header shows the title, 
 
 **SH-19** During an outage, the conversation stays readable and usable. There is no banner over the page and no modal.
 
-**SH-20** The notice strip shows only for two lasting states. For a new version, it shows "You are awesome and so is the new version of this app. Please refresh." with a "Reload" button. Yap never reloads by itself. When the user is signed out and there is no connection, it shows "Sign in to continue." with a "Sign in" link. When there is a connection, the user goes to the login page instead. The strip has one line and at most one control. While the strip shows, the conversation is shorter.
+**SH-20** The notice strip shows only for two lasting states. For a new version, it shows "You are awesome and so is the new version of this app. Please refresh." with a "Reload" button. Yap does not reload an open page by itself; a page that opens later loads fresh ([SH-50](#SH-50)). When the user is signed out and there is no connection, it shows "Sign in to continue." with a "Sign in" link. When there is a connection, the user goes to the login page instead. The strip has one line and at most one control. While the strip shows, the conversation is shorter.
+
+**SH-50** While a new version is available, a page that this visit has not opened yet opens as a fresh load of the new version, at the same address. Pages already open keep running until the user reloads. This happens once per version in a tab. Drafts and unsent messages are kept.
 
 ### Sidebar: rooms
 

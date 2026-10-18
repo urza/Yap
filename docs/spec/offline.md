@@ -14,7 +14,7 @@ Yap runs in the browser and can also be installed as an app on a phone or a desk
 
 **OF-03** When the app is installed from a signed-in browser, it signs in automatically on its first launch, within 72 hours after the install. An app that still starts signed out shows the login page, as the [sign-in page](sessions.md#AU-24) says. After its first sign-in, the app keeps its own session, like any device.
 
-**OF-04** The notice strip announces a new version of Yap with "Reload". Yap never reloads automatically. A reload keeps drafts and unsent messages.
+**OF-04** The notice strip announces a new version of Yap with "Reload". Yap never reloads an open page automatically. A page not yet opened in this visit loads fresh ([SH-50](frame.md#SH-50)). A reload keeps drafts and unsent messages.
 
 ### Without a connection
 
