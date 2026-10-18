@@ -1,0 +1,25 @@
+20:37:59 results: results\20261018-203759
+20:38:00 admin: signed in as loadadmin
+20:38:00 settings: registration open, approval off, previews on, media caching on
+20:38:00 rooms: the lobby
+20:38:00 admin: login link https://hz.urza.cc/invite/maroon-mantis-6054 (opens the admin page; the Diagnostics tab shows the server load)
+20:38:00 settings: 0 users, kinds all, pace normal
+20:38:49 settings: 50 users, kinds all, pace normal
+20:38:49 accounts: creating 250
+20:38:51 accounts: 250 created, 250 in the state file
+20:38:55 settings: 100 users, kinds all, pace normal
+20:39:11 settings: 150 users, kinds all, pace normal
+20:39:19 settings: 200 users, kinds all, pace normal
+20:39:22 settings: 250 users, kinds all, pace normal
+20:39:23 settings: 300 users, kinds all, pace normal
+20:39:23 accounts: creating 250
+20:39:25 accounts: 250 created, 500 in the state file
+20:39:25 settings: 400 users, kinds all, pace normal
+20:39:43 settings: 450 users, kinds all, pace normal
+20:39:53 settings: 500 users, kinds all, pace normal
+20:39:54 settings: 550 users, kinds all, pace normal
+20:39:54 accounts: creating 250
+20:39:56 accounts: 250 created, 750 in the state file
+20:39:56 settings: 800 users, kinds all, pace normal
+20:39:56 accounts: creating 250
+20:39:59 accounts: 250 created, 1000 in the state file
