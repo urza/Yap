@@ -33,8 +33,9 @@ const pages = {
 let unmountPage = () => {};
 let standalone = false;   // the current page is outside the frame
 
-onSignedOut(session.signedOut);
-hub.onSignedOut(session.signedOut);
+// A 401 or the server's signedOut: the cookie died while this device was signed in, so the login page says so (AU-21).
+onSignedOut(() => session.signedOut({ elsewhere: true }));
+hub.onSignedOut(() => session.signedOut({ elsewhere: true }));
 
 // The account's look, applied on every bootstrap and `me` message (ST-08, ST-10), and cached for the next
 // start so the inline script in index.html paints it before the first frame.

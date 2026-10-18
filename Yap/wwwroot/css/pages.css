@@ -2111,6 +2111,18 @@
     text-align: center;
 }
 
+/* AU-21: the notice after a sign-out from elsewhere */
+.signed-out-notice {
+    margin: 0 0 1rem;
+    padding: 0.6rem 0.9rem;
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border-dark);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    text-align: center;
+}
+
 .username-form {
     display: flex;
     flex-direction: column;

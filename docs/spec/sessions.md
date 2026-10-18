@@ -54,7 +54,7 @@ Sign-in gives a device access to an account. An account needs only a username, w
 
 **AU-20** "Sign out all other devices" is always available, because a device can be signed in without a connection. A device that the server first saw less than one hour ago cannot use it. The button is disabled with the text "Available {n} min after this device signed in. The devices that were signed in before can use it now." The server refuses the request as well. *Why:* the bot's message about a new sign-in reaches the new device too, and a person who got in through smart login on a shared network must not sign the owner out. It ends the sign-in of every other device at once and removes their notification subscriptions. It replaces the secret code when one exists. It forgets the remembered networks and cancels the automatic first-launch sign-in of the installed app. Other tabs on this device stay signed in. Login links stay valid, so a leaked link needs Revoke. A signed-out device on the same network can still sign in again through smart login, unless the person turns smart login off. The person sees "All other devices have been signed out." and the new code, when one exists.
 
-**AU-21** A device that is signed out from elsewhere shows the login page as soon as it is connected. Without a connection, the device keeps the cached conversations readable. When the connection returns, the device receives the sign-out. It then shows the sign-in notice and removes the local data of the account.
+**AU-21** A device that is signed out from elsewhere shows the login page as soon as it is connected. Without a connection, the device keeps the cached conversations readable. When the connection returns, the device receives the sign-out. It then removes the local data of the account and shows the login page with the notice "This device was signed out from elsewhere. Sign in again to continue." The notice stays until the next sign-in on this device; a reload clears it.
 
 **AU-22** Sign Out ends the sign-in of this device only. The device then shows the start page. When the account has no link and no code, a confirmation warns that the account cannot be reached again. When unsent messages exist, a confirmation warns that they are lost. A sign-out removes every draft, pending message, cached conversation and notification subscription of the account from the device. In the installed app, it also ends the automatic first-launch sign-in.
 
@@ -92,7 +92,7 @@ Sign-in gives a device access to an account. An account needs only a username, w
 | Settings, New Link | mouse, touch | New link revealed; "New link created. The old one no longer works." |
 | Settings, Revoke | mouse, touch | "Login link revoked"; "Create Login Link" appears. |
 | Settings, expiry picked | mouse, touch | "Link expires {date}" or "Link never expires". |
-| Sign out all other devices | mouse, touch | Other devices show the login page; this device shows "All other devices have been signed out." |
+| Sign out all other devices | mouse, touch | Other devices show the login page with the signed-out notice; this device shows "All other devices have been signed out." |
 | Sign Out, no link and no code | mouse, touch | Confirmation about losing the account. |
 | Sign Out, unsent messages | mouse, touch | Confirmation about losing them. |
 | Installed app, first launch | touch | Signed in with no action from the person. |

@@ -38,6 +38,7 @@ function takeReturnTo() {
 export async function signedIn({ tell = true } = {}) {
   const doc = await api.get('/api/bootstrap');
   if (!doc.user) return false;
+  notice = null;   // back in: the login page has nothing to say next time (AU-21)
   store.applyBootstrap(doc);
   loadCatalog();
   hub.resume();
@@ -48,7 +49,15 @@ export async function signedIn({ tell = true } = {}) {
 }
 
 // The cookie is gone, here or elsewhere: stop the hub, forget the account's data on this device, show the login.
-export function signedOut() {
+// `elsewhere` is a sign-out this device did not ask for: sign-out-others, or a cookie that died while the device
+// was away. The login page then says so (AU-21). The note stays until the next sign-in, not until the first login
+// page: the clean-up below mounts that page twice (store.reset() sends the chat page to /lobby, the route guard sends
+// it on to /login, then this function navigates once more), and a note taken by the first mount was lost.
+let notice = null;
+export const signInNotice = () => notice;
+export function signedOut({ elsewhere = false } = {}) {
+  if (!store.state.user && router.current.page === 'login') return;   // done already: a 401 or an 'ended' that lands during the clean-up must not run it twice
+  if (elsewhere) notice = 'elsewhere';
   hub.stop();
   store.reset();
   snapshot.clearAll();
