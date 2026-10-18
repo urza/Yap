@@ -76,10 +76,9 @@ public sealed class Setup(YapApi api, RunState state, Action<string> log)
     }
 
     /// <summary>
-    /// Registration open and approval off, so accounts can be created. With <paramref name="previews"/> on, link previews and
-    /// media caching are on, so a link costs what it costs in production (the links switch on the dashboard turns that
-    /// traffic off). Off, the server does nothing with a link: the run measures the chat alone, with no yt-dlp or ffmpeg
-    /// on the box (the 2026-10-18 run lost half of its cores to them).
+    /// Registration open and approval off, so accounts can be created. With <paramref name="previews"/> off (the default), the
+    /// server does nothing with a shared link: the run measures the chat alone, with no yt-dlp or ffmpeg on the box and no
+    /// requests to the platforms. On, link previews and media caching are on, so a link costs what it costs in production.
     /// </summary>
     public async Task ApplySettingsAsync(string admin, bool previews, CancellationToken ct)
     {

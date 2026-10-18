@@ -81,7 +81,7 @@ output automatically.
 | `--users N` | `0` | The user count at the start. |
 | `--kinds LIST` | `all` | The kinds on at the start: `all`, `none`, or a list such as `text,links`. |
 | `--pace NAME` | `normal` | `calm`, `normal`, `busy` or `frantic` at the start. |
-| `--previews on` | `on` | `off` turns link previews and media caching off on the server: no yt-dlp, no ffmpeg, the chat alone. |
+| `--previews off` | `off` | Link previews and media caching off on the server: no yt-dlp, no ffmpeg, no requests to the platforms. `on` measures their cost, as in production. |
 | `--rooms N` | `1` | Test rooms `lt-room-NN`; each user has a home room and hops now and then. 1 means everyone in the lobby. |
 | `--visible 0.3` | `0.3` | The share of users with a visible tab. Hidden users only heartbeat. |
 | `--rate 10` | `10` | New users per second. 0 starts them all at once. |
@@ -143,8 +143,9 @@ the tens of milliseconds, or where the writer queue or the thread pool queue cli
 
 - Registration must be open and approval off, or the orchestrator cannot create accounts. The
   orchestrator sets both through the admin API when the admin signs in.
-- The orchestrator turns link previews and media caching on (`--previews off` turns both off, for the
-  cost of the chat alone). With links on, the server fetches each
+- The orchestrator turns link previews and media caching off, so the shared links cost nothing and one IP
+  does not ask the platforms for the same links again and again (they refuse after a while). `--previews on`
+  turns both on to measure that cost. With previews on, the server fetches each
   URL once an hour and yt-dlp downloads at most two videos at a time, so the built-in pool of about
   25 links keeps the traffic to the platforms small. A server without yt-dlp refuses media caching;
   the run goes on without it. Turn links off (`l`) and that traffic stops.
