@@ -75,7 +75,12 @@ export async function signOut() {
   const sub = await push.current();
   try { await api.post('/api/auth/signout', { pushEndpoint: sub?.endpoint ?? null, deviceId: hub.deviceId() }); }
   catch (e) { if (e.status !== 401) return false; }
-  if (sub) await push.unsubscribe();   // the device stops getting this account's notifications (NT-24)
+  // The server ended this device's hub connections with the sign-out. Stop the hub before anything else, or its
+  // retry would get 401 and report a sign-out from elsewhere (AU-21).
+  hub.stop();
+  // The server removed the push subscription in the same request (NT-24); only the browser's half is left. Not
+  // push.unsubscribe(): its POST would get 401 now that the cookie is gone, and run the clean-up a second time.
+  if (sub) await sub.unsubscribe().catch(() => {});
   tabs?.postMessage('ended');
   signedOut();                         // the last route stays: a device convenience (GEN-05)
   return true;
