@@ -7,7 +7,6 @@ import * as router from '../router.js';
 import * as frame from '../ui/frame.js';
 import { Timeline } from '../ui/timeline.js';
 import { Composer } from '../ui/composer.js';
-import { PinsBar } from '../ui/pins.js';
 import { el } from '../render/dom.js';
 import * as snapshot from '../offline/snapshot.js';
 import { setTitle } from '../notify.js';
@@ -34,11 +33,10 @@ function notificationPrompt() {
 export function mount(root, params) {
   const me = ++generation;
   const timing = { mountedAt: performance.now(), reported: false };   // the wait until the server's rows show (AD-26)
-  const pinsRoot = el('div', { class: 'pins-root', style: { display: 'contents' } });
   const timelineRoot = el('div', { class: 'timeline-root', style: { display: 'contents' } });
   const composerRoot = el('div', { class: 'composer-root', style: { display: 'contents' } });
-  root.replaceChildren(pinsRoot, timelineRoot, composerRoot);
-  const unmounts = [PinsBar(pinsRoot), Timeline(timelineRoot), Composer(composerRoot)];
+  root.replaceChildren(timelineRoot, composerRoot);
+  const unmounts = [Timeline(timelineRoot), Composer(composerRoot)];
 
   const target = resolve(params);
   if (!target) { unmounts.forEach(u => u()); router.navigate('/lobby', { replace: true }); return () => {}; }

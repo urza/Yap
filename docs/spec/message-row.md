@@ -204,9 +204,9 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 ### Pinning
 
-**MR-76** A conversation has up to three pinned messages. In a direct message, both people can pin and unpin. In a room, the admin can always pin and unpin. Other people follow the room's pin setting: nobody, everyone, or a list of selected people. See [Administration](admin.md#AD-37). A pending message cannot be pinned. The [timeline page](timeline.md#TL-36) specifies the bar that shows the pins.
+**MR-76** A conversation has up to three pinned messages. In a direct message, both people can pin and unpin. In a room, the admin can always pin and unpin. Other people follow the room's pin setting: nobody, everyone, or a list of selected people. See [Administration](admin.md#AD-37). A pending message cannot be pinned. The [header page](frame.md#SH-47) specifies the pin button and the panel that show the pins.
 
-**MR-77** "Pin Message" pins the row for every reader, and the bar changes at once. When the conversation has three pins, the server refuses with "Up to 3 pinned messages. Unpin one first.", and the text shows at the row for two seconds. "Unpin Message" removes the pin. A pin or an unpin that the server refuses is undone, and the reason shows at the row.
+**MR-77** "Pin Message" pins the row for every reader, and the header's pin count changes at once. When the conversation has three pins, the server refuses with "Up to 3 pinned messages. Unpin one first.", and the text shows at the row for two seconds. "Unpin Message" removes the pin. A pin or an unpin that the server refuses is undone, and the reason shows at the row.
 
 ## States
 

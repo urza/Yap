@@ -322,7 +322,7 @@ public class ChatTests : IClassFixture<YapFactory>
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
     }
 
-    [Fact(DisplayName = "MR-76, MR-77, TL-36: in a direct message both people pin and unpin, the bar holds three, the other side hears the change")]
+    [Fact(DisplayName = "MR-76, MR-77, SH-48: in a direct message both people pin and unpin, three at most, the other side hears the change")]
     public async Task Dm_pins_both_ways_and_the_limit()
     {
         var alice = await _app.SignInAsync("alice_pin");
@@ -406,7 +406,7 @@ public class ChatTests : IClassFixture<YapFactory>
         await bossHub.DisposeAsync();
     }
 
-    [Fact(DisplayName = "TL-37, AD-03: an edit changes the pinned text and a delete removes the pin; pins and the setting survive a restart, also for a message the startup load leaves in the database")]
+    [Fact(DisplayName = "SH-48, AD-03: an edit changes the pinned text and a delete removes the pin; pins and the setting survive a restart, also for a message the startup load leaves in the database")]
     public async Task Pins_follow_the_message_and_survive_a_restart()
     {
         var db = Path.Combine(Path.GetTempPath(), $"yap-test-{Guid.NewGuid():N}.db");
@@ -429,7 +429,7 @@ public class ChatTests : IClassFixture<YapFactory>
                 Assert.Null(await hub.InvokeAsync<HubError?>("Edit", old.Id, "old, edited, pinned"));
                 Assert.Null(await hub.InvokeAsync<HubError?>("Delete", gone.Id));
                 var pins = chat.PinsFor(lobby, null);
-                Assert.Equal([old.Id], pins.Select(p => p.MessageId));   // the deleted message left the bar
+                Assert.Equal([old.Id], pins.Select(p => p.MessageId));   // the deleted message left the panel
                 Assert.Equal("old, edited, pinned", pins[0].Text);       // the edit reached the copy
 
                 var body = new { name = "lobby", description = (string?)null, adminOnly = false, pinPermission = "everyone" };

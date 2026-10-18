@@ -94,7 +94,7 @@ export function closeOpen() {
 
 function openMessage(id) { return state.open?.messages.find(m => m.id === id); }
 
-// ---- pins (TL-36, MR-76) ----
+// ---- pins (SH-47 to SH-49, MR-76) ----
 
 // The server's list for the open conversation. A list for another conversation is dropped: its open answer carries one.
 export function setPins(channelId, pins) {
@@ -106,7 +106,7 @@ export function setPins(channelId, pins) {
 export function isPinned(id) { return !!state.open?.pins?.some(p => p.messageId === id); }
 
 // Who may pin and unpin here (MR-76, AD-37): both people of a direct message; in a room the admin, everyone, or the
-// selected people. The server decides again on the call; this only shows or hides the menu item and the ×.
+// selected people. The server decides again on the call; this only shows or hides the menu item and the ✕.
 export function mayPin() {
   const open = state.open, me = state.user;
   if (!open || !me) return false;
@@ -116,14 +116,15 @@ export function mayPin() {
   return me.isAdmin || room.pinPermission === 'everyone' || (room.pinPermission === 'selected' && room.pinners.includes(me.username));
 }
 
-// Local-first pin and unpin: the bar changes at once; the returned function undoes it when the server refuses.
-// A full bar is not changed locally (MR-77): the server's refusal arrives and shows, and nothing flickers.
+// Local-first pin and unpin: the panel and the header count change at once; the returned function undoes it when the
+// server refuses. A full list is not changed locally (MR-77): the server's refusal arrives and shows, and nothing flickers.
 export function pinLocally(m) {
   const open = state.open;
   if (!open || isPinned(m.id) || open.pins.length >= 3) return null;
   const before = open.pins;
   open.pins = [{ messageId: m.id, username: m.username, text: m.text || null, timestamp: m.timestamp,
-                 hasMedia: m.images.length + m.videos.length + m.gifs.length > 0, pinnedBy: state.user.username, pinnedAt: new Date().toISOString() }, ...before];
+                 hasMedia: m.images.length + m.videos.length + m.gifs.length > 0, thumb: m.images[0]?.medium ?? m.videos[0]?.poster ?? null,
+                 pinnedBy: state.user.username, pinnedAt: new Date().toISOString() }, ...before];
   changed('pins');
   return () => { if (state.open === open) { open.pins = before; changed('pins'); } };
 }

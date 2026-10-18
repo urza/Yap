@@ -60,7 +60,7 @@ public class ChatService
     public event Action<Guid, Guid, int>? OnUnreadChanged;        // userId, channelId, count
     public event Action<Channel>? OnDmStarted;                    // a direct message got its first message (SH-29)
     public event Action? OnRoomsChanged;                          // created, updated, reordered or deleted (SH-25)
-    public event Action<Channel>? OnPinsChanged;                  // a pin or an unpin, or an edit or a delete of a pinned message (TL-36)
+    public event Action<Channel>? OnPinsChanged;                  // a pin or an unpin, or an edit or a delete of a pinned message (SH-48)
 
     public ChatService(IServiceProvider services, PersistenceWriter writer, PushNotificationService pushService, UserService userService,
         PresenceService presence, LinkPreviewService linkPreviewService, LinkPreviewSettingsService linkPreviewSettings,
@@ -388,7 +388,7 @@ public class ChatService
     /// person's history cutoff. The one rule for history pages, the quote of a reply and live events (TL-05).</summary>
     public bool MayRead(Guid viewerId, ChatMessage m) => _channels.TryGetValue(m.ChannelId, out var channel) && MayRead(viewerId, channel, m.Timestamp);
 
-    /// <summary>The same rule for a pin, which stands in for a message that may have left memory (TL-36).</summary>
+    /// <summary>The same rule for a pin, which stands in for a message that may have left memory (SH-48).</summary>
     public bool MayRead(Guid viewerId, Channel channel, DateTime timestamp) =>
         channel.CanAccess(viewerId) && (Cutoff(channel, viewerId) is not { } c || timestamp >= c);
 
@@ -574,7 +574,7 @@ public class ChatService
         QueuePreviews(message);   // an edit that adds or removes a link adds or removes the card (MR-22)
         if (_channels.TryGetValue(message.ChannelId, out var channel) && channel.Pins.Any(p => p.MessageId == message.Id))
         {
-            lock (LockOf(channel.Id)) channel.Pins = channel.Pins.Select(p => p.MessageId == message.Id ? p with { Text = text } : p).ToList();   // the bar shows the new text (TL-37)
+            lock (LockOf(channel.Id)) channel.Pins = channel.Pins.Select(p => p.MessageId == message.Id ? p with { Text = text } : p).ToList();   // the panel shows the new text (SH-48)
             PinsChanged(channel);
         }
         return null;
@@ -600,7 +600,7 @@ public class ChatService
         _writer.Enqueue(Writes.DeleteMessage(messageId));
         if (_channels.TryGetValue(channelId, out var channel) && channel.Pins.Any(p => p.MessageId == messageId))
         {
-            lock (LockOf(channelId)) channel.Pins = channel.Pins.Where(p => p.MessageId != messageId).ToList();   // a deleted message leaves the bar (TL-37)
+            lock (LockOf(channelId)) channel.Pins = channel.Pins.Where(p => p.MessageId != messageId).ToList();   // a deleted message leaves the panel (SH-48)
             PinsChanged(channel);
         }
         return null;
@@ -641,7 +641,7 @@ public class ChatService
         {
             if (channel.Pins.Any(p => p.MessageId == messageId)) return null;   // someone else pinned it a moment ago: nothing to say
             if (channel.Pins.Count >= Channel.MaxPins) return $"Up to {Channel.MaxPins} pinned messages. Unpin one first.";
-            channel.Pins = [Models.Chat.Pin.Of(message, username), .. channel.Pins];   // qualified: Pin is also this method
+            channel.Pins = [Models.Chat.Pin.Of(message, username, Thumb(message)), .. channel.Pins];   // qualified: Pin is also this method
         }
         PinsChanged(channel);
         return null;
@@ -662,7 +662,7 @@ public class ChatService
         return null;
     }
 
-    /// <summary>The pins a person may see (TL-36): all of them for the admin and in a direct message; in a restricted room,
+    /// <summary>The pins a person may see (SH-48): all of them for the admin and in a direct message; in a restricted room,
     /// only those inside the person's history cutoff (TL-05). A null viewer is the broadcaster's "everyone" of an unrestricted room.</summary>
     public List<Pin> PinsFor(Guid channelId, Guid? viewerId)
     {
@@ -677,6 +677,13 @@ public class ChatService
         OnPinsChanged?.Invoke(channel);
         _writer.Enqueue(Writes.Channel(channel));
     }
+
+    // The picture the panel shows for a media message: the first image, else the first video's poster (SH-48). The same
+    // URLs the row uses (MessageMapper). A GIF has none: its file can move or go, and the panel shows a label instead.
+    private static string? Thumb(ChatMessage m) =>
+        m.ImageUrls.FirstOrDefault() is { } image ? Media.ImageService.GetMediumUrl(image)
+        : m.VideoUrls.FirstOrDefault() is { } video ? Media.VideoService.GetPosterUrl(video)
+        : null;
 
     private static readonly string[] DefaultQuickReactions = ["❤️", "😂", "👍"];
 

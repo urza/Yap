@@ -376,7 +376,7 @@ async function deleteNow(rowNode, m) {
   if (result?.error) { undo?.(); overlays.reason(document.getElementById(`msg-${m.id}`) ?? rowNode, result.error); }
 }
 
-// MR-76, MR-77: the bar changes at once; the server's refusal undoes it and shows at the row.
+// MR-76, MR-77: the header count and the panel change at once; the server's refusal undoes it and shows at the row.
 async function togglePin(rowNode, m, pinned) {
   if (state.connection !== 'connected') { overlays.reason(rowNode, 'Needs a connection'); return; }   // MR-75
   const channelId = state.open.channelId;

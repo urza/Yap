@@ -82,7 +82,7 @@ The client calls the methods with these camelCase names; SignalR matches the ser
 | `message` | `Message` | room group, or both DM users | A new message. `clientId` is on every copy; only the sender has a pending row that matches it. A reply in a restricted room goes per reader: the quote of an original before a reader's cutoff says unavailable, with no text and no name (TL-05). |
 | `messageEdited` | `Message` | same | In a room with a history cutoff (TL-05) the event goes to the readers who may read the message, each with the quote built for them; a direct message and an unrestricted room get one send. |
 | `messageDeleted` | channelId, messageId | same | |
-| `pins` | channelId, pins[] | same | After a pin, an unpin, or an edit or a delete of a pinned message (TL-37). In a restricted room each reader gets the pins inside their own cutoff (TL-05). |
+| `pins` | channelId, pins[] | same | After a pin, an unpin, or an edit or a delete of a pinned message (SH-48). In a restricted room each reader gets the pins inside their own cutoff (TL-05). |
 | `reactions` | messageId, reactions[] | same | After a toggle. Readers inside the cutoff only, in a restricted room (TL-05). |
 | `previews` | messageId, previews[] | same | A link card or a cached media player is ready (MR-22, MR-23). Readers inside the cutoff only, in a restricted room (TL-05). |
 | `typing` | channelId, username, on | same | The client drops a typist 3.5 s after the last `on`. |
@@ -111,8 +111,8 @@ Message {
                  media?: { type, src, poster, width, height, durationSeconds } } ]
 }
 
-Pin {   // a copy of what the bar shows, stored with the channel; it outlives the startup load window (TL-36)
-  messageId, username, text, timestamp, hasMedia, pinnedBy, pinnedAt
+Pin {   // a copy of what the panel shows, stored with the channel; it outlives the startup load window (SH-48)
+  messageId, username, text, timestamp, hasMedia, thumb, pinnedBy, pinnedAt   // thumb: the first image or the video poster, else null
 }
 ```
 

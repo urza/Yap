@@ -18,7 +18,6 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 4. **New messages pill.** A rounded pill in the accent colour, with a down chevron. It shows centred above the typing strip when messages arrive while the user reads older messages.
 5. **Pending rows.** Rows for the user's own messages that the server did not accept yet. They are at the end of the list.
 6. **Gallery viewer.** A full-screen layer over the whole app, which opens from an image. It shows the picture, the previous and next controls, the fill and close controls, and a counter.
-7. **Pinned messages bar.** A bar between the header and the list. It shows one line per pinned message, up to three, the newest pin first. It is absent when the conversation has no pins.
 
 ## Rules
 
@@ -108,14 +107,6 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 
 **TL-35** When the connection returns, the newest messages load again and the loaded rows are updated. When more messages arrived than one page holds, the missing messages load as the user scrolls up. If the view did not follow, it stays where it is. If the view followed, it stays at the bottom.
 
-### Pinned messages
-
-**TL-36** When the conversation has pinned messages, a bar shows between the header and the list. The bar has one line per pin, up to three, the newest pin first. A line shows a pin icon, the author's display name, and the text on one line, cut with an ellipsis. A line for a message without text shows "Click to see attachment". The tooltip of a line is "Pinned by {name}". The bar is absent when there are no pins. In a room with a history limit (TL-05), a reader sees only the pins of messages inside their own history. The [message row page](message-row.md#MR-76) specifies who can pin.
-
-**TL-37** The bar follows the messages. An edit of a pinned message changes the text of its line for every reader. A delete of a pinned message removes its line. A pin or an unpin by anyone changes the bar for every reader at once. The pins stay through a restart of the server, also when the pinned message is older than the history the server keeps in memory.
-
-**TL-38** A tap on a line scrolls the list to the message and highlights it, like a tap on a reply quote. When the message is older than the history that the reader can load, the line shows "Not in the loaded history" for two seconds. A line has an "✕" control for readers who may pin. The control unpins the message.
-
 ## States
 
 | State or trigger | Input | What the user sees |
@@ -148,8 +139,6 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 | GIF autoplay blocked | all | Next tap or key starts all GIFs. |
 | No connection, older messages exist | all | Last messages readable; "Needs a connection" at the top in place of the loading row. |
 | Connection returns | all | Newest messages updated; view stays when not following, at the bottom when following. |
-| Pin or unpin by anyone | all | The bar between the header and the list changes at once. |
-| Pinned line tap | mouse, touch | The list scrolls to the message and highlights it; or "Not in the loaded history" for two seconds. |
 
 ## Wording
 
@@ -164,7 +153,6 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 | Pill when the list is missing | "New messages" |
 | Viewer controls | "‹" (title "Previous"); "›" (title "Next"); "×" (title "Close"); the fill icon (title "Fill screen"); counter "{n} / {total}"; image alt "Full size image" |
 | Without a connection | "Needs a connection" |
-| Pinned messages bar | "Click to see attachment"; tooltip "Pinned by {name}"; "✕" (title "Unpin"); "Not in the loaded history" |
 | Admin history setting, for reference | "History Visibility"; "Unlimited", "1 Day", "3 Days", "1 Week", "2 Weeks", "1 Month", "3 Months"; "Only show messages since user joined" |
 
 ## Related
