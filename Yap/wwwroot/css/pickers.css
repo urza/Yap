@@ -616,6 +616,20 @@
     font-size: 0.875rem;
 }
 
+.gif-no-provider {
+    padding: 1.25rem 1rem;
+    line-height: 1.5;
+}
+
+.gif-no-provider p {
+    margin: 0 0 0.5rem;
+}
+
+.gif-no-provider a {
+    color: var(--accent-primary);
+    text-decoration: underline;
+}
+
 /* Folder / shortcut tiles (Favorites, Server, Browse): Discord-style — a random member GIF
    animating under a blur, with the name on top. */
 .gif-tile-grid {

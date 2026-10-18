@@ -24,7 +24,7 @@ const statCard = (label, value) => el('div', { class: 'media-stat-card' }, el('s
 const hint = text => el('span', { class: 'form-hint' }, text);
 const empty = text => el('div', { class: 'log-empty' }, text);
 
-export function mount(root) {
+export function mount(root, route) {
   if (!state.user?.isAdmin) { router.navigate('/', { replace: true }); return () => {}; }   // AD-01
   const page = clone('t-admin');
   const host = page.querySelector('.tab-host');
@@ -203,6 +203,10 @@ export function mount(root) {
         el('div', { class: 'toggle-info' }, el('span', { class: 'toggle-label' }, 'Content rating'), el('span', { class: 'toggle-hint' }, 'How strictly Klipy filters search and trending results. G = strictest (kid-friendly). PG = mild (default). PG-13 = some edgy content. R = anything goes.')),
         Object.assign(el('select', { class: 'log-filter-select', onchange: e => api.put('/api/admin/settings', { gifRating: e.target.value }).catch(err => alert(err.message)) }, [['g', 'G'], ['pg', 'PG'], ['pg13', 'PG-13'], ['r', 'R']].map(([v, l]) => el('option', { value: v }, l))), { value: s.gifRating ?? 'pg' })),
         hint(s.gifProviderConfigured ? 'Provider: configured' : 'Provider: not configured')),
+      el('div', { class: 'howto-list' }, howto('Klipy API key', s.gifProviderConfigured ? 'configured' : '', 'off — no GIF search, no trending', [
+        'Without a key the picker has no search and no trending. Own uploads, favourites and the server library (the GIFs tab here) work without it.',
+        ['Make a free account at partner.klipy.com and create an app. Copy its API key.', 'Put the key in appsettings.json under ChatSettings:GifSettings:Klipy:ApiKey, or set the environment variable ChatSettings__GifSettings__Klipy__ApiKey.', 'Restart Yap. The picker then searches Klipy and shows trending GIFs.'],
+        'The content rating above applies to the key once it works.'])),
       el('div', { class: 'section-header', style: { marginTop: '2rem' } }, el('h3', null, 'Deployment'), el('span', { class: 'section-count' }, 'Set in appsettings.json, per instance')),
       el('div', { class: 'howto-list' },
         proxyHost,
@@ -527,6 +531,6 @@ export function mount(root) {
     box.hidden = false;
   }).catch(() => {});
   root.replaceChildren(page);
-  open('users');
+  open(route?.hash && TABS.some(([id]) => id === route.hash) ? route.hash : 'users');   // /admin#settings opens that tab (AD-02)
   return () => { unmountTab(); offs.forEach(off => off()); Object.values(timers).forEach(clearInterval); page.remove(); };
 }

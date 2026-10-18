@@ -6,7 +6,7 @@ The emoji picker and the GIF picker open from the input box. The emoji picker pu
 
 ![Emoji picker, desktop. The category bar on the left with Recent active, the search field on top, the Recent row, then the first pack section.](img/pickers-desktop-emoji.png)
 
-![GIF picker, desktop, Browse tab without a provider. The tab rail on the left, the library search field with the upload button, and the Favorites tile. With a provider, a Trending header and grid and the attribution badge follow.](img/pickers-desktop-gif-browse.png)
+![GIF picker, desktop, Browse tab without a provider. The tab rail on the left, the library search field with the upload button, the Favorites tile and the note for a server without a provider. With a provider, a Trending header and grid and the attribution badge stand in place of the note.](img/pickers-desktop-gif-browse.png)
 
 ![Phone sheet, GIFs tab, Favorites open. The tab row GIFs and Emoji with the keyboard button and the chevrons at its right end, the GIF rail and the search row, a favourite card with its gold star, the Settings link.](img/pickers-phone-sheet-gifs.png)
 
@@ -51,7 +51,7 @@ The emoji picker and the GIF picker open from the input box. The emoji picker pu
 
 **PK-13** On desktop, the GIF picker is 500 px wide and at most 460 px high. The rail on the left has Recent, Favorites, Server library and Browse. Server library is hidden while the server has no GIFs.
 
-**PK-14** The first open shows Browse when a provider is configured, the reader has favourites, or the server has GIFs. Otherwise it shows Recent. The picker keeps its tab and its open folder when it closes and opens again. A reopen clears the search and refreshes Recent.
+**PK-14** The first open shows Recent when the reader has recent GIFs and nothing else: no provider, no favourites, no server GIFs. Otherwise it shows Browse. *Why:* on a fresh server, Browse holds the note that says what the picker can do without a provider. The picker keeps its tab and its open folder when it closes and opens again. A reopen clears the search and refreshes Recent.
 
 **PK-15** A tap on a tab clears the search and shows that tab with fresh data. A tap on the active tab does nothing.
 
@@ -59,7 +59,7 @@ The emoji picker and the GIF picker open from the input box. The emoji picker pu
 
 **PK-17** Retired 2026-10-18. The Trending tab is removed. The trending GIFs show only in Browse (PK-18).
 
-**PK-18** Browse shows shortcut tiles first. A "Favorites" tile shows when the reader has favourites. A tile with the project name shows when the server has GIFs. When a provider is configured, Browse shows a "Trending" header and the trending grid below the tiles, While the GIFs load, "Loading…" stands in place of the grid. When the GIFs cannot load, "Could not load GIFs" stands there, and the picker tries again on the next open. When there is no provider, no favourites and no server GIFs, Browse shows "Nothing here yet". A tile opens its tab.
+**PK-18** Browse shows shortcut tiles first. A "Favorites" tile shows when the reader has favourites. A tile with the project name shows when the server has GIFs. When a provider is configured, Browse shows a "Trending" header and the trending grid below the tiles, While the GIFs load, "Loading…" stands in place of the grid. When the GIFs cannot load, "Could not load GIFs" stands there, and the picker tries again on the next open. When there is no provider, Browse shows a note under the tiles: the provider is not set up, so there is no GIF search; the + button adds own GIFs and the star keeps a GIF from the chat in Favorites. For the admin, the note links to the provider key box on the Settings tab of Admin and to the GIFs tab, which builds the server library without a provider. A tile opens its tab.
 
 **PK-19** Cards are in two masonry columns with 6 px gaps. Each card has the aspect ratio of its GIF. It shows a small, muted preview that loops. When a preview cannot start, it starts on the next tap or key press anywhere.
 
@@ -180,7 +180,8 @@ The emoji picker and the GIF picker open from the input box. The emoji picker pu
 | GIF rail tooltips | "Recent", "Favorites", "Server library", "Browse" |
 | GIF search | placeholder "Search Klipy..." or "Search your library..."; clear tooltip "Clear"; spinner tooltip "Searching..."; upload tooltip "Upload a GIF", while busy "Adding GIF…" |
 | GIF section headers | "From your library"; the provider name ("Klipy"); "Unsorted"; "Trending" |
-| GIF empty and status texts | "No matches"; "No recent GIFs yet"; "⭐ Tap the star on any GIF to save it here"; "No server GIFs yet"; "Loading…"; "Nothing here yet"; "Could not load GIFs"; "Load more" |
+| GIF empty and status texts | "No matches"; "No recent GIFs yet"; "⭐ Tap the star on any GIF to save it here"; "No server GIFs yet"; "Loading…"; "Could not load GIFs"; "Load more" |
+| GIF no-provider note | "Klipy is not set up on this server, so there is no GIF search."; "Add your own GIFs with the + button next to the search field. Tap the star on any GIF in the chat to keep it in Favorites."; "Admin: set up the API key for search and trending, or build the server library, which works without a provider." | <!-- lint: allow -->
 | Favorites link | "Manage your GIFs in Settings" |
 | Folder navigation | "← {folder}"; tooltips "Back to Favorites", "Back to the server library" |
 | Browse tiles | "Favorites"; the project name (default "Yap") |

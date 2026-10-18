@@ -6,6 +6,7 @@ import { uploadOne } from '../upload.js';
 import { api } from '../api.js';
 import { clone, el, replace } from '../render/dom.js';
 import * as overlays from './overlays.js';
+import * as router from '../router.js';
 
 // GifPicker({ onSend(gif), onWarn(title, text) }) returns { element, opened() }.
 // onSend gets { entryId, preview, isImage, width, height } for a library card, or
@@ -34,7 +35,9 @@ export function GifPicker({ onSend, onWarn }) {
 
   // ---- opening and tabs (PK-14, PK-15) ----
 
-  function firstTab() { return configured() || cache.favorites?.gifs.length || cache.server?.gifs.length ? 'browse' : 'recent'; }
+  // Recent only when it is the one list with something in it. An empty Recent would hide the
+  // no-provider note that Browse shows on a fresh server (PK-14).
+  function firstTab() { return !configured() && !cache.favorites?.gifs.length && !cache.server?.gifs.length && cache.recent?.gifs.length ? 'recent' : 'browse'; }
 
   async function opened() {
     search.value = ''; searching = null; clear.hidden = true;
@@ -172,6 +175,18 @@ export function GifPicker({ onSend, onWarn }) {
     return nodes;
   }
 
+  // Without a provider key, Browse says what still works and, for the admin, where the key goes (PK-29).
+  function noProviderNote() {
+    const lines = [el('p', null, `${provider()?.name ?? 'The GIF provider'} is not set up on this server, so there is no GIF search.`),
+      el('p', null, 'Add your own GIFs with the + button next to the search field. Tap the star on any GIF in the chat to keep it in Favorites.')];
+    if (state.user?.isAdmin) {
+      // The page swap unmounts the composer, so the picker needs no close of its own.
+      const link = (text, href) => el('a', { href, onclick: e => { e.preventDefault(); router.navigate(href); } }, text);
+      lines.push(el('p', null, ['Admin: ', link('set up the API key', '/admin#settings'), ' for search and trending, or ', link('build the server library', '/admin#gifs'), ', which works without a provider.']));
+    }
+    return el('div', { class: 'gif-empty gif-no-provider' }, lines);
+  }
+
   function browseView() {
     const nodes = [];
     const tiles = [];
@@ -179,7 +194,7 @@ export function GifPicker({ onSend, onWarn }) {
     if (cache.server?.gifs.length) tiles.push(folderTile(state.config?.projectName ?? 'Yap', cache.server.gifs, () => { tab = 'server'; render(); }));
     if (tiles.length) nodes.push(el('div', { class: 'gif-tile-grid' }, tiles));
     if (configured()) nodes.push(...trendingView());
-    else if (!tiles.length) nodes.push(empty('Nothing here yet'));
+    else nodes.push(noProviderNote());
     return nodes;
   }
 
