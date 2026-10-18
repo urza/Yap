@@ -190,7 +190,7 @@ The frame contains all parts around a conversation. The header shows the title, 
 | Header tooltips | "Back to lobby"; "Toggle sidebar"; "{n} unread messages"; "{n} pinned messages" and "1 pinned message" |
 | Pinned messages panel | "Pinned Messages"; "Pinned by {name}"; "GIF attachment"; image alt "Attachment"; "✕" (titles "Close" and "Unpin"); "Not in the loaded history" |
 | Status menu | "Online"; "Away"; "Invisible"; "Settings"; "Notification settings"; "Admin"; "Sign Out" |
-| Sign-out confirmations | "You have no login link and no secret code. Without one, you won't be able to get back into this account. Continue signing out?"; "Unsent messages on this device will be lost. Continue signing out?" |
+| Sign-out confirmations | "You have no login link. Without one, you won't be able to get back into this account. Continue signing out?"; "Unsent messages on this device will be lost. Continue signing out?" |
 | Connection bubble | "Connecting…"; "Reconnecting…"; "Offline. Messages are sent when the connection returns."; "Signed out"; "Update available" |
 | Notice strip | "You are awesome and so is the new version of this app. Please refresh." with "Reload"; "Sign in to continue." with "Sign in" |
 | Sidebar | "ROOMS"; "Add Room"; " (you)"; tooltips "Channel settings", "Notifications muted", "Admin", "Bot", "View profile" |

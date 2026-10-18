@@ -1,4 +1,4 @@
-// The page run of the client (step 5): the login rules, Settings, the login link and the secret code, the
+// The page run of the client (step 5): the login rules, Settings, the login link and the retired secret code, the
 // verification and link pages, Admin (users, invites, registration, bot, debug, logs, GIFs, diagnostics) and
 // Create Channel / Channel Settings, the keyboard on the sidebar and +, and the notification choices at 20 px on a
 // phone. Run: npm run pages (see README.md). Screenshots go to shots/ (20-…).
@@ -37,7 +37,7 @@ const { ctx: ctxA, page: A } = await open('A');
 await ctxA.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE });   // step 5 reads the copied link back
 const { page: B } = await open('B');
 let C = null, D = null;
-let linkUrl = null, secretCode = null, inviteUrl = null, roomId = null;
+let linkUrl = null, inviteUrl = null, roomId = null;
 
 await step(1, 'Login validation (AU-02)', async (check, notes) => {
   await A.goto(BASE + '/');
@@ -157,19 +157,16 @@ await step(5, 'Login link (ST-11 to ST-13)', async (check, notes) => {
   notes.push(`link-summary "${await txt(sec.locator('.link-summary'))}"; expiry select now "${await sec.locator('.link-expiry option:checked').innerText().catch(() => '')}"`);
 });
 
-await step(6, 'Secret code (ST-14)', async (check, notes) => {
+await step(6, 'Secret code, retired (ST-14, AU-13)', async (check, notes) => {
+  // boss is a fresh account and never had a code: the card stays hidden, and nothing can create one.
   const sec = A.locator('[data-section="passphrase"]');
-  const present = sec.locator('.code-present'), absent = sec.locator('.code-absent'), status = sec.locator('.code-status'), value = sec.locator('.code-value');
-  await waitTrue(async () => (await vis(present)) || (await vis(absent)), 3000);
-  notes.push(`on load: code-present ${await vis(present)}, code-absent ${await vis(absent)}`);
-  if (await vis(absent)) await sec.locator('.code-enable').click();
-  const ok = await waitTrue(async () => (await vis(present)) && /\w/.test(await txt(value)) && !(await txt(value)).includes('•'), 3000);
-  const first = await txt(value);
-  check(ok && /\s|-/.test(first) && (await txt(status)) === 'Secret code enabled', `code "${first}", status "${await txt(status)}"`);
-  await sec.locator('.code-new').click();
-  const changed = await waitTrue(async () => (await txt(value)) !== first && (await txt(status)) === 'Secret code changed', 3000, 50);
-  secretCode = await txt(value);
-  check(changed, `New Code: "${first}" -> "${secretCode}", status "${await txt(status)}"`);
+  await sleep(500);   // the page's own passphrase request has answered (204) by now
+  const hidden = !(await vis(sec));
+  const status = await A.evaluate(async () => (await fetch('/api/account/passphrase', { method: 'POST', credentials: 'same-origin' })).status);
+  check(hidden && status === 410, `Secret Code card visible ${!hidden}; POST /api/account/passphrase -> ${status} (410 expected)`);
+  // The Login Link card carries the note that the link's code is typed on the login page instead.
+  const note = await txt(A.locator('[data-section="link"] .link-present .form-hint'));
+  check(note.includes('type the last part of the link'), `Login Link note: "${note}"`);
   notes.push(`link-summary now "${await txt(A.locator('[data-section="link"] .link-summary'))}"`);
 });
 
@@ -231,7 +228,7 @@ await step(7, 'Sessions, mutes, time and date', async (check, notes) => {
   notes.push(`Detect: current-time "${await txt(time.locator('.current-time'))}", detected "${await txt(time.locator('.detected'))}"`);
 });
 
-await step(8, 'Verify page (AU-08, AU-09, AU-14)', async (check, notes) => {
+await step(8, 'Verify page (AU-08, AU-09, AU-12, AU-14)', async (check, notes) => {
   ({ page: C } = await open('C'));
   // The login page's own check request tells what the server decided for "boss".
   const typeName = async name => {
@@ -275,11 +272,13 @@ await step(8, 'Verify page (AU-08, AU-09, AU-14)', async (check, notes) => {
   const wrong = await waitTrue(async () => (await vis(C.locator('.page-verify .validation-error'))), 3000, 50);
   check(wrong && (await txt(C.locator('.page-verify .validation-error'))) === 'Wrong code', `wrong code: error "${await txt(C.locator('.page-verify .validation-error'))}", input class "${await C.locator('.verify-input').getAttribute('class')}"`);
   await C.screenshot({ path: SHOTS + '23-verify.png' });
-  await C.fill('.verify-input', secretCode ?? '');
+  // AU-12: the code of the login link, typed as a person reads it off another screen: any case, any separators.
+  const typed = linkUrl ? linkUrl.split('/invite/')[1].replace(/-/g, ' ').toUpperCase() : '';
+  await C.fill('.verify-input', typed);
   await C.press('.verify-input', 'Enter');
   const inLobby = await atPath(C, '/lobby', 5000) && await C.locator('.status-username').first().waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
   const who = await txt(C.locator('.status-username'));
-  check(inLobby && /boss/i.test(who), `right code "${secretCode}": ${pathOf(C)}, status-username "${who}" (the display name of boss is "The Boss")`);
+  check(inLobby && /boss/i.test(who), `link code "${typed}": ${pathOf(C)}, status-username "${who}" (the display name of boss is "The Boss")`);
   const out = await signOut(C);
   check(out, `sign out C: ${pathOf(C)}, dialogs ${JSON.stringify(dialogs(8, 'C'))}`);
 });

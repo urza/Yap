@@ -8,7 +8,7 @@ Settings is the one page where the user changes their profile, appearance, sign-
 
 1. **Frame.** The same header and sidebar as a conversation. The title area shows a back arrow and "Settings".
 2. **Page heading.** "Settings", with a chip on the right and the line "Changes are saved automatically." For profile changes, the chip reads "Saving..." and then "Saved".
-3. **Cards.** One column of cards, at most 600 px wide, in this order: Profile, Appearance, Text Size, Login Link, Secret Code, Active Sessions, Install as App, Device Push Notifications, Allow / Mute Notifications, Time & Date, My GIFs, and a collapsed DEBUG INFO card at the end.
+3. **Cards.** One column of cards, at most 600 px wide, in this order: Profile, Appearance, Text Size, Login Link, Secret Code (only for an account that still has a code), Active Sessions, Install as App, Device Push Notifications, Allow / Mute Notifications, Time & Date, My GIFs, and a collapsed DEBUG INFO card at the end.
 4. **Notice.** An amber notice above the heading, with a close control. It shows after "Sign out all other devices".
 
 ## Rules
@@ -47,7 +47,7 @@ Settings is the one page where the user changes their profile, appearance, sign-
 
 **ST-13** "Allow smart login" is a switch under the link. It shows only while the admin allows smart login. It is on by default.
 
-**ST-14** Secret Code is below Login Link. *Why:* the link is the preferred sign-in method, and the code is the fallback. With a code, the card shows the masked code, Reveal and Copy, "New Code" and "Disable". Without a code, the card shows the hint and "Enable Secret Code". Status lines show for 3 seconds.
+**ST-14** Secret Code is below Login Link, and only for an account that still has a code. *Why:* the code is retired, and the login link does its job ([AU-13](sessions.md#AU-13)). The card shows the masked code, Reveal and Copy, "New Code" and "Disable". Disable asks for a confirmation, because a disabled code cannot come back. After it, the card is gone and the status shows under Login Link. Status lines show for 3 seconds.
 
 ### Devices
 
@@ -95,7 +95,8 @@ Settings is the one page where the user changes their profile, appearance, sign-
 | Theme tap | mouse, touch | The whole app changes to the new theme at once. |
 | Text size tap | mouse, touch | All text changes size at once. |
 | New Link, Revoke, expiry | mouse, touch | The link shows or is removed. A green status shows for 3 s. |
-| New Code, Disable, Enable Secret Code | mouse, touch | The code shows or is removed. A green status shows for 3 s. |
+| New Code | mouse, touch | The new code shows. A green status shows for 3 s. |
+| Disable | mouse, touch | A confirmation, then the Secret Code card disappears. A green status shows under Login Link for 3 s. |
 | Sign out all other devices | mouse, touch | The other devices are signed out. The amber notice shows, and the code is revealed. |
 | Enable push | mouse, touch | The browser asks for permission. "Subscribed" shows, and a device row appears. |
 | Send a test | mouse, touch | Every device gets the test notification. A result line shows for 3 s. |

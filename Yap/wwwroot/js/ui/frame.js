@@ -131,7 +131,7 @@ function openStatusMenu() {
 async function confirmSignOut() {
   const me = state.user;
   if (!me.hasLink && !me.hasPassphrase
-      && !confirm("You have no login link and no secret code. Without one, you won't be able to get back into this account. Continue signing out?")) return;
+      && !confirm("You have no login link. Without one, you won't be able to get back into this account. Continue signing out?")) return;
   if (hasQueued() && !confirm('Unsent messages on this device will be lost. Continue signing out?')) return;
   if (!await session.signOut()) overlays.reason(frame.querySelector('.status-dropdown-container'), 'Needs a connection');   // GEN-10: the server removes the cookie
 }

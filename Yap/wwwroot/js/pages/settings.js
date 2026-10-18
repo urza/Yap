@@ -138,7 +138,9 @@ export function mount(root, route) {
   }
   function drawCode() {
     const has = !!code.value;
-    $('.code-present').hidden = !has; $('.code-absent').hidden = has;
+    // Secret codes are retired (AU-13): the card shows only while the account still has one, and nothing can
+    // create a new one. The login link does the job; its code is typed on the login page the same way (AU-12).
+    $('[data-section="passphrase"]').hidden = !has;
     if (has) { $('.code-username').textContent = me.username; masked($('.code-value'), code.value, code.shown, '••••••••••'); wireReveal($('.code-reveal'), code, drawCode); wireCopy($('.code-copy'), code.value); }
     drawLink();
   }
@@ -155,9 +157,12 @@ export function mount(root, route) {
     catch (err) { saved(linkStatus, err.message, 'error'); }
   });
   $('.smart-login-toggle').addEventListener('change', e => { mergeMe({ smartLoginOptOut: !e.target.checked }); patch({ smartLoginOptOut: !e.target.checked }); drawLink(); });
-  $('.code-enable').addEventListener('click', async () => { try { code.value = (await api.post('/api/account/passphrase')).passphrase; code.shown = true; drawCode(); saved(codeStatus, 'Secret code enabled'); } catch (e) { saved(codeStatus, e.message, 'error'); } });
   $('.code-new').addEventListener('click', async () => { try { code.value = (await api.post('/api/account/passphrase')).passphrase; code.shown = true; drawCode(); saved(codeStatus, 'Secret code changed'); } catch (e) { saved(codeStatus, e.message, 'error'); } });
-  $('.code-disable').addEventListener('click', async () => { try { await api.delete('/api/account/passphrase'); code.value = null; drawCode(); saved(codeStatus, 'Secret code disabled'); } catch (e) { saved(codeStatus, e.message, 'error'); } });
+  // Disable is final, so it asks first. The status goes under Login Link, because this card is gone after it.
+  $('.code-disable').addEventListener('click', async () => {
+    if (!confirm('Disable your secret code? It cannot be turned on again.')) return;
+    try { await api.delete('/api/account/passphrase'); code.value = null; drawCode(); saved(linkStatus, 'Secret code disabled'); } catch (e) { saved(codeStatus, e.message, 'error'); }
+  });
 
   // ---- Active Sessions (ST-15, AU-19, AU-20) ----
   const deviceList = $('.device-list');
