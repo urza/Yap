@@ -3,7 +3,7 @@
 // Run: npm run smoke (see README.md). Screenshots go to shots/.
 
 import { chromium } from 'playwright';
-import { BASE, SHOTS, sleep, waitTrue, row, logs, step, finish, startServer, signIn, watchContext, watchPage } from './lib.mjs';
+import { acceptDialogs, BASE, SHOTS, sleep, waitTrue, row, logs, step, finish, startServer, signIn, watchContext, watchPage } from './lib.mjs';
 
 const audit = {};
 async function hiddenAudit(page, name) {
@@ -318,8 +318,9 @@ await step(16, 'Sign out A', async (check, notes) => {
   const signoutResp = A.waitForResponse(r => r.url().endsWith('/api/auth/signout'), { timeout: 5000 }).catch(() => null);
   await A.click('.status-button');
   await A.locator('.status-dropdown [data-action="signout"]').click();
+  await acceptDialogs(A);
   const ok = await waitTrue(async () => (await A.locator('.page-login').count()) === 1, 5000);
-  const dialogs = logs.slice(nLogs16).filter(l => l.page === 'A' && l.kind === 'dialog').map(l => l.text);   // accepted by watchPage
+  const dialogs = logs.slice(nLogs16).filter(l => l.page === 'A' && l.kind === 'dialog').map(l => l.text);   // accepted by acceptDialogs
   check(ok, `login page: ${ok}, path ${new URL(A.url()).pathname}, dialogs: ${JSON.stringify(dialogs)}`);
   const resp = await signoutResp;
   check(resp?.status() === 204, `/api/auth/signout status ${resp?.status()}`);

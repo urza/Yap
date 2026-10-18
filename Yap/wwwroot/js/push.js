@@ -26,9 +26,14 @@ function sameKey(subscription, bytes) {
   } catch { return true; }
 }
 
+// navigator.serviceWorker.ready never settles when the registration failed (main.js swallows that error), and a
+// sign-out waits on this call: after a short wait, "no subscription" is the answer.
 export async function current() {
   if (!supported()) return null;
-  try { return await (await navigator.serviceWorker.ready).pushManager.getSubscription(); } catch { return null; }
+  try {
+    const registration = await Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(r, 3000))]);
+    return registration ? await registration.pushManager.getSubscription() : null;
+  } catch { return null; }
 }
 
 // Subscribes (or keeps a subscription made with the same key) and registers it with the server.

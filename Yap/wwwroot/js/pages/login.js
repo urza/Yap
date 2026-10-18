@@ -40,6 +40,7 @@ export function mount(root) {
   const form = page.querySelector('.username-form');
   const waiting = page.querySelector('.waiting-message');
   document.title = project;
+  page.querySelector('.signed-out-notice').hidden = !session.signInNotice();   // AU-21: this device was signed out from elsewhere
 
   let check = null;        // the server's answer for the current name
   let checkTimer = 0, seq = 0, blurred = false, poll = 0;
