@@ -44,7 +44,7 @@ variants, so the image should need nothing.
 
 ## At the first deploy with passkeys
 
-1. The migration `20261018133706_Passkeys` creates one table, `Passkeys`, with a cascade from `Users`. No rebuild of
+1. The migration `20261018133946_Passkeys` creates one table, `Passkeys`, with a cascade from `Users`. No rebuild of
    existing tables; nothing to back up beyond the usual.
 2. No new configuration. The relying party is the host of each request, and both `https://{host}` and
    `http://{host}` are accepted as the origin, so `TrustedProxies` and `PublicOrigin` do not affect passkeys.
