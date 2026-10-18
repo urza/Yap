@@ -8,7 +8,7 @@ This page is the overview. Each section links to the page that holds the rules. 
 
 An account has a username, chosen once, and an optional display name, avatar, bio and location. The first human account on a server is the admin. A bot account welcomes new members and tells phone users how to install the app. Its name and its texts are set per server.
 
-A person joins by an invite link, or by registration while the admin keeps registration open. Sign-in has no password. A device stays signed in. A device on a known network signs in with the username alone. A login link signs in any other device. A secret code is the fallback. See [Sign-in and sessions](sessions.md).
+A person joins by an invite link, or by registration while the admin keeps registration open. Sign-in has no password. A device stays signed in. A device on a known network signs in with the username alone. A login link signs in any other device. The code of the link also works as a typed code. A secret code is a retired way in that older accounts can still have. See [Sign-in and sessions](sessions.md).
 
 ## Rooms and direct messages
 
@@ -44,7 +44,7 @@ The user can install Yap on a phone or a desktop as an app. Without a connection
 
 ## Settings and administration
 
-Settings holds the profile, the theme and the text size, Time & Date, the notification settings, the login link, the secret code, the devices, and My GIFs. The administration page holds the members, the invites, the sessions, the server switches, the logs and the server GIF library. The admin creates and changes rooms on separate pages. See [Settings](settings.md) and [Administration](admin.md).
+Settings holds the profile, the theme and the text size, Time & Date, the notification settings, the login link, the secret code of an older account, the devices, and My GIFs. The administration page holds the members, the invites, the sessions, the server switches, the logs and the server GIF library. The admin creates and changes rooms on separate pages. See [Settings](settings.md) and [Administration](admin.md).
 
 ## Configured texts
 

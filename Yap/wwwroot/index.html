@@ -784,7 +784,7 @@
         <div class="page-verify">
             <div class="verify-container">
                 <h2>Welcome back, <span class="verify-name"></span></h2>
-                <p class="verify-hint">Enter your secret code, or the code from your login link.</p>
+                <p class="verify-hint">Type the code from your login link (the part after /invite/). An older secret code works too.</p>
                 <div class="verify-form">
                     <div class="input-wrapper">
                         <input type="text" placeholder="e.g. blue fox 4821" class="verify-input" autocomplete="off" autocapitalize="none" spellcheck="false" />
@@ -990,7 +990,7 @@
                         <h3>Login Link</h3>
                         <span class="form-hint link-summary" style="margin-bottom: 12px;"></span>
                         <div class="link-present" hidden>
-                            <span class="form-hint" style="margin-bottom: 12px;">Open this link on any device or browser to sign in as <strong class="link-username"></strong>. Anyone who has it can sign in, so keep it private. On the login page you can also type the last part of the link (the code) as your secret code.</span>
+                            <span class="form-hint" style="margin-bottom: 12px;">Open this link on any device or browser to sign in as <strong class="link-username"></strong>. Anyone who has it can sign in, so keep it private. Can't open the link but can see it? On the login page, type your username, then type the last part of the link (the words after /invite/) as your code. Letter case and dashes don't matter.</span>
                             <div class="passphrase-display">
                                 <span class="passphrase-value link-value"></span>
                                 <button class="passphrase-eye link-reveal" type="button" title="Reveal"></button>
@@ -1008,7 +1008,7 @@
                             </div>
                         </div>
                         <div class="link-absent" hidden>
-                            <span class="form-hint" style="margin-bottom: 12px;">Create a link that signs you in on any device or browser. Save it somewhere safe, like your notes. It's the easiest way back into this account.</span>
+                            <span class="form-hint" style="margin-bottom: 12px;">Create a link that signs you in on any device or browser. Save it somewhere safe, like your notes. It's the way back into this account: open it, or type its code on the login page.</span>
                             <button class="upload-button link-create" type="button">Create Login Link</button>
                         </div>
                         <span class="save-status saved link-status" style="margin-top: 4px;" hidden></span>
@@ -1020,10 +1020,11 @@
                         </div>
                     </div>
 
-                    <div class="settings-section" data-section="passphrase">
+                    <!-- Retired (AU-13): hidden until the page learns that the account still has a code; nothing creates a new one. -->
+                    <div class="settings-section" data-section="passphrase" hidden>
                         <h3>Secret Code</h3>
-                        <div class="code-present" hidden>
-                            <span class="form-hint" style="margin-bottom: 12px;">Use this secret code to log in as <strong class="code-username"></strong> on another device or browser.</span>
+                        <div class="code-present">
+                            <span class="form-hint" style="margin-bottom: 12px;">An older way to log in as <strong class="code-username"></strong>: type this code with your username on the login page. Your login link does the same job. If you disable the code, it cannot be turned on again.</span>
                             <div class="passphrase-display">
                                 <span class="passphrase-value code-value"></span>
                                 <button class="passphrase-eye code-reveal" type="button" title="Reveal"></button>
@@ -1033,10 +1034,6 @@
                                 <button class="remove-button code-new" type="button">New Code</button>
                                 <button class="remove-button code-disable" type="button">Disable</button>
                             </div>
-                        </div>
-                        <div class="code-absent" hidden>
-                            <span class="form-hint" style="margin-bottom: 12px;">The older way in: a short code you type together with your username on the login page. Optional now that login links exist.</span>
-                            <button class="upload-button code-enable" type="button">Enable Secret Code</button>
                         </div>
                         <span class="save-status saved code-status" style="margin-top: 4px;" hidden></span>
                     </div>
