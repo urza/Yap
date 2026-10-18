@@ -14,6 +14,7 @@ import { openInstallDialog } from '../pwa.js';
 import { GifLibrary, size } from '../ui/gif-library.js';
 import { setTitle } from '../notify.js';
 import { deviceId } from '../hub.js';
+import { confirm } from '../ui/confirm.js';
 
 const FONT_SIZES = [14, 15, 16, 17, 18, 20];   // ST-10
 const BELL = '<svg class="seg-icon" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>';
@@ -147,9 +148,11 @@ export function mount(root, route) {
   const linkStatus = $('.link-status'), codeStatus = $('.code-status');
   api.get('/api/account/link').then(l => { link.value = l; drawLink(); }).catch(() => {});
   api.get('/api/account/passphrase').then(p => { code.value = p?.passphrase ?? null; drawCode(); }).catch(() => {});
-  $('.link-create').addEventListener('click', async () => { try { link.value = await api.post('/api/account/link'); link.shown = true; drawLink(); saved(linkStatus, 'Login link created'); } catch (e) { saved(linkStatus, e.message, 'error'); } });
-  $('.link-new').addEventListener('click', async () => { try { link.value = await api.post('/api/account/link'); link.shown = true; drawLink(); saved(linkStatus, 'New link created. The old one no longer works.'); } catch (e) { saved(linkStatus, e.message, 'error'); } });
-  $('.link-revoke').addEventListener('click', async () => { try { await api.delete('/api/account/link'); link.value = null; drawLink(); saved(linkStatus, 'Login link revoked'); } catch (e) { saved(linkStatus, e.message, 'error'); } });
+  // The sign-out warning reads hasLink and hasPassphrase from the store (SH-15). The bootstrap set them, so every
+  // change here updates them too; otherwise a revoke followed by a sign-out in the same session would show no warning.
+  $('.link-create').addEventListener('click', async () => { try { link.value = await api.post('/api/account/link'); link.shown = true; mergeMe({ hasLink: true }); drawLink(); saved(linkStatus, 'Login link created'); } catch (e) { saved(linkStatus, e.message, 'error'); } });
+  $('.link-new').addEventListener('click', async () => { try { link.value = await api.post('/api/account/link'); link.shown = true; mergeMe({ hasLink: true }); drawLink(); saved(linkStatus, 'New link created. The old one no longer works.'); } catch (e) { saved(linkStatus, e.message, 'error'); } });
+  $('.link-revoke').addEventListener('click', async () => { try { await api.delete('/api/account/link'); link.value = null; mergeMe({ hasLink: false }); drawLink(); saved(linkStatus, 'Login link revoked'); } catch (e) { saved(linkStatus, e.message, 'error'); } });
   $('.link-expiry').addEventListener('change', async e => {
     const v = e.target.value; if (v === 'current') return;
     const expiresAt = v === 'never' ? null : new Date(Date.now() + Number(v) * 86_400_000).toISOString();
@@ -160,8 +163,8 @@ export function mount(root, route) {
   $('.code-new').addEventListener('click', async () => { try { code.value = (await api.post('/api/account/passphrase')).passphrase; code.shown = true; drawCode(); saved(codeStatus, 'Secret code changed'); } catch (e) { saved(codeStatus, e.message, 'error'); } });
   // Disable is final, so it asks first. The status goes under Login Link, because this card is gone after it.
   $('.code-disable').addEventListener('click', async () => {
-    if (!confirm('Disable your secret code? It cannot be turned on again.')) return;
-    try { await api.delete('/api/account/passphrase'); code.value = null; drawCode(); saved(linkStatus, 'Secret code disabled'); } catch (e) { saved(codeStatus, e.message, 'error'); }
+    if (!await confirm({ title: 'Disable your secret code?', text: 'It cannot be turned on again. Your login link does the same job.', action: 'Disable' })) return;
+    try { await api.delete('/api/account/passphrase'); code.value = null; mergeMe({ hasPassphrase: false }); drawCode(); saved(linkStatus, 'Secret code disabled'); } catch (e) { saved(codeStatus, e.message, 'error'); }
   });
 
   // ---- Active Sessions (ST-15, AU-19, AU-20) ----

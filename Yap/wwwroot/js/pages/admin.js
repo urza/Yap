@@ -12,7 +12,7 @@ import * as router from '../router.js';
 import { setTitle } from '../notify.js';
 import { GifLibrary, size } from '../ui/gif-library.js';
 import { tooltips } from '../ui/tooltip.js';
-import { confirm } from '../ui/confirm.js';
+import { confirm, notice } from '../ui/confirm.js';
 
 const TABS = [['users', 'Users'], ['debug', 'Debug'], ['bot', 'Bot'], ['settings', 'Settings'], ['invites', 'Invites'], ['logs', 'Logs'], ['media', 'Media'], ['gifs', 'GIFs'], ['diagnostics', 'Diagnostics'], ['visitors', 'Visitors']];
 const CHART_CDN = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js';
@@ -22,6 +22,7 @@ const header = (title, count, extra) => el('div', { class: 'section-header' }, e
 const table = (headers, rows, cls = 'users-table') => el('div', { class: 'table-wrapper' }, el('table', { class: cls }, el('thead', null, el('tr', null, headers.map(h => el('th', typeof h === 'string' ? null : { 'data-tip': h.title }, typeof h === 'string' ? h : h.text)))), el('tbody', null, rows)));   // { text, title }: the bubble of tooltip.js
 const td = (content, cls) => el('td', cls ? { class: cls } : null, content);
 const pill = (text, cls) => el('span', { class: `action-pill ${cls ?? ''}` }, text);
+const fail = e => notice({ title: 'That did not work', text: e.message });   // an action the server refused: the app's dialog, not the browser's alert
 const statCard = (label, value) => el('div', { class: 'media-stat-card' }, el('span', { class: 'media-stat-label' }, label), el('span', { class: 'media-stat-value' }, value));
 const hint = text => el('span', { class: 'form-hint' }, text);
 const empty = text => el('div', { class: 'log-empty' }, text);
@@ -249,7 +250,7 @@ export function mount(root, route) {
       const h = row.querySelector('.toggle-hint'); h.textContent = hintText;
       if (note) h.append(el('br'), el('strong', { style: { color: 'var(--status-away)' } }, note));
       const input = row.querySelector('input'); input.checked = !!s[key]; input.disabled = disabled;
-      input.addEventListener('change', async () => { try { await api.put('/api/admin/settings', { [key]: input.checked }); } catch (e) { input.checked = !input.checked; alert(e.message); } });
+      input.addEventListener('change', async () => { try { await api.put('/api/admin/settings', { [key]: input.checked }); } catch (e) { input.checked = !input.checked; fail(e); } });
       return row;
     };
     // Reverse proxy and Cloudflare (AU-09): what is trusted, what the server sees, and the lines to paste. Always
@@ -285,8 +286,8 @@ export function mount(root, route) {
         el('div', { class: 'pending-list' }, list.map(p => el('div', { class: 'pending-item' },
           el('div', { class: 'pending-info' }, el('span', { class: 'pending-username' }, p.username), el('span', { class: 'pending-time' }, ago(p.requestedAt))),
           el('div', { class: 'pending-actions' },
-            el('button', { class: 'approve-btn', type: 'button', onclick: () => api.post(`/api/admin/pending/${encodeURIComponent(p.username)}/approve`).catch(e => alert(e.message)) }, 'Approve'),
-            el('button', { class: 'reject-btn', type: 'button', onclick: () => api.post(`/api/admin/pending/${encodeURIComponent(p.username)}/reject`).catch(e => alert(e.message)) }, 'Reject')))))] : []);
+            el('button', { class: 'approve-btn', type: 'button', onclick: () => api.post(`/api/admin/pending/${encodeURIComponent(p.username)}/approve`).catch(e => fail(e)) }, 'Approve'),
+            el('button', { class: 'reject-btn', type: 'button', onclick: () => api.post(`/api/admin/pending/${encodeURIComponent(p.username)}/reject`).catch(e => fail(e)) }, 'Reject')))))] : []);
     };
     const draw = () => replace(host, [
       header('Registration', 'Control who can join'),
@@ -301,7 +302,7 @@ export function mount(root, route) {
       el('div', { class: 'section-header', style: { marginTop: '2rem' } }, el('h3', null, 'GIFs'), el('span', { class: 'section-count' }, 'Klipy content rating')),
       el('div', { class: 'registration-settings' }, el('label', { class: 'toggle-row' },
         el('div', { class: 'toggle-info' }, el('span', { class: 'toggle-label' }, 'Content rating'), el('span', { class: 'toggle-hint' }, 'How strictly Klipy filters search and trending results. G = strictest (kid-friendly). PG = mild (default). PG-13 = some edgy content. R = anything goes.')),
-        Object.assign(el('select', { class: 'log-filter-select', onchange: e => api.put('/api/admin/settings', { gifRating: e.target.value }).catch(err => alert(err.message)) }, [['g', 'G'], ['pg', 'PG'], ['pg13', 'PG-13'], ['r', 'R']].map(([v, l]) => el('option', { value: v }, l))), { value: s.gifRating ?? 'pg' })),
+        Object.assign(el('select', { class: 'log-filter-select', onchange: e => api.put('/api/admin/settings', { gifRating: e.target.value }).catch(err => fail(err)) }, [['g', 'G'], ['pg', 'PG'], ['pg13', 'PG-13'], ['r', 'R']].map(([v, l]) => el('option', { value: v }, l))), { value: s.gifRating ?? 'pg' })),
         el('div', { class: `provider-status${s.gifProviderConfigured ? ' on' : ''}` }, el('span', { class: `status-dot ${s.gifProviderConfigured ? 'status-online' : 'status-offline'}` }), s.gifProviderConfigured ? 'Provider: configured' : 'Provider: not configured')),
       el('div', { class: 'howto-list' }, howto('Klipy API key', s.gifProviderConfigured ? 'configured' : '', 'off — no GIF search, no trending', [
         'Without a key the picker has no search and no trending. Own uploads, favourites and the server library (the GIFs tab here) work without it.',
@@ -350,9 +351,9 @@ export function mount(root, route) {
     const copyButton = url => { const b = el('button', { class: 'refresh-btn', type: 'button', title: 'Copy link' }, '⧉'); b.addEventListener('click', async () => { try { await navigator.clipboard.writeText(url); } catch { /* no clipboard */ } b.title = 'Copied!'; b.textContent = '✓'; setTimeout(() => { b.title = 'Copy link'; b.textContent = '⧉'; }, 2000); }); return b; };
     const expiryLabel = l => l.expiresAt ? (l.expired ? `expired ${l.expiresAt.slice(0, 10)}` : l.expiresAt.slice(0, 10)) : 'never';
     const actions = l => el('div', { class: 'link-actions' },
-      Object.assign(el('select', { class: 'link-expiry', title: 'Change expiry', onchange: async e => { const v = e.target.value; if (v === 'current') return; try { await api.put(`/api/admin/links/${l.id}/expiry`, { expiresAt: v === 'never' ? null : new Date(Date.now() + Number(v) * 86_400_000).toISOString() }); await load(); } catch (err) { alert(err.message); } } },
+      Object.assign(el('select', { class: 'link-expiry', title: 'Change expiry', onchange: async e => { const v = e.target.value; if (v === 'current') return; try { await api.put(`/api/admin/links/${l.id}/expiry`, { expiresAt: v === 'never' ? null : new Date(Date.now() + Number(v) * 86_400_000).toISOString() }); await load(); } catch (err) { fail(err); } } },
         l.expiresAt ? el('option', { value: 'current' }, expiryLabel(l)) : null, [['never', 'Never'], ['1', 'In 1 day'], ['7', 'In 7 days'], ['30', 'In 30 days']].map(([v, t]) => el('option', { value: v }, t))), { value: l.expiresAt ? 'current' : 'never' }),
-      el('button', { class: 'reject-btn', type: 'button', onclick: async () => { try { await api.delete(`/api/admin/links/${l.id}`); await load(); } catch (e) { alert(e.message); } } }, 'Revoke'));
+      el('button', { class: 'reject-btn', type: 'button', onclick: async () => { try { await api.delete(`/api/admin/links/${l.id}`); await load(); } catch (e) { fail(e); } } }, 'Revoke'));
     const draw = () => {
       if (!data) { replace(host, [empty('Loading...')]); return; }
       replace(forSelect, [el('option', { value: '' }, 'Someone new (invite)'), ...users.filter(u => !u.isBot).map(u => el('option', { value: u.id }, u.username))]);
@@ -430,9 +431,9 @@ export function mount(root, route) {
       clearTimeout(armed); armed = null; b.textContent = 'Delete';
       let inUse;
       try { await api.delete(`/api/admin/media/${r.id}`); remove(); return; }
-      catch (e) { if (e.status !== 409) { alert(e.message); return; } inUse = e.message; }
+      catch (e) { if (e.status !== 409) { fail(e); return; } inUse = e.message; }
       if (!await confirm({ title: 'Delete this file?', text: `${r.originalFileName}: ${inUse.toLowerCase()} The messages keep a broken picture.` })) return;
-      try { await api.delete(`/api/admin/media/${r.id}?force=true`); remove(); } catch (err) { alert(err.message); }
+      try { await api.delete(`/api/admin/media/${r.id}?force=true`); remove(); } catch (err) { fail(err); }
     } }, 'Delete');
     return b;
   };
@@ -502,8 +503,8 @@ export function mount(root, route) {
         td((e.card.preview ?? e.card.src) ? el('a', { href: e.card.src ?? e.card.preview, target: '_blank', rel: 'noopener' }, el('img', { src: e.card.preview ?? e.card.src, alt: '', class: 'admin-thumb', loading: 'lazy' })) : null),
         td(stamp(e.createdAt), 'date-cell'), td([pill(e.source, 'action-default'), e.card.isServer ? pill('server', 'server-pill') : null]), td(e.card.uploader ?? ''), td(pill(e.format ?? '', 'action-default')), td(`${e.card.width} × ${e.card.height}`), td(size(e.card.sizeBytes ?? 0)), td(String(e.uses ?? 0)), td(e.favorites ? `⭐ ${e.favorites}` : '—'),
         tagsCell(e.card), td([
-          el('button', { class: `gif-row-btn${e.card.isServer ? ' active' : ''}`, type: 'button', title: e.card.isServer ? 'Remove from server library' : 'Add to server library', onclick: async () => { try { await api.put(`/api/admin/gifs/${e.card.id}/server`, { on: !e.card.isServer }); await load(); } catch (err) { alert(err.message); } } }, e.card.isServer ? '★ server' : '☆ server'),
-          el('button', { class: 'gif-row-btn danger', type: 'button', title: 'Delete this GIF everywhere', onclick: async ev => { if (armed !== e) { armed = e; ev.target.textContent = 'Sure?'; return; } armed = null; try { const r = await api.delete(`/api/admin/gifs/${e.card.id}`); note.textContent = r?.note ?? 'Deleted.'; await load(); } catch (err) { alert(err.message); } } }, 'Delete')], 'gif-actions-cell')))),
+          el('button', { class: `gif-row-btn${e.card.isServer ? ' active' : ''}`, type: 'button', title: e.card.isServer ? 'Remove from server library' : 'Add to server library', onclick: async () => { try { await api.put(`/api/admin/gifs/${e.card.id}/server`, { on: !e.card.isServer }); await load(); } catch (err) { fail(err); } } }, e.card.isServer ? '★ server' : '☆ server'),
+          el('button', { class: 'gif-row-btn danger', type: 'button', title: 'Delete this GIF everywhere', onclick: async ev => { if (armed !== e) { armed = e; ev.target.textContent = 'Sure?'; return; } armed = null; try { const r = await api.delete(`/api/admin/gifs/${e.card.id}`); note.textContent = r?.note ?? 'Deleted.'; await load(); } catch (err) { fail(err); } } }, 'Delete')], 'gif-actions-cell')))),
         rows.length > visible ? el('button', { class: 'show-more', type: 'button', onclick: () => { visible += 24; draw(); } }, `Show ${Math.min(24, rows.length - visible)} more (${Math.max(0, rows.length - visible - 24)} left)`) : null]
         : [empty(data.entries.length ? 'No GIFs match this filter.' : 'No GIFs in the library yet.')]);
     };
@@ -512,7 +513,7 @@ export function mount(root, route) {
       const view = el('div', { class: 'gif-tags-view', title: 'Click to edit tags' }, (e.tags ?? []).length ? e.tags.map(t => el('span', { class: 'gif-tag-chip' }, t)) : el('span', { class: 'gif-tags-empty' }, 'add tags…'));
       view.addEventListener('click', () => {
         const input = el('input', { class: 'gif-tags-input', placeholder: 'comma, separated, tags', value: (e.tags ?? []).join(', ') });
-        const save = async () => { const tags = [...new Set(input.value.split(',').map(t => t.trim().toLowerCase()).filter(t => t.length >= 2 && t.length <= 64))]; try { await api.put(`/api/gifs/${e.id}/tags`, { tags }); e.tags = tags; draw(); } catch (err) { alert(err.message); } };
+        const save = async () => { const tags = [...new Set(input.value.split(',').map(t => t.trim().toLowerCase()).filter(t => t.length >= 2 && t.length <= 64))]; try { await api.put(`/api/gifs/${e.id}/tags`, { tags }); e.tags = tags; draw(); } catch (err) { fail(err); } };
         replace(cell, [el('div', { class: 'gif-tags-edit' }, input, el('button', { class: 'gif-tags-btn save', type: 'button', title: 'Save', onclick: save }, '✓'), el('button', { class: 'gif-tags-btn', type: 'button', title: 'Cancel', onclick: draw }, '✕'))]);
         input.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); save(); } else if (ev.key === 'Escape') draw(); });
         input.focus();

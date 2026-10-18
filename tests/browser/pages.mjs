@@ -4,7 +4,7 @@
 // phone. Run: npm run pages (see README.md). Screenshots go to shots/ (20-…).
 
 import { chromium } from 'playwright';
-import { BASE, SHOTS, sleep, waitTrue, step, stepLogs, finish, startServer, signIn, watchContext, watchPage } from './lib.mjs';
+import { acceptDialogs, BASE, SHOTS, sleep, waitTrue, step, stepLogs, finish, startServer, signIn, watchContext, watchPage } from './lib.mjs';
 
 const txt = async loc => ((await loc.first().innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ').trim();
 const vis = loc => loc.first().isVisible().catch(() => false);
@@ -14,9 +14,10 @@ async function menu(page, action) {
   await page.click('.status-button');
   await page.locator(`.status-dropdown [data-action="${action}"]`).click();
 }
-// Sign Out in the status menu. watchPage accepts and records every confirm; the step reads them from the log.
+// Sign Out in the status menu. acceptDialogs presses and records every confirmation; the step reads them from the log.
 async function signOut(page) {
   await menu(page, 'signout');
+  await acceptDialogs(page);
   return waitTrue(async () => pathOf(page) === '/login' && (await page.locator('.page-login').count()) > 0, 5000);
 }
 const dialogs = (n, name) => stepLogs(n, name).filter(l => l.kind === 'dialog' && l.page === name).map(l => l.text);

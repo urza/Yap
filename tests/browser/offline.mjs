@@ -3,7 +3,7 @@
 // the new-version strip, and the sign-out that empties IndexedDB. Run: npm run offline (see README.md).
 
 import { chromium } from 'playwright';
-import { SHOTS, sleep, waitTrue, short, row, step, stepLogs, fmt, finish, startServer, signIn, watchContext, watchPage, fixture, makePng, sendFiles } from './lib.mjs';
+import { acceptDialogs, SHOTS, sleep, waitTrue, short, row, step, stepLogs, fmt, finish, startServer, signIn, watchContext, watchPage, fixture, makePng, sendFiles } from './lib.mjs';
 
 // Playwright applies setOffline to the service worker only with this variable, and reads it when a worker
 // appears, so setting it here (after the hoisted imports, before the launch) is in time. Without it the worker
@@ -283,6 +283,7 @@ await step(13, 'Sign out without a connection does not sign out (AU-22)', async 
   const off = await waitTrue(async () => (await st(A)).connection === 'offline', 10000, 100);
   await A.click('.status-button');
   await A.locator('.status-dropdown [data-action="signout"]').click();
+  await acceptDialogs(A);
   const reason = await waitTrue(async () => (await A.locator('.status-dropdown-container .row-reason').innerText().catch(() => '')) === 'Needs a connection', 3000, 50);
   await sleep(500);
   const s = await st(A);
@@ -296,6 +297,7 @@ await step(13, 'Sign out without a connection does not sign out (AU-22)', async 
 await step(14, 'Sign out clears IndexedDB', async (check) => {
   await A.click('.status-button');
   await A.locator('.status-dropdown [data-action="signout"]').click();
+  await acceptDialogs(A);
   const ok = await waitTrue(async () => (await A.locator('.page-login').count()) === 1, 5000);
   check(ok, `login page: ${ok}, path ${new URL(A.url()).pathname}; dialogs ${JSON.stringify(stepLogs(14, 'A').filter(l => l.kind === 'dialog').map(l => l.text))}`);
   await sleep(500);
