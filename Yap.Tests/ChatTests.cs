@@ -5,8 +5,10 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Data.Sqlite;
 using Yap.Models.Chat;
+using Yap.Models.Media;
 using Yap.Services.Accounts;
 using Yap.Services.Chat;
+using Yap.Services.Media;
 
 namespace Yap.Tests;
 
@@ -136,6 +138,55 @@ public class ChatTests : IClassFixture<YapFactory>
         Assert.True(reply!.ReplyTo!.Voice);
         Assert.Null(reply.ReplyTo.Text);
         Assert.NotNull(_app.Service<ChatService>().Edit(_app.Service<ChatService>().GetMessage(dto.Id)!.UserId, dto.Id, "a caption"));
+    }
+
+    [Fact(DisplayName = "AD-19: the media clean-up sees a voice message's file as in use, and as unused once the message is gone")]
+    public async Task Media_cleanup_counts_voice_files()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"yap-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            await using var app = new YapFactory { SqlitePath = db };
+            var alice = await app.SignInAsync("alice_prune");
+            var chat = app.Service<ChatService>();
+            var log = app.Service<MediaUploadLogService>();
+            var cleanup = app.Service<MediaCleanupService>();
+            var aliceId = app.Service<Yap.Services.Accounts.UserService>().GetByUsername(alice.Username)!.Id;
+
+            // The upload's log row, as the tus path writes it, and a message that carries the file.
+            var stem = Guid.NewGuid();
+            log.Log(aliceId, alice.Username, "voice.webm", $"{stem}.m4a", 1234, "voice", ".m4a");
+            var sent = await alice.Http.PostAsJsonAsync($"/api/channels/{chat.LobbyId}/messages", new { clientId = Guid.NewGuid(), voice = new { url = $"/uploads/{stem}.m4a", durationMs = 3000, peaks = "0z" } });
+            Assert.Equal(HttpStatusCode.OK, sent.StatusCode);
+            var message = (await sent.Content.ReadFromJsonAsync<MessageDto>())!;
+
+            // The writer lands the rows a moment later: every check waits for it.
+            static async Task<T> Eventually<T>(Func<Task<T>> probe, Func<T, bool> ok)
+            {
+                T last = await probe();
+                for (var i = 0; i < 50 && !ok(last); i++) { await Task.Delay(100); last = await probe(); }
+                return last;
+            }
+            var row = await Eventually(async () => (await log.GetUploadsAsync()).FirstOrDefault(r => r.StoredFileName == $"{stem}.m4a"), r => r is not null);
+            Assert.NotNull(row);
+
+            var (outcome, uses, _) = await cleanup.DeleteAsync(row.Id, force: false);   // the Voice column answers the LIKE
+            Assert.Equal(MediaCleanupService.DeleteOutcome.InUse, outcome);
+            Assert.Equal(1, uses);
+            var referenced = await Eventually(() => cleanup.UnreferencedAsync(scanDatabase: true), u => u.Files == 0 && u.Recent == 0);   // the scan reads the Voice column
+            Assert.Equal(0, referenced.Recent);
+
+            Assert.Null(chat.Delete(aliceId, message.Id));
+            var orphaned = await Eventually(() => cleanup.UnreferencedAsync(scanDatabase: true), u => u.Recent == 1);
+            Assert.Equal((0, 1), (orphaned.Files, orphaned.Recent));   // unused now, but inside the grace period
+            var deleted = await Eventually(() => cleanup.DeleteAsync(row.Id, force: false), r => r.Outcome == MediaCleanupService.DeleteOutcome.Deleted);
+            Assert.Equal(MediaCleanupService.DeleteOutcome.Deleted, deleted.Outcome);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            foreach (var f in Directory.GetFiles(Path.GetDirectoryName(db)!, Path.GetFileName(db) + "*")) File.Delete(f);
+        }
     }
 
     [Fact(DisplayName = "AD-03: the startup load keeps the newest messages of each conversation, within the count and the days")]

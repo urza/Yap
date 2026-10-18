@@ -409,12 +409,14 @@ export function mount(root, route) {
       el('p', { class: 'section-hint' }, 'Deleting a message keeps its files. This finds the uploads that no message shows any more, in rooms and in direct messages, and deletes them with their thumbnails. Memory may hold only the newest messages: tick the box to scan the saved history too, so an upload in an older message stays.'));
   };
   const media = host => paged(host, { title: 'Media', route: '/api/admin/media', emptyText: 'No media uploads found.', countOf: (rows, d) => `${d?.stats?.totalFiles ?? rows.length} files`,
-    stats: s => [statCard('FFmpeg', el('span', null, el('span', { class: `status-dot ${s.ffmpeg ? 'status-online' : 'status-offline'}` }), s.ffmpeg ? 'Available' : 'Unavailable')), statCard('Total Storage', size(s.totalBytes ?? 0)), statCard('Images', String(s.images ?? 0)), statCard('Videos', String(s.videos ?? 0))],
+    stats: s => [statCard('FFmpeg', el('span', null, el('span', { class: `status-dot ${s.ffmpeg ? 'status-online' : 'status-offline'}` }), s.ffmpeg ? 'Available' : 'Unavailable')), statCard('Total Storage', size(s.totalBytes ?? 0)), statCard('Images', String(s.images ?? 0)), statCard('Videos', String(s.videos ?? 0)), statCard('Voice messages', String(s.voices ?? 0))],
     toolbar: prunePanel,
-    onRemove: (r, s) => { s.totalFiles--; s.totalBytes -= r.fileSize ?? 0; if (r.fileType === 'image') s.images--; if (r.fileType === 'video') s.videos--; },
-    filters: [{ key: 'type', options: [['', 'All types'], ['image', 'Image'], ['video', 'Video'], ['gif', 'GIF']] }, { key: 'user', placeholder: 'Filter by username...' }],
+    onRemove: (r, s) => { s.totalFiles--; s.totalBytes -= r.fileSize ?? 0; if (r.fileType === 'image') s.images--; if (r.fileType === 'video') s.videos--; if (r.fileType === 'voice') s.voices--; },
+    filters: [{ key: 'type', options: [['', 'All types'], ['image', 'Image'], ['video', 'Video'], ['voice', 'Voice'], ['gif', 'GIF']] }, { key: 'user', placeholder: 'Filter by username...' }],
     columns: ['Preview', 'Date', 'User', 'File', 'Type', 'Size', 'Processing', ''],
-    rowOf: (r, _, remove) => el('tr', null, td(r.thumb ? el('a', { href: r.link ?? r.thumb, target: '_blank', rel: 'noopener' }, el('img', { src: r.thumb, alt: '', class: 'admin-thumb', loading: 'lazy' })) : null),
+    // A voice message has no picture: a small player stands in the preview cell (AD-19).
+    rowOf: (r, _, remove) => el('tr', null, td(r.thumb ? el('a', { href: r.link ?? r.thumb, target: '_blank', rel: 'noopener' }, el('img', { src: r.thumb, alt: '', class: 'admin-thumb', loading: 'lazy' }))
+                                              : r.fileType === 'voice' && r.link ? el('audio', { controls: true, preload: 'none', src: r.link, class: 'admin-audio' }) : null),
       td(stamp(r.date), 'date-cell'), td(r.username), td(r.originalFileName, 'info-cell'), td(pill(r.fileType, r.fileType === 'video' ? 'action-video' : 'action-default')), td(size(r.fileSize ?? 0)), td(r.compressDurationMs ? `${(r.compressDurationMs / 1000).toFixed(1)}s` : '-'),
       td(r.deletable ? deleteButton(r, remove) : null, 'gif-actions-cell')) });
   const visitorsRow = (r, toggle) => el('tr', { class: 'clickable-row', onclick: toggle }, td(stamp(r.date), 'date-cell'), td(r.ip ?? '---', 'ip-mono'), td(pill(r.action, actionClass(r.action))), td(r.reason ?? r.url ?? r.info ?? ''), td((r.userAgent ?? '').slice(0, 60), 'ua-cell'));

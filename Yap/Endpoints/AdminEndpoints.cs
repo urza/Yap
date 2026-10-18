@@ -204,12 +204,12 @@ public static class AdminEndpoints
         admin.MapGet("/media", async (string? type, string? user, int? skip, MediaUploadLogService media, GifService gifs, PersistenceWriter writer) =>
         {
             if (!writer.Enabled) return Results.Ok(new { available = false });
-            var (files, bytes, images, videos) = await media.GetStatsAsync();
+            var (files, bytes, images, videos, voices) = await media.GetStatsAsync();
             var rows = await media.GetLogsAsync(string.IsNullOrWhiteSpace(user) ? null : user, string.IsNullOrWhiteSpace(type) ? null : type, skip ?? 0, 100);
             return Results.Ok(new
             {
                 available = true,
-                stats = new { ffmpeg = VideoService.IsAvailable, totalFiles = files, totalBytes = bytes, images, videos },
+                stats = new { ffmpeg = VideoService.IsAvailable, totalFiles = files, totalBytes = bytes, images, videos, voices },
                 rows = rows.Select(r => MediaRow(r, gifs)).ToList(),
             });
         });
@@ -384,11 +384,12 @@ public static class AdminEndpoints
         {
             case "image": thumb = $"/uploads/{stem}_800px.webp"; link = $"/uploads/{r.StoredFileName}"; break;
             case "video": thumb = $"/uploads/{stem}_poster.webp"; link = r.CompressDurationMs.HasValue ? $"/uploads/{stem}.mp4" : $"/uploads/{r.StoredFileName}"; break;
+            case "voice": link = $"/uploads/{r.StoredFileName}"; break;   // no picture: the page shows a small player on the link
             case "gif":
                 if (Guid.TryParse(stem, out var id) && gifs.GetEntry(id) is { } e) { thumb = e.PreviewUrl ?? e.GifUrl ?? e.RemoteGifUrl; link = e.GifUrl ?? e.RemoteGifUrl; }
                 break;
         }
-        return new { r.Id, r.Date, r.Username, r.OriginalFileName, r.FileType, r.FileSize, r.CompressDurationMs, thumb, link, deletable = r.FileType is "image" or "video" };
+        return new { r.Id, r.Date, r.Username, r.OriginalFileName, r.FileType, r.FileSize, r.CompressDurationMs, thumb, link, deletable = r.FileType is "image" or "video" or "voice" };
     }
 
     // The failure codes the sign-in service writes, as the Visitors tab shows them (AD-20).

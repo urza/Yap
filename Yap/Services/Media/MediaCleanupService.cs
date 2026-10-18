@@ -47,7 +47,7 @@ public sealed class MediaCleanupService
     {
         var row = await _log.GetAsync(id);
         if (row is null) return (DeleteOutcome.NotFound, 0, 0);
-        if (row.FileType is not ("image" or "video") || StemOf(row.StoredFileName) is not { } stem) return (DeleteOutcome.NotAnUpload, 0, 0);
+        if (row.FileType is not ("image" or "video" or "voice") || StemOf(row.StoredFileName) is not { } stem) return (DeleteOutcome.NotAnUpload, 0, 0);
         var uses = await UseCountAsync(stem);
         if (uses > 0 && !force) return (DeleteOutcome.InUse, uses, 0);
         var bytes = DeleteFiles(stem);
@@ -99,9 +99,12 @@ public sealed class MediaCleanupService
         foreach (var url in _chat.MediaUrls()) if (StemOf(url) is { } stem) stems.Add(stem);
         if (!scanDatabase || _dbFactory is null) return stems;
         await using var db = await _dbFactory.CreateDbContextAsync();
-        // Streamed one row at a time, so a long history never lands in memory at once.
-        await foreach (var row in db.Messages.AsNoTracking().Select(m => new { m.ImageUrls, m.VideoUrls }).AsAsyncEnumerable())
+        // Streamed one row at a time, so a long history never lands in memory at once. A voice message is one file.
+        await foreach (var row in db.Messages.AsNoTracking().Select(m => new { m.ImageUrls, m.VideoUrls, m.Voice }).AsAsyncEnumerable())
+        {
             foreach (var url in row.ImageUrls.Concat(row.VideoUrls)) if (StemOf(url) is { } stem) stems.Add(stem);
+            if (row.Voice is { } voice && StemOf(voice.Url) is { } voiceStem) stems.Add(voiceStem);
+        }
         return stems;
     }
 
@@ -111,9 +114,9 @@ public sealed class MediaCleanupService
         var inMemory = _chat.MediaUrls().Count(url => StemOf(url) == stem);
         if (_dbFactory is null) return inMemory;
         await using var db = await _dbFactory.CreateDbContextAsync();
-        // The media lists are JSON text columns, so the match is one LIKE on the stem: no rows loaded.
+        // The media lists and the voice attachment are JSON text columns, so the match is one LIKE on the stem: no rows loaded.
         var pattern = $"%{stem}%";
-        var saved = await db.Database.SqlQuery<int>($"SELECT COUNT(*) AS Value FROM Messages WHERE ImageUrls LIKE {pattern} OR VideoUrls LIKE {pattern}").SingleAsync();
+        var saved = await db.Database.SqlQuery<int>($"SELECT COUNT(*) AS Value FROM Messages WHERE ImageUrls LIKE {pattern} OR VideoUrls LIKE {pattern} OR Voice LIKE {pattern}").SingleAsync();
         return Math.Max(inMemory, saved);   // the writer lags memory by a batch, so the larger count is the truth
     }
 
