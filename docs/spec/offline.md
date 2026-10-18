@@ -44,6 +44,8 @@ Yap runs in the browser and can also be installed as an app on a phone or a desk
 
 **OF-16** A sign-out removes every draft, pending message, cached conversation and notification subscription of the previous account. A sign-in of a different account on the device does the same.
 
+**OF-17** When Yap is open in several tabs, one tab sends the pending messages of all of them. A tab that shows the new-version notice ([SH-20](frame.md#SH-20)) hands this over to a tab on the new version, when one is open, and takes it back when no such tab is left. Messages written in the old tab still go out.
+
 ## States
 
 | State or trigger | Input | What the user sees |
