@@ -1,5 +1,5 @@
 // The GIF picker (pickers.md, PK-13 to PK-42): the rail, the search row, the results, favourites with
-// folders, the server library, trending, Browse, the upload. A card tap sends; a star only stars.
+// folders, the server library, Browse (the provider's trending GIFs), the upload. A card tap sends; a star only stars.
 
 import { state, on, toggleFavoriteLocally } from '../store.js';
 import { uploadOne } from '../upload.js';
@@ -25,7 +25,7 @@ export function GifPicker({ onSend, onWarn }) {
   const provider = () => state.config?.gifProvider;
   const configured = () => !!provider()?.configured;
 
-  let tab = null;                 // 'recent' | 'favorites' | 'server' | 'trending' | 'browse'
+  let tab = null;                 // 'recent' | 'favorites' | 'server' | 'browse'
   let folder = null;              // the open folder of favorites or server
   let cache = { recent: null, favorites: null, server: null, trending: null };
   let trendingCursor = null, trendingFailed = false;
@@ -39,7 +39,6 @@ export function GifPicker({ onSend, onWarn }) {
   async function opened() {
     search.value = ''; searching = null; clear.hidden = true;
     search.placeholder = configured() ? `Search ${provider().name}...` : 'Search your library...';   // PK-23
-    picker.querySelector('[data-tab="trending"]').disabled = !configured();                           // PK-13
     if (!everOpened) {
       everOpened = true;
       await Promise.all([load('recent'), load('favorites'), load('server')]);
@@ -57,8 +56,8 @@ export function GifPicker({ onSend, onWarn }) {
       if (b.disabled || b.dataset.tab === tab) return;                                                // PK-15
       tab = b.dataset.tab; folder = null;
       search.value = ''; searching = null; clear.hidden = true;
-      load(tab === 'trending' || tab === 'browse' ? null : tab);
-      if ((tab === 'trending' || tab === 'browse') && configured()) loadTrending(true);
+      load(tab === 'browse' ? null : tab);
+      if (tab === 'browse' && configured()) loadTrending(true);
       render();
     });
   }
@@ -110,7 +109,7 @@ export function GifPicker({ onSend, onWarn }) {
   function render() {
     for (const b of rail.querySelectorAll('.category-btn')) b.classList.toggle('active', b.dataset.tab === tab);
     picker.querySelector('[data-tab="server"]').hidden = !cache.server?.gifs.length;                   // PK-13
-    const showAttribution = configured() && (searching || tab === 'trending' || tab === 'browse');     // PK-30
+    const showAttribution = configured() && (searching || tab === 'browse');                           // PK-30
     attribution.hidden = !showAttribution;
     if (showAttribution) { const img = attribution.querySelector('img'); img.src = provider().attributionImageUrl; img.alt = provider().name; }
 
@@ -119,7 +118,6 @@ export function GifPicker({ onSend, onWarn }) {
       case 'recent': replace(results, cache.recent?.gifs.length ? [grid(cache.recent.gifs, true)] : [empty('No recent GIFs yet')]); break;
       case 'favorites': replace(results, folderedView(cache.favorites, { empty: '⭐ Tap the star on any GIF to save it here', back: 'Back to Favorites', manage: true })); break;
       case 'server': replace(results, folderedView(cache.server, { empty: 'No server GIFs yet', back: 'Back to the server library', manage: false })); break;
-      case 'trending': replace(results, trendingView(false)); break;
       case 'browse': replace(results, browseView()); break;
     }
   }
@@ -164,11 +162,11 @@ export function GifPicker({ onSend, onWarn }) {
     return tile;
   }
 
-  function trendingView(withHeader) {
-    if (!configured()) return [empty(`${provider()?.name ?? 'GIF provider'} not configured. Set ChatSettings:GifSettings:Klipy:ApiKey in appsettings.json.`)];
+  // The trending feed has no tab of its own; it is the lower part of Browse (PK-18).
+  function trendingView() {
     if (trendingFailed) return [empty(state.connection === 'connected' ? 'Could not load GIFs' : 'Needs a connection')];   // PK-49
     if (!cache.trending) return [empty('Loading…')];
-    const nodes = withHeader ? [header('Trending')] : [];
+    const nodes = [header('Trending')];
     nodes.push(grid(cache.trending, false));
     if (trendingCursor) nodes.push(loadMore(() => loadTrending()));
     return nodes;
@@ -180,7 +178,7 @@ export function GifPicker({ onSend, onWarn }) {
     if (cache.favorites?.gifs.length) tiles.push(folderTile('Favorites', cache.favorites.gifs, () => { tab = 'favorites'; render(); }));
     if (cache.server?.gifs.length) tiles.push(folderTile(state.config?.projectName ?? 'Yap', cache.server.gifs, () => { tab = 'server'; render(); }));
     if (tiles.length) nodes.push(el('div', { class: 'gif-tile-grid' }, tiles));
-    if (configured()) nodes.push(...trendingView(true));
+    if (configured()) nodes.push(...trendingView());
     else if (!tiles.length) nodes.push(empty('Nothing here yet'));
     return nodes;
   }
