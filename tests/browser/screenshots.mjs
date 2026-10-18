@@ -450,8 +450,8 @@ await picture(12, 'pickers-desktop-gif-browse.png', () => A, async (A, check) =>
   need(await waitTrue(() => visible(picker.locator('.gif-folder-tile')), 5000), 'no Favorites tile');
   await quiet(A); await settle(A, 600);
   const tab = await picker.locator('.gif-sidebar .category-btn.active').getAttribute('data-tab');
-  const trending = await picker.locator('[data-tab="trending"]').isDisabled();
-  check(tab === 'browse' && trending, `active tab "${tab}", Trending disabled ${trending}, tile "${await text(picker.locator('.gif-folder-tile'))}", search "${await picker.locator('.gif-search > input[type=text]').getAttribute('placeholder')}"`);
+  const tabs = await picker.locator('.gif-sidebar .category-btn:visible').evaluateAll(els => els.map(e => e.dataset.tab));
+  check(tab === 'browse' && !tabs.includes('trending'), `active tab "${tab}", rail ${tabs.join(',')}, tile "${await text(picker.locator('.gif-folder-tile'))}", search "${await picker.locator('.gif-search > input[type=text]').getAttribute('placeholder')}"`);
   const c = await column(A), p = await box(picker);
   await save(A, 'pickers-desktop-gif-browse.png', clip(A, { x0: c.x0, x1: Math.max(c.x1, p.x1 + 12), y0: p.y0 - 12, y1: c.y1 }));
   await A.keyboard.press('Escape');
