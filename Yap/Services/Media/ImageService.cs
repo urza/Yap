@@ -174,7 +174,9 @@ public class ImageService
             }
 
             var outputPath = Path.Combine(_profiles, $"{userId}.webp");
-            var urlPath = $"/uploads/profiles/{userId}.webp";
+            // The file keeps one name per user and is overwritten in place. A browser keys its image cache on the
+            // whole URL, so the upload time in the query is what makes every open client fetch the new picture.
+            var urlPath = $"/uploads/profiles/{userId}.webp?v={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
 
             using var image = await Image.LoadAsync(imageStream);
             image.Mutate(x => x
