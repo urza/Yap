@@ -220,3 +220,37 @@ mechanism behind the p95 climbing from 186 ms to 600 ms while the process stays 
 
 The socket sends and the GC are what the load costs: 40 MB/s out over 6,000 connections, and allocations the
 next trace can name with the GC provider on.
+
+## Run 6, the proxy off (2026-10-19 01:15 to 01:27 local, main at bc08f2fb, Caddy in front of Kestrel, no Cloudflare)
+
+Files in `run06/`: the orchestrator's results, `host-06.csv`, `server-load.csv`. The ramp went 1,000 → 1,500 →
+1,750 → 2,000 → 2,500 → 2,750 → 3,500 → 4,000 with holds of 30 to 60 s. The user typed and sent from a tab
+at 3,000 users and called it the most responsive run; the virtual users tell a different story above 2,000.
+
+| Level | Send to appear p50 / p95 | Box CPU | Yap | Outside Yap | TCP | Net out | Errors |
+|---|---|---|---|---|---|---|---|
+| 1,000 | 75 / 100 ms | 53 % | 1.6 cores | 0.6 cores | 2,457 | 19 MB/s | 0 |
+| 1,500 | 100 / 200 ms | 95 % | 2.7 | 1.1 | 5,349 | 24 MB/s | 0 |
+| 2,000 | 200 / 750 ms | 98 % | 2.9 | 1.0 | 6,555 | 42 MB/s | 52 |
+| 2,500 | 1,500 / 3,000 ms | 94 % | 3.4 | 0.4 | 7,613 | 50 MB/s | 49 |
+| 2,750 | 750 / 5,000 ms | 97 % | 3.3 | 0.6 | 8,336 | 65 MB/s | 69 |
+| 4,000 asked | collapse: p95 48 s, 27,935 reconnects, 10,079 hub 502s | | | | | | |
+
+**The proxy was not the cost.** Through Cloudflare the box saw about three TCP connections per user; through
+Caddy it sees the same, because Caddy holds one connection to the client and one to Kestrel per WebSocket. The
+kernel's share stayed about one core. Up to 2,000 the levels match runs 4 and 5 within the noise. The
+responsiveness the user felt is the sidebar window from bc08f2fb, with one hop less on the user's own path.
+
+**The orchestrator could not connect more than about 2,760 users**, and from 2,500 on the hub gave 502s. The
+server's own samples show why, and it is the writer bug of this evening, not the proxy. At 01:19 (23:19 UTC) the
+coalesced read-state flush began to fail its foreign keys by the hundred: a direct message's channel insert was
+still in the queue when the read state that points at it was flushed, and a failing slice of 500 was redone as
+500 single commits, the slow path on SQLite. From there the writer's depth climbed to 18,508, the thread pool sat
+at 91 to 93 threads with a queue median of 2,000 to 4,500, the presence sweep took up to 7 s, the working set
+1.6 GB, and the collector ran up to 900 gen 2 collections a minute. Kestrel could not answer in time, Caddy
+answered 502 for it, and 2,201 read states were dropped in an hour. The status report from the VPS named the
+cause; the fix is in the commit after this report: the flush waits for an empty queue, and a failed slice stays
+whole for the next flush instead of being taken apart.
+
+**What this run cannot say** is the ceiling without the proxy above 2,000, because the writer took the box down
+first. Run 4 at 2,000 with the proxy on, p95 614 ms, stands as the comparison until a run with the fix.
