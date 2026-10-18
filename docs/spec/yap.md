@@ -10,6 +10,8 @@ An account has a username, chosen once, and an optional display name, avatar, bi
 
 A person joins by an invite link, or by registration while the admin keeps registration open. Sign-in has no password. A device stays signed in. A device on a known network signs in with the username alone. A login link signs in any other device. The code of the link also works as a typed code. A secret code is a retired way in that older accounts can still have. See [Sign-in and sessions](sessions.md).
 
+The admin can delete an account, except the admin and the bot. See [Administration](admin.md#AD-38).
+
 ## Rooms and direct messages
 
 Every room is visible to every member. The lobby is the default room and cannot be deleted. The admin can make a room admin-only, which makes it read-only for the other members, and can limit how far back non-admins see its history. Each room has a description and a position in the list, both set by the admin.

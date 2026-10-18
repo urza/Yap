@@ -41,7 +41,7 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 
 **TL-08** Older messages loaded during a visit stay loaded until the user leaves the conversation. When the user returns to a conversation, it opens as TL-01 describes.
 
-**TL-09** When all history is loaded, the top note shows in place of the loading row. In a room, the note is the restricted note "Older messages are not available in this channel" when TL-05 hides messages. Otherwise, the note is the room's description, with one line for each line break. When there is no description, the note is "This is the beginning of #{room}". In a direct message, the note is the italic line "This is the beginning of your direct message history with {username}.", with the name in bold.
+**TL-09** When all history is loaded, the top note shows in place of the loading row. The history starts at the oldest message that the server loaded at its start ([AD-03](admin.md#AD-03)). Older messages in the saved history do not show. In a room, the note is the restricted note "Older messages are not available in this channel" when TL-05 hides messages. Otherwise, the note is the room's description, with one line for each line break. When there is no description, the note is "This is the beginning of #{room}". In a direct message, the note is the italic line "This is the beginning of your direct message history with {username}.", with the name in bold.
 
 ### Following the bottom
 
@@ -106,6 +106,14 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 **TL-34** Without a connection, the list shows the last messages that it had for the conversation. The user can read and scroll them. The user cannot get older messages that were not loaded. The top of the list shows "Needs a connection" in place of the loading row.
 
 **TL-35** When the connection returns, the newest messages load again and the loaded rows are updated. When more messages arrived than one page holds, the missing messages load as the user scrolls up. If the view did not follow, it stays where it is. If the view followed, it stays at the bottom.
+
+### Pinned messages
+
+**TL-36** Retired 2026-10-18. The pinned messages bar is removed. A pin button in the header opens a panel with the pins, see [SH-47 to SH-49](frame.md#SH-47).
+
+**TL-37** Retired 2026-10-18. The bar is removed. The panel follows edits, deletes, pins and unpins, see [SH-47 to SH-49](frame.md#SH-47).
+
+**TL-38** Retired 2026-10-18. The bar is removed. A tap on an entry of the panel goes to the message, see [SH-47 to SH-49](frame.md#SH-47).
 
 ## States
 

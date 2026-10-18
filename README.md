@@ -25,6 +25,8 @@ cd Yap && dotnet run
 
 The addresses are in `Yap/Properties/launchSettings.json`. No database is needed; see `CONFIG_README.md` for the options.
 
+The GIF pipeline, video uploads and voice messages use `ffmpeg` and `ffprobe` from the PATH, the same binaries for all three. The Docker image ships them. A server without ffmpeg cannot take voice messages. The send of a voice message then fails with "Voice messages are unavailable on this server (ffmpeg missing)".
+
 The launch profiles do not open a browser (`launchBrowser: false`). Open the address yourself. When Visual
 Studio starts the browser as part of an F5 session, it attaches its JavaScript debugger to it, and on one
 Windows machine (Brave, 2026-10-15) that session ended at the first picture upload and took the server
@@ -49,6 +51,8 @@ with it, exit code -1. Start Without Debugging and `dotnet run` were never affec
 - **Mobile responsive** - Works great(TM) on all devices with collapsible sidebar
 - **PWA installable** - Add to home screen on mobile, install as app on desktop, get notifications
 - **Image/Video sharing** - Upload image(s) or videos and see them in inline gallery
+- **Voice messages** - Record from the + menu, up to 5 minutes, and play inline with a waveform and a speed button. Needs ffmpeg on the server
+- **Pinned messages** - Up to 3 per conversation, in a panel behind the header's pin button. The admin picks who can pin in each room
 - **Social media previews/embeds** - Yap downloads that tiktok/youtube video so users dont need to go to these evil sites
 
 

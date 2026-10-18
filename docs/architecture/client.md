@@ -23,7 +23,6 @@ wwwroot/
     hub.js                the SignalR connection, its retry loop, the hub messages, the heartbeat
     router.js             URL to page, history, the last route
     session.js            sign-in and sign-out as the client sees them
-    catalog.js            the emoji catalogue, loaded once per build
     sender.js             the outbox: pending rows, uploads, the post loop, the rows on disk
     upload.js             files to the TUS endpoint, with progress
     notify.js             the sound, the tab title, the app badge
@@ -42,6 +41,11 @@ wwwroot/
     ui/gallery.js         the image viewer
     ui/overlays.js        the layer stack, Escape, taps outside, popup placement
     ui/gif-library.js     the GIF library manager of Settings and of the admin's server library
+    ui/confirm.js         the app's own dialogs in the theme, confirm() and notice(), never the browser's
+    ui/pins.js            the pinned messages panel under the header's pin button (SH-47 to SH-49)
+    ui/recorder.js        the microphone recorder of the input box and the waveform it measures (IB-67 to IB-69)
+    ui/tooltip.js         the explanation bubbles of the admin pages (AD-25)
+    ui/voice.js           the voice message player of a row, and the bars that it and the recorder draw (MR-76)
     offline/db.js         the IndexedDB database
     offline/snapshot.js   the stored bootstrap and the stored conversation tails
     offline/outbox.js     the unsent messages on disk
@@ -126,7 +130,7 @@ Four kinds of module:
   <text x="590" y="268" class="s">writes</text>
 
   <rect x="680" y="290" width="150" height="44" class="box"/>
-  <text x="755" y="317" class="t">offline/sender.js</text>
+  <text x="755" y="317" class="t">sender.js</text>
   <path d="M680 312 H 622" class="e"/>
   <path d="M755 288 V 246" class="e"/>
   <text x="790" y="268" class="s">wakes on connect</text>
@@ -181,7 +185,7 @@ The part names are the field names of the bootstrap document, plus `connection`,
 // js/hub.js (sketch)
 import * as store from './store.js';
 import { api } from './api.js';
-import * as sender from './offline/sender.js';
+import * as sender from './sender.js';
 
 const connection = new signalR.HubConnectionBuilder()
   .withUrl(`/hub?device=${deviceId()}`)          // the device id is a random id in localStorage (AU-19)
@@ -202,7 +206,7 @@ connection.on('rooms',          rooms => store.setRooms(rooms));
 connection.on('dm',             dm => store.addDm(dm));
 connection.on('me',             partial => store.mergeMe(partial));
 connection.on('gifFavorites',   ids => store.setFavoriteGifs(ids));
-connection.on('signedOut',      () => signedOut());
+connection.on('signedOut',      () => signedOut());   // stop, then the handler main.js installs: session.signedOut({ elsewhere: true }) (AU-21)
 
 connection.onclose(() => { setState(navigator.onLine ? 'reconnecting' : 'offline'); retryLater(); });
 
@@ -242,7 +246,7 @@ async function request(method, url, body) {
                                  body: body && JSON.stringify(body) }); }
   catch { throw new ApiError(0, 'Needs a connection'); }                       // network error (GEN-10)
   if (res.ok) return res.status === 204 ? null : res.json();
-  if (res.status === 401) { signedOut(); }
+  if (res.status === 401) signedOutHandler();                                  // main.js installs session.signedOut({ elsewhere: true }): the login page says so (AU-21)
   const problem = await res.json().catch(() => null);
   throw new ApiError(res.status, problem?.detail ?? 'Something went wrong');   // ProblemDetails (GEN-02)
 }

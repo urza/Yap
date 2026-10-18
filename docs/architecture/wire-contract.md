@@ -31,7 +31,7 @@ What the client keeps across a reconnect: the view position, the draft, the pend
 {
   user:   { id, username, displayName, avatarUrl, isAdmin, theme, fontSize, timeZone, locale,
             dateFormat, status, smartLoginOptOut, hasPassphrase, hasLink, createdAt },
-  config: { projectName, uploadUrl, maxUploadMB, beaconUrl, beaconNonce, linkPreviews, mediaCaching,
+  config: { projectName, uploadUrl, maxUploadMB, voiceMaxSeconds, beaconUrl, beaconNonce, linkPreviews, mediaCaching,   // voiceMaxSeconds: the recorder's cap, 300 (IB-69)
             gifProvider: { name, configured, attributionImageUrl }, vapidPublicKey, buildStamp, smartLoginAllowed,
             themes: [ { id, name, previewBg, previewAccent, hasGradient } ] },
   texts:  { roomHeaders[], placeholders[], typingOne[], typingTwo[], typingMany[], peopleHeaders[],
@@ -88,12 +88,13 @@ The client calls the methods with these camelCase names; SignalR matches the ser
 | `typing` | channelId, username, on | same | The client drops a typist 3.5 s after the last `on`. |
 | `presence` | username, "online" \| "away" \| "offline", kind: "join" \| "leave" \| "change" | all | Invisible is sent as offline (PR-05). Offline after the 5 min grace (PR-16). The client derives join and leave lines from offline↔online (MR-73). |
 | `profile` | `User` | all | A new account, or a display name, avatar, bio or location changed (ST-07, SH-33). |
+| `accountDeleted` | username | all | The admin deleted the account (AD-40). The client drops the person from `users` and `presence`, and the direct message with them from `dms` and `unread`. |
 | `rooms` | rooms[] | all | Created, updated, reordered or deleted (SH-25). The client leaves a deleted open room (TL-21) and derives read-only from `adminOnly` and `user.isAdmin` (IB-62). |
 | `unread` | channelId, count | user | After a send or a read on any device (NT-01). |
 | `dm` | `{ channelId, partner, lastMessageAt }` | both users | A direct message got its first message. Opening an empty DM sends nothing (SH-29). |
 | `me` | partial `user` + partial `mutes` + `emoji` | user | Theme, text size, date format, status, mutes or recent emoji changed on any device (ST-10, NT-22). |
 | `gifFavorites` | favoriteGifIds[] | user | A star changed anywhere (PK-36). |
-| `signedOut` | | user's other devices | Token rotated by "Sign out all other devices" (AU-20). The connection is closed after the event. |
+| `signedOut` | | user's other devices; every connection of a deleted account | Token rotated by "Sign out all other devices" (AU-20), or the admin deleted the account: each of its connections gets the event before the delete (AD-40). The connection is closed after the event. |
 | `pending` | pending[] | admins | A registration request arrived or was decided (AD-11). |
 | `gifImport` | `{ importId, actorUserId, serverTarget, done, total, skippedOrFailed, completed, error }` | the importer | Progress of a GIF zip import (ST-22). |
 
@@ -102,10 +103,11 @@ The client calls the methods with these camelCase names; SignalR matches the ser
 ```
 Message {
   id, channelId, clientId?, username, text, timestamp, edited,
-  replyTo: { id, username, text, hasMedia } | { id, unavailable: true } | null,
+  replyTo: { id, username, text, hasMedia, voice } | { id, unavailable: true } | null,   // voice: the original is a voice message, quoted as "Voice message" (MR-32)
   images:  [ { medium, large } ],
   videos:  [ { poster, src } ],
   gifs:    [ { entryId, src, isImage, width, height, uploader } ],
+  voice:   { src, durationMs, peaks } | null,       // MR-76. peaks: a string, one base-36 digit per bar, as the recorder measured them
   reactions: [ { emoji, users: [username] } ],      // in first-use order (MR-38)
   previews:  [ { url, siteName, title, description, imageUrl,
                  media?: { type, src, poster, width, height, durationSeconds } } ]
@@ -167,9 +169,9 @@ All anonymous except sign-out. The reasons behind each are on the [sign-in page]
 
 | Route | Purpose |
 | --- | --- |
-| `POST /api/channels/{id}/messages` | `{ clientId, text?, replyToId?, images?, videos?, gifs?: [ { entryId } \| { provider: {...}, searchText } ] }` → 200 `Message` as soon as it is in memory; the database write is queued, not awaited. Idempotent on `(user, clientId)` for one day; a second post while the first is still being stored gets 409 and the client tries again later. The `message` hub event can arrive before this response; the client treats both as the same confirmation (new). `replyToId` must name a message of the same conversation; another conversation's message is refused with 400 (GEN-04). A `provider` item must be one this server showed in a recent search or trending answer; the server sends its own copy of the item and never the client's URLs (PK-20). See [Message path](message-path.md). |
+| `POST /api/channels/{id}/messages` | `{ clientId, text?, replyToId?, images?, videos?, gifs?: [ { entryId } \| { provider: {...}, searchText } ], voice?: { url, durationMs, peaks } }` → 200 `Message` as soon as it is in memory; the database write is queued, not awaited. Idempotent on `(user, clientId)` for one day; a second post while the first is still being stored gets 409 and the client tries again later. The `message` hub event can arrive before this response; the client treats both as the same confirmation (new). `replyToId` must name a message of the same conversation; another conversation's message is refused with 400 (GEN-04). A `provider` item must be one this server showed in a recent search or trending answer; the server sends its own copy of the item and never the client's URLs (PK-20). See [Message path](message-path.md). |
 | `POST /api/dm/{username}/messages` | The same body and answer; the server finds or creates the direct message with `username` (404 for an unknown name). The outbox addresses a direct message by its partner, because a conversation never opened on the device has no channel id (OF-08) (new). |
-| `/api/tus`, `GET /api/tus/info/{id}` | kept. An upload in progress answers its creator only (another person's HEAD, PATCH or DELETE gets 404); an unfinished upload expires a day after its last chunk. The info route needs the cookie and answers the uploader once, with `{ url, type }` and no server path (new). |
+| `/api/tus`, `GET /api/tus/info/{id}` | kept. An upload in progress answers its creator only (another person's HEAD, PATCH or DELETE gets 404); an unfinished upload expires a day after its last chunk. The info route needs the cookie and answers the uploader once, with `{ url, type }` and no server path (new). An upload with the metadata `kind: voice` is transcoded to `.m4a`: the answer is `{ type: "voice", url, durationMs }`, or `{ type: "error", error }`. Without ffmpeg the create is refused with 400 "Voice messages are unavailable on this server (ffmpeg missing)" (IB-71). |
 | `GET /api/ipv4-beacon` | kept |
 
 ### GIFs
@@ -177,7 +179,7 @@ All anonymous except sign-out. The reasons behind each are on the [sign-in page]
 | Route | Purpose |
 | --- | --- |
 | `GET /api/gifs/recent`, `/favorites`, `/server` | The picker tabs (PK-16, PK-32, PK-37). Favorites and server return `{ folders[], gifs[] }` (new). |
-| `GET /api/gifs/trending?cursor=`, `GET /api/gifs/search?q=&cursor=` | Provider pages of 30 (PK-17, PK-24, PK-28). Trending returns `{ items[], nextCursor }`; search returns `{ library[], provider[], nextCursor }`; the provider list is empty without a provider or when it does not answer (PK-29, PK-31) (new). |
+| `GET /api/gifs/trending?cursor=`, `GET /api/gifs/search?q=&cursor=` | Provider pages of 30 (PK-18, PK-24, PK-28). Trending returns `{ items[], nextCursor }`; search returns `{ library[], provider[], nextCursor }`; the provider list is empty without a provider or when it does not answer (PK-29, PK-31) (new). |
 | `PUT /api/gifs/{id}/favorite` `{ on, folder? }` | Star, unstar, or file into a folder (PK-21, PK-34) (new). 404 for an entry the person may not use: another person's upload that was never sent in a conversation and never starred by the person (the search rule). The same rule applies to a send by `entryId`. |
 | `PUT /api/gifs/{id}/tags` `{ tags[] }` | The uploader of an own upload, or the admin; 404 for everyone else (new). |
 | `DELETE /api/gifs/{id}` | Own upload (ST-24). 200 with a note when the GIF is still used and was only unstarred (new). |
@@ -197,7 +199,7 @@ A GIF card: `{ id, preview, src, isImage, width, height, favorite, folder, tags[
 
 | Route | Purpose |
 | --- | --- |
-| `POST /api/rooms`, `PATCH /api/rooms/{id}`, `DELETE /api/rooms/{id}`, `POST /api/rooms/{id}/move` `{ up }` | AD-29..35 (new). |
+| `POST /api/rooms`, `PATCH /api/rooms/{id}`, `DELETE /api/rooms/{id}`, `POST /api/rooms/{id}/move` `{ up }` | AD-29..35, AD-37 (new). The POST and PATCH body is `{ name, description?, adminOnly, historyLimit?, sinceJoined?, pinPermission?, pinners? }`. `pinPermission` and `pinners` are optional: on a PATCH, a missing one leaves the room's value unchanged, so a tab on an older build that sends neither keeps the pin setting (SH-50). A POST without `pinPermission` starts the room with `adminOnly`. A missing `historyLimit` or `sinceJoined` means `oneMonth` and `true`, on a PATCH too. |
 
 ### Admin
 
@@ -207,16 +209,22 @@ All behind the admin policy: 404 to everyone else. Reads compose from the servic
 | --- | --- |
 | `GET /api/admin/users` | `{ users[], themes[], total }`: every account with its id, with its status pill (online, away, invisible, offline), PWA, created, last action, zone and locale, recent addresses with countries; the themes in order of use (AD-04, AD-07). Read when the page loads (GEN-22). |
 | `GET /api/admin/users/{username}` | `{ pushSubscriptions, pwaInstalledAt, theme, ips[], userAgents[] }` (AD-05). |
+| `GET /api/admin/inactive?days=N` | AD-39. `{ users: [ { username, displayName, avatarUrl, lastActiveAt } ] }`, oldest first. `days` defaults to 90, at least 1. Not under `/users/`, so a person named "inactive" keeps their detail route. |
+| `POST /api/admin/users/delete` `{ usernames }` | AD-38 to AD-40. One route for one account and for the sweep. A refusal (the admin, the bot) stops the request before anything is deleted, 400 with the reason; a name that is gone already is skipped. Each connection of the account gets `signedOut` first. Answers `{ deleted }`. |
 | `POST /api/admin/generate` `{ channelId, count, hours }` | AD-08. Test messages add no unread counts. |
-| `GET /api/admin/bot`, `PUT /api/admin/bot` `{ displayName?, welcomeMessage? }` | AD-09. |
+| `GET /api/admin/bot`, `PUT /api/admin/bot` `{ displayName?, welcomeMessage?, phoneMessage?, linkMessage? }` | AD-09. The GET answers `{ username, displayName, avatarUrl, customAvatar, serverName, welcomeMessage, phoneMessage, linkMessage }`. On the PUT a missing part keeps its text; a display name has at most 32 characters and each part at most 1000 (400 otherwise). |
+| `PUT /api/admin/bot/avatar` (multipart `file`), `DELETE /api/admin/bot/avatar` | AD-09. The PUT answers `{ avatarUrl }`, or 400 "Choose an image up to 10 MB"; the DELETE brings the default picture back (204). |
 | `GET /api/admin/settings`, `PUT /api/admin/settings` `{ registrationClosed?, requireApproval?, smartLogin?, linkPreviews?, mediaCaching?, gifRating? }` | AD-10, AD-12, AD-13, AD-14. The GET carries `persistence`, `mediaCachingAvailable`, the deployment values and the pending list. |
 | `POST /api/admin/pending/{username}/approve`, `.../reject` | AD-11. The pending list arrives in the settings answer; the admin's connections also receive the `pending` hub message. |
 | `GET /api/admin/links`, `POST /api/admin/links` `{ userId?, note?, expiresAt? }`, `DELETE /api/admin/links/{id}`, `PUT /api/admin/links/{id}/expiry` | AD-15 to AD-17. `{ open[], users[] }`; a code shows only while the admin may see it. |
 | `GET /api/admin/logs`, query `action`, `user`, `skip` (all optional) | AD-18. `{ available, rows[] }`, 100 rows a page; `available` is false without persistence (AD-03). |
 | `GET /api/admin/media`, query `type`, `user`, `skip` | AD-19. `{ available, stats, rows[] }` with the preview and the link per row. |
+| `DELETE /api/admin/media/{id}?force=true` | AD-19. 200 `{ bytes }`. Without `force`, an upload that a message still shows answers 409 "Used in {n} messages.", and the page asks the admin; 400 "Not an upload.", 404 "Upload unknown". A GIF row goes the GIFs tab's way (AD-23): out of every library, its file kept while a message shows it. |
+| `GET /api/admin/media/unreferenced?database=bool`, `POST /api/admin/media/prune` `{ database }` | AD-19. The count `{ files, bytes, recent }` and the delete `{ files, bytes }` of the uploads no message shows. `recent` counts the uploads of the last hour, which are kept. `database: true` scans the whole saved history, not only the messages in memory (AD-03). |
 | `GET /api/admin/visitors`, query `action`, `skip` | AD-20. `{ available, stats, rows[] }` with the country and the readable reason. |
 | `GET /api/admin/status` | `{ proxy: { trusted[], untrustedPeer, forwardedFor, firstSeenAt, count } }`: the standing notices of the admin page; today the proxy that is not in TrustedProxies (new). |
 | `GET /api/admin/gifs`, `PUT /api/admin/gifs/{id}/server` `{ on, folder? }`, `DELETE /api/admin/gifs/{id}` | AD-21 to AD-23. The table with stats and server folders; the force delete answers with the note the spec names. |
 | `GET /api/admin/gifs/export` | kept |
 | `GET /api/admin/diagnostics` | AD-24 to AD-28: `{ latest, series[], sessions[], recentlyClosed[], push: { keyStatus, detail, decisions[], results[] }, unread[], writer: { enabled, depth, lastError, lastErrorAt }, events }`. Replaces `/api/diagnostics` and `/api/diagnostics/circuits`. |
+| `GET /api/admin/load?seconds=&step=` | AD-24. `{ latest, series[] }`: one-second samples of the process (CPU, memory, GC, thread pool, hub rates, writer depth), up to an hour (`seconds`, default 60). `step` (1 to 60, default 1) averages them into buckets of that many seconds; `latest` is always the real last second. |
 | `GET /api/admin/generate-thumbnails` | kept |

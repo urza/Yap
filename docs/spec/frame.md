@@ -46,7 +46,7 @@ The frame contains all parts around a conversation. The header shows the title, 
 
 **SH-09** The mailbox is a tray icon with a red count. It shows only while the total unread count is above zero. Its tooltip is "{n} unread messages". The total is the sum of the counts in the sidebar, and does not include the open conversation. On narrow screens, a tap on the mailbox opens the sidebar. See [Notifications and unread](notifications.md).
 
-**SH-10** At 600 px or less, the header has more padding, a larger title and a shorter chip name.
+**SH-10** At 600 px or less, the header has more padding, a larger title and a shorter chip name. The gaps between the header controls are 4 px, and the people button is narrower. At every width, a long title ends with an ellipsis 8 px before the first control.
 
 ### Status chip and menu
 
@@ -171,7 +171,7 @@ The frame contains all parts around a conversation. The header shows the title, 
 | Tap outside the sidebar | touch, mouse | Sidebar closes. |
 | Room or person pick, narrow | touch, mouse | Conversation opens; sidebar closes. |
 | Gear on a room | mouse, touch | Room settings. The gear is always visible on touch. |
-| Sign Out without a way back | mouse, touch | Confirmation that the account becomes unreachable. |
+| Sign Out, no link and no code | mouse, touch | The dialog "Sign out without a login link?" with "Cancel" and "Sign out". Its text names smart login for 14 days, when it is on, and a new link from an admin. |
 | Sign Out with unsent messages | mouse, touch | Confirmation that these messages are lost. |
 | Installed app, permission not asked | all | "One more step" prompt, up to three times. |
 | Page error | all | "Something went wrong", "Try Again", "Reload Page". |

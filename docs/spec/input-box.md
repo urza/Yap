@@ -129,6 +129,8 @@ The input box is the part of a conversation where the user writes and sends a me
 
 **IB-70** A voice message is a message of its own, without text and without other files. When the reply bar is open, it is sent as a reply and the bar closes. It appears at once as a pending row with a player that plays the recording (MR-76), and becomes a normal row when the server accepts it. Without a connection, it is accepted and sent later, as a file is (IB-63). The author cannot edit a voice message. The author can delete it.
 
+**IB-71** A server without the audio converter cannot take voice messages. The + menu still shows "Voice message", and the recorder works as usual. After Send, the pending row shows "Failed" and a reason ([MR-71](message-row.md#MR-71)). The reason names the file and the server's text "Voice messages are unavailable on this server (ffmpeg missing)". When the converter fails on one recording, the reason is "Could not process this voice message" after the file name. "Retry" sends the recording again, for a server that got its converter meanwhile.
+
 **IB-42** While a picker is open: a tap on + only closes the picker, and the file chooser does not open. A tap on the other toggle only closes the picker. A tap on the toggle of the open picker closes the picker. A tap on the draft puts focus on the draft and closes the picker with the same tap. A tap anywhere else closes the picker.
 
 **IB-43** A picker also closes on a send, on a GIF pick, when the conversation changes, when the window width crosses 600 px, and on Escape.
@@ -225,6 +227,7 @@ The input box is the part of a conversation where the user writes and sends a me
 | Trash while recording | mouse, touch | The recording is discarded. The draft shows again. |
 | 5 minutes recorded | all | The recording ends and is sent. |
 | Recording shorter than 1 s | all | Discarded. "Too short" at the box for 2 s. |
+| Voice message sent, server without the audio converter | all | The pending row shows "Failed", the reason, "Retry" and "Remove". |
 | Tap on the other toggle with a picker open | mouse | Picker closes. The other picker does not open. |
 | Tap on the draft with a picker open | mouse, touch | Draft focused and picker closed with one tap. |
 | Conversation changed | all | Picker closed. The draft and reply bar of the new conversation appear. |
@@ -252,6 +255,7 @@ The input box is the part of a conversation where the user writes and sends a me
 | Recorder time | m:ss, from "0:00" |
 | Microphone dialog | "Microphone unavailable"; "Yap cannot use the microphone. Allow it in the browser settings and try again." |
 | Recording too short | "Too short" |
+| Voice message refused, the reason in the failed row ({ext} is webm, ogg or mp4, by the browser) | `"voice.{ext}" — Voice messages are unavailable on this server (ffmpeg missing)`; `"voice.{ext}" — Could not process this voice message` |
 | Pending voice row, in place of a file name | "Voice message" |
 | Tray ✕ accessible name | "Remove {file name}" |
 | GIF badge | "GIF" |

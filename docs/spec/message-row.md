@@ -108,7 +108,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 **MR-34** A tap or click on the quote scrolls the list to the original message, centred, and tints the original for two seconds. When the original is not loaded yet, it is loaded first.
 
-**MR-35** When the original message is deleted, the quote shows "Original message unavailable". The connector stays. A tap on the quote does nothing.
+**MR-35** When the original message is deleted, the quote shows "Original message unavailable". The quote shows the same text for an original older than the messages the server loaded at its start ([AD-03](admin.md#AD-03)). The connector stays. A tap on the quote does nothing.
 
 **MR-36** While the pointer is over the quote, the action bar is hidden so that the quote stays readable.
 
@@ -232,7 +232,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 | Pick in the picker | mouse, touch | Picker closes; reaction toggled; emoji moved to the front of recents. |
 | Tap outside the picker, Escape | mouse, touch, keyboard | Picker closes. Nothing else happens. |
 | Reply | mouse, touch | Reply bar in the input box, draft focused, row tinted. |
-| More | mouse, touch | Dropdown (desktop) or bottom sheet (phone) with Copy Text when the row has text and, on own rows, Delete Message. |
+| More | mouse, touch | Dropdown (desktop) or bottom sheet (phone). Copy Text shows when the row has text. Pin Message, or Unpin Message on a pinned row, shows when the reader may pin (MR-77) and the row is not pending. Delete Message shows on own rows. |
 | Tap outside the menu | mouse, touch | Menu closes. Nothing under it is pressed. |
 | Scroll with the menu open | touch | Menu stays open. |
 | Copy Text | mouse, touch | Text copied as typed; menu closes. |
