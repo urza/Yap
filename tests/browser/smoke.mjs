@@ -337,7 +337,9 @@ await step(16, 'Sign out A', async (check, notes) => {
 await step(17, 'Back button in B reopens the DM (SH-44)', async (check) => {
   const p0 = new URL(B.url()).pathname;
   await B.locator('.rooms-list .room-item', { hasText: 'lobby' }).first().click();
-  await waitTrue(async () => new URL(B.url()).pathname === '/lobby', 3000);
+  // The URL changes at the click; the context changes when the chat page mounts, after the route handler awaited
+  // the page module. A read between the two sees "dm" under /lobby, so wait for both (2 of 4 runs on 2026-10-18).
+  await waitTrue(async () => new URL(B.url()).pathname === '/lobby' && (await B.locator('.chat-container').getAttribute('data-context')) === 'room', 3000);
   const p1 = new URL(B.url()).pathname;
   const ctx1 = await B.locator('.chat-container').getAttribute('data-context');
   check(p1 === '/lobby' && ctx1 === 'room', `start ${p0}; after lobby click: path ${p1}, context ${ctx1}`);
