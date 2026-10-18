@@ -7,7 +7,7 @@ export const state = {
   user: null, config: null, texts: null,
   rooms: [], users: {}, presence: {}, dms: [], unread: {}, mutes: null, emoji: null, favoriteGifIds: new Set(),
   catalog: null,                // the emoji catalogue from GET /api/emoji, loaded once per build
-  open: null,                   // { channelId, partner, messages, hasMore, restricted, typists: { username: expiresAt } }
+  open: null,                   // { channelId, partner, messages, hasMore, restricted, typists: { username: expiresAt }, pins }
   pending: [],                  // outbox rows of the open conversation, drawn as faded rows (OF-08)
   drafts: {},                   // conversation key (offline/snapshot.js keyOf) -> { text, replyToId }
   registrations: [],            // admins: the waiting list (AD-11)
@@ -76,7 +76,8 @@ export function setOpen(conversation, partner = null) {
   }
   // The typists of the open answer typed within the last 3 s; they expire here like any other (the server
   // sends no 'off' for a typist whose 3 s already passed).
-  state.open = { ...conversation, messages, hasMore, partner, typists: Object.fromEntries((conversation.typists ?? []).map(u => [u, Date.now() + 3500])) };
+  state.open = { ...conversation, messages, hasMore, partner, typists: Object.fromEntries((conversation.typists ?? []).map(u => [u, Date.now() + 3500])),
+                 pins: conversation.pins ?? [] };   // a tail stored before pins existed has none
   changed('open');
   changed('messages', { type: 'reset' });
   changed('typists');
@@ -92,6 +93,49 @@ export function closeOpen() {
 }
 
 function openMessage(id) { return state.open?.messages.find(m => m.id === id); }
+
+// ---- pins (TL-36, MR-76) ----
+
+// The server's list for the open conversation. A list for another conversation is dropped: its open answer carries one.
+export function setPins(channelId, pins) {
+  if (state.open?.channelId !== channelId) return;
+  state.open.pins = pins;
+  changed('pins');
+}
+
+export function isPinned(id) { return !!state.open?.pins?.some(p => p.messageId === id); }
+
+// Who may pin and unpin here (MR-76, AD-37): both people of a direct message; in a room the admin, everyone, or the
+// selected people. The server decides again on the call; this only shows or hides the menu item and the ×.
+export function mayPin() {
+  const open = state.open, me = state.user;
+  if (!open || !me) return false;
+  if (open.partner) return true;
+  const room = roomById(open.channelId);
+  if (!room) return false;
+  return me.isAdmin || room.pinPermission === 'everyone' || (room.pinPermission === 'selected' && room.pinners.includes(me.username));
+}
+
+// Local-first pin and unpin: the bar changes at once; the returned function undoes it when the server refuses.
+// A full bar is not changed locally (MR-77): the server's refusal arrives and shows, and nothing flickers.
+export function pinLocally(m) {
+  const open = state.open;
+  if (!open || isPinned(m.id) || open.pins.length >= 3) return null;
+  const before = open.pins;
+  open.pins = [{ messageId: m.id, username: m.username, text: m.text || null, timestamp: m.timestamp,
+                 hasMedia: m.images.length + m.videos.length + m.gifs.length > 0, pinnedBy: state.user.username, pinnedAt: new Date().toISOString() }, ...before];
+  changed('pins');
+  return () => { if (state.open === open) { open.pins = before; changed('pins'); } };
+}
+
+export function unpinLocally(id) {
+  const open = state.open;
+  if (!open || !isPinned(id)) return null;
+  const before = open.pins;
+  open.pins = before.filter(p => p.messageId !== id);
+  changed('pins');
+  return () => { if (state.open === open) { open.pins = before; changed('pins'); } };
+}
 
 export function addMessage(m) {
   const open = state.open;

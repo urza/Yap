@@ -132,7 +132,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 **MR-46** On desktop, the bar shows at the top right of the row while the pointer is over the row. It also shows while one of its buttons has keyboard focus. It stays while the picker, menu or dialog of the row is open. It does not show on system lines or while the user edits the row.
 
-**MR-47** The buttons are in this order: the three quick reactions, a divider, Add Reaction, Reply, the GIF star on phones, Edit on the reader's own text rows, More. More is present when the row has text to copy or when the row is the reader's own.
+**MR-47** The buttons are in this order: the three quick reactions, a divider, Add Reaction, Reply, the GIF star on phones, Edit on the reader's own text rows, More. More is present when the row has text to copy, when the row is the reader's own, or when the reader may pin messages in the conversation (MR-76).
 
 **MR-48** The icons are 18 px. The Add Reaction icon is 20 px. The buttons get a tint on hover and become slightly smaller while pressed.
 
@@ -148,7 +148,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 ### More menu
 
-**MR-54** More opens a menu. The menu contains "Copy Text" when the row has text, and "Delete Message" in red on the reader's own rows. On desktop, the menu is a dropdown below the button. When there is no space below, it opens above the button. On a phone, the menu is a bottom sheet over a dimmed page.
+**MR-54** More opens a menu. The menu contains "Copy Text" when the row has text, "Pin Message" or "Unpin Message" when the reader may pin (MR-76), and "Delete Message" in red on the reader's own rows. On desktop, the menu is a dropdown below the button. When there is no space below, it opens above the button. On a phone, the menu is a bottom sheet over a dimmed page.
 
 **MR-55** A tap outside the menu closes the menu and does not press anything under it. Escape closes the menu. A scroll does not close the menu. This includes the scroll that occurs when a phone keyboard closes.
 
@@ -200,7 +200,13 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 ### Without a connection
 
-**MR-75** Reactions, edits, deletes and the GIF star need a connection. Without a connection, these actions change nothing: a tap on a pill, a quick reaction, a pick in the reaction picker, the star, Save and Delete. They show "Needs a connection" at the row for two seconds. Pending messages are an exception. Their Edit and Remove act on the device. Reply and Copy Text work as usual. Media that the reader saw before also opens as usual.
+**MR-75** Reactions, edits, deletes, pins and the GIF star need a connection. Without a connection, these actions change nothing: a tap on a pill, a quick reaction, a pick in the reaction picker, the star, Save, Delete, Pin Message and Unpin Message. They show "Needs a connection" at the row for two seconds. Pending messages are an exception. Their Edit and Remove act on the device. Reply and Copy Text work as usual. Media that the reader saw before also opens as usual.
+
+### Pinning
+
+**MR-76** A conversation has up to three pinned messages. In a direct message, both people can pin and unpin. In a room, the admin can always pin and unpin. Other people follow the room's pin setting: nobody, everyone, or a list of selected people. See [Administration](admin.md#AD-37). A pending message cannot be pinned. The [timeline page](timeline.md#TL-36) specifies the bar that shows the pins.
+
+**MR-77** "Pin Message" pins the row for every reader, and the bar changes at once. When the conversation has three pins, the server refuses with "Up to 3 pinned messages. Unpin one first.", and the text shows at the row for two seconds. "Unpin Message" removes the pin. A pin or an unpin that the server refuses is undone, and the reason shows at the row.
 
 ## States
 
@@ -271,7 +277,8 @@ A message row is one message as it appears in the conversation. The row shows wh
 | GIF star tooltips | "Add to favorites"; "Remove from favorites" |
 | Bar tooltips | the emoji itself; "Add Reaction"; "Reply"; "Edit"; "More" |
 | Video play control | "Play video" |
-| More menu | "Copy Text"; "Delete Message" |
+| More menu | "Copy Text"; "Pin Message"; "Unpin Message"; "Delete Message" |
+| Pin refusals | "Up to 3 pinned messages. Unpin one first."; "You cannot pin messages here."; "You cannot unpin messages here." |
 | Editor | "✓ Save" (tooltip "Save"); "✕ Cancel" (tooltip "Cancel"); "Enter to save · Shift+Enter for newline · Esc to cancel" |
 | Delete dialog | "Delete Message"; "Are you sure you want to delete this message?"; "GIF attachment"; preview alt texts "Attachment", "Video attachment"; "Pro tip: hold Shift when deleting to skip this confirmation." with Shift as a keycap; "Cancel"; "Delete" |
 | Pending row | "Cancel upload"; "Failed"; "Retry"; "Remove"; the reason is the server's refusal text, or "Could not send" when there is none |

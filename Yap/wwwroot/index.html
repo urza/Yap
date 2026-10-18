@@ -402,6 +402,16 @@
         <button class="reaction-pill" type="button"><span class="reaction-emoji"></span> <span class="reaction-count"></span></button>
     </template>
 
+    <!-- The pinned messages bar (TL-36 to TL-38): one line per pin. -->
+    <template id="t-pins-bar"><div class="pins-bar" hidden></div></template>
+    <template id="t-pin-line">
+        <div class="pin-line">
+            <svg class="pin-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"/></svg>
+            <button class="pin-body" type="button"><span class="pin-author"></span><span class="pin-text"></span></button>
+            <button class="pin-unpin" type="button" title="Unpin">✕</button>
+        </div>
+    </template>
+
     <template id="t-action-reaction"><button class="action-btn quick-reaction" type="button"></button></template>
 
     <!-- The More menu (MR-54). -->
@@ -412,6 +422,10 @@
                 <button class="more-menu-item" type="button" data-action="copy">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
                     <span>Copy Text</span>
+                </button>
+                <button class="more-menu-item" type="button" data-action="pin">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"/></svg>
+                    <span>Pin Message</span>
                 </button>
                 <button class="more-menu-item menu-item-danger" type="button" data-action="delete">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
@@ -793,6 +807,25 @@
                         </div>
                     </div>
                     <div class="settings-section">
+                        <h3>Pinned Messages</h3>
+                        <span class="section-hint">Who can pin and unpin messages in this channel. Admin always can. Up to 3 pins.</span>
+                        <div class="permission-cards">
+                            <div class="permission-card" data-pin="adminOnly">
+                                <div class="permission-card-radio"><div class="radio-outer"></div></div>
+                                <div class="permission-card-content"><span class="permission-card-title">Admin Only</span><span class="permission-card-desc">Only admin can pin messages</span></div>
+                            </div>
+                            <div class="permission-card" data-pin="everyone">
+                                <div class="permission-card-radio"><div class="radio-outer"></div></div>
+                                <div class="permission-card-content"><span class="permission-card-title">Everyone</span><span class="permission-card-desc">All users can pin messages</span></div>
+                            </div>
+                            <div class="permission-card" data-pin="selected">
+                                <div class="permission-card-radio"><div class="radio-outer"></div></div>
+                                <div class="permission-card-content"><span class="permission-card-title">Selected People</span><span class="permission-card-desc">Only the people checked below can pin messages</span></div>
+                            </div>
+                        </div>
+                        <div class="pinners-list" hidden></div>
+                    </div>
+                    <div class="settings-section">
                         <h3>History Visibility</h3>
                         <span class="section-hint">How far back non-admin users can scroll through message history</span>
                         <div class="form-group">
@@ -831,6 +864,8 @@
             </div>
         </div>
     </template>
+
+    <template id="t-pinner-row"><label class="pinner-row"><input type="checkbox" /><span class="pinner-name"></span><span class="pinner-handle"></span></label></template>
 
     <template id="t-reorder-item">
         <div class="reorder-item">

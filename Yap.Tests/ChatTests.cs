@@ -321,4 +321,139 @@ public class ChatTests : IClassFixture<YapFactory>
         var unknown = await gina.Http.PostAsJsonAsync("/api/dm/nobody_dm/messages", new { clientId = Guid.NewGuid(), text = "?" });
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
     }
+
+    [Fact(DisplayName = "MR-76, MR-77, TL-36: in a direct message both people pin and unpin, the bar holds three, the other side hears the change")]
+    public async Task Dm_pins_both_ways_and_the_limit()
+    {
+        var alice = await _app.SignInAsync("alice_pin");
+        var bob = await _app.SignInAsync("bob_pin");
+        var aliceHub = await alice.ConnectAsync();
+        var bobHub = await bob.ConnectAsync();
+        var dm = (await aliceHub.InvokeAsync<Conversation>("OpenDm", "bob_pin")).ChannelId;
+        await bobHub.InvokeAsync<Conversation>("OpenDm", "alice_pin");
+
+        var sent = new List<MessageDto>();
+        for (var i = 0; i < 4; i++)
+            sent.Add((await (await alice.Http.PostAsJsonAsync("/api/dm/bob_pin/messages", new { clientId = Guid.NewGuid(), text = $"pin me {i}" })).Content.ReadFromJsonAsync<MessageDto>())!);
+
+        var bobSees = new Expectation<IReadOnlyList<Pin>>();
+        bobHub.On<Guid, IReadOnlyList<Pin>>("pins", (id, pins) => { if (id == dm) bobSees.Set(pins); });
+
+        Assert.Null(await aliceHub.InvokeAsync<HubError?>("Pin", dm, sent[0].Id));
+        var pins = await bobSees.Within();
+        Assert.Equal([sent[0].Id], pins.Select(p => p.MessageId));
+        Assert.Equal("alice_pin", pins[0].PinnedBy);
+        Assert.Equal("pin me 0", pins[0].Text);
+
+        Assert.Null(await bobHub.InvokeAsync<HubError?>("Pin", dm, sent[1].Id));   // the other side pins too
+        Assert.Null(await aliceHub.InvokeAsync<HubError?>("Pin", dm, sent[2].Id));
+        Assert.Equal("Up to 3 pinned messages. Unpin one first.", (await aliceHub.InvokeAsync<HubError?>("Pin", dm, sent[3].Id))?.Error);
+
+        var reopened = await bobHub.InvokeAsync<Conversation>("OpenDm", "alice_pin");
+        Assert.Equal([sent[2].Id, sent[1].Id, sent[0].Id], reopened.Pins.Select(p => p.MessageId));   // the newest pin first
+
+        Assert.Null(await bobHub.InvokeAsync<HubError?>("Unpin", dm, sent[0].Id));   // the other side's pin
+        Assert.Equal(2, _app.Service<ChatService>().PinsFor(dm, null).Count);
+        await aliceHub.DisposeAsync();
+        await bobHub.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "MR-76, AD-37, TL-05: in a room the admin always pins, the others follow the pin setting, a late joiner sees no pin from before their time")]
+    public async Task Room_pin_permission_modes()
+    {
+        var boss = await _app.AdminAsync();
+        var carol = await _app.SignInAsync("carol_pin");
+        var dave = await _app.SignInAsync("dave_pin");
+        // read as JSON: the server writes enums as camelCase strings, and this client has no converter for them
+        var created = await (await boss.Http.PostAsJsonAsync("/api/rooms", new { name = "pins-room", description = (string?)null, adminOnly = false })).Content.ReadFromJsonAsync<JsonElement>();
+        var room = created.GetProperty("id").GetGuid();
+        Assert.Equal("adminOnly", created.GetProperty("pinPermission").GetString());   // the default of a new room
+        var message = (await (await carol.Http.PostAsJsonAsync($"/api/channels/{room}/messages", new { clientId = Guid.NewGuid(), text = "worth pinning" })).Content.ReadFromJsonAsync<MessageDto>())!;
+
+        var carolHub = await carol.ConnectAsync();
+        var daveHub = await dave.ConnectAsync();
+        var bossHub = await boss.ConnectAsync();
+        await carolHub.InvokeAsync<Conversation>("OpenRoom", room);
+        await daveHub.InvokeAsync<Conversation>("OpenRoom", room);
+        await bossHub.InvokeAsync<Conversation>("OpenRoom", room);
+
+        Assert.Equal("You cannot pin messages here.", (await carolHub.InvokeAsync<HubError?>("Pin", room, message.Id))?.Error);
+        Assert.Null(await bossHub.InvokeAsync<HubError?>("Pin", room, message.Id));
+
+        // The room keeps the defaults (one month, since joined): a person who joined after the message sees no pin of it.
+        var eve = await _app.SignInAsync("eve_pin");
+        var eveHub = await eve.ConnectAsync();
+        Assert.Empty((await eveHub.InvokeAsync<Conversation>("OpenRoom", room)).Pins);
+        Assert.Single((await bossHub.InvokeAsync<Conversation>("OpenRoom", room)).Pins);
+        await eveHub.DisposeAsync();
+        Assert.Null(await bossHub.InvokeAsync<HubError?>("Unpin", room, message.Id));
+
+        var body = new Dictionary<string, object?> { ["name"] = "pins-room", ["description"] = null, ["adminOnly"] = false, ["pinPermission"] = "selected", ["pinners"] = new[] { "carol_pin" } };
+        Assert.Equal(HttpStatusCode.NoContent, (await boss.Http.PatchAsJsonAsync($"/api/rooms/{room}", body)).StatusCode);
+        Assert.Null(await carolHub.InvokeAsync<HubError?>("Pin", room, message.Id));
+        Assert.Equal("You cannot unpin messages here.", (await daveHub.InvokeAsync<HubError?>("Unpin", room, message.Id))?.Error);
+
+        body["pinners"] = new[] { "nobody_here" };
+        Assert.Equal(HttpStatusCode.BadRequest, (await boss.Http.PatchAsJsonAsync($"/api/rooms/{room}", body)).StatusCode);   // an unknown name is refused, not dropped
+
+        body["pinPermission"] = "everyone";
+        body["pinners"] = Array.Empty<string>();
+        Assert.Equal(HttpStatusCode.NoContent, (await boss.Http.PatchAsJsonAsync($"/api/rooms/{room}", body)).StatusCode);
+        Assert.Null(await daveHub.InvokeAsync<HubError?>("Unpin", room, message.Id));
+        Assert.Empty(_app.Service<ChatService>().PinsFor(room, null));
+        await carolHub.DisposeAsync();
+        await daveHub.DisposeAsync();
+        await bossHub.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "TL-37, AD-03: an edit changes the pinned text and a delete removes the pin; pins and the setting survive a restart, also for a message the startup load leaves in the database")]
+    public async Task Pins_follow_the_message_and_survive_a_restart()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"yap-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            Guid lobby, oldId;
+            await using (var app = new YapFactory { SqlitePath = db })
+            {
+                var boss = await app.AdminAsync();
+                var chat = app.Service<ChatService>();
+                lobby = chat.LobbyId;
+                var hub = await boss.ConnectAsync();
+                await hub.InvokeAsync<Conversation>("OpenRoom", lobby);
+
+                var old = (await (await boss.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId = Guid.NewGuid(), text = "old but pinned" })).Content.ReadFromJsonAsync<MessageDto>())!;
+                var gone = (await (await boss.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId = Guid.NewGuid(), text = "soon deleted" })).Content.ReadFromJsonAsync<MessageDto>())!;
+                oldId = old.Id;
+                Assert.Null(await hub.InvokeAsync<HubError?>("Pin", lobby, old.Id));
+                Assert.Null(await hub.InvokeAsync<HubError?>("Pin", lobby, gone.Id));
+                Assert.Null(await hub.InvokeAsync<HubError?>("Edit", old.Id, "old, edited, pinned"));
+                Assert.Null(await hub.InvokeAsync<HubError?>("Delete", gone.Id));
+                var pins = chat.PinsFor(lobby, null);
+                Assert.Equal([old.Id], pins.Select(p => p.MessageId));   // the deleted message left the bar
+                Assert.Equal("old, edited, pinned", pins[0].Text);       // the edit reached the copy
+
+                var body = new { name = "lobby", description = (string?)null, adminOnly = false, pinPermission = "everyone" };
+                Assert.Equal(HttpStatusCode.NoContent, (await boss.Http.PatchAsJsonAsync($"/api/rooms/{lobby}", body)).StatusCode);
+                foreach (var text in new[] { "newer 1", "newer 2", "newer 3" })
+                    Assert.Equal(HttpStatusCode.OK, (await boss.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId = Guid.NewGuid(), text })).StatusCode);
+                await hub.DisposeAsync();
+            }   // the stop drains the writer
+
+            // The count bound leaves the pinned message in the database; the pin still shows, with its copy of the text.
+            await using (var app = new YapFactory { SqlitePath = db, Settings = { ["ChatSettings:Persistence:Load:MaxMessagesPerChannel"] = "2" } })
+            {
+                var chat = app.Service<ChatService>();
+                Assert.Null(chat.GetMessage(oldId));
+                Assert.Equal(PinPermission.Everyone, chat.GetRoom(lobby)!.PinPermission);
+                var pins = chat.PinsFor(lobby, null);
+                Assert.Equal([oldId], pins.Select(p => p.MessageId));
+                Assert.Equal("old, edited, pinned", pins[0].Text);
+            }
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            foreach (var f in Directory.GetFiles(Path.GetDirectoryName(db)!, Path.GetFileName(db) + "*")) File.Delete(f);
+        }
+    }
 }

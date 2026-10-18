@@ -60,6 +60,7 @@ public class ChatService
     public event Action<Guid, Guid, int>? OnUnreadChanged;        // userId, channelId, count
     public event Action<Channel>? OnDmStarted;                    // a direct message got its first message (SH-29)
     public event Action? OnRoomsChanged;                          // created, updated, reordered or deleted (SH-25)
+    public event Action<Channel>? OnPinsChanged;                  // a pin or an unpin, or an edit or a delete of a pinned message (TL-36)
 
     public ChatService(IServiceProvider services, PersistenceWriter writer, PushNotificationService pushService, UserService userService,
         PresenceService presence, LinkPreviewService linkPreviewService, LinkPreviewSettingsService linkPreviewSettings,
@@ -185,9 +186,12 @@ public class ChatService
 
     /// <summary>AD-30 to AD-34. Returns the room, or the reason the admin sees.</summary>
     public (Channel? Room, string? Error) CreateRoom(Guid adminUserId, string name, string? description,
-        ChannelPermission writePermission, HistoryLimit historyLimit, bool sinceJoined)
+        ChannelPermission writePermission, HistoryLimit historyLimit, bool sinceJoined,
+        PinPermission pinPermission = PinPermission.AdminOnly, IEnumerable<string>? pinners = null)
     {
         if (!_userService.IsAdmin(adminUserId)) return (null, "Not authorized.");
+        var (names, badName) = Pinners(pinners);
+        if (badName is not null) return (null, badName);
         name = name.Trim().ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(name)) return (null, "Channel name is required.");
         if (name.Contains(' ')) return (null, "Lowercase, no spaces.");
@@ -197,7 +201,7 @@ public class ChatService
         var bottom = _channels.Values.Where(c => c.Type == ChannelType.Room).Select(c => c.SortOrder).DefaultIfEmpty(-1).Max() + 1;
         var admin = _userService.GetById(adminUserId);
         var room = Channel.CreateRoom(name, adminUserId, admin?.Username, description: Clean(description), sortOrder: bottom,
-            writePermission: writePermission, historyLimit: historyLimit, sinceJoined: sinceJoined);
+            writePermission: writePermission, historyLimit: historyLimit, sinceJoined: sinceJoined, pinPermission: pinPermission, pinners: names);
         _channels[room.Id] = room;
         _channelMessages[room.Id] = [];
 
@@ -207,10 +211,13 @@ public class ChatService
     }
 
     public string? UpdateRoom(Guid adminUserId, Guid channelId, string name, string? description,
-        ChannelPermission writePermission, HistoryLimit historyLimit, bool sinceJoined)
+        ChannelPermission writePermission, HistoryLimit historyLimit, bool sinceJoined,
+        PinPermission pinPermission = PinPermission.AdminOnly, IEnumerable<string>? pinners = null)
     {
         if (!_userService.IsAdmin(adminUserId)) return "Not authorized.";
         if (GetRoom(channelId) is not { } room) return "Channel not found.";
+        var (names, badName) = Pinners(pinners);
+        if (badName is not null) return badName;
         name = name.Trim().ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(name)) return "Channel name is required.";
         if (name.Contains(' ')) return "Lowercase, no spaces.";
@@ -222,6 +229,8 @@ public class ChatService
         room.WritePermission = writePermission;
         room.HistoryLimit = historyLimit;
         room.SinceJoined = sinceJoined;
+        room.PinPermission = pinPermission;
+        room.Pinners = names;
 
         OnRoomsChanged?.Invoke();
         _writer.Enqueue(Writes.Channel(room));
@@ -266,6 +275,19 @@ public class ChatService
 
     private static string? Clean(string? description) =>
         string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+
+    /// <summary>The selected pinners (AD-37): known usernames in their stored spelling, once each. An unknown name is the
+    /// admin's error and is reported, not dropped.</summary>
+    private (List<string> Names, string? Error) Pinners(IEnumerable<string>? pinners)
+    {
+        var names = new List<string>();
+        foreach (var name in (pinners ?? []).Select(n => n.Trim()).Where(n => n.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (_userService.GetByUsername(name) is not { } user) return ([], $"Unknown user: {name}.");
+            names.Add(user.Username);
+        }
+        return (names, null);
+    }
 
     #endregion
 
@@ -364,8 +386,11 @@ public class ChatService
 
     /// <summary>Whether the person may read this message: access to the conversation, and the message inside the
     /// person's history cutoff. The one rule for history pages, the quote of a reply and live events (TL-05).</summary>
-    public bool MayRead(Guid viewerId, ChatMessage m) =>
-        _channels.TryGetValue(m.ChannelId, out var channel) && channel.CanAccess(viewerId) && (Cutoff(channel, viewerId) is not { } c || m.Timestamp >= c);
+    public bool MayRead(Guid viewerId, ChatMessage m) => _channels.TryGetValue(m.ChannelId, out var channel) && MayRead(viewerId, channel, m.Timestamp);
+
+    /// <summary>The same rule for a pin, which stands in for a message that may have left memory (TL-36).</summary>
+    public bool MayRead(Guid viewerId, Channel channel, DateTime timestamp) =>
+        channel.CanAccess(viewerId) && (Cutoff(channel, viewerId) is not { } c || timestamp >= c);
 
     public ChatMessage? GetMessage(Guid messageId)
     {
@@ -547,6 +572,11 @@ public class ChatService
         foreach (var reply in RepliesTo(message)) OnMessageEdited?.Invoke(reply);   // their quotes show the new text (MR-32)
         _writer.Enqueue(Writes.MessageEdit(message.Id, text));
         QueuePreviews(message);   // an edit that adds or removes a link adds or removes the card (MR-22)
+        if (_channels.TryGetValue(message.ChannelId, out var channel) && channel.Pins.Any(p => p.MessageId == message.Id))
+        {
+            lock (LockOf(channel.Id)) channel.Pins = channel.Pins.Select(p => p.MessageId == message.Id ? p with { Text = text } : p).ToList();   // the bar shows the new text (TL-37)
+            PinsChanged(channel);
+        }
         return null;
     }
 
@@ -568,6 +598,11 @@ public class ChatService
 
         OnMessageDeleted?.Invoke(channelId, messageId);
         _writer.Enqueue(Writes.DeleteMessage(messageId));
+        if (_channels.TryGetValue(channelId, out var channel) && channel.Pins.Any(p => p.MessageId == messageId))
+        {
+            lock (LockOf(channelId)) channel.Pins = channel.Pins.Where(p => p.MessageId != messageId).ToList();   // a deleted message leaves the bar (TL-37)
+            PinsChanged(channel);
+        }
         return null;
     }
 
@@ -590,6 +625,57 @@ public class ChatService
         _userService.RecordEmojiUse(userId, emoji);   // a reaction, added or removed, moves the emoji to the front of the recent list (MR-44, PK-07)
         _writer.Enqueue(added ? Writes.Reaction(messageId, userId, username, emoji) : Writes.DeleteReaction(messageId, userId, emoji));
         return null;
+    }
+
+    #endregion
+
+    #region Pins
+
+    /// <summary>MR-76, MR-77. Pins a message of the conversation for everyone in it: at most <see cref="Channel.MaxPins"/>, the newest pin first.</summary>
+    public string? Pin(Guid userId, string username, Guid channelId, Guid messageId)
+    {
+        if (!_channels.TryGetValue(channelId, out var channel)) return "Conversation not found.";
+        if (GetMessage(messageId) is not { } message || message.ChannelId != channelId || !MayRead(userId, message)) return "Message not found.";   // MayRead covers access and the history cutoff (TL-05)
+        if (!channel.CanPin(userId, username, _userService.IsAdmin(userId))) return "You cannot pin messages here.";
+        lock (LockOf(channelId))
+        {
+            if (channel.Pins.Any(p => p.MessageId == messageId)) return null;   // someone else pinned it a moment ago: nothing to say
+            if (channel.Pins.Count >= Channel.MaxPins) return $"Up to {Channel.MaxPins} pinned messages. Unpin one first.";
+            channel.Pins = [Models.Chat.Pin.Of(message, username), .. channel.Pins];   // qualified: Pin is also this method
+        }
+        PinsChanged(channel);
+        return null;
+    }
+
+    /// <summary>MR-76. The pin goes; the message stays. Named by conversation and message, because a pinned message may be
+    /// older than the messages in memory.</summary>
+    public string? Unpin(Guid userId, string username, Guid channelId, Guid messageId)
+    {
+        if (!_channels.TryGetValue(channelId, out var channel) || !channel.CanAccess(userId)) return "Conversation not found.";
+        if (!channel.CanPin(userId, username, _userService.IsAdmin(userId))) return "You cannot unpin messages here.";
+        lock (LockOf(channelId))
+        {
+            if (channel.Pins.All(p => p.MessageId != messageId)) return null;
+            channel.Pins = channel.Pins.Where(p => p.MessageId != messageId).ToList();
+        }
+        PinsChanged(channel);
+        return null;
+    }
+
+    /// <summary>The pins a person may see (TL-36): all of them for the admin and in a direct message; in a restricted room,
+    /// only those inside the person's history cutoff (TL-05). A null viewer is the broadcaster's "everyone" of an unrestricted room.</summary>
+    public List<Pin> PinsFor(Guid channelId, Guid? viewerId)
+    {
+        if (!_channels.TryGetValue(channelId, out var channel)) return [];
+        var pins = channel.Pins;   // the list is replaced, never edited in place, so the reference is a snapshot
+        return viewerId is { } viewer ? pins.Where(p => MayRead(viewer, channel, p.Timestamp)).ToList() : pins.ToList();
+    }
+
+    // After a new pin list was assigned: the event, then the row write. The write reads the channel when it runs.
+    private void PinsChanged(Channel channel)
+    {
+        OnPinsChanged?.Invoke(channel);
+        _writer.Enqueue(Writes.Channel(channel));
     }
 
     private static readonly string[] DefaultQuickReactions = ["❤️", "😂", "👍"];

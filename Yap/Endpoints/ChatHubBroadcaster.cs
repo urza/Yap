@@ -37,6 +37,7 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
         On<Guid, Guid, int>(h => chat.OnUnreadChanged += h, h => chat.OnUnreadChanged -= h, (userId, channelId, count) => ToUser(userId, "unread", channelId, count));
         On<Channel>(h => chat.OnDmStarted += h, h => chat.OnDmStarted -= h, DmStarted);
         On(h => chat.OnRoomsChanged += h, h => chat.OnRoomsChanged -= h, () => ToAll("rooms", chat.Rooms().Select(RoomDto.From).ToList()));
+        On<Channel>(h => chat.OnPinsChanged += h, h => chat.OnPinsChanged -= h, c => ToViewers(c, "pins", viewer => [c.Id, chat.PinsFor(c.Id, viewer)]));   // TL-36
 
         On<string, EffectiveStatus, PresenceChange>(h => presence.OnPresenceChanged += h, h => presence.OnPresenceChanged -= h,
             (username, status, change) => ToAll("presence", username, status, change));
@@ -93,12 +94,17 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
     // a reply). A direct message and an unrestricted room have one truth for everyone and get one send.
     private void ToReaders(ChatMessage m, string name, Func<Guid?, object?[]> argsFor)
     {
-        var channel = chat.GetChannel(m.ChannelId);
-        if (channel is null) return;
-        if (!chat.IsRestricted(channel)) { ToChannel(m.ChannelId, name, argsFor(null)); return; }
+        if (chat.GetChannel(m.ChannelId) is { } channel) ToViewers(channel, name, argsFor, viewer => chat.MayRead(viewer, m));
+    }
+
+    // The per-person send behind ToReaders. The pins of a restricted room also differ by reader, but every reader
+    // hears that they changed: each person's arguments carry their own list, so that send has no reads filter.
+    private void ToViewers(Channel channel, string name, Func<Guid?, object?[]> argsFor, Func<Guid, bool>? reads = null)
+    {
+        if (!chat.IsRestricted(channel)) { ToChannel(channel.Id, name, argsFor(null)); return; }
         foreach (var person in presence.All().Where(s => s.Connected && s.Viewing == channel.Id).GroupBy(s => s.UserId))
         {
-            if (!chat.MayRead(person.Key, m)) continue;
+            if (reads is not null && !reads(person.Key)) continue;
             Fire(hub.Clients.Clients(person.Select(s => s.ConnectionId).ToList()).SendCoreAsync(name, argsFor(person.Key)));
         }
     }

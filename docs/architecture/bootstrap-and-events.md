@@ -141,6 +141,7 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
 | ChatService `OnMessageReceived` | `message` | the room's open connections, or the two DM persons; a reply in a room with a history cutoff goes per reader | the message, with the quote built for the reader (TL-05, `ToReaders`) |
 | ChatService `OnMessageEdited` | `messageEdited` | same; in a room with a history cutoff only the readers who may read the message, each with their own quote (TL-05) | the message |
 | ChatService `OnMessageDeleted` | `messageDeleted` | same | channel id, message id |
+| ChatService `OnPinsChanged` | `pins` | same; in a room with a history cutoff each reader gets their own list (TL-05) | channel id, the pins |
 | ChatService `OnReactionChanged` | `reactions` | same | message id, the reactions grouped by emoji |
 | ChatService `OnPreviewsReady` | `previews` | same | message id, the link previews |
 | ChatService `OnUnreadChanged` | `unread` | the one person, all devices | channel id, count |

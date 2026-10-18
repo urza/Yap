@@ -21,7 +21,9 @@ export function mount(root, { isNew, channelId }) {
   const name = page.querySelector('#channel-name');
   const description = page.querySelector('#channel-description');
   const counter = page.querySelector('.form-counter');
-  const cards = [...page.querySelectorAll('.permission-card')];
+  const cards = [...page.querySelectorAll('.permission-card[data-permission]')];
+  const pinCards = [...page.querySelectorAll('.permission-card[data-pin]')];
+  const pinnersList = page.querySelector('.pinners-list');
   const history = page.querySelector('.history-limit');
   const sinceJoined = page.querySelector('.since-joined');
   const save = page.querySelector('.save-button');
@@ -29,27 +31,45 @@ export function mount(root, { isNew, channelId }) {
   const back = () => router.navigate(isNew || room.id === lobby?.id ? '/lobby' : router.roomPath(room, lobby?.id));
 
   // the loaded values, to know when something changed (AD-34)
-  const loaded = { name: room?.name ?? '', description: room?.description ?? '', permission: room?.adminOnly ? 'adminOnly' : 'everyone', history: room?.historyLimit ?? 'oneMonth', sinceJoined: room?.sinceJoined ?? true };   // AD-32 defaults
+  const loaded = { name: room?.name ?? '', description: room?.description ?? '', permission: room?.adminOnly ? 'adminOnly' : 'everyone', history: room?.historyLimit ?? 'oneMonth', sinceJoined: room?.sinceJoined ?? true,
+                   pinPermission: room?.pinPermission ?? 'adminOnly', pinners: pinnersKey(room?.pinners ?? []) };   // AD-32, AD-37 defaults
   let permission = loaded.permission;
+  let pinPermission = loaded.pinPermission;
+  const pinners = new Set(room?.pinners ?? []);   // the checked usernames (AD-37)
   name.value = loaded.name; description.value = loaded.description; history.value = loaded.history; sinceJoined.checked = loaded.sinceJoined;
 
-  function current() { return { name: name.value.trim().toLowerCase(), description: description.value, permission, history: history.value, sinceJoined: sinceJoined.checked }; }
+  function current() { return { name: name.value.trim().toLowerCase(), description: description.value, permission, history: history.value, sinceJoined: sinceJoined.checked, pinPermission, pinners: pinnersKey(pinners) }; }
   function dirty() { const c = current(); return isNew ? c.name.length > 0 : Object.keys(loaded).some(k => c[k] !== loaded[k]); }
   function draw() {
     counter.textContent = `${description.value.length}/500`;
     description.placeholder = `This is the beginning of #${name.value.trim().toLowerCase() || 'channel-name'}`;
-    for (const card of cards) {
-      const on = card.dataset.permission === permission;
-      card.classList.toggle('selected', on);
-      replace(card.querySelector('.radio-outer'), on ? [Object.assign(document.createElement('div'), { className: 'radio-inner' })] : []);
-    }
+    for (const card of cards) drawCard(card, card.dataset.permission === permission);
+    for (const card of pinCards) drawCard(card, card.dataset.pin === pinPermission);
+    pinnersList.hidden = pinPermission !== 'selected';
     save.querySelector('span').textContent = isNew ? 'Create Channel' : 'Save Changes';
     save.disabled = !dirty();
     const bad = /\s/.test(name.value);
     page.querySelector('.name-hint').style.color = bad ? 'var(--color-danger, #ed4245)' : '';   // AD-30
     if (bad) save.disabled = true;
   }
+  function drawCard(card, on) {
+    card.classList.toggle('selected', on);
+    replace(card.querySelector('.radio-outer'), on ? [Object.assign(document.createElement('div'), { className: 'radio-inner' })] : []);
+  }
   for (const card of cards) card.addEventListener('click', () => { permission = card.dataset.permission; draw(); });
+  for (const card of pinCards) card.addEventListener('click', () => { pinPermission = card.dataset.pin; draw(); });
+
+  // Everyone but the admin and the bots, as a checklist. The admin always may pin; a bot never pins.
+  const people = Object.values(state.users).filter(u => !u.isAdmin && !u.isBot).sort((a, b) => a.username.localeCompare(b.username));
+  replace(pinnersList, people.length ? people.map(u => {
+    const row = clone('t-pinner-row');
+    const box = row.querySelector('input');
+    box.checked = pinners.has(u.username);
+    box.addEventListener('change', () => { if (box.checked) pinners.add(u.username); else pinners.delete(u.username); draw(); });
+    row.querySelector('.pinner-name').textContent = u.displayName || u.username;
+    row.querySelector('.pinner-handle').textContent = `@${u.username}`;
+    return row;
+  }) : [Object.assign(document.createElement('div'), { className: 'pinners-empty', textContent: 'No other people yet.' })]);
   for (const n of [name, description, history, sinceJoined]) n.addEventListener('input', draw);
   history.addEventListener('change', draw); sinceJoined.addEventListener('change', draw);
 
@@ -60,7 +80,8 @@ export function mount(root, { isNew, channelId }) {
     const c = current();
     if (!c.name) { showError('Channel name is required.'); return; }
     save.disabled = true; save.querySelector('span').textContent = isNew ? 'Creating...' : 'Saving...';
-    const body = { name: c.name, description: c.description.trim() || null, adminOnly: c.permission === 'adminOnly', historyLimit: c.history, sinceJoined: c.sinceJoined };
+    const body = { name: c.name, description: c.description.trim() || null, adminOnly: c.permission === 'adminOnly', historyLimit: c.history, sinceJoined: c.sinceJoined,
+                   pinPermission: c.pinPermission, pinners: [...pinners] };
     try {
       if (isNew) {
         const created = await api.post('/api/rooms', body);
@@ -78,6 +99,7 @@ export function mount(root, { isNew, channelId }) {
   });
 
   function showError(text) { error.textContent = text; error.hidden = false; }
+  function pinnersKey(names) { return [...names].sort().join(','); }   // one string, so dirty() can compare the set
 
   // the order (AD-33) and the danger zone (AD-35), when editing
   const order = page.querySelector('.order-section');

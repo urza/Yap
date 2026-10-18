@@ -42,6 +42,23 @@ public class Channel
     /// </summary>
     public HistoryLimit HistoryLimit { get; set; } = HistoryLimit.Unlimited;
 
+    /// <summary>Who may pin and unpin messages in this room (AD-37). A direct message ignores it: both people may.</summary>
+    public PinPermission PinPermission { get; set; } = PinPermission.AdminOnly;
+
+    /// <summary>
+    /// The usernames that may pin when <see cref="PinPermission"/> is Selected. Usernames, like the participants of a
+    /// direct message: a username never changes, and the client knows people by username only.
+    /// </summary>
+    public List<string> Pinners { get; set; } = new();
+
+    /// <summary>
+    /// The pinned messages, newest pin first, at most <see cref="MaxPins"/> (MR-76). A change assigns a new list and
+    /// never edits this one in place: the persistence writer may be serializing the old list on its own thread.
+    /// </summary>
+    public List<Pin> Pins { get; set; } = new();
+
+    public const int MaxPins = 3;
+
     // DM-specific: the two participants (by UserId)
     public Guid? Participant1Id { get; set; }
     public Guid? Participant2Id { get; set; }
@@ -69,7 +86,8 @@ public class Channel
     /// </summary>
     public static Channel CreateRoom(string name, Guid? createdById = null, string? createdBy = null, bool isDefault = false,
         string? description = null, int sortOrder = 0, ChannelPermission writePermission = ChannelPermission.Everyone,
-        HistoryLimit historyLimit = HistoryLimit.Unlimited, bool sinceJoined = false)
+        HistoryLimit historyLimit = HistoryLimit.Unlimited, bool sinceJoined = false,
+        PinPermission pinPermission = PinPermission.AdminOnly, List<string>? pinners = null)
         => new Channel
         {
             Type = ChannelType.Room,
@@ -81,7 +99,9 @@ public class Channel
             SortOrder = sortOrder,
             WritePermission = writePermission,
             HistoryLimit = historyLimit,
-            SinceJoined = sinceJoined
+            SinceJoined = sinceJoined,
+            PinPermission = pinPermission,
+            Pinners = pinners ?? new()
         };
 
     /// <summary>
@@ -154,6 +174,21 @@ public class Channel
         Type == ChannelType.DirectMessage ||
         WritePermission == ChannelPermission.Everyone ||
         isAdmin;
+
+    /// <summary>
+    /// Whether a person may pin and unpin in this conversation (MR-76). Both people of a direct message may. In a room,
+    /// the admin always may; the others follow <see cref="PinPermission"/>.
+    /// </summary>
+    public bool CanPin(Guid userId, string username, bool isAdmin) => Type switch
+    {
+        ChannelType.DirectMessage => CanAccess(userId),
+        _ => isAdmin || PinPermission switch
+        {
+            PinPermission.Everyone => true,
+            PinPermission.Selected => Pinners.Contains(username, StringComparer.OrdinalIgnoreCase),
+            _ => false,
+        },
+    };
 
     /// <summary>
     /// Returns the UTC cutoff timestamp for history visibility, or null if unlimited.

@@ -14,13 +14,13 @@ public static class RoomsEndpoints
 
         rooms.MapPost("", (RoomRequest body, ClaimsPrincipal me, ChatService chat) =>
         {
-            var (room, error) = chat.CreateRoom(me.Id(), body.Name, body.Description, Permission(body), body.HistoryLimit, body.SinceJoined);
+            var (room, error) = chat.CreateRoom(me.Id(), body.Name, body.Description, Permission(body), body.HistoryLimit, body.SinceJoined, body.PinPermission, body.Pinners);
             return room is null ? Results.Problem(error, statusCode: 400) : Results.Created($"/room/{room.Id}", RoomDto.From(room));
         });
 
         rooms.MapPatch("/{id:guid}", (Guid id, RoomRequest body, ClaimsPrincipal me, ChatService chat) =>
             chat.GetChannel(id) is null ? Results.NotFound()
-            : chat.UpdateRoom(me.Id(), id, body.Name, body.Description, Permission(body), body.HistoryLimit, body.SinceJoined) is { } error
+            : chat.UpdateRoom(me.Id(), id, body.Name, body.Description, Permission(body), body.HistoryLimit, body.SinceJoined, body.PinPermission, body.Pinners) is { } error
                 ? Results.Problem(error, statusCode: 400)
                 : Results.NoContent());
 
@@ -34,6 +34,7 @@ public static class RoomsEndpoints
     private static ChannelPermission Permission(RoomRequest body) => body.AdminOnly ? ChannelPermission.AdminOnly : ChannelPermission.Everyone;
 }
 
-public sealed record RoomRequest(string Name, string? Description, bool AdminOnly, HistoryLimit HistoryLimit = HistoryLimit.OneMonth, bool SinceJoined = true);
+public sealed record RoomRequest(string Name, string? Description, bool AdminOnly, HistoryLimit HistoryLimit = HistoryLimit.OneMonth, bool SinceJoined = true,
+    PinPermission PinPermission = PinPermission.AdminOnly, List<string>? Pinners = null);
 
 public sealed record MoveRequest(bool Up);

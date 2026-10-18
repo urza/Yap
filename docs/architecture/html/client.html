@@ -251,6 +251,7 @@ figure.diagram svg { display: block; max-width: 100%; height: auto; }
 connection.on(<span class="s">&#x27;message&#x27;</span>,        m =&gt; store.addMessage(m));
 connection.on(<span class="s">&#x27;messageEdited&#x27;</span>,  m =&gt; store.replaceMessage(m));
 connection.on(<span class="s">&#x27;messageDeleted&#x27;</span>, (channelId, id) =&gt; store.removeMessage(channelId, id));
+connection.on(<span class="s">&#x27;pins&#x27;</span>,           (channelId, pins) =&gt; store.setPins(channelId, pins));
 connection.on(<span class="s">&#x27;reactions&#x27;</span>,      (id, reactions) =&gt; store.setReactions(id, reactions));
 connection.on(<span class="s">&#x27;previews&#x27;</span>,       (id, previews) =&gt; store.setPreviews(id, previews));
 connection.on(<span class="s">&#x27;typing&#x27;</span>,         (channelId, username, on) =&gt; store.setTyping(channelId, username, on));
