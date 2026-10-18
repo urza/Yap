@@ -17,7 +17,7 @@ Administration is the admin's page for the server. It covers the people, the inv
 
 **AD-01** Only the admin can open the page, from "Admin" in the status menu. Any other person goes to the lobby. The page is outside the chat frame and uses the theme's colours. The back arrow goes to the lobby. The back arrow is also present on phones.
 
-**AD-02** Users opens first. Users, Bot, Invites and Settings load with the page. Logs, Media and Visitors load when they open for the first time. GIFs loads again each time it opens. Diagnostics refreshes every 30 seconds while it is open.
+**AD-02** Users opens first. A link to a tab, such as the one in the GIF picker, opens that tab. Users, Bot, Invites and Settings load with the page. Logs, Media and Visitors load when they open for the first time. GIFs loads again each time it opens. Diagnostics refreshes every 30 seconds while it is open.
 
 **AD-03** Persistence is the optional saved copy of accounts, messages and settings. When the server runs without persistence, the top of the page shows "This server runs without persistence. Accounts, messages and settings last until the next restart." Logs, Media and Visitors then show "Not available without persistence." instead of an empty tab.
 
@@ -47,7 +47,7 @@ Administration is the admin's page for the server. It covers the people, the inv
 
 **AD-12** Link Previews has "Enable link previews" (on by default) and "Enable media caching" (off by default). When the downloader is missing, "Enable media caching" is disabled and shows a note. Both switches apply at once to every open chat.
 
-**AD-13** GIFs has the content rating of the provider: G, PG, PG-13 or R. The default is PG. A change applies to the next search. The tab also shows "Provider: configured" or "Provider: not configured".
+**AD-13** GIFs has the content rating of the provider: G, PG, PG-13 or R. The default is PG. A change applies to the next search. The tab also shows "Provider: configured" or "Provider: not configured". Under it, an instruction box "Klipy API key" shows the state of the key and, open, the steps to get a free key at partner.klipy.com, where to put it and that a restart applies it. The box says that own uploads, favourites and the server library work without a key. <!-- lint: allow -->
 
 **AD-14** Deployment shows read-only instruction boxes for the settings that need a matching DNS record. These settings are the upload subdomain and the IPv4 beacon. Each box shows the current state of its setting.
 

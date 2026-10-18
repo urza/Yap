@@ -27,7 +27,7 @@ function parse(full) {
 }
 
 let handler = () => {};
-export let current = parse(location.pathname);
+export let current = parse(location.pathname + location.hash);   // the hash picks a tab (AD-02), so a load keeps it
 
 export function onRoute(fn) { handler = fn; }
 
@@ -37,7 +37,7 @@ export function start() {
     const last = read(LAST_ROUTE) || '/lobby';
     history.replaceState(null, '', last); current = parse(last);
   }
-  addEventListener('popstate', () => { current = parse(location.pathname); handler(current); });
+  addEventListener('popstate', () => { current = parse(location.pathname + location.hash); handler(current); });
   handler(current);
 }
 
