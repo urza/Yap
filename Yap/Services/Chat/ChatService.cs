@@ -7,6 +7,7 @@ using Yap.Models.Admin;
 using Yap.Models.Chat;
 using Yap.Services.Accounts;
 using Yap.Services.Gifs;
+using Yap.Services.Media;
 using Yap.Services.Notifications;
 using Yap.Services.Persistence;
 using Yap.Services.Presence;
@@ -50,6 +51,8 @@ public class ChatService
 
     public const int MaxTextLength = 4000;      // IB-14, MR-11
     public const int MaxMediaPerMessage = 10;   // IB-32
+    // The waveform of a voice message: one base-36 digit per bar, at most 64 bars (VoiceAttachment).
+    private static readonly System.Text.RegularExpressions.Regex VoicePeaks = new("^[0-9a-z]{0,64}$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
     // Every change raises one event. The broadcaster turns each into one hub message; the bot listens too.
     public event Action<ChatMessage>? OnMessageReceived;
@@ -390,6 +393,14 @@ public class ChatService
 
         var text = request.Text ?? "";
         var media = (request.ImageUrls?.Count ?? 0) + (request.VideoUrls?.Count ?? 0) + (request.GifAttachments?.Count ?? 0);
+        if (request.Voice is { } voice)
+        {
+            // A voice message carries nothing else (IB-70): the row has no caption and no gallery to draw with it.
+            if (media > 0 || !string.IsNullOrWhiteSpace(text)) return SendResult.Refused("A voice message is sent alone.");
+            if (voice.DurationMs <= 0 || voice.DurationMs > (VoiceService.MaxSeconds + 10) * 1000) return SendResult.Refused("The voice message is too long.");
+            if (!VoicePeaks.IsMatch(voice.Peaks ?? "")) return SendResult.Refused("The voice message is malformed.");
+            media = 1;
+        }
         if (text.Length > MaxTextLength) return SendResult.Refused($"A message has at most {MaxTextLength} characters.");
         if (media > MaxMediaPerMessage) return SendResult.Refused($"Choose at most {MaxMediaPerMessage} files.");   // IB-32
         if (string.IsNullOrWhiteSpace(text) && media == 0) return SendResult.Refused("The message is empty.");
@@ -414,7 +425,7 @@ public class ChatService
         }
 
         var message = new ChatMessage(channel.Id, request.UserId, request.Username, text, DateTime.UtcNow,
-            request.ImageUrls, request.ReplyToMessageId, request.VideoUrls, request.GifAttachments) { ClientId = request.ClientId };
+            request.ImageUrls, request.ReplyToMessageId, request.VideoUrls, request.GifAttachments, request.Voice) { ClientId = request.ClientId };
         _gifService.IncrementReferences(request.GifAttachments);   // an entry in chat history is never evicted
 
         bool firstInDm;
@@ -490,7 +501,9 @@ public class ChatService
 
     private void DispatchPush(Channel channel, string senderUsername, ChatMessage message)
     {
-        var preview = !string.IsNullOrWhiteSpace(message.Content) ? message.Content : message.HasGifs ? "[GIF]" : "[Attachment]";   // NT-27: a caption is the text
+        var preview = !string.IsNullOrWhiteSpace(message.Content) ? message.Content   // NT-27: a caption is the text
+            : message.Voice is { } voice ? $"[Voice message {VoiceService.FormatDuration(voice.DurationMs)}]"
+            : message.HasGifs ? "[GIF]" : "[Attachment]";
         var senderName = _userService.GetByUsername(senderUsername)?.DisplayName ?? senderUsername;        // NT-27: the display name
 
         foreach (var recipient in PushRecipients(channel, senderUsername))

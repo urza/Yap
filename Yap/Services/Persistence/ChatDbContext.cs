@@ -46,6 +46,15 @@ public class ChatDbContext : DbContext
             v => v.Aggregate(0, (hash, item) => HashCode.Combine(hash, item)),
             v => v.ToList()));
 
+    /// <summary>
+    /// One optional object stored as a JSON string, null when absent. T is an immutable record: its value
+    /// equality is the comparer, and the snapshot is the object itself, so no copy is needed.
+    /// </summary>
+    private static void StoreAsJson<T>(PropertyBuilder<T?> property) where T : class => property.HasConversion(
+        v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+        v => string.IsNullOrEmpty(v) ? null : JsonSerializer.Deserialize<T>(v, (JsonSerializerOptions?)null),
+        new ValueComparer<T?>((a, b) => Equals(a, b), v => v == null ? 0 : v.GetHashCode(), v => v));
+
     // !! RULE: a collection column goes through StoreAsJsonList above, never through a bare HasConversion.
     // !! A converter without a value comparer makes EF compare the list by reference: an Add or Remove on a
     // !! loaded row is silently not saved, and model validation warns at every start (event 10620).
@@ -140,6 +149,7 @@ public class ChatDbContext : DbContext
             StoreAsJsonList(entity.Property(m => m.ImageUrls));
             StoreAsJsonList(entity.Property(m => m.VideoUrls));
             StoreAsJsonList(entity.Property(m => m.GifAttachments));
+            StoreAsJson(entity.Property(m => m.Voice));
 
             entity.HasMany(m => m.Reactions)
                   .WithOne(r => r.Message)

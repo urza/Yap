@@ -7,8 +7,10 @@ import * as db from './db.js';
 // Only data goes to disk: no functions, no DOM, no upload handles. A direct message is addressed by its
 // partner; its channelId is null when the conversation was never opened on the device (OF-08).
 function serialisable(row) {
-  const { id, clientId, channelId, partner, username, text, timestamp, replyToId, replyTo, files, images, videos, gifs, failed, queuedAt } = row;
-  return { id, clientId, channelId, partner, username, text, timestamp, replyToId, replyTo, files: files ?? [], images, videos, gifs, failed, queuedAt };
+  const { id, clientId, channelId, partner, username, text, timestamp, replyToId, replyTo, files, images, videos, gifs, voice, failed, queuedAt } = row;
+  // A voice row's `src` is a Blob URL of this page while the file is not uploaded: sender.js makes a new one on load.
+  return { id, clientId, channelId, partner, username, text, timestamp, replyToId, replyTo, files: files ?? [], images, videos, gifs,
+           voice: voice ? { durationMs: voice.durationMs, peaks: voice.peaks, url: voice.url ?? null } : null, failed, queuedAt };
 }
 
 export const save = row => db.put(db.STORES.outbox, serialisable(row));

@@ -9,7 +9,7 @@ public sealed record SendMessage(Guid ChannelId, Guid UserId, string Username, s
     public List<string>? ImageUrls { get; init; }
     public List<string>? VideoUrls { get; init; }
     public List<GifAttachment>? GifAttachments { get; init; }
-
+    public VoiceAttachment? Voice { get; init; }
 }
 
 /// <summary>Either the stored message or the reason the server refused it (GEN-02).</summary>

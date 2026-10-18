@@ -74,6 +74,12 @@ public static class TusEndpoints
 
                     var kind = Meta("kind");
                     var target = Meta("target");
+                    if (kind == "voice")
+                    {
+                        // The recording cannot be served as it is (VoiceService), so without ffmpeg the upload is doomed.
+                        if (!VoiceService.IsAvailable) eventContext.FailRequest("Voice messages are unavailable on this server (ffmpeg missing)");
+                        return Task.CompletedTask;
+                    }
                     if (kind is not ("gif" or "gif-pack") && target == null)
                         return Task.CompletedTask; // plain chat upload
 
@@ -114,6 +120,7 @@ public static class TusEndpoints
                     var logger = eventContext.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("TusUpload");
                     var imageService = eventContext.HttpContext.RequestServices.GetRequiredService<ImageService>();
                     var videoService = eventContext.HttpContext.RequestServices.GetRequiredService<VideoService>();
+                    var voiceService = eventContext.HttpContext.RequestServices.GetRequiredService<VoiceService>();
                     var mediaLog = eventContext.HttpContext.RequestServices.GetRequiredService<MediaUploadLogService>();
                     var userService = eventContext.HttpContext.RequestServices.GetRequiredService<UserService>();
                     var gifService = eventContext.HttpContext.RequestServices.GetRequiredService<GifService>();
@@ -173,6 +180,29 @@ public static class TusEndpoints
                         logger.LogInformation("GIF pack accepted from {User} → import {ImportId} (server: {Server})",
                             user.Username, importId, serverTarget);
                         Done(new { type = "gif-pack", importId });
+                        return;
+                    }
+
+                    // A voice message (IB-70). The transcode reads the tus part itself and writes the .m4a into the
+                    // uploads folder, so the raw recording, whose extension the client chose, is never a served file.
+                    if (kind == "voice")
+                    {
+                        var voiceName = $"{Guid.NewGuid()}.m4a";
+                        var voicePath = Path.Combine(uploads.Root, voiceName);
+                        var voice = await voiceService.TranscodeAsync(tusFilePath, voicePath);
+                        var rawSize = new FileInfo(tusFilePath).Length;
+                        try { File.Delete(tusFilePath); } catch { }
+                        CleanupTusMetadata();
+                        if (voice is null)
+                        {
+                            logger.LogWarning("Voice message rejected: {FileName} ({Size}KB)", originalFileName, rawSize / 1024);
+                            Done(new { type = "error", error = VoiceService.IsAvailable ? "Could not process this voice message" : "Voice messages are unavailable on this server (ffmpeg missing)" });
+                            return;
+                        }
+                        if (user != null)
+                            mediaLog.Log(user.Id, user.Username, originalFileName, voiceName, new FileInfo(voicePath).Length, "voice", ".m4a");
+                        logger.LogDebug("Voice message accepted: {FileName} ({Duration}ms, {RawSize}KB recorded)", voiceName, voice.DurationMs, rawSize / 1024);
+                        Done(new { type = "voice", url = $"/uploads/{voiceName}", durationMs = voice.DurationMs });
                         return;
                     }
 

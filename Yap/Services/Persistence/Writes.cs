@@ -158,6 +158,6 @@ public static class Writes
     // repeated across a restart finds its first copy instead of storing a second one.
     private static ChatMessage Detached(ChatMessage m) =>
         new(m.ChannelId, m.UserId, m.Username, m.Content, m.Timestamp, m.ImageUrls.ToList(),
-            m.ReplyToMessageId, m.VideoUrls.ToList(), m.GifAttachments.ToList())
+            m.ReplyToMessageId, m.VideoUrls.ToList(), m.GifAttachments.ToList(), m.Voice)
         { Id = m.Id, IsEdited = m.IsEdited, ClientId = m.ClientId };
 }
