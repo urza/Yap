@@ -14,8 +14,8 @@ namespace Yap.Services.Accounts;
 /// behind every other write of the purge, so the cascades meet nothing the queue still had to store.
 /// </summary>
 public sealed class AccountDeletionService(UserService users, ChatService chat, PresenceService presence, AccessLinkService links,
-    PushSubscriptionStore push, GifService gifs, NotificationSettingsService mutes, SystemBotService bot, ImageService images,
-    ILogger<AccountDeletionService> log)
+    PasskeyService passkeys, PushSubscriptionStore push, GifService gifs, NotificationSettingsService mutes, SystemBotService bot,
+    ImageService images, ILogger<AccountDeletionService> log)
 {
     public const int DefaultInactiveDays = 90;   // AD-39
 
@@ -61,6 +61,7 @@ public sealed class AccountDeletionService(UserService users, ChatService chat, 
         mutes.ClearOverridesForUser(user.Id);
         gifs.RemoveAccount(user.Id);
         links.ForgetUser(user.Id);
+        passkeys.ForgetUser(user.Id);
         await push.RemoveAccountAsync(user.Username);
         images.DeleteProfilePicture(user.Id);
         bot.Forget(user.Username);

@@ -2550,6 +2550,33 @@
     background: var(--accent-hover);
 }
 
+/* The passkey way in (AU-28): a quiet text button under the box. The autofill in the box is the main road; the
+   button is for a browser without it and for the phone-holds-the-key case. Hidden where the browser has no WebAuthn. */
+.passkey-button {
+    display: flex;
+    width: fit-content;
+    align-items: center;
+    gap: 0.375rem;
+    margin: 0.75rem auto 0;
+    padding: 0.25rem 0.5rem;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-family: inherit;
+}
+
+.passkey-button:hover:not(:disabled) {
+    color: var(--text-primary);
+    text-decoration: underline;
+}
+
+.passkey-button:disabled {
+    opacity: 0.5;
+    cursor: wait;
+}
+
 /* Multi-device guide (neutral, instructional) */
 .multidevice-guide {
     background: var(--bg-sidebar);
@@ -3178,6 +3205,42 @@
     border-color: var(--accent-primary);
 }
 
+/* Passkeys (ST-27): the rows wear the session rows' clothes. The name is a text box that looks like text until it
+   is hovered or focused, so a rename is a click on the name, with no pencil and no dialog. */
+.passkey-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.passkey-list:not(:empty) {
+    margin-bottom: 12px;
+}
+
+.passkey-name {
+    min-width: 0;
+    width: 100%;
+    max-width: 16rem;
+    margin-left: -0.25rem;
+    padding: 0.125rem 0.25rem;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 0.875rem;
+}
+
+.passkey-name:hover {
+    border-color: var(--border-subtle);
+}
+
+.passkey-name:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    background: var(--bg-primary);
+}
+
 .session-icon {
     font-size: 1.25rem;
     flex-shrink: 0;
@@ -3802,6 +3865,21 @@
 
 .back-link:hover {
     color: var(--text-primary);
+}
+
+/* The passkey half of the verification page (AU-28), above the code box when the account has both */
+.verify-passkey {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 1rem 1rem;
+}
+
+.verify-or {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
 }
 
 /* The admin's Danger Zone (AD-38 to AD-40), under the Users tab: the room page's danger items in the admin's own

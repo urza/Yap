@@ -26,7 +26,7 @@ public static class BootstrapEndpoints
     {
         api.MapGet("/bootstrap", (HttpContext http, ClaimsPrincipal principal, string? connection,
             UserService users, ChatService chat, PresenceService presence, NotificationSettingsService mutes, GifService gifs,
-            AccessLinkService links, RegistrationGateService gate, LinkPreviewSettingsService previews,
+            AccessLinkService links, PasskeyService passkeys, RegistrationGateService gate, LinkPreviewSettingsService previews,
             PushNotificationService push, SystemBotService bot, ServerConfig config) =>
         {
             if (!principal.IsSignedIn())
@@ -41,7 +41,7 @@ public static class BootstrapEndpoints
             links.ObserveOrigin(me.Id, http.Request.Origin());           // this person's links use the address this person used (AU-15)
 
             return Results.Ok(new BootstrapDto(
-                User: MeDto.From(me, users.IsAdmin(me.Id), links.HasActiveLink(me.Id)),
+                User: MeDto.From(me, users.IsAdmin(me.Id), links.HasActiveLink(me.Id), passkeys.HasAny(me.Id)),
                 Config: new ClientConfigDto(config.ProjectName, config.UploadUrl, config.MaxUploadSizeMB, VoiceService.MaxSeconds,
                     config.Ipv4BeaconUrl, connection is null ? null : presence.CreateBeaconNonce(connection, me.Id),
                     previews.Enabled, previews.MediaCachingEnabled,

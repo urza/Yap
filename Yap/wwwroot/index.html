@@ -766,6 +766,7 @@
                         <ol class="guide-steps"></ol>
                         <button type="button" class="retry-link">Done, try again</button>
                     </div>
+                    <button type="button" class="passkey-button" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 1 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>Sign in with a passkey</button>
                 </div>
                 <div class="waiting-message" hidden>
                     <h2>Waiting for approval</h2>
@@ -784,8 +785,13 @@
         <div class="page-verify">
             <div class="verify-container">
                 <h2>Welcome back, <span class="verify-name"></span></h2>
-                <p class="verify-hint">Type the code from your login link (the part after /invite/). An older secret code works too.</p>
-                <div class="verify-form">
+                <p class="verify-hint"></p>
+                <div class="verify-passkey" hidden>
+                    <button class="verify-button verify-passkey-button" type="button">Use a passkey</button>
+                    <span class="validation-error verify-passkey-error" hidden></span>
+                </div>
+                <div class="verify-or" hidden>or</div>
+                <div class="verify-form" hidden>
                     <div class="input-wrapper">
                         <input type="text" placeholder="e.g. blue fox 4821" class="verify-input" autocomplete="off" autocapitalize="none" spellcheck="false" />
                         <span class="validation-error" hidden></span>
@@ -1020,6 +1026,15 @@
                         </div>
                     </div>
 
+                    <div class="settings-section" data-section="passkeys">
+                        <h3>Passkeys</h3>
+                        <span class="form-hint" style="margin-bottom: 12px;">Sign in with Face ID, Touch ID, Windows Hello or your phone's lock screen. A passkey is saved on this device or in its password manager, works only on this site, and gives nothing away. Nothing to remember or copy.</span>
+                        <div class="passkey-list"></div>
+                        <span class="form-hint passkeys-unsupported" style="margin-bottom: 12px;" hidden>This browser cannot make a passkey on this address. Passkeys need https and a browser that supports them.</span>
+                        <button class="upload-button passkey-add" type="button">Add a passkey</button>
+                        <span class="save-status saved passkeys-status" style="margin-top: 4px;" hidden></span>
+                    </div>
+
                     <!-- Retired (AU-13): hidden until the page learns that the account still has a code; nothing creates a new one. -->
                     <div class="settings-section" data-section="passphrase" hidden>
                         <h3>Secret Code</h3>
@@ -1168,6 +1183,17 @@
                 <span class="session-activity session-extra" hidden></span>
             </div>
             <button class="remove-button session-remove" type="button" style="margin-left: auto; padding: 0.25rem 0.625rem; font-size: 0.75rem; flex-shrink: 0;" title="Remove this device" hidden>Remove</button>
+        </div>
+    </template>
+
+    <template id="t-passkey-item">
+        <div class="session-item passkey-item">
+            <span class="session-icon">🔑</span>
+            <div class="session-details">
+                <div class="session-line"><input class="passkey-name" type="text" maxlength="64" spellcheck="false" autocomplete="off" title="Rename" /><span class="session-badge passkey-synced" title="Synced through the password manager, so it is on your other devices too" hidden>Synced</span></div>
+                <span class="session-activity passkey-when"></span>
+            </div>
+            <button class="remove-button passkey-remove" type="button" style="margin-left: auto; padding: 0.25rem 0.625rem; font-size: 0.75rem; flex-shrink: 0;" title="Remove this passkey">Remove</button>
         </div>
     </template>
 

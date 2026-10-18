@@ -10,7 +10,9 @@ namespace Yap.Services.Accounts;
 /// <summary>What a typed username can do on this device right now (AU-05, AU-08, AU-09).</summary>
 public enum SignInState { Invalid, Free, Closed, Pending, Smart, Verify, Guide }
 
-public sealed record SignInCheck(SignInState State, string? Reason);
+/// <summary>For Verify, the ways the account has: a passkey, a code (the login link's or a secret code), or both. The
+/// verification page shows exactly those (AU-08, AU-28).</summary>
+public sealed record SignInCheck(SignInState State, string? Reason, bool Passkey = false, bool Code = false);
 
 /// <summary>The answer to a sign-in: a signed-in account, a wait for approval, or a refusal with its reason and status.</summary>
 public sealed record SignInOutcome(int Status, User? User = null, string? Reason = null)
@@ -33,8 +35,8 @@ public sealed record InviteView(InviteState State, string? Owner, string? Curren
 /// decision, so the client never decides, it only shows (docs/architecture/sign-in.md). The endpoint sets the
 /// cookie from the outcome; this class never sees a response.
 /// </summary>
-public sealed class SignInService(UserService users, AccessLinkService links, RegistrationGateService gate, PresenceService presence,
-    SystemBotService bot, UserActionLogService log)
+public sealed class SignInService(UserService users, AccessLinkService links, PasskeyService passkeys, RegistrationGateService gate,
+    PresenceService presence, SystemBotService bot, UserActionLogService log)
 {
     public const string TooManyAttempts = "Too many attempts. Try again in a few minutes.";   // AU-14
     public const string RegistrationClosed = "Registration is temporarily closed";               // AU-05
@@ -55,9 +57,20 @@ public sealed class SignInService(UserService users, AccessLinkService links, Re
         }
 
         if (SmartLoginApplies(user, ip)) return new(SignInState.Smart, null);                                     // AU-09
-        if (users.HasPassword(username) || links.HasActiveLink(user.Id)) return new(SignInState.Verify, null);   // AU-08
+        var code = users.HasPassword(username) || links.HasActiveLink(user.Id);
+        var passkey = passkeys.HasAny(user.Id);
+        if (code || passkey) return new(SignInState.Verify, null, Passkey: passkey, Code: code);                 // AU-08
         return new(SignInState.Guide, null);
     }
+
+    /// <summary>A passkey that PasskeyService has already verified signs its owner in (AU-28). No brake: a passkey
+    /// cannot be guessed, so a failure is logged (PasskeyRefused) and nothing else pauses.</summary>
+    public SignInOutcome SignInWithPasskey(Passkey passkey, string? ip, string? userAgent) =>
+        users.GetById(passkey.UserId) is { } owner
+            ? SignedIn(owner, "passkey", ip, userAgent)
+            : Fail(null, "passkey_orphan", ip, userAgent, 401, "This passkey belongs to an account that no longer exists.");
+
+    public SignInOutcome PasskeyRefused(string reason, string? ip, string? userAgent) => Fail(null, "passkey_failed", ip, userAgent, 401, reason);
 
     /// <summary>A new account, a smart login, or a code. The code is the secret code (exact) or the code of the login
     /// link (any case, any separators).</summary>

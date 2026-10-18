@@ -8,6 +8,7 @@ import { pick } from '../render/text.js';
 import * as session from '../session.js';
 import { installed } from '../push.js';
 import * as router from '../router.js';
+import * as passkeys from '../passkeys.js';
 
 const RULES = [
   [u => u.length < 2, 'Username must be at least 2 characters'],
@@ -67,7 +68,8 @@ export function mount(root) {
     show(null);
     checkTimer = setTimeout(runCheck, 250);
   });
-  input.addEventListener('blur', () => { blurred = true; const rule = usernameRule(username()); if (rule) show(error, rule); });
+  // An empty box has nothing to judge: leaving it untouched shows no error (and moves nothing under a pointer).
+  input.addEventListener('blur', () => { blurred = true; const rule = usernameRule(username()); if (rule && username()) show(error, rule); });
   input.addEventListener('keydown', e => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
@@ -138,6 +140,36 @@ export function mount(root) {
   }
   guide.querySelector('.retry-link').addEventListener('click', () => { show(null); runCheck(); });
 
+  // Passkeys (AU-28): the autofill offers them in the box as soon as it is tapped; the button opens the browser's
+  // own passkey sheet, for a browser without the autofill and for a phone that holds the key (QR code).
+  const passkeyButton = page.querySelector('.passkey-button');
+  passkeyButton.hidden = !passkeys.supported();
+  let autofill = null;   // the pending autofill request; aborted before the button's request and on unmount
+  async function startAutofill() {
+    if (!await passkeys.autofillAvailable()) return;
+    input.autocomplete = 'username webauthn';   // the token the browser looks for before it lists passkeys in the box
+    const mine = autofill = new AbortController(), started = Date.now();
+    let outcome;
+    try { outcome = await passkeys.signIn({ conditional: true, signal: mine.signal }); }
+    catch (e) { if (!mine.signal.aborted) show(error, e.message); return; }   // the server refused or the connection failed: the button stays as the way to try again
+    if (outcome) { await signedIn(); return; }
+    // Nothing picked (a browser's timeout): offer again, with a fresh challenge. A browser that answers at once
+    // would spin here, so an answer that came within two seconds ends the autofill instead.
+    if (autofill === mine && !mine.signal.aborted && Date.now() - started > 2000) startAutofill();
+  }
+  // The button must not take the focus: the box's blur would show its error line above the button and move the
+  // button down before the mouseup, and the click would land on the form (seen in the browser check).
+  passkeyButton.addEventListener('mousedown', e => e.preventDefault());
+  passkeyButton.addEventListener('click', async () => {
+    autofill?.abort();
+    passkeyButton.disabled = true;
+    try { if (await passkeys.signIn()) { await signedIn(); return; } }
+    catch (e) { show(error, e.message); }
+    finally { passkeyButton.disabled = false; }
+    startAutofill();
+  });
+  startAutofill();
+
   // Approval required: the page asks every 3 s until the admin decides (AU-05).
   function wait(name) {
     form.hidden = true; waiting.hidden = false;
@@ -171,5 +203,5 @@ export function mount(root) {
 
   root.replaceChildren(page);
   input.focus();
-  return () => { clearInterval(poll); clearTimeout(checkTimer); page.remove(); };
+  return () => { clearInterval(poll); clearTimeout(checkTimer); autofill?.abort(); page.remove(); };
 }

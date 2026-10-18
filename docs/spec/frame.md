@@ -58,7 +58,7 @@ The frame contains all parts around a conversation. The header shows the title, 
 
 **SH-14** "Notification settings" shows a crossed bell while the user's server-wide mute is on. This makes the mute visible from every page.
 
-**SH-15** Sign Out ends only the session on this device. Other devices stay signed in. When the user has no login link and no secret code, a confirmation warns that the user cannot get back into the account. When this device has unsent messages, a confirmation warns that these messages are lost. A sign-out removes the notification subscription and the local data of the device. See [Sign-in and sessions](sessions.md).
+**SH-15** Sign Out ends only the session on this device. Other devices stay signed in. When the user has no login link, no secret code and no passkey, a confirmation warns that the user cannot get back into the account. When this device has unsent messages, a confirmation warns that these messages are lost. A sign-out removes the notification subscription and the local data of the device. See [Sign-in and sessions](sessions.md).
 
 ### Connection state
 
@@ -190,7 +190,7 @@ The frame contains all parts around a conversation. The header shows the title, 
 | Header tooltips | "Back to lobby"; "Toggle sidebar"; "{n} unread messages"; "{n} pinned messages" and "1 pinned message" |
 | Pinned messages panel | "Pinned Messages"; "Pinned by {name}"; "GIF attachment"; image alt "Attachment"; "✕" (titles "Close" and "Unpin"); "Not in the loaded history" |
 | Status menu | "Online"; "Away"; "Invisible"; "Settings"; "Notification settings"; "Admin"; "Sign Out" |
-| Sign-out confirmations | "You have no login link. Without one, you won't be able to get back into this account. Continue signing out?"; "Unsent messages on this device will be lost. Continue signing out?" |
+| Sign-out confirmations | "You have no login link or passkey. Without one, you won't be able to get back into this account. Continue signing out?"; "Unsent messages on this device will be lost. Continue signing out?" |
 | Connection bubble | "Connecting…"; "Reconnecting…"; "Offline. Messages are sent when the connection returns."; "Signed out"; "Update available" |
 | Notice strip | "You are awesome and so is the new version of this app. Please refresh." with "Reload"; "Sign in to continue." with "Sign in" |
 | Sidebar | "ROOMS"; "Add Room"; " (you)"; tooltips "Channel settings", "Notifications muted", "Admin", "Bot", "View profile" |

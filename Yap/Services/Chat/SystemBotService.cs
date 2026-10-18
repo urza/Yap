@@ -455,6 +455,7 @@ public class SystemBotService
             {
                 "smart" => "smart login (same network)",
                 "link" => "your login link",
+                "passkey" => "a passkey",
                 _ => "secret code"
             };
             var message = $"🔐 New device sign-in detected for your account using **{methodLabel}** from IP `{ip}`. If this wasn't you, open **Settings** and use **Sign out all other devices** immediately.";

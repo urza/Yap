@@ -140,8 +140,8 @@ function openStatusMenu() {
 // SH-15: a warning when the account has no way back, and one when unsent messages exist.
 async function confirmSignOut() {
   const me = state.user;
-  if (!me.hasLink && !me.hasPassphrase
-      && !confirm("You have no login link. Without one, you won't be able to get back into this account. Continue signing out?")) return;
+  if (!me.hasLink && !me.hasPassphrase && !me.hasPasskey
+      && !confirm("You have no login link or passkey. Without one, you won't be able to get back into this account. Continue signing out?")) return;
   if (hasQueued() && !confirm('Unsent messages on this device will be lost. Continue signing out?')) return;
   if (!await session.signOut()) overlays.reason(frame.querySelector('.status-dropdown-container'), 'Needs a connection');   // GEN-10: the server removes the cookie
 }

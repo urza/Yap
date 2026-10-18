@@ -111,12 +111,31 @@ The login, verify and invite pages need the project name and the configured logi
 
 `AccessLinkService` keeps the brake: 20 failures in 10 minutes pause every code sign-in and every link for 10 minutes, and the bot tells the admin (AU-14). Wrong codes, dead invite links and dead login links count. The `check` route does not count, so a person who types slowly is never counted. Every failure also goes to the visitors log with its reason, for the admin's Visitors tab (AD-20): "Wrong passphrase", "Registration closed", "Bot username", "IP mismatch", "Approval pending".
 
+## Passkeys
+
+A passkey sign-in is a WebAuthn ceremony in two requests (AU-27 to AU-30). `Services/Accounts/PasskeyService` owns both halves and the stored credentials; the cryptography is Fido2NetLib's. `Begin*` builds the options, remembers them in memory under a random challenge id for ten minutes, and hands both to the browser. `Complete*` takes the options back by that id, once, and lets the library check the browser's answer against them. A restart between the halves fails the ceremony; the person taps again.
+
+The relying party is the host of the request (`Request.Host`), the same for every instance: the authenticator binds a key to that domain and signs the domain's hash into every answer, so a wrong host can only fail the check. The accepted origins are `https://{host}` and `http://{host}`; the second serves local development, because browsers do WebAuthn on https or localhost only. Every row stores its domain, so Settings can mark a key made for another address of the server.
+
+| Route | Request | Response |
+| --- | --- | --- |
+| `POST /api/auth/passkey/options` | | `{ challengeId, options }`: the `PublicKeyCredentialRequestOptions` as JSON, with no credential named, so the browser offers every passkey it holds for this domain. Anonymous. 429 when 5000 challenges are pending. |
+| `POST /api/auth/passkey` | `{ challengeId, credential }` | `credential` is `PublicKeyCredential.toJSON()`. 200 `{ username }` and the cookie, through the same `Outcome` as every sign-in. 401 with the reason otherwise, and a LOGIN_FAIL row tagged `passkey_failed`. Anonymous. No brake: a passkey cannot be guessed. |
+| `GET /api/account/passkeys` | | `{ passkeys: [{ id, name, createdAt, lastUsedAt, backedUp, rpId }], rpId }`; the second `rpId` is this request's domain. |
+| `POST /api/account/passkeys/options` | | `{ challengeId, options }`: the creation options, with the account's existing keys excluded and a discoverable, user-verified key asked for. |
+| `POST /api/account/passkeys` | `{ challengeId, credential }` | 200 the new row. The name comes from the user agent and the `credProps` extension ("iPhone (iCloud Keychain)"). 400 with the reason otherwise. |
+| `PATCH /api/account/passkeys/{id}` | `{ name }` | 204, or 404 when the key is not the caller's. |
+| `DELETE /api/account/passkeys/{id}` | | 204, or 404 when the key is not the caller's. The row goes; the key on the device is the person's to delete. |
+
+The client half is `wwwroot/js/passkeys.js`: `signIn()` and `register()` drive `navigator.credentials`, and convert the JSON shapes by hand for browsers without `parseCreationOptionsFromJSON` and `toJSON`. The login page starts a conditional request on mount, so the username box lists passkeys as soon as it is tapped, and aborts it before the button's own request. The check route's answer carries `passkey` and `code` for the Verify state, so the verification page shows the ways the account has.
+
 ## The services around it
 
 | Service | Used for |
 | --- | --- |
 | `UserService` | find by username and display name, create, verify passphrase, known addresses, token |
 | `AccessLinkService` | find a code, verify a code for a user, mint on create, claim an invite, the brake |
+| `PasskeyService` | the WebAuthn ceremonies, the stored public keys, the per-account list (AU-27 to AU-30) |
 | `RegistrationGateService` | the closed and approval switches, the waiting list, approved and rejected names; memory only, lost on restart (AD-11) |
 | `PresenceService` | a connected session from this address, for smart login. The address is the connection's own, or a trusted proxy's word; a forwarded header from anyone else makes it unknown (see the authentication page, "The client's address") |
 | `SystemBotService` | the welcome message after one minute, the new-device message, the admin messages |

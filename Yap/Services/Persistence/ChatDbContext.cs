@@ -27,6 +27,7 @@ public class ChatDbContext : DbContext
     public DbSet<GifEntry> GifEntries { get; set; } = null!;
     public DbSet<FavoriteGif> FavoriteGifs { get; set; } = null!;
     public DbSet<AccessLink> AccessLinks { get; set; } = null!;
+    public DbSet<Passkey> Passkeys { get; set; } = null!;
 
     public ChatDbContext(DbContextOptions<ChatDbContext> options) : base(options)
     {
@@ -246,6 +247,22 @@ public class ChatDbContext : DbContext
             entity.Ignore(l => l.IsActive);
             entity.Ignore(l => l.IsClaimed);
             entity.Ignore(l => l.AdminCanSeeCode);
+        });
+
+        // Passkeys (AU-27): one row per credential, found by the authenticator's credential id at sign-in.
+        modelBuilder.Entity<Passkey>(entity =>
+        {
+            entity.HasKey(p => p.Id);
+            entity.HasIndex(p => p.CredentialId).IsUnique();
+            entity.HasIndex(p => p.UserId);
+            entity.Property(p => p.Name).HasMaxLength(64);
+            entity.Property(p => p.RpId).HasMaxLength(253);   // the longest a domain name can be
+
+            // A passkey is the account's: it dies with the account (AU-30).
+            entity.HasOne<User>()
+                  .WithMany()
+                  .HasForeignKey(p => p.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         // Reaction configuration

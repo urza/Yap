@@ -25,10 +25,11 @@ public sealed record MeDto(
     UserStatus Status,
     bool SmartLoginOptOut,
     bool HasPassphrase,
-    bool HasLink)
+    bool HasLink,
+    bool HasPasskey)
 {
-    public static MeDto From(User u, bool isAdmin, bool hasLink) =>
+    public static MeDto From(User u, bool isAdmin, bool hasLink, bool hasPasskey) =>
         new(u.Id, u.Username, u.DisplayName, u.ProfilePictureUrl, u.Bio, u.Country, u.CreatedAt, isAdmin,
             u.Theme, u.FontSize, u.TimeZone, u.Locale, u.DateFormat, u.Status, u.SmartLoginOptOut,
-            HasPassphrase: !string.IsNullOrEmpty(u.Password), HasLink: hasLink);
+            HasPassphrase: !string.IsNullOrEmpty(u.Password), HasLink: hasLink, HasPasskey: hasPasskey);
 }

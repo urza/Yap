@@ -49,7 +49,8 @@ public static class SignInEndpoints
             Outcome(http, signIn.Redeem(code, body?.Username, IpHelper.GetClientIp(http), http.Request.Headers.UserAgent))).AllowAnonymous();
     }
 
-    private static IResult Outcome(HttpContext http, SignInOutcome outcome)
+    /// <summary>Every sign-in route ends here, the passkey ones included (PasskeyEndpoints): one place sets the cookie.</summary>
+    internal static IResult Outcome(HttpContext http, SignInOutcome outcome)
     {
         if (outcome.User is { } user)
         {

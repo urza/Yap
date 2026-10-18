@@ -165,6 +165,7 @@ builder.Services.AddSingleton<SystemBotService>();
 builder.Services.AddSingleton<AccountDeletionService>();   // the admin's account deletion, across every service that knows a person (AD-39)
 builder.Services.AddSingleton<RegistrationGateService>();
 builder.Services.AddSingleton<SignInService>();
+builder.Services.AddSingleton<PasskeyService>();   // WebAuthn ceremonies and every account's passkeys (AU-27)
 builder.Services.AddSingleton<ServerConfig>();
 
 // Request logging
@@ -207,6 +208,7 @@ var app = builder.Build();
 await app.Services.InitializePersistenceAsync();   // migrations
 await app.Services.GetRequiredService<UserService>().LoadUsersAsync();
 await app.Services.GetRequiredService<AccessLinkService>().LoadAsync();
+await app.Services.GetRequiredService<PasskeyService>().LoadAsync();
 await app.Services.GetRequiredService<NotificationSettingsService>().InitializeAsync();
 await app.Services.GetRequiredService<ChatService>().InitializeAsync();
 app.Services.GetRequiredService<VideoService>();   // the ffmpeg probe (a child process, up to 3 s) runs here, not inside the first upload
@@ -404,12 +406,14 @@ app.UseMiddleware<RequestLoggingMiddleware>();
 
 app.MapHub<ChatHub>("/hub");
 app.MapSignIn();
+app.MapPasskeySignIn();
 
 var api = app.MapGroup("/api").RequireAuthorization();
 api.MapBootstrap();   // anonymous inside: it answers both states
 api.MapRooms();
 api.MapMessages();
 api.MapAccount();
+api.MapPasskeys();
 api.MapEmoji();
 api.MapGifs();
 

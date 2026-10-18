@@ -8,7 +8,7 @@ Settings is the one page where the user changes their profile, appearance, sign-
 
 1. **Frame.** The same header and sidebar as a conversation. The title area shows a back arrow and "Settings".
 2. **Page heading.** "Settings", with a chip on the right and the line "Changes are saved automatically." For profile changes, the chip reads "Saving..." and then "Saved".
-3. **Cards.** One column of cards, at most 600 px wide, in this order: Profile, Appearance, Text Size, Login Link, Secret Code (only for an account that still has a code), Active Sessions, Install as App, Device Push Notifications, Allow / Mute Notifications, Time & Date, My GIFs, and a collapsed DEBUG INFO card at the end.
+3. **Cards.** One column of cards, at most 600 px wide, in this order: Profile, Appearance, Text Size, Login Link, Passkeys, Secret Code (only for an account that still has a code), Active Sessions, Install as App, Device Push Notifications, Allow / Mute Notifications, Time & Date, My GIFs, and a collapsed DEBUG INFO card at the end.
 4. **Notice.** An amber notice above the heading, with a close control. It shows after "Sign out all other devices".
 
 ## Rules
@@ -41,7 +41,7 @@ Settings is the one page where the user changes their profile, appearance, sign-
 
 ### Sign-in methods
 
-**ST-11** Login Link starts with one line that summarises the sign-in methods of the account. The line is either "This account is tied to this device only." or the methods that the person has. The methods show in this order: login link, secret code, smart login.
+**ST-11** Login Link starts with one line that summarises the sign-in methods of the account. The line is either "This account is tied to this device only." or the methods that the person has. The methods show in this order: login link, passkeys, secret code, smart login.
 
 **ST-12** With a link, the card shows the hint, the URL with its code masked, and Reveal and Copy. Then it shows "New Link", "Revoke" and the expiry choice. Without a link, the card shows the hint and "Create Login Link". The rules are on the [sign-in page](sessions.md#AU-11).
 
@@ -49,9 +49,11 @@ Settings is the one page where the user changes their profile, appearance, sign-
 
 **ST-14** Secret Code is below Login Link, and only for an account that still has a code. *Why:* the code is retired, and the login link does its job ([AU-13](sessions.md#AU-13)). The card shows the masked code, Reveal and Copy, "New Code" and "Disable". Disable asks for a confirmation, because a disabled code cannot come back. After it, the card is gone and the status shows under Login Link. Status lines show for 3 seconds.
 
+**ST-27** Passkeys is below Login Link. The card explains passkeys in three sentences and lists the account's passkeys, one row each: a key icon, the name, "Synced" for a passkey that lives in a password manager, "Added {time}", "last used {time}" or "never used", and "Remove". A passkey made for another address of the server also shows "made for {domain}". A click on the name edits it; Enter or a click elsewhere saves it, Escape puts the old name back. "Add a passkey" starts the device's own prompt. Remove asks "Remove this passkey?" in the delete dialog. On a browser that cannot make passkeys, the card shows the reason instead of "Add a passkey", and the list still works. The rules are on the [sign-in page](sessions.md#AU-27).
+
 ### Devices
 
-**ST-15** Active Sessions lists the account's connected devices. Each device has a phone or desktop icon, the network address and "Active {time}". The current device shows "This device" and is always listed. "Sign out all other devices" is always available, because a device can stay signed in without a connection. It is disabled during the first hour of the current device, with the text that says when it is available. It acts without a confirmation. After it, the page shows the notice "All other devices have been signed out." with the new secret code, when one exists.
+**ST-15** Active Sessions lists the account's connected devices. Each device has a phone or desktop icon, the network address and "Active {time}". The current device shows "This device" and is always listed. "Sign out all other devices" is always available, because a device can stay signed in without a connection. It is disabled during the first hour of the current device, with the text that says when it is available. It acts without a confirmation. After it, the page shows the notice "All other devices have been signed out.", with the lines that the login link and the passkeys keep working, and the new secret code, when one exists.
 
 **ST-16** Install as App shows "Install Yap" with its explanation. Inside the installed app, it shows "Yap is installed as an app on this device." instead. See [Offline and installation](offline.md).
 
@@ -119,7 +121,7 @@ Settings is the one page where the user changes their profile, appearance, sign-
 | Profile | "Profile"; "Upload Picture"; "Change Picture"; "Uploading..."; "Remove"; "Choose an image up to 10 MB"; "Display Name"; "Your username is {username}, but your display name can be more fun. It can contain symbols and emojis :) "; "Bio"; "Why are you awesome..."; "{n}/150"; "Tell us where are you from - map is in the making!"; "Your location — used for the user map"; "London"; "Detect" |
 | Appearance | "Appearance"; "Pick a color theme. Changes apply instantly and sync across your devices."; "Discord Dark"; "Midnight"; "Nord"; "Ocean"; "Sunset"; "Aurora"; "Terminal"; "Neon Glow"; "Tea House"; "Daylight"; "Solarized Light" |
 | Text Size | "Text Size"; "Scales all text in the app. Applies instantly and syncs across your devices."; "Aa"; "14px"; "15px"; "Default"; "17px"; "18px"; "20px" |
-| Login Link, Secret Code, Active Sessions | see the [sign-in page](sessions.md#wording) |
+| Login Link, Passkeys, Secret Code, Active Sessions | see the [sign-in page](sessions.md#wording) |
 | Install | "Install as App"; "Install Yap to your home screen for a full-screen experience with push notifications and quick access."; "Install Yap"; "Yap is installed as an app on this device." |
 | Push and mutes | see the [notifications page](notifications.md#wording); mute time "1 minute", "{n} minutes", "1 hour", "{n} hours", "1 day", "{n} days", "a moment" |
 | Time & Date | "Time & Date"; "Your time"; "−"; "+"; "−1 hour"; "+1 hour"; "Detect"; "Adjust if the time doesn't match your clock"; "Clock"; "Date order"; "Separators"; "Detected: {time zone} · {locale}" |

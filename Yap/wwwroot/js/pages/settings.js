@@ -14,6 +14,8 @@ import { openInstallDialog } from '../pwa.js';
 import { GifLibrary, size } from '../ui/gif-library.js';
 import { setTitle } from '../notify.js';
 import { deviceId } from '../hub.js';
+import * as passkeys from '../passkeys.js';
+import { confirm as confirmDialog } from '../ui/confirm.js';   // the browser's confirm() stays in use below for the secret code
 
 const FONT_SIZES = [14, 15, 16, 17, 18, 20];   // ST-10
 const BELL = '<svg class="seg-icon" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>';
@@ -113,6 +115,7 @@ export function mount(root, route) {
   // ---- Login Link (ST-11 to ST-13) and Secret Code (ST-14) ----
   const link = { value: null, shown: false };
   const code = { value: null, shown: false };
+  let passkeyData = { passkeys: [], rpId: location.hostname };   // filled by the Passkeys card below; the summary line reads it
   function masked(node, text, shown, mask) { node.textContent = shown ? text : mask; }
   function wireReveal(button, store, draw) { button.replaceChildren(icon(store.shown ? EYE_OFF : EYE)); button.title = store.shown ? 'Hide' : 'Reveal'; button.onclick = () => { store.shown = !store.shown; draw(); }; }
   function wireCopy(button, text) {
@@ -122,7 +125,8 @@ export function mount(root, route) {
   function drawLink() {
     const has = !!link.value;
     $('.link-present').hidden = !has; $('.link-absent').hidden = has;
-    const ways = [has ? 'your login link' : null, code.value ? 'your secret code' : null, state.config?.smartLoginAllowed && !state.user.smartLoginOptOut ? 'smart login from a network you used recently' : null].filter(Boolean);
+    const ways = [has ? 'your login link' : null, passkeyData.passkeys.length ? (passkeyData.passkeys.length === 1 ? 'your passkey' : 'your passkeys') : null,
+      code.value ? 'your secret code' : null, state.config?.smartLoginAllowed && !state.user.smartLoginOptOut ? 'smart login from a network you used recently' : null].filter(Boolean);
     $('.link-summary').textContent = ways.length ? `You can log in from other devices with ${ways.join(', ')}.` : 'This account is tied to this device only.';   // ST-11
     if (has) {
       $('.link-username').textContent = me.username;
@@ -162,6 +166,44 @@ export function mount(root, route) {
   $('.code-disable').addEventListener('click', async () => {
     if (!confirm('Disable your secret code? It cannot be turned on again.')) return;
     try { await api.delete('/api/account/passphrase'); code.value = null; drawCode(); saved(linkStatus, 'Secret code disabled'); } catch (e) { saved(codeStatus, e.message, 'error'); }
+  });
+
+  // ---- Passkeys (ST-27, AU-29) ----
+  const passkeyList = $('.passkey-list'), passkeysStatus = $('.passkeys-status'), addPasskey = $('.passkey-add');
+  function drawPasskeys() {
+    replace(passkeyList, passkeyData.passkeys.map(p => {
+      const item = clone('t-passkey-item');
+      const name = item.querySelector('.passkey-name');
+      name.value = p.name;
+      name.addEventListener('keydown', e => { if (e.key === 'Enter') name.blur(); if (e.key === 'Escape') { name.value = p.name; name.blur(); } });
+      name.addEventListener('change', async () => {
+        const text = name.value.trim();
+        if (!text || text === p.name) { name.value = p.name; return; }
+        try { await api.patch(`/api/account/passkeys/${p.id}`, { name: text }); p.name = text; saved(passkeysStatus, 'Passkey renamed'); }
+        catch (e) { name.value = p.name; saved(passkeysStatus, e.message, 'error'); }
+      });
+      item.querySelector('.passkey-synced').hidden = !p.backedUp;
+      const parts = [`Added ${ago(p.createdAt)}`, p.lastUsedAt ? `last used ${ago(p.lastUsedAt)}` : 'never used'];
+      if (p.rpId !== passkeyData.rpId) parts.push(`made for ${p.rpId}`);   // a passkey answers for its own domain only (AU-27)
+      item.querySelector('.passkey-when').textContent = parts.join(' · ');
+      item.querySelector('.passkey-remove').addEventListener('click', async () => {
+        if (!await confirmDialog({ title: 'Remove this passkey?', text: `"${p.name}" will no longer sign you in. It stays on the device until you delete it there.`, action: 'Remove', danger: true })) return;
+        try { await api.delete(`/api/account/passkeys/${p.id}`); passkeyData.passkeys = passkeyData.passkeys.filter(x => x !== p); drawPasskeys(); saved(passkeysStatus, 'Passkey removed'); }
+        catch (e) { saved(passkeysStatus, e.message, 'error'); }
+      });
+      return item;
+    }));
+    mergeMe({ hasPasskey: passkeyData.passkeys.length > 0 });   // the sign-out warning reads it (SH-15)
+    drawLink();                                                  // the summary line names passkeys among the ways in (ST-11)
+  }
+  // The list loads whatever the browser can do, so a key can be removed from any device; only "Add" needs WebAuthn.
+  api.get('/api/account/passkeys').then(d => { passkeyData = d; drawPasskeys(); }).catch(() => {});
+  if (!passkeys.supported()) { addPasskey.hidden = true; $('.passkeys-unsupported').hidden = false; }
+  addPasskey.addEventListener('click', async () => {
+    addPasskey.disabled = true;
+    try { const row = await passkeys.register(); if (row) { passkeyData.passkeys.push(row); drawPasskeys(); saved(passkeysStatus, 'Passkey added'); } }
+    catch (e) { saved(passkeysStatus, e.message, 'error'); }
+    finally { addPasskey.disabled = false; }
   });
 
   // ---- Active Sessions (ST-15, AU-19, AU-20) ----
@@ -207,7 +249,7 @@ export function mount(root, route) {
       saved(sessionsStatus, 'Other devices signed out');
       const notice = $('.kicked-notice');
       notice.hidden = false;
-      notice.querySelector('.kicked-detail').textContent = `${link.value ? 'Your login link keeps working. ' : ''}${answer?.passphrase ? 'Your secret code was automatically changed. See the new one below.' : ''}`;
+      notice.querySelector('.kicked-detail').textContent = `${link.value ? 'Your login link keeps working. ' : ''}${passkeyData.passkeys.length ? 'Your passkeys keep working. ' : ''}${answer?.passphrase ? 'Your secret code was automatically changed. See the new one below.' : ''}`;
       if (answer?.passphrase) { code.value = answer.passphrase; code.shown = true; drawCode(); }
       drawDevices();
     } catch (e) { saved(sessionsStatus, e.message || 'Failed', 'error'); }
