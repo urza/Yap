@@ -6,7 +6,7 @@ namespace Yap.LoadTest.Shared;
 // Copies of the server's wire shapes, reduced to the fields this tool reads or sends. The server's records live
 // in Yap/Models and Yap/Endpoints; System.Text.Json ignores the fields that are missing here. When a field named
 // below changes on the server, change it here too. The tool depends on: MessageDto.Id/ChannelId/ClientId/Username,
-// RoomDto.Id/Name/IsLobby, BootstrapDto.User/Config/Rooms/Users, Conversation.Messages, LoadSample (all fields).
+// RoomDto.Id/Name/IsLobby, BootstrapDto.User/Config/Rooms/Users, Conversation.Messages, LinkDto.Url, LoadSample (all fields).
 
 public static class Json
 {
@@ -20,6 +20,7 @@ public sealed record MessageDto(Guid Id, Guid ChannelId, Guid? ClientId, string 
 public sealed record RoomDto(Guid Id, string Name, bool IsLobby);
 public sealed record UserDto(string Username, bool IsAdmin, bool IsBot);
 public sealed record MeDto(Guid Id, string Username, bool IsAdmin);
+public sealed record LinkDto(string Code, string Url);
 public sealed record ClientConfigDto(string UploadUrl, int MaxUploadMB, bool LinkPreviews, bool MediaCaching);
 public sealed record BootstrapDto(MeDto? User, ClientConfigDto? Config, List<RoomDto>? Rooms, List<UserDto>? Users);
 public sealed record Conversation(Guid ChannelId, List<MessageDto> Messages);

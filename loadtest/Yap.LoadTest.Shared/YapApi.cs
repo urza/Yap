@@ -48,6 +48,7 @@ public sealed class YapApi
     {
         using var response = await _http.SendAsync(Request(HttpMethod.Get, path, token), ct);
         response.EnsureSuccessStatusCode();
+        if (response.StatusCode == HttpStatusCode.NoContent) return default;   // "nothing here", e.g. /api/account/link for an account without a link
         return await response.Content.ReadFromJsonAsync<T>(Json.Options, ct);
     }
 

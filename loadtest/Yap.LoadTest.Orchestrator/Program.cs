@@ -52,12 +52,14 @@ log($"results: {results.Dir}");
 // ---- the server: admin, settings, rooms. The accounts come later, per worker, when the user count asks for them. ----
 var setup = new Setup(api, state, log);
 string admin;
+string? adminLink;
 try
 {
     admin = await setup.EnsureAdminAsync(a.Get("admin") ?? "loadadmin", a.Get("admin-code"), ct);
     state.Save(statePath);
     await setup.ApplySettingsAsync(admin, ct);
     await setup.EnsureRoomsAsync(admin, rooms, ct);
+    adminLink = await setup.AdminLinkAsync(admin, ct);
 }
 catch (Exception e) when (e is not OperationCanceledException)
 {
@@ -101,7 +103,7 @@ var display = Task.Run(async () =>
             results.Row(s, v);
             if (plain && draws % (5 * drawsPerRow) == 0) Console.WriteLine(Dashboard.Line(v, s));
         }
-        try { screen?.Draw(Dashboard.Render(v, s, server, DateTime.UtcNow - startedAt)); }
+        try { screen?.Draw(Dashboard.Render(v, s, server, adminLink, DateTime.UtcNow - startedAt)); }
         catch (Exception e) { log($"dashboard: {e.Message}"); }   // a frame that fails to render must not end the run
         await timer.WaitForNextTickAsync();
     }
@@ -138,6 +140,7 @@ File.WriteAllText(Path.Combine(results.Dir, "summary.md"), summary);
 Console.WriteLine();
 Console.WriteLine(summary);
 Console.WriteLine($"files: {results.Dir}");
+if (adminLink is not null) Console.WriteLine($"admin page: {adminLink}");   // the dashboard is gone now; the link is the way to the load history
 return 0;
 
 // Makes the workers match the settings. Worker k owns accounts k * perWorker .. (k + 1) * perWorker - 1; it is

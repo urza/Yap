@@ -55,7 +55,8 @@ those accounts, which takes a moment, and the dashboard says so.
 The dashboard is six lines: users (running, wanted, connected), kinds, pace, messages per second
 and the totals of the current segment, latency over the last 10 s, and the server. A segment is a
 stretch of unchanged settings; the header shows how long the current one has been held. Under the
-numbers are the last log lines.
+numbers are the last log lines. The row under the title is the admin's login link. Open it in a browser to
+watch the Server load card on the Diagnostics tab while the run goes. The link prints again after the summary.
 
 Without a terminal (`--plain`, or stdout is a file or a pipe) the orchestrator prints one line every
 5 s instead, and `--users`, `--kinds`, `--pace` and `--for` set the load from the command line:
@@ -85,7 +86,7 @@ output automatically.
 | `--rate 10` | `10` | New users per second. 0 starts them all at once. |
 | `--per-worker 250` | `250` | Accounts per worker process. |
 | `--admin NAME` | `loadadmin` | The admin account. On a fresh instance the first account becomes the admin. |
-| `--admin-code CODE` | | The admin's login code when the account already exists. |
+| `--admin-code CODE` | | The last part of the admin's login link, when the account already exists. |
 | `--prefix lt_u` | `lt_u` | Test user names: `lt_u0001` and so on. |
 | `--links FILE` | built-in list | One URL per line; the video links the users share. |
 | `--for 30m` | run until `q` | End on its own after this time. Suffixes `s`, `m`, `h`. |
@@ -151,6 +152,8 @@ the tens of milliseconds, or where the writer queue or the thread pool queue cli
   250, so the admin's DM gets 250 messages per block, once.
 - The first account on a fresh instance is the admin. Start the orchestrator before anyone else signs
   in, or pass `--admin` and `--admin-code` for the real admin.
+- A new server with the host and port of an old one: delete `state/<host>_<port>.json` on the load machine
+  first. The orchestrator would reuse the old tokens, and the new server does not know them.
 - File descriptors on Linux: a worker holds one WebSocket per user. `ulimit -n 4096` on the load
   machine covers four workers of 250. Windows needs nothing.
 

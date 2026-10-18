@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 using Yap.LoadTest.Shared;
 
@@ -38,7 +39,7 @@ public sealed class Setup(YapApi api, RunState state, Action<string> log)
         }
         var why = result.Status switch
         {
-            HttpStatusCode.Unauthorized => $"the account '{username}' exists and needs its code: pass --admin-code \"color animal NN\" (the user's code from Settings, or an admin login link's code).",
+            HttpStatusCode.Unauthorized => $"the account '{username}' exists and needs its code: pass --admin-code with the last part of the admin's login link (Settings, Login Link); a legacy secret code works too.",
             HttpStatusCode.Accepted => "registration requires approval; approve the account in the admin page or edit Data/registration-settings.json.",
             HttpStatusCode.Forbidden => "registration is closed; open it in the admin page or edit Data/registration-settings.json.",
             _ => result.Detail ?? "unexpected answer",
@@ -50,6 +51,28 @@ public sealed class Setup(YapApi api, RunState state, Action<string> log)
     {
         try { return (await api.GetAsync<BootstrapDto>("/api/bootstrap", token, ct))?.User?.IsAdmin == true; }
         catch { return false; }
+    }
+
+    /// <summary>
+    /// The admin's login link, so the person running the test can open the admin page and watch the Diagnostics tab
+    /// during the run. There is no other way in: the orchestrator holds the token, and a new account has no code.
+    /// Null when the server cannot give one; the run does not need it.
+    /// </summary>
+    public async Task<string?> AdminLinkAsync(string admin, CancellationToken ct)
+    {
+        try
+        {
+            var link = await api.GetAsync<LinkDto>("/api/account/link", admin, ct);
+            if (link is null)   // 204: an account without a link. The POST makes one; there is no old link to revoke.
+            {
+                using var made = await api.SendJsonAsync(HttpMethod.Post, "/api/account/link", new { }, admin, ct);
+                link = made.IsSuccessStatusCode ? await made.Content.ReadFromJsonAsync<LinkDto>(Json.Options, ct) : null;
+            }
+            if (link?.Url is { } url) { log($"admin: login link {url} (opens the admin page; the Diagnostics tab shows the server load)"); return url; }
+            log("admin: the server gave no login link");
+        }
+        catch (Exception e) when (e is not OperationCanceledException) { log($"admin: no login link ({e.Message})"); }
+        return null;
     }
 
     /// <summary>Registration open and approval off, so accounts can be created; previews and media caching on, so a link costs what it costs in production. The links switch on the dashboard turns that traffic off.</summary>
