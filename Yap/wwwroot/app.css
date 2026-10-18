@@ -143,6 +143,12 @@
     --glow-accent: none;
     --glow-status: none;
 
+    /* --- Input pill ring ----------------------------------------------------
+       Theme opt-in, `none` by default. A colour or a gradient, drawn as a 1 px
+       ring around the input pill (composer.css, .input-box::before). A masked
+       pseudo-element paints it, so the pill keeps its size. */
+    --input-border: none;
+
     /* Wash painted over the whole composite. Per-layer tinting is impossible
        (the layers are opaque JPEGs), so legibility tuning happens here. */
     --canvas-scrim: none;
