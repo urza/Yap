@@ -9,6 +9,7 @@ public sealed record SendMessage(Guid ChannelId, Guid UserId, string Username, s
     public List<string>? ImageUrls { get; init; }
     public List<string>? VideoUrls { get; init; }
     public List<GifAttachment>? GifAttachments { get; init; }
+    public VoiceAttachment? Voice { get; init; }
 
     /// <summary>
     /// A server-made message from a sender who is not one of the two participants: the bot writing into a

@@ -22,6 +22,7 @@ public sealed class MessageMapper(ChatService chat, GifService gifs, UserService
         m.ImageUrls.Select(url => new ImageDto(ImageService.GetMediumUrl(url), ImageService.GetLargeUrl(url))).ToList(),
         m.VideoUrls.Select(url => new VideoDto(VideoService.GetPosterUrl(url), VideoService.GetCompressedUrl(url))).ToList(),
         m.GifAttachments.Select(Gif).ToList(),
+        m.Voice is { } voice ? new VoiceDto(voice.Url, voice.DurationMs, voice.Peaks) : null,
         Reactions(m),
         Previews(m));
 
@@ -58,8 +59,8 @@ public sealed class MessageMapper(ChatService chat, GifService gifs, UserService
         // path refuses the second case; stored rows from before that rule are mapped here too, and a quote must
         // never carry another conversation's text (GEN-04) or a past the reader may not see (TL-05).
         if (original is null || original.ChannelId != m.ChannelId || (viewerId is { } viewer && !chat.MayRead(viewer, original)))
-            return new ReplyToDto(id, null, null, false, Unavailable: true);   // MR-35
-        return new ReplyToDto(id, original.Username, string.IsNullOrEmpty(original.Content) ? null : original.Content, original.HasMedia, Unavailable: false);   // a caption quotes as text (MR-32)
+            return new ReplyToDto(id, null, null, false, false, Unavailable: true);   // MR-35
+        return new ReplyToDto(id, original.Username, string.IsNullOrEmpty(original.Content) ? null : original.Content, original.HasMedia, original.HasVoice, Unavailable: false);   // a caption quotes as text (MR-32)
     }
 
     // A GIF file lives in one of six places. The row prefers an image file, then the local videos, then the

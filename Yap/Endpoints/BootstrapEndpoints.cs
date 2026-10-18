@@ -7,6 +7,7 @@ using Yap.Models.Notifications;
 using Yap.Services.Accounts;
 using Yap.Services.Chat;
 using Yap.Services.Gifs;
+using Yap.Services.Media;
 using Yap.Services.Notifications;
 using Yap.Services.Presence;
 
@@ -49,7 +50,7 @@ public static class BootstrapEndpoints
 
             return Results.Ok(new BootstrapDto(
                 User: MeDto.From(me, isAdmin, links.HasActiveLink(me.Id)),
-                Config: new ClientConfigDto(config.ProjectName, config.UploadUrl, config.MaxUploadSizeMB,
+                Config: new ClientConfigDto(config.ProjectName, config.UploadUrl, config.MaxUploadSizeMB, VoiceService.MaxSeconds,
                     config.Ipv4BeaconUrl, connection is null ? null : presence.CreateBeaconNonce(connection, me.Id),
                     previews.Enabled, previews.MediaCachingEnabled,
                     new GifProviderDto(gifs.Provider.DisplayName, gifs.IsConfigured, gifs.Provider.AttributionImageUrl),
@@ -72,7 +73,7 @@ public sealed record BootstrapDto(
     EmojiStateDto Emoji, List<Guid> FavoriteGifIds);
 
 public sealed record ClientConfigDto(
-    string ProjectName, string UploadUrl, int MaxUploadMB, string BeaconUrl, string? BeaconNonce,
+    string ProjectName, string UploadUrl, int MaxUploadMB, int VoiceMaxSeconds, string BeaconUrl, string? BeaconNonce,
     bool LinkPreviews, bool MediaCaching, GifProviderDto GifProvider, string? VapidPublicKey, string BuildStamp, bool SmartLoginAllowed,
     IReadOnlyList<ThemeDefinition> Themes);   // the Settings theme grid (ST-08): the registry is the server's
 

@@ -15,7 +15,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 1. **Avatar.** A 40 px circle on the left with the profile picture, or a coloured disc with the first letter of the username. It shows only on header rows. Other rows leave the avatar column empty.
 2. **Header.** The name, a bot badge if the author is a bot, and the time. It shows only on the first row of a group.
 3. **Reply quote.** A line above the header, on replies only. It shows a 16 px avatar, the original author's name and the original text on one line, two lines on a phone. A curved connector joins it to the avatar below.
-4. **Content.** The text with links and emoji, the media (images in a gallery, videos, GIFs), or both, with the text above the media as a caption. A row with text can end with "(edited)".
+4. **Content.** The text with links and emoji, the media (images in a gallery, videos, GIFs, a voice message), or both, with the text above the media as a caption. A row with text can end with "(edited)".
 5. **Link cards.** Cards under the text, one for each link with a preview, at most five.
 6. **Reaction pills.** Pills under the content with the emoji and the count. The reader's own reactions are highlighted.
 7. **Action bar.** A bar at the top right of the row. It shows on hover or after a tap. It contains the quick reactions, Add Reaction, Reply, the GIF star on phones, Edit on own text rows, and More.
@@ -78,7 +78,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 **MR-23** When the admin switch for media caching is on, a link to a page whose video or audio the server can download shows a player instead of a card. The site name and the title show above the player. A player downloads nothing until the user starts it.
 
-### Images, videos and GIFs
+### Images, videos, GIFs and voice messages
 
 **MR-24** A message with media shows its text, when it has one, above the media as a caption. One image shows at its own aspect ratio. On desktop, the image is at most 400 px wide and 350 px high. On a phone, it is full width and at most 450 px high. While the image loads, a 4:3 box in the sidebar colour keeps its space. If the device does not load an image, Yap loads it again after 3 s, then 10 s, then 30 s, and again when the connection returns. This applies to gallery images, GIF images and emoji images.
 
@@ -96,9 +96,11 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 **MR-31** On hover, a GIF uploaded to Yap shows "via {name}" at its bottom left corner. The name is the display name of the person who uploaded the GIF. A GIF from the provider shows no name.
 
+**MR-76** A voice message shows a player: a round play button in the accent colour, the bars of the recording, the length as m:ss, and a speed button. The player is 320 px wide on desktop and full width on a phone. Play starts the message, and the button becomes a pause button. While the message plays, the bars fill from the left in the accent colour and the time shows the elapsed time. At the end, the bars and the time return to the start. A tap on the bars plays from that point. Only one voice message plays at a time: a play on another one stops the first. The speed button cycles through 1×, 1.5× and 2×. The speed applies to every voice message on the device and is kept. A voice message has no caption and no link cards.
+
 ### Reply quote
 
-**MR-32** A reply shows the quote line above its header. The quote line contains a 16 px avatar, the original author's display name, and the original text. The text is one line with an ellipsis, and two lines on a phone. For an original with media and no caption, the quote shows "Click to see attachment". The quote shows emoji as small images and shows no links. The quote changes when the original is edited.
+**MR-32** A reply shows the quote line above its header. The quote line contains a 16 px avatar, the original author's display name, and the original text. The text is one line with an ellipsis, and two lines on a phone. For an original with media and no caption, the quote shows "Click to see attachment". For a voice message, the quote shows "Voice message". The quote shows emoji as small images and shows no links. The quote changes when the original is edited.
 
 **MR-33** A curved connector joins the avatar of the quote to the avatar of the reply. A reply always starts a group, so it always has a header.
 
@@ -174,7 +176,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 **MR-64** The author can delete their own messages at any time. This includes media rows. Admins cannot delete other people's messages.
 
-**MR-65** Delete Message opens a dialog over the whole page. The dialog contains "Delete Message", "Are you sure you want to delete this message?", a preview of the message, and the buttons "Cancel" and "Delete". The preview shows the avatar, the name, the time, and up to three lines of text or the first image, video poster or "GIF attachment". On desktop, a tip tells the user to hold Shift to skip the dialog.
+**MR-65** Delete Message opens a dialog over the whole page. The dialog contains "Delete Message", "Are you sure you want to delete this message?", a preview of the message, and the buttons "Cancel" and "Delete". The preview shows the avatar, the name, the time, and up to three lines of text or the first image, video poster, "GIF attachment" or "Voice message". On desktop, a tip tells the user to hold Shift to skip the dialog.
 
 **MR-66** Delete has focus when the dialog opens, so Enter confirms the delete. Escape, Cancel and a tap on the dimmed area cancel the delete. On a phone, the buttons are full width, one above the other, with Delete above Cancel. There is no tip on a phone.
 
@@ -245,6 +247,9 @@ A message row is one message as it appears in the conversation. The row shows wh
 | Pointer over a GIF | mouse | Corner star and "via {name}". |
 | Corner star tap | mouse | Favourite toggled; nothing else. |
 | Bar star tap | touch | Favourite toggled; nothing else. |
+| Play on a voice message | mouse, touch | The message plays. The bars fill, the time counts. Another voice message that played stops. |
+| Tap on the bars | mouse, touch | The message plays from that point. |
+| Speed button | mouse, touch | The next speed: 1×, 1.5×, 2×. Every voice message shows it. |
 | Link in text | mouse, touch | Opens in a new tab. |
 | Card appears | all | Card under the text. A reader at the bottom stays at the bottom. |
 | Own message sent | all | Faded full row at the end, immediately. |
@@ -264,6 +269,8 @@ A message row is one message as it appears in the conversation. The row shows wh
 | Bot install link | "install it" |
 | Time, yesterday | "Yesterday {time}" |
 | Quote of a media-only original | "Click to see attachment" |
+| Quote of a voice message | "Voice message" |
+| Voice message player | "Play voice message"; "Playback speed"; "1×", "1.5×", "2×"; the time as m:ss |
 | Quote of a deleted original | "Original message unavailable" |
 | Image alt text | "Uploaded image" |
 | GIF missing | "GIF unavailable" |
@@ -273,7 +280,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 | Video play control | "Play video" |
 | More menu | "Copy Text"; "Delete Message" |
 | Editor | "✓ Save" (tooltip "Save"); "✕ Cancel" (tooltip "Cancel"); "Enter to save · Shift+Enter for newline · Esc to cancel" |
-| Delete dialog | "Delete Message"; "Are you sure you want to delete this message?"; "GIF attachment"; preview alt texts "Attachment", "Video attachment"; "Pro tip: hold Shift when deleting to skip this confirmation." with Shift as a keycap; "Cancel"; "Delete" |
+| Delete dialog | "Delete Message"; "Are you sure you want to delete this message?"; "GIF attachment"; "Voice message"; preview alt texts "Attachment", "Video attachment"; "Pro tip: hold Shift when deleting to skip this confirmation." with Shift as a keycap; "Cancel"; "Delete" |
 | Pending row | "Cancel upload"; "Failed"; "Retry"; "Remove"; the reason is the server's refusal text, or "Could not send" when there is none |
 | Reaction tooltip | the display names joined with ", " |
 | Without a connection | "Needs a connection" |

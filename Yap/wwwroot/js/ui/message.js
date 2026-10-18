@@ -15,6 +15,7 @@ import { openGallery } from './gallery.js';
 import { reactionPicker } from './emoji-picker.js';
 import { api } from '../api.js';
 import { openInstallDialog } from '../pwa.js';
+import { voicePlayer } from './voice.js';
 
 const MAX_TEXT = 4000;   // MR-11
 
@@ -44,7 +45,7 @@ export function needsHeader(prev, m) {
   return new Date(m.timestamp) - new Date(prev.timestamp) >= 3_600_000;
 }
 
-const hasMedia = m => m.images.length > 0 || m.videos.length > 0 || m.gifs.length > 0 || (m.files?.length ?? 0) > 0;   // files: a pending row's Blobs before the upload (IB-34)
+const hasMedia = m => m.images.length > 0 || m.videos.length > 0 || m.gifs.length > 0 || !!m.voice || (m.files?.length ?? 0) > 0;   // files: a pending row's Blobs before the upload (IB-34)
 const isOwn = m => m.username === state.user?.username;
 
 export function renderRow(m, { header }) {
@@ -65,7 +66,7 @@ export function renderRow(m, { header }) {
       const ru = state.users[m.replyTo.username];
       quote.prepend(avatar(m.replyTo.username, ru?.avatarUrl, 'small', displayName(m.replyTo.username)));
       replace(quote.querySelector('.reply-author'), inline(displayName(m.replyTo.username)));
-      replace(quote.querySelector('.reply-text'), m.replyTo.text ? inline(m.replyTo.text, 'inline') : ['Click to see attachment']);
+      replace(quote.querySelector('.reply-text'), m.replyTo.text ? inline(m.replyTo.text, 'inline') : [m.replyTo.voice ? 'Voice message' : 'Click to see attachment']);   // MR-32
       quote.addEventListener('click', () => jumpTo(m.replyTo.id));
     }
   } else quote.remove();
@@ -95,6 +96,7 @@ function renderContent(row, m) {
   const content = row.querySelector('.message-content');
   if (hasMedia(m)) {
     if (m.text) content.append(caption(m));                                                  // the text above the media (MR-24)
+    if (m.voice) content.append(voicePlayer(m.voice, m.clientId ?? m.id));                   // alone in its row (MR-76); the key survives the pending-to-accepted swap
     if (m.images.length) content.append(imageGallery(m));
     if (m.videos.length) content.append(el('div', { class: 'video-gallery' }, m.videos.map(video)));
     if (m.gifs.length) content.append(el('div', { class: 'gif-message-gallery' }, m.gifs.map(g => gif(g, m))));
@@ -351,6 +353,7 @@ function confirmDelete(rowNode, m) {
   if (m.images[0]) { thumb.hidden = false; thumb.src = m.images[0].medium; label.remove(); }
   else if (m.videos[0]) { thumb.hidden = false; thumb.src = m.videos[0].poster; thumb.alt = 'Video attachment'; label.remove(); }
   else if (m.gifs[0]) { thumb.remove(); label.hidden = false; }
+  else if (m.voice) { thumb.remove(); label.hidden = false; label.textContent = 'Voice message'; }
   else { thumb.remove(); label.remove(); }
   if (overlays.isTouch()) overlay.querySelector('.delete-confirm-tip').remove();   // MR-66
   overlay.querySelector('.confirm-cancel').addEventListener('click', () => close());

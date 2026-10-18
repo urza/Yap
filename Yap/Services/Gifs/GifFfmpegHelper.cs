@@ -168,7 +168,8 @@ public class GifFfmpegHelper
         }
     }
 
-    private async Task<(int ExitCode, string Stdout, string Stderr)> RunProcessAsync(
+    // Internal, not private: VoiceService runs its one ffmpeg pass through here instead of a fourth process runner.
+    internal async Task<(int ExitCode, string Stdout, string Stderr)> RunProcessAsync(
         string fileName, string args, int timeoutMs, CancellationToken ct)
     {
         var psi = new ProcessStartInfo(fileName, args)

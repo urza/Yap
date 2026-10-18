@@ -1,6 +1,6 @@
 # Input box
 
-The input box is the part of a conversation where the user writes and sends a message. It is at the bottom of every conversation, room or direct message. It accepts text, emoji, GIFs, images and videos. It shows who is typing in the conversation and which message the user replies to. Each action in the box takes effect immediately. No action in the box waits for the server.
+The input box is the part of a conversation where the user writes and sends a message. It is at the bottom of every conversation, room or direct message. It accepts text, emoji, GIFs, images, videos and voice messages. It shows who is typing in the conversation and which message the user replies to. Each action in the box takes effect immediately. No action in the box waits for the server.
 
 ## Anatomy
 
@@ -13,7 +13,7 @@ The input box is the part of a conversation where the user writes and sends a me
 1. **Typing strip.** An 18 px band above the box that shows who is typing in this conversation. When nobody types, the strip is empty and keeps its height, so the box does not move.
 2. **Reply bar.** A bar with "Replying to" and the name on the left, and ✕ on the right. It shows only while the user writes a reply. It is directly above the pill and makes one block with it.
 3. **The pill.** A rounded field with 22 px corners, in the theme's input colour. It contains +, the text area and the two toggles, and the tray above them while files wait. The band around the pill is transparent, so only the pill has colour.
-4. **+ (attach).** A button on the left side in the pill. It opens the file chooser. The chosen files go to the tray.
+4. **+ (attach).** A button on the left side in the pill. It opens a menu with "Photo or video" and "Voice message". Photo or video opens the file chooser, and the chosen files go to the tray. Voice message starts the recorder.
 5. **Tray.** A line of square thumbnails above +, inside the pill, for the files that wait for Send. Each thumbnail has ✕ in its corner. The tray shows only while it has a file.
 6. **Text area.** The field for the draft text. It starts as one line, grows with the text up to 200 px, then scrolls.
 7. **GIF toggle.** A small badge with the text "GIF", on desktop only. It collapses while the draft has text.
@@ -21,6 +21,7 @@ The input box is the part of a conversation where the user writes and sends a me
 9. **Send.** A button with a paper plane icon, outside the pill on its right side. It is hidden while the draft and the tray are empty and no picker is open.
 10. **Read-only bar.** A bar that replaces parts 2 to 9 in a room where the user has no permission to write.
 11. **Pickers.** The emoji picker and the GIF picker. They open from the toggles, above them on desktop and as one bottom sheet on a phone. The [pickers page](pickers.md) specifies their content.
+12. **Recorder.** The pill while a voice message records: a trash button, a red dot, the elapsed time and the bars of the sound level. It takes the place of +, the text area and the toggles. Send stays.
 
 ## Rules
 
@@ -88,7 +89,7 @@ The input box is the part of a conversation where the user writes and sends a me
 
 ### Attachments
 
-**IB-29** + opens the system file chooser for images and videos. The user can choose several files in one selection. On a phone, the chooser offers the camera and the photo library. The chosen files go to the tray (IB-33). + stays visible while the user types.
+**IB-29** + opens a menu with two items, "Photo or video" and "Voice message" (IB-67). Photo or video opens the system file chooser for images and videos. The user can choose several files in one selection. On a phone, the chooser offers the camera and the photo library. The chosen files go to the tray (IB-33). + stays visible while the user types.
 
 **IB-30** Files dropped on the input box go to the tray in the same way. While the user drags a file (not text) over the box, the box shows "Drop images here" and an accent ring. The ring disappears on a drop, when the drag leaves the box, and when the drag is cancelled. A drop anywhere else does nothing, and the browser does not open the file.
 
@@ -117,6 +118,16 @@ The input box is the part of a conversation where the user writes and sends a me
 **IB-41** On a phone, there is no GIF toggle. The emoji toggle opens one bottom sheet with two tabs, "GIFs" and "Emoji". The Emoji tab is active first. The sheet takes the place of the phone keyboard: the keyboard closes, and the sheet has the height that the keyboard had the last time it was open on this device. Before the first time, the sheet height is half the screen height, at most 400 px. The box moves up to the top edge of the sheet. Everything else is dimmed to half, except the draft text, the sheet and Send. The sheet keeps its last tab until the page reloads. *Why:* with the same height, the box does not move when the sheet and the keyboard change places.
 
 **IB-66** At the right end of the tab row of the sheet are a keyboard button and a button with two chevrons that point up. The keyboard button closes the sheet and puts the focus in the draft, so the keyboard opens in the place of the sheet. The chevrons make the sheet fill the whole screen; the box and Send are not visible. The chevrons then point down and return the sheet to its first height. A GIF pick at full height sends and closes the sheet, as [IB-47](#IB-47) says. The sheet opens at its first height every time.
+
+### Voice messages
+
+**IB-67** + opens a menu above + with two items: "Photo or video" and "Voice message". On a phone, the menu is a bottom sheet over a dimmed page, as the More menu of a row is. Photo or video closes the menu and opens the file chooser (IB-29). Voice message closes the menu and starts the recorder (IB-68). A tap outside the menu, or Escape, closes the menu and does nothing else. The menu does not move focus, so an open keyboard stays open. A browser that cannot record shows Photo or video alone.
+
+**IB-68** The recorder asks for the microphone the first time. When the browser refuses it, a dialog shows "Microphone unavailable" and "Yap cannot use the microphone. Allow it in the browser settings and try again.", and nothing records. While a voice message records, the recorder takes the place of +, the text area and the toggles in the pill: a trash button on the left, a red dot that pulses, the elapsed time as m:ss, and bars that show the sound level of the last seconds. Send stays visible and bright. The draft text and the tray are kept, and show again when the recording ends. On a phone, the keyboard closes when the recording starts.
+
+**IB-69** Send ends the recording and sends it. The trash ends the recording and discards it. A recording ends by itself after 5 minutes and is sent. A recording shorter than one second is discarded, and the box shows "Too short" for two seconds. When the user leaves the conversation while recording, the recording is discarded. When the system takes the microphone away, for example for a call, the recording ends and what was recorded is sent.
+
+**IB-70** A voice message is a message of its own, without text and without other files. When the reply bar is open, it is sent as a reply and the bar closes. It appears at once as a pending row with a player that plays the recording (MR-76), and becomes a normal row when the server accepts it. Without a connection, it is accepted and sent later, as a file is (IB-63). The author cannot edit a voice message. The author can delete it.
 
 **IB-42** While a picker is open: a tap on + only closes the picker, and the file chooser does not open. A tap on the other toggle only closes the picker. A tap on the toggle of the open picker closes the picker. A tap on the draft puts focus on the draft and closes the picker with the same tap. A tap anywhere else closes the picker.
 
@@ -204,7 +215,16 @@ The input box is the part of a conversation where the user writes and sends a me
 | Send tap with the sheet open | touch | Sends on the first tap. Sheet closes. Keyboard unchanged. |
 | GIF toggle tap, empty draft | mouse | GIF picker opens, badge bright. |
 | GIF card tap | mouse, touch | Picker closes, faded GIF row at the end of the list. |
-| Tap on + with a picker open | mouse, touch | Picker closes. The chooser does not open. |
+| Tap on + with a picker open | mouse, touch | Picker closes. The menu does not open. |
+| Tap on + | mouse, touch | The menu with Photo or video and Voice message. Phone: a bottom sheet over a dimmed page. |
+| Photo or video | mouse, touch | The menu closes. The file chooser opens. |
+| Voice message, first time | mouse, touch | The browser asks for the microphone. |
+| Voice message, microphone refused | all | Dialog "Microphone unavailable". The pill is unchanged. |
+| Recording | all | Trash, red dot, time and bars in the pill. Send bright. Phone: keyboard closed. |
+| Send while recording | mouse, touch | The recording ends. A pending row with the player at the end of the list. The draft shows again. |
+| Trash while recording | mouse, touch | The recording is discarded. The draft shows again. |
+| 5 minutes recorded | all | The recording ends and is sent. |
+| Recording shorter than 1 s | all | Discarded. "Too short" at the box for 2 s. |
 | Tap on the other toggle with a picker open | mouse | Picker closes. The other picker does not open. |
 | Tap on the draft with a picker open | mouse, touch | Draft focused and picker closed with one tap. |
 | Conversation changed | all | Picker closed. The draft and reply bar of the new conversation appear. |
@@ -227,6 +247,12 @@ The input box is the part of a conversation where the user writes and sends a me
 | Where | Text |
 | --- | --- |
 | + tooltip and accessible name | "Upload files" |
+| + menu | "Photo or video"; "Voice message" |
+| Recorder trash tooltip and accessible name | "Discard recording" |
+| Recorder time | m:ss, from "0:00" |
+| Microphone dialog | "Microphone unavailable"; "Yap cannot use the microphone. Allow it in the browser settings and try again." |
+| Recording too short | "Too short" |
+| Pending voice row, in place of a file name | "Voice message" |
 | Tray ✕ accessible name | "Remove {file name}" |
 | GIF badge | "GIF" |
 | GIF toggle tooltip and accessible name | "GIF picker" |

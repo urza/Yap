@@ -22,6 +22,8 @@ public class ChatMessage
     public List<string> ImageUrls { get; set; } = new();
     public List<string> VideoUrls { get; set; } = new();
     public List<GifAttachment> GifAttachments { get; set; } = new();
+    /// <summary>A voice message. Set, the message carries nothing else (IB-70).</summary>
+    public VoiceAttachment? Voice { get; set; }
     public bool IsEdited { get; set; }
     public Guid? ReplyToMessageId { get; set; }
 
@@ -40,11 +42,12 @@ public class ChatMessage
     public bool HasImages => ImageUrls.Count > 0;
     public bool HasVideos => VideoUrls.Count > 0;
     public bool HasGifs => GifAttachments.Count > 0;
-    public bool HasMedia => HasImages || HasVideos || HasGifs;
+    public bool HasVoice => Voice is not null;
+    public bool HasMedia => HasImages || HasVideos || HasGifs || HasVoice;
 
     private ChatMessage() { } // EF Core constructor
 
-    public ChatMessage(Guid channelId, Guid userId, string username, string content, DateTime timestamp, List<string>? imageUrls = null, Guid? replyToMessageId = null, List<string>? videoUrls = null, List<GifAttachment>? gifAttachments = null)
+    public ChatMessage(Guid channelId, Guid userId, string username, string content, DateTime timestamp, List<string>? imageUrls = null, Guid? replyToMessageId = null, List<string>? videoUrls = null, List<GifAttachment>? gifAttachments = null, VoiceAttachment? voice = null)
     {
         ChannelId = channelId;
         UserId = userId;
@@ -54,6 +57,7 @@ public class ChatMessage
         ImageUrls = imageUrls ?? new();
         VideoUrls = videoUrls ?? new();
         GifAttachments = gifAttachments ?? new();
+        Voice = voice;
         ReplyToMessageId = replyToMessageId;
         Reactions = new();
     }

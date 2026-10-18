@@ -586,6 +586,88 @@
     max-width: 400px;
 }
 
+/* A voice message (MR-76): play, the bars, the time, the speed. A fixed height, so the list never moves when a
+   row's file loads. The bars are one canvas; voice.js reads the two colour variables when it draws. */
+.voice-message {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 320px;
+    max-width: 100%;
+    margin-top: 0.25rem;
+    padding: 6px 12px 6px 6px;
+    border-radius: 24px;
+    background: var(--bg-sidebar);
+}
+
+.voice-play {
+    flex: 0 0 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    color: var(--text-white);
+    cursor: pointer;
+}
+
+.voice-play:hover {
+    background: var(--accent-hover);
+}
+
+.voice-play .play-icon,
+.voice-play .pause-icon {
+    display: flex;
+}
+
+.voice-play .pause-icon,
+.voice-message.playing .voice-play .play-icon {
+    display: none;
+}
+
+.voice-message.playing .voice-play .pause-icon {
+    display: flex;
+}
+
+.voice-bars {
+    flex: 1 1 0%;
+    min-width: 0;
+    height: 32px;
+    cursor: pointer;
+    --voice-bar: var(--text-placeholder);
+    --voice-bar-played: var(--accent-primary);
+}
+
+.voice-time {
+    flex: 0 0 auto;
+    min-width: 2.6em;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-secondary);
+    text-align: right;
+}
+
+.voice-speed {
+    flex: 0 0 auto;
+    padding: 2px 7px;
+    border: none;
+    border-radius: 10px;
+    background: var(--bg-muted);
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.voice-speed:hover {
+    color: var(--text-primary);
+}
+
 .video-container {
     position: relative;
     border-radius: 8px;
@@ -1157,6 +1239,10 @@
     .image-gallery,
     .video-gallery {
         max-width: 100%;
+    }
+
+    .voice-message {
+        width: 100%;
     }
 
     .gallery-single .gallery-image {

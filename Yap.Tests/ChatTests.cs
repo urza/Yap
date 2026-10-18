@@ -109,6 +109,35 @@ public class ChatTests : IClassFixture<YapFactory>
         await adminHub.DisposeAsync();
     }
 
+    [Fact(DisplayName = "IB-70, MR-76: a voice message is sent alone, from an upload of this server, and reaches the row with its bars")]
+    public async Task Voice_message_is_sent_alone()
+    {
+        var alice = await _app.SignInAsync("alice_voice");
+        var lobby = _app.Service<ChatService>().LobbyId;
+        var voice = new { url = "/uploads/voice.m4a", durationMs = 4200, peaks = "0369cfilorux" };
+
+        var withText = await alice.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId = Guid.NewGuid(), text = "hi", voice });
+        Assert.Equal(HttpStatusCode.BadRequest, withText.StatusCode);
+        var remote = await alice.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId = Guid.NewGuid(), voice = voice with { url = "https://elsewhere.example/x.m4a" } });
+        Assert.Equal(HttpStatusCode.BadRequest, remote.StatusCode);
+        var malformed = await alice.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId = Guid.NewGuid(), voice = voice with { peaks = "<script>" } });
+        Assert.Equal(HttpStatusCode.BadRequest, malformed.StatusCode);
+
+        var sent = await alice.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId = Guid.NewGuid(), voice });
+        Assert.Equal(HttpStatusCode.OK, sent.StatusCode);
+        var dto = (await sent.Content.ReadFromJsonAsync<MessageDto>())!;
+        Assert.Equal("", dto.Text);
+        Assert.Equal("/uploads/voice.m4a", dto.Voice?.Src);
+        Assert.Equal(4200, dto.Voice?.DurationMs);
+        Assert.Equal("0369cfilorux", dto.Voice?.Peaks);
+
+        // A reply quotes it in words (MR-32), and an edit is refused: there is no caption to change (MR-57).
+        var reply = await (await alice.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId = Guid.NewGuid(), text = "nice", replyToId = dto.Id })).Content.ReadFromJsonAsync<MessageDto>();
+        Assert.True(reply!.ReplyTo!.Voice);
+        Assert.Null(reply.ReplyTo.Text);
+        Assert.NotNull(_app.Service<ChatService>().Edit(_app.Service<ChatService>().GetMessage(dto.Id)!.UserId, dto.Id, "a caption"));
+    }
+
     [Fact(DisplayName = "AD-03: the startup load keeps the newest messages of each conversation, within the count and the days")]
     public async Task Startup_load_is_bounded_per_conversation()
     {
