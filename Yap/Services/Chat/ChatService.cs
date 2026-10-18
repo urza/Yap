@@ -358,7 +358,8 @@ public class ChatService
         if (first) OnDmStarted?.Invoke(channel);
         foreach (var (userId, count) in unread) OnUnreadChanged?.Invoke(userId, channel.Id, count);
 
-        foreach (var (userId, _) in unread) _writer.Enqueue(Writes.ReadState(_readStates[(userId, channel.Id)]));
+        // Coalesced by (person, channel): a room of a thousand writes the same thousand rows on every message (PersistenceWriter).
+        foreach (var (userId, _) in unread) _writer.EnqueueCoalesced((userId, channel.Id), Writes.ReadState(_readStates[(userId, channel.Id)]));
 
         QueuePreviews(message);
         DispatchPush(channel, request.Username, message);
@@ -723,7 +724,7 @@ public class ChatService
         _audit.RecordUnreadChange(_userService.GetById(userId)?.Username ?? "?", Describe(channel), "clear", had, source,
             _audit.DescribeCallerSession(session, _presence.EffectiveOf(userId)));
         OnUnreadChanged?.Invoke(userId, channelId, 0);
-        _writer.Enqueue(Writes.ReadState(state));
+        _writer.EnqueueCoalesced((userId, channelId), Writes.ReadState(state));   // the same key as the increments: the latest state wins
     }
 
     /// <summary>
