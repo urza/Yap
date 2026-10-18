@@ -44,7 +44,8 @@
   <!-- Generate BuildInfo.g.cs with build timestamp -->
   <Target Name="GenerateBuildInfo" BeforeTargets="CoreCompile">
     <PropertyGroup>
-      <BuildTimestamp>$([System.DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm')) UTC</BuildTimestamp>
+      <!-- UTC, with no space or colon: the stamp travels in URL queries (?v=) and in a cache name. -->
+      <BuildTimestamp>$([System.DateTime]::UtcNow.ToString('yyyy-MM-dd-HHmm'))</BuildTimestamp>
       <BuildInfoContent>namespace Yap%3B public static class BuildInfo { public const string Time = "$(BuildTimestamp)"%3B }</BuildInfoContent>
     </PropertyGroup>
     <WriteLinesToFile File="$(IntermediateOutputPath)BuildInfo.g.cs" Lines="$(BuildInfoContent)" Overwrite="true" />

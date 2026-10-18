@@ -33,6 +33,23 @@ const pages = {
 let unmountPage = () => {};
 let standalone = false;   // the current page is outside the frame
 
+// The shell loads with the document; a page loads the first time the route opens. Between the two the server may
+// have moved to a new build, and the page would then bring new code into an old shell: on 2026-10-18 a new
+// composer recorded a voice message that the old sender in memory did not know, and it went up as a video.
+// So while the server runs a newer build (SH-20's notice), a page this document has not loaded yet opens as a
+// fresh load of the new build instead (SH-50). Pages already loaded keep running, as SH-20 asks. One fresh load
+// per build and tab: a stored bootstrap newer than the cached shell (OF-06) must not reload in a loop.
+const loadedPages = new Set();
+function needsFreshLoad(page) {
+  if (!state.updateAvailable || loadedPages.has(page)) return false;
+  const stamp = state.config?.buildStamp ?? '';
+  try {
+    if (sessionStorage.getItem('yap.freshLoadFor') === stamp) return false;
+    sessionStorage.setItem('yap.freshLoadFor', stamp);
+  } catch { return false; }   // no storage, no loop breaker: the mix is the lesser risk
+  return true;
+}
+
 // A 401 or the server's signedOut: the cookie died while this device was signed in, so the login page says so (AU-21).
 onSignedOut(() => session.signedOut({ elsewhere: true }));
 hub.onSignedOut(() => session.signedOut({ elsewhere: true }));
@@ -101,7 +118,9 @@ router.onRoute(async route => {
     document.title = 'Not Found';
     return;
   }
+  if (needsFreshLoad(route.page)) { location.reload(); return; }
   const page = await loader();
+  loadedPages.add(route.page);
   performance.mark('page-mount');   // the chat page counts the app start only when it is the first page (AD-26)
   try { unmountPage = page.mount(root, route) ?? (() => {}); }
   catch (e) { console.error('page failed', e); showPageError(root, route); }
