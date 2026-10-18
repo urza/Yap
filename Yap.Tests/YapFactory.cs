@@ -25,6 +25,7 @@ public class YapFactory : WebApplicationFactory<Program>
 
     public string ContentRoot { get; } = Directory.CreateTempSubdirectory("yap-test-").FullName;
     public string? SqlitePath { get; init; }
+    public Dictionary<string, string> Settings { get; init; } = [];   // configuration keys a test sets on top
 
     public YapFactory() => ClientOptions.BaseAddress = BaseAddress;
 
@@ -41,6 +42,7 @@ public class YapFactory : WebApplicationFactory<Program>
         builder.UseSetting("ChatSettings:Bot:Enabled", "true");
         builder.UseSetting("ChatSettings:CloudflareIpsUrl", "");   // a test never reaches the network; the built-in ranges serve
         builder.UseSetting("Logging:LogLevel:Default", "Warning");
+        foreach (var (key, value) in Settings) builder.UseSetting(key, value);
         builder.ConfigureServices(services => services.AddSingleton<IStartupFilter, TestRemoteIp>());
     }
 
