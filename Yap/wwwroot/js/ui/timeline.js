@@ -212,12 +212,23 @@ export function Timeline(root) {
 
   const distanceFromBottom = () => list.scrollHeight - list.scrollTop - list.clientHeight;
 
+  // One scroll per frame, however many rows, reactions and cards asked for one: each scrollHeight read forces a
+  // layout of the whole list, and on the 2026-10-18 load test those layouts were a share of a tab that stopped
+  // answering. The frame callback runs before the paint, so the bottom is in view as early as before.
+  let scrollFrame = 0;
+  const watched = new WeakSet();   // images with a load listener already: a second call must not add another
   function scrollToBottom() {
-    const go = () => { list.scrollTop = list.scrollHeight; };
-    go();
-    // again after the images and posters of the newest rows load (TL-04)
-    for (const img of [...flow.querySelectorAll('img')].filter(i => !i.complete)) img.addEventListener('load', () => { if (following) go(); }, { once: true });
-    requestAnimationFrame(go);
+    if (scrollFrame) return;
+    scrollFrame = requestAnimationFrame(() => {
+      scrollFrame = 0;
+      list.scrollTop = list.scrollHeight;
+      // again after the images and posters of the newest rows load (TL-04)
+      for (const img of flow.querySelectorAll('img')) {
+        if (img.complete || watched.has(img)) continue;
+        watched.add(img);
+        img.addEventListener('load', () => { if (following) scrollToBottom(); }, { once: true });
+      }
+    });
   }
 
   function keepPlace() { if (following) scrollToBottom(); }   // a reaction or a card never moves the newest row out of view (TL-10)

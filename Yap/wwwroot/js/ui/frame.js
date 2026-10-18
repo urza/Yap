@@ -26,6 +26,7 @@ let peoplePick = { count: -1, text: '' };
 export function mount(appRoot) {
   if (frame) return frame.querySelector('.messages-container');
   frame = clone('t-frame');
+  peopleSig = '';   // a new frame has an empty list, whatever the last one showed
   appRoot.replaceChildren(frame);
 
   const header = frame.querySelector('.chat-header');
@@ -294,10 +295,13 @@ function renderRooms() {
 }
 
 // The order of SH-30: admins, the bot, the user, then everyone else by unread DMs, online, recent DM, name.
-function peopleInOrder() {
+function peopleNames(dmOf) {
   const me = state.user.username;
-  const dmOf = Object.fromEntries(state.dms.map(d => [d.partner, d]));
-  const names = new Set([...Object.keys(state.presence), ...Object.keys(dmOf), me]);
+  return [...new Set([...Object.keys(state.presence), ...Object.keys(dmOf), me])].filter(n => state.users[n] || n === me);
+}
+
+function peopleInOrder(names, dmOf) {
+  const me = state.user.username;
   const rank = username => {
     const u = state.users[username];
     if (u?.isAdmin) return 0;
@@ -308,7 +312,7 @@ function peopleInOrder() {
     if (state.presence[username]) return 4;
     return 5;
   };
-  return [...names].filter(n => state.users[n] || n === me).sort((a, b) => {
+  return [...names].sort((a, b) => {
     const ra = rank(a), rb = rank(b);
     if (ra !== rb) return ra - rb;
     if (ra === 5) {
@@ -319,12 +323,39 @@ function peopleInOrder() {
   });
 }
 
+// The people list is every account, a thousand on a big server. One rebuild sorts them all and clones a row
+// each, so it runs a few times a second at most, one frame at a time, and not at all when nothing it shows has
+// changed. On the 2026-10-18 load test the presence churn of 1,000 users rebuilt the list on every change, and
+// the tab stopped answering while the server sat idle (loadtest/reports/2026-10-18-hz2/report.md).
+const PEOPLE_GAP_MS = 250;
+let peopleTimer = 0, peopleAt = 0, peopleSig = '';
 function renderPeople() {
+  if (peopleTimer) return;
+  const wait = Math.max(0, PEOPLE_GAP_MS - (performance.now() - peopleAt));
+  peopleTimer = setTimeout(() => requestAnimationFrame(() => { peopleTimer = 0; peopleAt = performance.now(); renderPeopleNow(); }), wait);
+}
+
+// Everything a row shows, as one string: the same string means the same rows, and the rebuild is skipped.
+function peopleSignature(names, dmOf, openDm) {
+  let sig = `${state.open?.channelId ?? ''}|${state.open?.partner ?? ''}|${openDm?.partner ?? ''}|${overlays.isTouch() || narrow.matches}`;
+  for (const n of names) {
+    const u = state.users[n], dm = dmOf[n];
+    sig += `\n${n}|${state.presence[n] ?? ''}|${displayName(n)}|${u?.isAdmin ? 1 : 0}${u?.isBot ? 1 : 0}`;
+    if (dm) sig += `|${dm.lastMessageAt ?? ''}|${state.unread[dm.channelId] ?? 0}|${isMuted(dm.channelId) ? 1 : 0}${showsBell(dm.channelId) ? 1 : 0}`;
+  }
+  return sig;
+}
+
+function renderPeopleNow() {
   if (!frame || !state.user) return;
   const me = state.user.username;
   const dmOf = Object.fromEntries(state.dms.map(d => [d.partner, d]));
   const openDm = state.open && dmByChannel(state.open.channelId);
-  const rows = peopleInOrder().map(username => {
+  const names = peopleNames(dmOf);
+  const sig = peopleSignature(names, dmOf, openDm);
+  if (sig === peopleSig) return;
+  peopleSig = sig;
+  const rows = peopleInOrder(names, dmOf).map(username => {
     const u = state.users[username];
     const row = clone('t-user-row');
     const status = state.presence[username] ?? 'invisible';   // grey, as offline (SH-29, SH-31)
