@@ -85,7 +85,7 @@ The client calls the methods with these camelCase names; SignalR matches the ser
 | `pins` | channelId, pins[] | same | After a pin, an unpin, or an edit or a delete of a pinned message (SH-48). In a restricted room each reader gets the pins inside their own cutoff (TL-05). |
 | `reactions` | messageId, reactions[] | same | After a toggle. Readers inside the cutoff only, in a restricted room (TL-05). |
 | `previews` | messageId, previews[] | same | A link card or a cached media player is ready (MR-22, MR-23). Readers inside the cutoff only, in a restricted room (TL-05). |
-| `typing` | channelId, username, on | same | The client drops a typist 3.5 s after the last `on`. |
+| `typing` | channelId, username, on | the connected, visible tabs with the conversation open (Viewing), minus the typist's own | The client drops a typist 3.5 s after the last `on`. A hidden tab or another conversation gets nothing: it could not show the strip. |
 | `presence` | username, "online" \| "away" \| "offline", kind: "join" \| "leave" \| "change" | all | Invisible is sent as offline (PR-05). Offline after the 5 min grace (PR-16). The client derives join and leave lines from offline↔online (MR-73). |
 | `profile` | `User` | all | A new account, or a display name, avatar, bio or location changed (ST-07, SH-33). |
 | `accountDeleted` | username | all | The admin deleted the account (AD-40). The client drops the person from `users` and `presence`, and the direct message with them from `dms` and `unread`. |

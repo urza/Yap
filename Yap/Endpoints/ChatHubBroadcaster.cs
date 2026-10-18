@@ -37,7 +37,7 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
         On<string, EffectiveStatus, PresenceChange>(h => presence.OnPresenceChanged += h, h => presence.OnPresenceChanged -= h,
             (username, status, change) => ToWatchersOf(username, "presence", username, status, change));
         On<Guid, string, bool>(h => presence.OnTypingChanged += h, h => presence.OnTypingChanged -= h,
-            (channelId, username, on) => ToChannel(channelId, "typing", channelId, username, on));
+            (channelId, username, on) => ToWatching(channelId, username, "typing", channelId, username, on));
         On<Guid, UserStatus>(h => presence.OnChosenStatusChanged += h, h => presence.OnChosenStatusChanged -= h,
             (userId, status) => ToUser(userId, "me", new { status }));
 
@@ -93,6 +93,17 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
         var watchers = new List<string> { subject.Id.ToString() };
         if (users.GetAdminUserId() is { } admin) watchers.Add(admin.ToString());
         Fire(hub.Clients.Users(watchers).SendCoreAsync(name, args));
+    }
+
+    // The tabs that show the conversation right now: connected, visible, with it open. A hidden tab or a tab on
+    // another conversation cannot draw the typing strip, and the client drops the event anyway (store.setTyping).
+    // On the 2026-10-18 load test 70 % of 1,000 users were hidden tabs, so one typist's event wrote to 1,000
+    // connections for the 300 that could show it, 12,000 writes a second in all. The typist's own tabs are left
+    // out too: the client ignores its own name. One send call, so the message is serialized once.
+    private void ToWatching(Guid channelId, string typist, string name, params object?[] args)
+    {
+        var connections = presence.All().Where(s => s.Connected && s.Visible && s.Viewing == channelId && s.Username != typist).Select(s => s.ConnectionId).ToList();
+        if (connections.Count > 0) Fire(hub.Clients.Clients(connections).SendCoreAsync(name, args));
     }
 
     private void ToUser(Guid userId, string name, params object?[] args) => Fire(hub.Clients.User(userId.ToString()).SendCoreAsync(name, args));
