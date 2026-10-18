@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Yap.Models.Media;
 using Yap.Services.Chat;
+using Yap.Services.Gifs;
 using Yap.Services.Persistence;
 
 namespace Yap.Services.Media;
@@ -15,6 +16,7 @@ public sealed class MediaCleanupService
 {
     private readonly ChatService _chat;
     private readonly MediaUploadLogService _log;
+    private readonly GifService _gifs;
     private readonly UploadPaths _uploads;
     private readonly IDbContextFactory<ChatDbContext>? _dbFactory;   // the whole-database scan; null without persistence
     private readonly ILogger<MediaCleanupService> _logger;
@@ -22,10 +24,11 @@ public sealed class MediaCleanupService
     /// <summary>An upload younger than this is never pruned: its message may still sit in a composer, or in the writer's queue.</summary>
     public static readonly TimeSpan GracePeriod = TimeSpan.FromHours(1);
 
-    public MediaCleanupService(ChatService chat, MediaUploadLogService log, UploadPaths uploads, IServiceProvider services, ILogger<MediaCleanupService> logger)
+    public MediaCleanupService(ChatService chat, MediaUploadLogService log, GifService gifs, UploadPaths uploads, IServiceProvider services, ILogger<MediaCleanupService> logger)
     {
         _chat = chat;
         _log = log;
+        _gifs = gifs;
         _uploads = uploads;
         _dbFactory = services.GetService<IDbContextFactory<ChatDbContext>>();
         _logger = logger;
@@ -41,19 +44,37 @@ public sealed class MediaCleanupService
 
     /// <summary>
     /// Deletes one upload with its derived files and its log row. Without <paramref name="force"/> an upload a
-    /// message still shows is refused as InUse, with the count, so the page can ask the admin first.
+    /// message still shows is refused as InUse, with the count, so the page can ask the admin first. A GIF row
+    /// goes the GIFs tab's way instead (<see cref="DeleteGif"/>).
     /// </summary>
-    public async Task<(DeleteOutcome Outcome, int Uses, long Bytes)> DeleteAsync(int id, bool force)
+    public async Task<(DeleteOutcome Outcome, int Uses, long Bytes)> DeleteAsync(Guid adminId, int id, bool force)
     {
         var row = await _log.GetAsync(id);
         if (row is null) return (DeleteOutcome.NotFound, 0, 0);
-        if (row.FileType is not ("image" or "video" or "voice") || StemOf(row.StoredFileName) is not { } stem) return (DeleteOutcome.NotAnUpload, 0, 0);
+        if (StemOf(row.StoredFileName) is not { } stem) return (DeleteOutcome.NotAnUpload, 0, 0);
+        if (row.FileType == "gif") return DeleteGif(adminId, row, stem, force);
+        if (row.FileType is not ("image" or "video" or "voice")) return (DeleteOutcome.NotAnUpload, 0, 0);
         var uses = await UseCountAsync(stem);
         if (uses > 0 && !force) return (DeleteOutcome.InUse, uses, 0);
         var bytes = DeleteFiles(stem);
         _log.Delete(id);
         _logger.LogInformation("Media delete: {File} ({Bytes} bytes, {Uses} uses)", row.StoredFileName, bytes, uses);
         return (DeleteOutcome.Deleted, uses, bytes);
+    }
+
+    // A GIF row's stem is its library entry, and the files live under uploads/gifs, which this service never
+    // touches. So the delete is the GIFs tab's (AD-23): the entry leaves every favourites list and index, and its
+    // file stays while a message still shows it, so the history renders. The log row goes in every case, also when
+    // the GIFs tab deleted the entry earlier: that delete leaves the row behind, and the Media tab listed a ghost.
+    private (DeleteOutcome Outcome, int Uses, long Bytes) DeleteGif(Guid adminId, MediaUploadLog row, Guid entryId, bool force)
+    {
+        var entry = _gifs.GetEntry(entryId);
+        var uses = entry is { DeletedAt: null } ? entry.ReferenceCount : 0;
+        if (uses > 0 && !force) return (DeleteOutcome.InUse, uses, 0);
+        var result = entry is null ? GifDeleteResult.NotFound : _gifs.DeleteEntry(adminId, entryId, force: true);
+        _log.Delete(row.Id);
+        _logger.LogInformation("Media delete: GIF {Id} {Result} ({Uses} uses)", entryId, result, uses);
+        return (DeleteOutcome.Deleted, uses, result == GifDeleteResult.Deleted ? row.FileSize : 0);
     }
 
     /// <summary>What a prune would delete: the uploads no message shows, past the grace period, and how many are too recent.</summary>

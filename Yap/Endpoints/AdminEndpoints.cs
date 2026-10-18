@@ -241,15 +241,16 @@ public static class AdminEndpoints
         });
 
         // One upload (AD-19). Without `force`, an upload a message still shows answers 409 with the count in the
-        // text, so the page asks the admin before the message loses its picture.
-        admin.MapDelete("/media/{id:int}", async (int id, MediaCleanupService cleanup, bool force = false) =>
+        // text, so the page asks the admin before the message loses its picture. A GIF row goes the GIFs tab's way:
+        // out of every library, its file kept while a message shows it (AD-23).
+        admin.MapDelete("/media/{id:int}", async (int id, ClaimsPrincipal me, MediaCleanupService cleanup, bool force = false) =>
         {
-            var (outcome, uses, bytes) = await cleanup.DeleteAsync(id, force);
+            var (outcome, uses, bytes) = await cleanup.DeleteAsync(me.Id(), id, force);
             return outcome switch
             {
                 MediaCleanupService.DeleteOutcome.Deleted => Results.Ok(new { bytes }),
                 MediaCleanupService.DeleteOutcome.InUse => Results.Problem($"Used in {uses} message{(uses == 1 ? "" : "s")}.", statusCode: 409),
-                MediaCleanupService.DeleteOutcome.NotAnUpload => Results.Problem("GIFs are deleted from the GIFs tab.", statusCode: 400),
+                MediaCleanupService.DeleteOutcome.NotAnUpload => Results.Problem("Not an upload.", statusCode: 400),
                 _ => Results.Problem("Upload unknown", statusCode: 404),
             };
         });
@@ -415,7 +416,7 @@ public static class AdminEndpoints
                 if (Guid.TryParse(stem, out var id) && gifs.GetEntry(id) is { } e) { thumb = e.PreviewUrl ?? e.GifUrl ?? e.RemoteGifUrl; link = e.GifUrl ?? e.RemoteGifUrl; }
                 break;
         }
-        return new { r.Id, r.Date, r.Username, r.OriginalFileName, r.FileType, r.FileSize, r.CompressDurationMs, thumb, link, deletable = r.FileType is "image" or "video" or "voice" };
+        return new { r.Id, r.Date, r.Username, r.OriginalFileName, r.FileType, r.FileSize, r.CompressDurationMs, thumb, link };
     }
 
     // The failure codes the sign-in service writes, as the Visitors tab shows them (AD-20).

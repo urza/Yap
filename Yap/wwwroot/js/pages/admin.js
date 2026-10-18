@@ -421,7 +421,8 @@ export function mount(root, route) {
     rowOf: r => el('tr', null, td(stamp(r.date), 'date-cell'), td(r.username), td(pill(r.action, actionClass(r.action))), td(r.ip ?? '-', 'ip-mono'), td(r.info ?? '-', 'info-cell')) });
   const actionClass = a => a === 'LOGIN' ? 'action-login' : a === 'LOGOUT' || a === 'LOGIN_FAIL' ? 'action-logout' : a === 'SMART_LOGIN' ? 'action-smart' : 'action-default';
   // One upload's delete (AD-19): the first tap arms it, the second asks the server. A 409 means a message still
-  // shows the file, with the count in its text; the admin decides in a dialog.
+  // shows the file, with the count in its text; the admin decides in a dialog. A GIF goes the GIFs tab's way
+  // (AD-23): its file stays while those messages show it, so its dialog promises no broken picture.
   const deleteButton = (r, remove) => {
     let armed = null;
     const b = el('button', { class: 'gif-row-btn danger', type: 'button', onclick: async () => {
@@ -430,7 +431,8 @@ export function mount(root, route) {
       let inUse;
       try { await api.delete(`/api/admin/media/${r.id}`); remove(); return; }
       catch (e) { if (e.status !== 409) { fail(e); return; } inUse = e.message; }
-      if (!await confirm({ title: 'Delete this file?', text: `${r.originalFileName}: ${inUse.toLowerCase()} The messages keep a broken picture.` })) return;
+      const gif = r.fileType === 'gif';
+      if (!await confirm({ title: gif ? 'Delete this GIF?' : 'Delete this file?', text: `${r.originalFileName}: ${inUse.toLowerCase()} ${gif ? 'It leaves every library; the file stays while those messages show it.' : 'The messages keep a broken picture.'}` })) return;
       try { await api.delete(`/api/admin/media/${r.id}?force=true`); remove(); } catch (err) { fail(err); }
     } }, 'Delete');
     return b;
@@ -442,7 +444,7 @@ export function mount(root, route) {
     const scan = el('input', { type: 'checkbox' });
     const status = el('span', { class: 'form-hint' });
     const find = el('button', { class: 'upload-button', type: 'button' }, 'Find unused uploads');
-    const del = el('button', { class: 'reject-btn', type: 'button', hidden: true });
+    const del = el('button', { class: 'danger-btn', type: 'button', hidden: true });
     const plural = n => `${n} upload${n === 1 ? '' : 's'}`;
     let found = null;
     find.addEventListener('click', async () => {
@@ -476,7 +478,7 @@ export function mount(root, route) {
     rowOf: (r, _, remove) => el('tr', null, td(r.thumb ? el('a', { href: r.link ?? r.thumb, target: '_blank', rel: 'noopener' }, el('img', { src: r.thumb, alt: '', class: 'admin-thumb', loading: 'lazy' }))
                                               : r.fileType === 'voice' && r.link ? el('audio', { controls: true, preload: 'none', src: r.link, class: 'admin-audio' }) : null),
       td(stamp(r.date), 'date-cell'), td(r.username), td(r.originalFileName, 'info-cell'), td(pill(r.fileType, r.fileType === 'video' ? 'action-video' : 'action-default')), td(size(r.fileSize ?? 0)), td(r.compressDurationMs ? `${(r.compressDurationMs / 1000).toFixed(1)}s` : '-'),
-      td(r.deletable ? deleteButton(r, remove) : null, 'gif-actions-cell')) });
+      td(deleteButton(r, remove), 'gif-actions-cell')) });
   const visitorsRow = (r, toggle) => el('tr', { class: 'clickable-row', onclick: toggle }, td(stamp(r.date), 'date-cell'), td(r.ip ?? '---', 'ip-mono'), td(pill(r.action, actionClass(r.action))), td(r.reason ?? r.url ?? r.info ?? ''), td((r.userAgent ?? '').slice(0, 60), 'ua-cell'));
   visitorsRow.detail = r => el('div', { class: 'user-detail-panel' },
     el('div', { class: 'detail-header' }, el('div', { class: 'detail-header-info' }, el('h4', null, r.ip ?? 'Unknown IP'), r.country ? el('span', { class: 'user-username' }, r.country) : null)),
