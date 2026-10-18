@@ -65,7 +65,7 @@ Tabs do not merge each other's state. History comes from the server in every tab
 navigator.locks.request('yap-outbox-sender', () => runSenderUntilClosed());
 ```
 
-Other tabs re-read the outbox when a BroadcastChannel message says it changed. That is the complete cross-tab design.
+Other tabs re-read the outbox when a BroadcastChannel message says it changed. A tab on an old build (the new-version notice shows) releases the lock and requests it again, at the notice and at every outbox change, so a tab on the new build moves ahead of it in the queue: an old sender does not know what a newer row carries (on 2026-10-18 it uploaded a voice recording as a plain file). That is the complete cross-tab design.
 
 ## After the tab was closed
 

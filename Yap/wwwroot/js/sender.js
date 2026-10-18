@@ -11,7 +11,7 @@
 // may never report (the phone's Wi-Fi went away mid-upload): a wake-up gives up an upload with no progress for a
 // few seconds, and the run that follows sends the files that are not done.
 
-import { state, changed, setPending, addMessage } from './store.js';
+import { state, changed, setPending, addMessage, on } from './store.js';
 import { api, ApiError } from './api.js';
 import * as hub from './hub.js';
 import * as outbox from './offline/outbox.js';
@@ -102,6 +102,7 @@ async function flush() {
   try {
     await ready();
     for (const row of [...queue]) {
+      if (!holder) break;   // the lock went to another tab mid-run (yieldLock): the rest is its to post
       if (row.failed || !queue.includes(row)) continue;
       if (Date.now() - row.queuedAt > DAY) { fail(row, 'Waited more than a day'); continue; }   // MR-71, OF-11
       if (!navigator.onLine) break;
@@ -194,10 +195,26 @@ function ready() {
 }
 
 // Another tab changed the outbox: this tab reads it again; the holder posts what is new.
-outbox.onChange(() => { loaded = null; ready().then(flush); });
+outbox.onChange(() => { if (state.updateAvailable) yieldLock(); loaded = null; ready().then(flush); });
 
-// The lock: one tab posts at a time (offline-design-notes.md, "Tabs"). The holder keeps it until it closes.
-if (navigator.locks) navigator.locks.request('yap-outbox-sender', { mode: 'exclusive' }, () => new Promise(() => { holder = true; flush(); }));
+// The lock: one tab posts at a time (offline-design-notes.md, "Tabs"). The holder keeps it until it closes, with
+// one exception. A tab on an old build (the notice of SH-20 shows) does not know what a newer tab's row carries:
+// on 2026-10-18 an old sender uploaded a new composer's voice recording as a plain file, and the memo arrived as
+// a video. So an old tab leaves the line and joins it again at the back, at the notice and at every change of
+// the outbox: a current tab, if one waits, posts instead; with no other tab the old one gets the lock back at
+// once and keeps sending (OF-17).
+let release = null;
+function requestLock() {
+  navigator.locks.request('yap-outbox-sender', { mode: 'exclusive' }, () => new Promise(resolve => { holder = true; release = resolve; flush(); }));
+}
+function yieldLock() {
+  if (!holder || !release) return;   // not the holder, or no Web Locks: nothing to hand over
+  holder = false; release(); release = null;
+  requestLock();
+}
+if (navigator.locks) requestLock();
+on('connection', () => { if (state.updateAvailable) yieldLock(); });   // setUpdateAvailable announces on this event (SH-17)
+export const isHolder = () => holder;   // for the browser tests
 
 hub.onConnected(wake);                                     // what queued while offline goes out (OF-10)
 addEventListener('online', wake);
