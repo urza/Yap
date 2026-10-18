@@ -166,7 +166,7 @@ async function uploadFiles(row) {
   }
   row.files = result.retry;
   if (row.files.length) { row.uploading = { names: namesOf(row), percent: 0 }; publish(row); return false; }
-  if (!result.files.length) { fail(row, result.errors[0] ?? 'Upload failed'); return true; }
+  if (!result.files.length) { row.files = result.refused; fail(row, result.errors[0] ?? 'Upload failed'); return true; }   // the files stay: Retry sends them again (a server that got its converter meanwhile), and a voice row has nothing else to send
   row.uploading = null;
   publish(row);
   return true;
