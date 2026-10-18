@@ -539,7 +539,7 @@ await step(14, 'Create Channel and Channel Settings (AD-29 to AD-35)', async (ch
   check(gone && goneB, `Delete: first click "${armed}"; A -> ${pathOf(A)}; B devtalk gone ${goneB} after ${Date.now() - t2} ms; B at ${pathOf(B)}, rooms ${(await B.locator('.rooms-list .room-item').allInnerTexts()).map(t => t.replace(/\s+/g, ' ').trim()).join(' | ')}`);
 });
 
-await step(15, 'Keyboard: the sidebar rows and + take focus and Enter (SH-26, SH-32, IB-29)', async (check) => {
+await step(15, 'Keyboard: the sidebar rows and + take focus and Enter (SH-26, SH-32, IB-29, IB-67)', async (check) => {
   await A.waitForSelector('.message-input', { timeout: 5000 });
   const active = () => A.evaluate(() => { const a = document.activeElement; return `${a.tagName.toLowerCase()}.${[...a.classList].join('.')}`; });
   await A.focus('.message-input');
@@ -565,8 +565,10 @@ await step(15, 'Keyboard: the sidebar rows and + take focus and Enter (SH-26, SH
   await A.evaluate(async () => (await import('/js/router.js')).navigate('/lobby'));
   await A.waitForSelector('.message-input', { timeout: 5000 });
   await A.locator('.image-upload-button').focus();
-  const [chooser] = await Promise.all([A.waitForEvent('filechooser', { timeout: 3000 }).catch(() => null), A.keyboard.press('Enter')]);
-  check(!!chooser && chooser.isMultiple(), `Enter on + opens the file chooser: ${!!chooser}, multiple ${chooser?.isMultiple()}`);
+  await A.keyboard.press('Enter');
+  const item = await A.waitForSelector('.more-menu [data-action="files"]', { timeout: 3000 }).catch(() => null);   // + opens the attach menu since the voice messages (IB-67); the chooser is its first item
+  const [chooser] = await Promise.all([A.waitForEvent('filechooser', { timeout: 3000 }).catch(() => null), item ? item.click() : Promise.resolve()]);
+  check(!!item && !!chooser && chooser.isMultiple(), `Enter on + opens the attach menu: ${!!item}; "Photo or video" opens the file chooser: ${!!chooser}, multiple ${chooser?.isMultiple()}`);
 });
 
 await step(16, 'Phone, 20 px text: the choices of a notification row wrap instead of clipping (ST-10, ST-18)', async (check) => {
