@@ -1,7 +1,10 @@
 using System.Net;
 using System.Security.Claims;
 using Yap.Configuration;
+using Yap.Helpers;
+using Yap.Models.Admin;
 using Yap.Services.Accounts;
+using Yap.Services.Admin;
 
 namespace Yap.Endpoints;
 
@@ -32,12 +35,21 @@ public static class ShellEndpoints
 
         foreach (var route in Routes)
         {
-            app.MapGet(route, (HttpContext http, ClaimsPrincipal principal, ServerConfig config) =>
+            app.MapGet(route, (HttpContext http, ClaimsPrincipal principal, ServerConfig config, UserActionLogService log, RegistrationGateService gate) =>
             {
                 // A signed-out visitor at the root gets the welcome page when the deployment has one (AD-36).
                 if (route == "/" && !principal.IsSignedIn() && config.WelcomePageEnabled
                     && File.Exists(Path.Combine(env.ContentRootPath, "Data", "welcome", "welcome.html")))
                     return Results.Content(Welcome(env, config.ProjectName), "text/html; charset=utf-8");
+
+                // A signed-out load of the login page or of an invite is a visit for the Visitors tab (AD-20). The
+                // invite's code stays out of the log: the admin may not see a claimed code (AD-17). Only a navigation
+                // counts: the service worker also fetches /login to store the shell, with Sec-Fetch-Mode "same-origin".
+                var mode = http.Request.Headers["Sec-Fetch-Mode"].ToString();
+                if (!principal.IsSignedIn() && route is "/login" or "/invite/{code}" && (mode.Length == 0 || mode == "navigate"))
+                    log.Log(null, UserActionLog.KnownActions.VISIT, url: route == "/login" ? "/login" : "/invite",
+                        info: route == "/login" && gate.RegistrationClosed ? "registration_closed" : null,
+                        ip: IpHelper.GetClientIp(http), userAgent: http.Request.Headers.UserAgent.ToString());
 
                 http.Response.Headers.CacheControl = "no-cache";   // always revalidate: the service worker, not the HTTP cache, serves the shell offline
                 return Results.Content(Shell(), "text/html; charset=utf-8");

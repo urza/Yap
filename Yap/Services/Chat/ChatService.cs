@@ -486,6 +486,16 @@ public class ChatService
         return mine.GroupBy(e => e).OrderByDescending(g => g.Count()).Take(count).Select(g => g.Key).ToList();
     }
 
+    /// <summary>Every image and video URL a message in memory carries. The admin's media clean-up matches uploads against it.</summary>
+    public List<string> MediaUrls()
+    {
+        var urls = new List<string>();
+        foreach (var (channelId, messages) in _channelMessages)
+            lock (LockOf(channelId))
+                foreach (var message in messages) { urls.AddRange(message.ImageUrls); urls.AddRange(message.VideoUrls); }
+        return urls;
+    }
+
     #endregion
 
     #region Read state

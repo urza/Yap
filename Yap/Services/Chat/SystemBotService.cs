@@ -5,7 +5,7 @@ using Yap.Models.Accounts;
 using Yap.Models.Chat;
 using Yap.Services.Accounts;
 using Yap.Services.Admin;
-
+using Yap.Services.Media;
 using Yap.Services.Presence;
 
 namespace Yap.Services.Chat;
@@ -24,6 +24,7 @@ public class SystemBotService
     private readonly AccessLinkService _accessLinks;
     private readonly IConfiguration _configuration;
     private readonly IWebHostEnvironment _env;
+    private readonly ImageService _images;
     private readonly ILogger<SystemBotService> _logger;
 
     private Guid _botUserId;
@@ -39,11 +40,16 @@ public class SystemBotService
     // Track users who have already received a welcome DM (prevents duplicates)
     private readonly HashSet<string> _welcomedUsers = new(StringComparer.OrdinalIgnoreCase);
 
-    // Welcome message loaded from file (persisted) or config (default)
-    private string? _welcomeMessageFromFile;
+    // The three parts of the welcome DM, from Data/bot-settings.json once the admin saved them (AD-09)
+    private string? _welcomeMessageFromFile, _phoneMessageFromFile, _linkMessageFromFile;
 
-    private const string BotAvatarUrl = "/images/bot-avatar.svg";
-    private const string DefaultWelcomeMessage = "👋 Hey! Welcome to {0}! I am bot for sending system messages.";
+    public const string DefaultAvatarUrl = "/images/bot-avatar.svg";
+    private const string DefaultWelcomeMessage = "👋 Hey! Welcome to {server}! I am bot for sending system messages.";
+    private const string DefaultPhoneMessage = "📱 I noticed you're on a phone. It's a much better experience if you [pwa-install] to your homescreen — it will look and feel like a normal app. Please also allow notifications when prompted so you don't miss messages. You can change this anytime in Settings.";
+    private const string DefaultLinkMessage = "🔗 One more thing — this is your personal login link: {link}\n" +
+        "Open it on any device or browser and you're straight back in this account (new phone, reinstalled app, second browser). " +
+        "Save it somewhere safe, like your notes. Don't share it — anyone who has it can sign in as you. " +
+        "On the login page you can also type its code, {code}, as your secret code. You can manage the link anytime in Settings.";
 
     public SystemBotService(
         UserService userService,
@@ -53,6 +59,7 @@ public class SystemBotService
         IConfiguration configuration,
         IWebHostEnvironment env,
         ProxyWatch proxyWatch,
+        ImageService images,
         ILogger<SystemBotService> logger)
     {
         _userService = userService;
@@ -61,6 +68,7 @@ public class SystemBotService
         _accessLinks = accessLinks;
         _configuration = configuration;
         _env = env;
+        _images = images;
         _proxyWatch = proxyWatch;
         _logger = logger;
     }
@@ -73,25 +81,36 @@ public class SystemBotService
     private string ProjectName => _configuration["ChatSettings:ProjectName"] ?? "Yap";
 
     /// <summary>
-    /// Gets the current welcome message template.
-    /// Priority: file override → appsettings.json → hardcoded default.
-    /// {0} is replaced with the project name when sent.
+    /// The first part of the welcome DM. The admin's saved text wins over appsettings, which wins over the default.
+    /// {server} (or the older {0}) is the server name.
     /// </summary>
-    public string WelcomeMessage
+    public string WelcomeMessage => _welcomeMessageFromFile ?? _configuration["ChatSettings:Bot:WelcomeMessage"] ?? DefaultWelcomeMessage;
+
+    /// <summary>The part added for a person on a phone. The client turns [pwa-install] into the install link (MR-74). Empty: no phone part.</summary>
+    public string PhoneMessage => _phoneMessageFromFile ?? DefaultPhoneMessage;
+
+    /// <summary>The part added when the person has a login link: {link} is the URL, {code} its code. Empty: no link part.</summary>
+    public string LinkMessage => _linkMessageFromFile ?? DefaultLinkMessage;
+
+    public string ServerName => ProjectName;
+
+    /// <summary>Saves the parts the admin edited to Data/bot-settings.json. A null part keeps its text.</summary>
+    public async Task UpdateMessagesAsync(string? welcome, string? phone, string? link)
     {
-        get => _welcomeMessageFromFile
-               ?? _configuration["ChatSettings:Bot:WelcomeMessage"]
-               ?? DefaultWelcomeMessage;
+        if (welcome is not null) _welcomeMessageFromFile = welcome;
+        if (phone is not null) _phoneMessageFromFile = phone;
+        if (link is not null) _linkMessageFromFile = link;
+        await SaveSettingsAsync();
     }
 
     /// <summary>
-    /// Updates the welcome message and persists it to Data/bot-settings.json.
+    /// A part with its placeholders filled: {server} and {0} with the server name, {link} and {code} with the
+    /// person's login link. A plain Replace, not string.Format: a stray brace in an edited text must not throw
+    /// and cost someone their welcome.
     /// </summary>
-    public async Task UpdateWelcomeMessageAsync(string message)
-    {
-        _welcomeMessageFromFile = message;
-        await SaveSettingsAsync();
-    }
+    public string Fill(string text, (string Url, string Code)? link = null) => text
+        .Replace("{server}", ProjectName).Replace("{0}", ProjectName)
+        .Replace("{link}", link?.Url ?? "").Replace("{code}", link?.Code ?? "");
 
     /// <summary>
     /// Initializes the bot user and subscribes to events.
@@ -132,7 +151,7 @@ public class SystemBotService
             _userService.UpdateProfile(
                 botUser.Id,
                 displayName: botDisplayName,
-                profilePictureUrl: BotAvatarUrl,
+                profilePictureUrl: DefaultAvatarUrl,
                 bio: "I'm a bot! 🤖",
                 country: null);
 
@@ -140,13 +159,14 @@ public class SystemBotService
         }
         else
         {
-            // Update display name and avatar if changed
-            if (botUser.DisplayName != botDisplayName || botUser.ProfilePictureUrl != BotAvatarUrl)
+            // The admin page owns the display name and the picture after creation (AD-09), so a restart keeps
+            // them. Only a blank gets the default: a row from before the bot had a picture, or a cleared name.
+            if (string.IsNullOrWhiteSpace(botUser.DisplayName) || string.IsNullOrEmpty(botUser.ProfilePictureUrl))
             {
                 _userService.UpdateProfile(
                     botUser.Id,
-                    displayName: botDisplayName,
-                    profilePictureUrl: BotAvatarUrl,
+                    displayName: string.IsNullOrWhiteSpace(botUser.DisplayName) ? botDisplayName : botUser.DisplayName,
+                    profilePictureUrl: string.IsNullOrEmpty(botUser.ProfilePictureUrl) ? DefaultAvatarUrl : botUser.ProfilePictureUrl,
                     bio: botUser.Bio ?? "I'm a bot! 🤖",
                     country: botUser.Country);
             }
@@ -218,6 +238,27 @@ public class SystemBotService
         _logger.LogInformation("Bot display name updated to '{DisplayName}'", newDisplayName);
     }
 
+    /// <summary>
+    /// A picture the admin uploaded (AD-09), through the same path as a person's own: a 128 px WebP under
+    /// /uploads/profiles, and the profile broadcast redraws it everywhere. Null when the image could not be read.
+    /// </summary>
+    public async Task<string?> SetAvatarAsync(Stream image)
+    {
+        if (!_initialized || _userService.GetById(_botUserId) is not { } bot) return null;
+        var url = await _images.GenerateProfilePictureAsync(image, _botUserId);
+        if (url is null) return null;
+        _userService.UpdateProfile(_botUserId, bot.DisplayName, url, bot.Bio, bot.Country);
+        return url;
+    }
+
+    /// <summary>Back to the built-in robot.</summary>
+    public void ResetAvatar()
+    {
+        if (!_initialized || _userService.GetById(_botUserId) is not { } bot) return;
+        _images.DeleteProfilePicture(_botUserId);
+        _userService.UpdateProfile(_botUserId, bot.DisplayName, DefaultAvatarUrl, bot.Bio, bot.Country);
+    }
+
     #region Settings File (Data/bot-settings.json)
 
     private void LoadSettings()
@@ -228,8 +269,9 @@ public class SystemBotService
             {
                 var json = File.ReadAllText(SettingsFilePath);
                 var settings = JsonSerializer.Deserialize<BotSettings>(json);
-                if (settings?.WelcomeMessage != null)
-                    _welcomeMessageFromFile = settings.WelcomeMessage;
+                _welcomeMessageFromFile = settings?.WelcomeMessage;
+                _phoneMessageFromFile = settings?.PhoneMessage;
+                _linkMessageFromFile = settings?.LinkMessage;
 
                 _logger.LogInformation("Loaded bot settings from {Path}", SettingsFilePath);
             }
@@ -244,7 +286,7 @@ public class SystemBotService
     {
         try
         {
-            var settings = new BotSettings { WelcomeMessage = _welcomeMessageFromFile };
+            var settings = new BotSettings { WelcomeMessage = _welcomeMessageFromFile, PhoneMessage = _phoneMessageFromFile, LinkMessage = _linkMessageFromFile };
             var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(SettingsFilePath, json);
             _logger.LogInformation("Saved bot settings to {Path}", SettingsFilePath);
@@ -258,6 +300,8 @@ public class SystemBotService
     private class BotSettings
     {
         public string? WelcomeMessage { get; set; }
+        public string? PhoneMessage { get; set; }
+        public string? LinkMessage { get; set; }
     }
 
     #endregion
@@ -360,26 +404,22 @@ public class SystemBotService
         var channel = ConversationOf(user);
         if (channel is null) return;
 
-        // Build welcome message: base message + PWA install line for mobile users + secret code
-        var message = string.Format(WelcomeMessage, ProjectName);
+        // The welcome DM is three parts the admin edits (AD-09): the welcome, the phone part on a phone, and
+        // the way back in. An empty part is left out. The link fills {link} and {code} in any part.
+        var link = _accessLinks.GetActiveForUser(user.Id) is { } active ? ((string, string)?)(_accessLinks.BuildUrl(active.Code, user.Id), active.Code) : null;
+        var message = Fill(WelcomeMessage, link);
 
-        if (_presence.IsMobile(user.Id))
-        {
-            message += "\n\n📱 I noticed you're on a phone. It's a much better experience if you [pwa-install] to your homescreen — it will look and feel like a normal app. Please also allow notifications when prompted so you don't miss messages. You can change this anytime in Settings.";
-        }
+        if (_presence.IsMobile(user.Id) && PhoneMessage.Length > 0)
+            message += "\n\n" + Fill(PhoneMessage, link);
 
         // Their way back in, born with the account. This DM is the one place they can always
         // find it again: when a fresh context greets them with the login page (installed app,
         // new browser, new device), the link is the way back into THIS account instead of
         // registering a doppelgänger. New accounts get a login link; accounts from before
         // links existed still carry a passphrase.
-        if (_accessLinks.GetActiveForUser(user.Id) is { } link)
+        if (link is not null)
         {
-            message += $"\n\n🔗 One more thing — this is your personal login link: {_accessLinks.BuildUrl(link.Code, user.Id)}\n" +
-                       "Open it on any device or browser and you're straight back in this account (new phone, reinstalled app, second browser). " +
-                       "Save it somewhere safe, like your notes. Don't share it — anyone who has it can sign in as you. " +
-                       $"On the login page you can also type its code, {link.Code}, as your secret code. " +
-                       "You can manage the link anytime in Settings.";
+            if (LinkMessage.Length > 0) message += "\n\n" + Fill(LinkMessage, link);
         }
         else if (user.Password != null)
         {

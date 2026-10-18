@@ -56,7 +56,9 @@ public class UserActionLogService
                 .Where(l => l.Date < cutoff)
                 .ExecuteDeleteAsync();
 
-            // Per user, keep only the last 100 entries (1000 for anonymous visitor logs)
+            // Per user, keep only the last 100 entries. The anonymous bucket keeps 1000 request rows and, apart
+            // from them, 1000 visitor rows (VISIT, LOGIN_FAIL): one busy day of requests must not push the few
+            // failed sign-ins out of the Visitors tab (AD-20).
             var usersWithExcess = await db.UserActionLogs
                 .GroupBy(l => l.UserUid)
                 .Where(g => g.Count() > 100)
@@ -66,18 +68,12 @@ public class UserActionLogService
             var deletedExcess = 0;
             foreach (var userUid in usersWithExcess)
             {
-                var limit = userUid == "" ? 1000 : 100;
-
-                var keepIds = await db.UserActionLogs
-                    .Where(l => l.UserUid == userUid)
-                    .OrderByDescending(l => l.Date)
-                    .Take(limit)
-                    .Select(l => l.Id)
-                    .ToListAsync();
-
-                deletedExcess += await db.UserActionLogs
-                    .Where(l => l.UserUid == userUid && !keepIds.Contains(l.Id))
-                    .ExecuteDeleteAsync();
+                if (userUid == "")
+                {
+                    deletedExcess += await TrimAsync(db, l => l.UserUid == "" && l.Action == UserActionLog.KnownActions.HTTP_REQUEST, 1000);
+                    deletedExcess += await TrimAsync(db, l => l.UserUid == "" && l.Action != UserActionLog.KnownActions.HTTP_REQUEST, 1000);
+                }
+                else deletedExcess += await TrimAsync(db, l => l.UserUid == userUid, 100);
             }
 
             if (deletedOld > 0 || deletedExcess > 0)
@@ -90,6 +86,13 @@ public class UserActionLogService
         {
             _logger.LogError(ex, "Failed to clean up action logs");
         }
+    }
+
+    // Keeps the newest `keep` rows of a set and deletes the rest.
+    private static async Task<int> TrimAsync(ChatDbContext db, System.Linq.Expressions.Expression<Func<UserActionLog, bool>> set, int keep)
+    {
+        var keepIds = await db.UserActionLogs.Where(set).OrderByDescending(l => l.Date).Take(keep).Select(l => l.Id).ToListAsync();
+        return await db.UserActionLogs.Where(set).Where(l => !keepIds.Contains(l.Id)).ExecuteDeleteAsync();
     }
 
     /// <summary>

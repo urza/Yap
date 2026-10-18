@@ -132,6 +132,9 @@ public static class Writes
         db.MediaUploadLogs.Where(l => l.StoredFileName == storedFileName)
           .ExecuteUpdateAsync(s => s.SetProperty(l => l.CompressDurationMs, durationMs), ct);
 
+    public static Write DeleteMediaUploadLog(int id) => (db, ct) =>
+        db.MediaUploadLogs.Where(l => l.Id == id).ExecuteDeleteAsync(ct);
+
     // ---- helpers -------------------------------------------------------------------------------------
 
     private static async Task Upsert<T>(ChatDbContext db, DbSet<T> set, T row, CancellationToken ct, params object[] key) where T : class
