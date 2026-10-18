@@ -33,7 +33,7 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
         On<ChatMessage>(h => chat.OnMessageEdited += h, h => chat.OnMessageEdited -= h, m => ToReaders(m, "messageEdited", viewer => [map.From(m, viewer)]));
         On<Guid, Guid>(h => chat.OnMessageDeleted += h, h => chat.OnMessageDeleted -= h, (channelId, id) => ToChannel(channelId, "messageDeleted", channelId, id));
         On<ChatMessage>(h => chat.OnReactionChanged += h, h => chat.OnReactionChanged -= h, m => ToReaders(m, "reactions", _ => [m.Id, map.Reactions(m)]));
-        On<ChatMessage>(h => chat.OnPreviewsReady += h, h => chat.OnPreviewsReady -= h, m => ToReaders(m, "previews", _ => [m.Id, map.Previews(m)]));
+        On<ChatMessage>(h => chat.OnPreviewsReady += h, h => chat.OnPreviewsReady -= h, m => ToReaders(m, "previews", _ => [m.Id, chat.Previews(m)]));
         On<Guid, Guid, int>(h => chat.OnUnreadChanged += h, h => chat.OnUnreadChanged -= h, (userId, channelId, count) => ToUser(userId, "unread", channelId, count));
         On<Channel>(h => chat.OnDmStarted += h, h => chat.OnDmStarted -= h, DmStarted);
         On(h => chat.OnRoomsChanged += h, h => chat.OnRoomsChanged -= h, () => ToAll("rooms", chat.Rooms().Select(RoomDto.From).ToList()));

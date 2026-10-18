@@ -41,6 +41,13 @@ public class GifEntry
     public string? RemoteWebmUrl { get; set; }
     public string? RemoteGifUrl { get; set; }
 
+    /// <summary>The file a row shows: an image file first, then the local videos, then the provider's copies. The
+    /// message mapper and the pin copy both use it, so a pin shows the same file as the row. No setter: not a column.</summary>
+    public string? Src => GifUrl ?? RemoteGifUrl ?? Mp4Url ?? WebmUrl ?? RemoteMp4Url ?? RemoteWebmUrl;
+
+    /// <summary>True when <see cref="Src"/> is a GIF image and not a video file.</summary>
+    public bool SrcIsImage => Src is not null && (Src == GifUrl || Src == RemoteGifUrl);
+
     public int Width { get; set; }
     public int Height { get; set; }
 
