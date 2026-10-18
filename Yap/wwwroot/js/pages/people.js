@@ -27,7 +27,19 @@ export function mount(root) {
   const clock = setInterval(render, 60_000);   // "5 minutes ago" follows the clock
   render();
 
+  // The list is every account, a thousand on a big server, and the store fires for every presence change of
+  // every one of them. One rebuild sorts them all and clones a row each, so it runs at most once per frame and
+  // every 250 ms, and not at all when nothing a row shows has changed. Main's sidebar list got the same cure
+  // after the 2026-10-18 load test, where the admin's tab froze under the presence churn of 1,000 users while
+  // the server sat idle (loadtest/reports/2026-10-18-hz2/report.md).
+  let timer = 0, at = 0, sig = '';
   function render() {
+    if (timer) return;
+    const wait = Math.max(0, GAP_MS - (performance.now() - at));
+    timer = setTimeout(() => requestAnimationFrame(() => { timer = 0; at = performance.now(); renderNow(); }), wait);
+  }
+
+  function renderNow() {
     const me = state.user?.username;
     if (!me) return;
     const dmOf = Object.fromEntries(state.dms.map(d => [d.partner, d]));
@@ -36,11 +48,28 @@ export function mount(root) {
       .filter(u => u.username !== me)
       .filter(u => !needle || u.username.toLowerCase().includes(needle) || (u.displayName ?? '').toLowerCase().includes(needle))
       .sort(compare(dmOf));
+    const next = signature(people, dmOf, needle);
+    if (next === sig) return;
+    sig = next;
     if (!people.length) { replace(list, [el('div', { class: 'people-empty' }, needle ? 'Nobody matches.' : 'Nobody has joined yet.')]); return; }
     replace(list, people.map(u => row(u, dmOf[u.username])));
   }
 
-  return () => { offs.forEach(off => off()); clearInterval(clock); frame.closeProfile(); };
+  return () => { offs.forEach(off => off()); clearInterval(clock); clearTimeout(timer); frame.closeProfile(); };
+}
+
+const GAP_MS = 250;
+
+// Everything a row shows, as one string: the same string means the same rows, and the rebuild is skipped. The
+// time text is in it, not the timestamp, so the minute clock rebuilds only when a row's "5 minutes ago" moves.
+function signature(people, dmOf, needle) {
+  let sig = `${needle}|${overlays.isTouch() || narrow.matches}`;
+  for (const u of people) {
+    const dm = dmOf[u.username];
+    sig += `\n${u.username}|${state.presence[u.username] ?? ''}|${displayName(u.username)}|${u.avatarUrl ?? ''}|${u.isAdmin ? 1 : 0}${u.isBot ? 1 : 0}`;
+    if (dm) sig += `|${ago(dm.lastMessageAt)}|${state.unread[dm.channelId] ?? 0}|${isMuted(dm.channelId) ? 1 : 0}${showsBell(dm.channelId) ? 1 : 0}`;
+  }
+  return sig;
 }
 
 // The order: unread conversations, then people online, then everyone else, the bot last; inside a group the
