@@ -97,6 +97,9 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
 
     private void ToUser(Guid userId, string name, params object?[] args) => Fire(hub.Clients.User(userId.ToString()).SendCoreAsync(name, args));
 
+    // A deleted account (AD-39): every client drops the name; a person's client that never held it drops nothing.
+    private void ToAll(string name, params object?[] args) => Fire(hub.Clients.All.SendCoreAsync(name, args));
+
     // The service events are synchronous. The send is not awaited, so a slow client never delays a service.
     private void Fire(Task send)
     {
