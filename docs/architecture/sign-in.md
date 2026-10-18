@@ -36,8 +36,8 @@ public SignInCheck Check(string username, string ip)
 }
 
 bool SmartLoginApplies(User user, string ip)
-    => gate.SmartLoginAllowed && !user.SmartLoginOptOut
-       && (presence.HasConnectedSessionFromIp(user.Id, ip) || users.HasKnownIp(user.Id, ip, within: TimeSpan.FromDays(14)));
+    => gate.SmartMode && !user.SmartLoginOptOut
+       && (presence.HasConnectedSessionFromIp(user.Id, ip) || users.HasRecentKnownIp(user.Username, ip));   // KnownIpTtl: 14 days
 ```
 
 ```cs
@@ -70,9 +70,9 @@ All routes on this page are anonymous except sign-out.
 
 | Route | Request | Response |
 | --- | --- | --- |
-| `GET /api/auth/check?username=` | | `{ state, reason? }`. The login page calls it while the person types, after a 300 ms pause. |
+| `GET /api/auth/check?username=` | | `{ state, reason? }`. The login page calls it while the person types, after a 250 ms pause. |
 | `POST /api/auth/signin` | `{ username, code? }` | 200 `{ username }` and the cookie. 202 `{ state: "pending" }` when approval is required; the first such call puts the name on the admin's list, sends the bot message (AU-05, AD-11) and sets the `yap_pending` cookie: the token of this browser's request. The admin approves a name; only the browser with the token turns the approval into an account, so nobody else can claim it by typing the name first. 4xx with a reason otherwise. |
-| `GET /api/auth/pending/{username}` | | `{ state: "waiting" \| "approved" \| "rejected" }` for the browser that holds the request's cookie; any other browser sees `waiting`. The login page polls every 2 s while it waits. On `approved` it calls `signin` again. |
+| `GET /api/auth/pending/{username}` | | `{ state: "waiting" \| "approved" \| "rejected" }` for the browser that holds the request's cookie; any other browser sees `waiting`. The login page polls every 3 s while it waits. On `approved` it calls `signin` again. |
 | `GET /api/invite/{code}` | | `{ state: "join" \| "continue" \| "self" \| "switch" \| "invalid" \| "busy", owner?, current? }`. `self` is the owner, already signed in; the client opens the lobby. An invalid code counts as a failure for the brake (AU-14, AU-17). |
 | `POST /api/invite/{code}` | `{ username? }` | 200 `{ username }` and the cookie. `username` is required for an open invite and ignored for a login link. 4xx with the reasons of the spec's link page. |
 | `POST /api/auth/signout` | `{ pushEndpoint?, deviceId? }` | 204, the cleared cookie and the sign-out mark (a second cookie, removed by the next sign-in). Removes the device's push subscription (NT-24) and ends the hub connections of `deviceId`, so the other tabs of the device get 401 and show the login page (GEN-05). The token stays valid for the other devices (AU-22). |
