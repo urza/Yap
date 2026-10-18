@@ -44,7 +44,7 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
         On<User>(h => users.OnProfileChanged += h, h => users.OnProfileChanged -= h,
             u => ToWatchersOf(u.Username, "profile", UserDto.From(u, users.IsAdmin(u.Id), bot.IsBotUser(u.Username))));
         On<Guid, object>(h => users.OnSettingsChanged += h, h => users.OnSettingsChanged -= h, (userId, partial) => ToUser(userId, "me", partial));
-        On<string>(h => deletion.OnAccountDeleted += h, h => deletion.OnAccountDeleted -= h, username => ToAll("accountDeleted", username));   // AD-39
+        On<string>(h => deletion.OnAccountDeleted += h, h => deletion.OnAccountDeleted -= h, username => ToAll("accountDeleted", username));   // AD-40
         On<Guid, List<string>>(h => users.OnRecentEmojiChanged += h, h => users.OnRecentEmojiChanged -= h,
             (userId, recent) => ToUser(userId, "me", new { emoji = new { recent, quickReactions = chat.QuickReactions(userId) } }));   // MR-41
         On<Guid>(h => mutes.OnChanged += h, h => mutes.OnChanged -= h, userId => ToUser(userId, "me", new { mutes = mutes.For(userId) }));
@@ -97,7 +97,7 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
 
     private void ToUser(Guid userId, string name, params object?[] args) => Fire(hub.Clients.User(userId.ToString()).SendCoreAsync(name, args));
 
-    // A deleted account (AD-39): every client drops the name; a person's client that never held it drops nothing.
+    // A deleted account (AD-40): every client drops the name; a person's client that never held it drops nothing.
     private void ToAll(string name, params object?[] args) => Fire(hub.Clients.All.SendCoreAsync(name, args));
 
     // The service events are synchronous. The send is not awaited, so a slow client never delays a service.

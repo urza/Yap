@@ -9,13 +9,13 @@ using Yap.Services.Chat;
 
 namespace Yap.Tests;
 
-/// <summary>The admin's account deletion and the inactive sweep (AD-37 to AD-39).</summary>
+/// <summary>The admin's account deletion and the inactive sweep (AD-38 to AD-40).</summary>
 public class AccountDeletionTests : IClassFixture<YapFactory>
 {
     private readonly YapFactory _app;
     public AccountDeletionTests(YapFactory app) => _app = app;
 
-    [Fact(DisplayName = "AD-39: a deleted account is signed out, its conversation with the admin goes, the name is free")]
+    [Fact(DisplayName = "AD-40: a deleted account is signed out, its conversation with the admin goes, the name is free")]
     public async Task Delete_signs_out_relabels_and_frees_the_name()
     {
         var db = Path.Combine(Path.GetTempPath(), $"yap-test-{Guid.NewGuid():N}.db");
@@ -79,7 +79,7 @@ public class AccountDeletionTests : IClassFixture<YapFactory>
         }
     }
 
-    [Fact(DisplayName = "AD-38: the inactive list has the old accounts only, never the admin, the bot or a connected person")]
+    [Fact(DisplayName = "AD-39: the inactive list has the old accounts only, never the admin, the bot or a connected person")]
     public async Task Inactive_list_skips_the_admin_the_bot_and_connected_people()
     {
         var admin = await _app.AdminAsync();
@@ -105,7 +105,7 @@ public class AccountDeletionTests : IClassFixture<YapFactory>
         await busyHub.DisposeAsync();
     }
 
-    [Fact(DisplayName = "AD-39: the admin and the bot cannot be deleted; a name that is gone already is skipped")]
+    [Fact(DisplayName = "AD-40: the admin and the bot cannot be deleted; a name that is gone already is skipped")]
     public async Task Admin_and_bot_are_refused()
     {
         var admin = await _app.AdminAsync();

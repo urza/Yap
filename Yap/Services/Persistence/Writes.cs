@@ -91,7 +91,7 @@ public static class Writes
 
     public static Write AccessLink(AccessLink link) => (db, ct) => Upsert(db, db.AccessLinks, link, ct, link.Id);
 
-    /// <summary>A deleted account's messages and reactions carry its ghost name from now on (AD-39). Database-wide,
+    /// <summary>A deleted account's messages and reactions carry its ghost name from now on (AD-40). Database-wide,
     /// so the rows a startup did not load are relabelled too.</summary>
     public static Write RelabelAuthor(Guid userId, string username) => async (db, ct) =>
     {

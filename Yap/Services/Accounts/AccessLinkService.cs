@@ -161,7 +161,7 @@ public class AccessLinkService
         _writer.Enqueue(Writes.AccessLink(link));
     }
 
-    /// <summary>A deleted account's links go with it (AD-39): the database cascades the rows, memory follows here.
+    /// <summary>A deleted account's links go with it (AD-40): the database cascades the rows, memory follows here.
     /// An invite the person created stays; it belongs to the server, not to its minter.</summary>
     public void ForgetUser(Guid userId)
     {

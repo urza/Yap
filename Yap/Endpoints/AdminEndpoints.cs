@@ -65,7 +65,7 @@ public static class AdminEndpoints
             });
         });
 
-        // ---- Danger zone (AD-37 to AD-39) ---------------------------------------------------------------------
+        // ---- Danger zone (AD-38 to AD-40) ---------------------------------------------------------------------
 
         // Oldest first, so the admin reads the list from the surest case down. Not under /users/: a person may be
         // named "inactive", and the literal segment would shadow their detail route.

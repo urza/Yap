@@ -159,7 +159,7 @@ public class ChatDbContext : DbContext
                   .HasForeignKey(r => r.MessageId)
                   .OnDelete(DeleteBehavior.Cascade);
 
-            // No foreign key from UserId to Users: an account deletion keeps the messages (AD-39). A cascade would
+            // No foreign key from UserId to Users: an account deletion keeps the messages (AD-40). A cascade would
             // take the person's whole history, other people's reactions on it included, and the rows a startup did
             // not load into memory. The same holds for Reactions below.
 

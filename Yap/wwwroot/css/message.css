@@ -1078,7 +1078,7 @@
     color: var(--text-white);
 }
 
-/* The admin's red question (AD-37): the Danger Zone's frame and colour on the dialog. The text keeps its line
+/* The admin's red question (AD-38): the Danger Zone's frame and colour on the dialog. The text keeps its line
    breaks, so the names stand on a line of their own. */
 .delete-confirm-dialog.danger {
     border: 1px solid var(--color-danger);

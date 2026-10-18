@@ -51,7 +51,7 @@ export function mount(root, route) {
     unmountTab = tabs[tab](host) ?? (() => {});
   }
 
-  // ---- Users (AD-04, AD-05, AD-07, AD-37 to AD-39) ----
+  // ---- Users (AD-04, AD-05, AD-07, AD-38 to AD-40) ----
   function users(host) {
     let data = null;
     const danger = dangerZone();
@@ -105,7 +105,7 @@ export function mount(root, route) {
     load();
     draw();
 
-    // The Danger Zone (AD-37 to AD-39): one account by name, or every account inactive for a number of days, each
+    // The Danger Zone (AD-38 to AD-40): one account by name, or every account inactive for a number of days, each
     // behind a red question that names who goes. One node for the tab's life: a row tap renders the tab again and
     // puts it back, so a found list and a result line survive the tap.
     function dangerZone() {
@@ -151,7 +151,7 @@ export function mount(root, route) {
             el('span', { class: 'danger-desc' }, 'Accounts with no visit for this many days. A connected person never counts. Find shows who goes before anything is deleted.')),
           el('div', { class: 'danger-controls' }, days, el('span', { class: 'danger-unit' }, 'days'), el('button', { class: 'delete-button', type: 'button', onclick: find }, 'Find'))),
         found, result);
-      // The admin and the bot are never offered (AD-39); the list follows every load.
+      // The admin and the bot are never offered (AD-40); the list follows every load.
       const fill = () => {
         const options = (data?.users ?? []).filter(u => !u.isAdmin && !u.isBot).map(u => el('option', { value: u.username }, u.displayName ? `${u.displayName} (${u.username})` : u.username));
         replace(account, options.length ? options : [el('option', { value: '' }, 'No accounts')]);

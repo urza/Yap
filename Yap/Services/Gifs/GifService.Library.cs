@@ -209,7 +209,7 @@ public partial class GifService
     }
 
     /// <summary>
-    /// An account is deleted (AD-39). Its favorites go (the database cascades them). Its own uploads that nothing
+    /// An account is deleted (AD-40). Its favorites go (the database cascades them). Its own uploads that nothing
     /// shows and nobody else starred go with their files. The rest stay for the messages and the stars that use them,
     /// without an uploader, as the database leaves them; a soft delete would blank the GIF in the kept messages.
     /// </summary>

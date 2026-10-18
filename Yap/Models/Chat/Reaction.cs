@@ -6,7 +6,7 @@ public class Reaction
     public Guid MessageId { get; set; }
 
     /// <summary>
-    /// The reacting user's id. No foreign key, as on <see cref="ChatMessage.UserId"/>: the reaction outlives the account (AD-39).
+    /// The reacting user's id. No foreign key, as on <see cref="ChatMessage.UserId"/>: the reaction outlives the account (AD-40).
     /// </summary>
     public Guid UserId { get; set; }
 

@@ -291,7 +291,7 @@ export function setUser(u) {
     changed('user');
   }
 }
-// An account is deleted (AD-39): the person leaves the directory and the people page, with the direct message. The
+// An account is deleted (AD-40): the person leaves the directory and the people page, with the direct message. The
 // 'users' detail names them, so the chat page can leave that conversation. Their rows in the open timeline keep
 // the name until the next open; the server relabels them.
 export function removeUser(username) {

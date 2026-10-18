@@ -8,7 +8,7 @@ using Yap.Services.Presence;
 namespace Yap.Services.Accounts;
 
 /// <summary>
-/// The admin's account deletion (AD-37 to AD-39): one call that reaches every service that knows a person, in the
+/// The admin's account deletion (AD-38 to AD-40): one call that reaches every service that knows a person, in the
 /// order the data depends on. The user leaves memory last, after its sessions are ended and its conversations are
 /// gone: a request that races the delete meets a conversation that is gone, and a send is refused for an unknown
 /// user (ChatService.Send). The row delete goes to the database behind every other write of the purge, so the
@@ -18,12 +18,12 @@ public sealed class AccountDeletionService(UserService users, ChatService chat, 
     PushSubscriptionStore push, GifService gifs, NotificationSettingsService mutes, SystemBotService bot, ImageService images,
     ILogger<AccountDeletionService> log)
 {
-    public const int DefaultInactiveDays = 90;   // AD-38
+    public const int DefaultInactiveDays = 90;   // AD-39
 
     /// <summary>The account is gone; the broadcaster tells everyone, and clients drop the person and the direct message.</summary>
     public event Action<string>? OnAccountDeleted;
 
-    /// <summary>The name a deleted account's messages carry (AD-39). A space and parentheses are outside the username
+    /// <summary>The name a deleted account's messages carry (AD-40). A space and parentheses are outside the username
     /// alphabet, so no account can register it and a newcomer with the old name inherits nothing.</summary>
     public static string GhostName(string username) => $"{username} (deleted)";
 
@@ -36,7 +36,7 @@ public sealed class AccountDeletionService(UserService users, ChatService chat, 
         users.IsAdmin(user.Id) ? "The admin cannot be deleted." :
         bot.IsBotUser(user.Id) ? "The bot cannot be deleted." : null;
 
-    /// <summary>The accounts whose last sign of life is older than <paramref name="days"/>, oldest first (AD-38). A person
+    /// <summary>The accounts whose last sign of life is older than <paramref name="days"/>, oldest first (AD-39). A person
     /// with a live session is active now, whatever the row says; the admin and the bot are never listed.</summary>
     public List<User> Inactive(int days)
     {

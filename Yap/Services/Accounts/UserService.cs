@@ -279,7 +279,7 @@ public class UserService
     }
 
     /// <summary>
-    /// Forgets the account (AD-39): the cookie, the passphrase and smart login all resolve through these dictionaries
+    /// Forgets the account (AD-40): the cookie, the passphrase and smart login all resolve through these dictionaries
     /// and fail from now on, and the username is free again. The admin is refused: without an admin the next sign-up
     /// would become one (AU-06). Everything the account owns elsewhere is AccountDeletionService's job.
     /// </summary>

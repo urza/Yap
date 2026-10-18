@@ -49,7 +49,7 @@ export function mount(root, params) {
   const open = () => openConversation(partner, me, painted, timing, root, params.path);
   open();
   const offConnected = hub.onConnected(open);                 // after a reconnect: the newest messages again (TL-35)
-  const offUsers = on('users', d => { if (d?.removed === partner) router.navigate('/', { replace: true }); });   // the partner's account was deleted (AD-39): the home
+  const offUsers = on('users', d => { if (d?.removed === partner) router.navigate('/', { replace: true }); });   // the partner's account was deleted (AD-40): the home
 
   return () => {
     offConnected(); offUsers();

@@ -385,7 +385,7 @@ public sealed class PresenceService(UserService users, LoadCounters load, ILogge
         Remove(session.ConnectionId);
     }
 
-    /// <summary>After a deleted account's sessions were ended (AD-39): nothing of the person stays in the tables.
+    /// <summary>After a deleted account's sessions were ended (AD-40): nothing of the person stays in the tables.
     /// The recently-closed list keeps its row; it is a bounded diagnostic of what happened.</summary>
     public void ForgetUser(Guid userId)
     {

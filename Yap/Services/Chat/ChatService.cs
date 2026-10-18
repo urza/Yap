@@ -175,7 +175,7 @@ public class ChatService
     }
 
     /// <summary>
-    /// An account is deleted (AD-39). Its direct messages go on both sides: a conversation with nobody could not be
+    /// An account is deleted (AD-40). Its direct messages go on both sides: a conversation with nobody could not be
     /// opened or answered, and nothing lets the other person dismiss it. Every conversation is a direct message in this
     /// build, so no message, reaction or pin of the person stays in memory; the database-wide relabel to
     /// <paramref name="ghostName"/> still runs for rows a startup did not load (a room build's database). Returns the
@@ -295,7 +295,7 @@ public class ChatService
     /// </summary>
     public SendResult Send(SendMessage request)
     {
-        if (_userService.GetById(request.UserId) is null) return SendResult.Refused("Unknown user.");   // the account is being deleted (AD-39): nothing is stored for nobody
+        if (_userService.GetById(request.UserId) is null) return SendResult.Refused("Unknown user.");   // the account is being deleted (AD-40): nothing is stored for nobody
         if (!_channels.TryGetValue(request.ChannelId, out var channel) || !(request.System || channel.CanAccess(request.UserId)))
             return SendResult.Refused("Unknown conversation", 404);
 

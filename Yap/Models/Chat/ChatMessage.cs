@@ -6,7 +6,7 @@ public class ChatMessage
     public Guid ChannelId { get; set; }
 
     /// <summary>
-    /// The sender's id. Deliberately no foreign key: a deleted account's messages stay (AD-39), so the id may
+    /// The sender's id. Deliberately no foreign key: a deleted account's messages stay (AD-40), so the id may
     /// name nobody. Author checks compare ids; a deleted account's id matches no one who can sign in.
     /// </summary>
     public Guid UserId { get; set; }
