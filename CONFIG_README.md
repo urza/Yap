@@ -59,7 +59,7 @@ production once and the failure is silent on the client side.
 | `PushSubscriptionStorage` | string | "Json" | `"Json"` stores push subscriptions in `Data/push-subscriptions.json`. `"Database"` stores them in the DB |
 | `WelcomePageEnabled` | bool | true | Show `Data/welcome/welcome.html` before the login page, if the file exists |
 | `Bot` | object | | The system bot. `Enabled`, `Username`, `DisplayName`, `WelcomeMessage` (`{0}` is the project name). Runtime bot settings from the admin panel live in `Data/bot-settings.json` |
-| `Persistence` | object | | `Enabled`, `ConnectionStrings.SQLite`. With persistence off, everything lives in memory and is wiped on restart |
+| `Persistence` | object | | `Enabled`, `ConnectionStrings.SQLite`. With persistence off, everything lives in memory and is wiped on restart. `Load.MaxMessagesPerChannel` and `Load.MaxDays` bound what the start loads per conversation: the newest messages, at most that many and at most that many days old. 0 or absent = no bound. Older messages stay in the database and nobody can read them until the bound changes and the server restarts |
 | `GifSettings` | object | | `Provider` (`"klipy"`), `UserQuotaMB`, `MaxPackSizeMB`, `Klipy.ApiKey` (free key from partner.klipy.com), `Klipy.CustomerId`, `Klipy.Locale`. Without an API key, provider search and trending are off. Own uploads and server collections still work |
 | `FunnyTexts` | object | | Randomized UI text, see below |
 
