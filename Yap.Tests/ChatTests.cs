@@ -172,7 +172,7 @@ public class ChatTests : IClassFixture<YapFactory>
             var row = await Eventually(async () => (await log.GetUploadsAsync()).FirstOrDefault(r => r.StoredFileName == $"{stem}.m4a"), r => r is not null);
             Assert.NotNull(row);
 
-            var (outcome, uses, _) = await cleanup.DeleteAsync(row.Id, force: false);   // the Voice column answers the LIKE
+            var (outcome, uses, _) = await cleanup.DeleteAsync(aliceId, row.Id, force: false);   // the Voice column answers the LIKE
             Assert.Equal(MediaCleanupService.DeleteOutcome.InUse, outcome);
             Assert.Equal(1, uses);
             var referenced = await Eventually(() => cleanup.UnreferencedAsync(scanDatabase: true), u => u.Files == 0 && u.Recent == 0);   // the scan reads the Voice column
@@ -181,7 +181,7 @@ public class ChatTests : IClassFixture<YapFactory>
             Assert.Null(chat.Delete(aliceId, message.Id));
             var orphaned = await Eventually(() => cleanup.UnreferencedAsync(scanDatabase: true), u => u.Recent == 1);
             Assert.Equal((0, 1), (orphaned.Files, orphaned.Recent));   // unused now, but inside the grace period
-            var deleted = await Eventually(() => cleanup.DeleteAsync(row.Id, force: false), r => r.Outcome == MediaCleanupService.DeleteOutcome.Deleted);
+            var deleted = await Eventually(() => cleanup.DeleteAsync(aliceId, row.Id, force: false), r => r.Outcome == MediaCleanupService.DeleteOutcome.Deleted);
             Assert.Equal(MediaCleanupService.DeleteOutcome.Deleted, deleted.Outcome);
         }
         finally

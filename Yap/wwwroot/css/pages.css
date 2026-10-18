@@ -368,6 +368,7 @@
 /* ==== Admin (was Yap/Components/Pages/Admin.razor.css) ==== */
 
 .admin-page {
+    --admin-column: 640px;   /* every form and settings box on the page: one width, so the tabs line up (AD-09, AD-10) */
     display: flex;
     height: 100%;
     overflow: hidden;
@@ -929,7 +930,7 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    max-width: 400px;
+    max-width: var(--admin-column);
     background: var(--bg-secondary);
     border-radius: 8px;
     padding: 1.25rem;
@@ -999,7 +1000,7 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    max-width: 400px;
+    max-width: var(--admin-column);
     background: var(--bg-secondary);
     border-radius: 8px;
     padding: 1.25rem;
@@ -1073,7 +1074,7 @@
     display: flex;
     flex-direction: column;
     gap: 0;
-    max-width: 500px;
+    max-width: var(--admin-column);
     background: var(--bg-secondary);
     border-radius: 8px;
     overflow: hidden;
@@ -1119,7 +1120,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    max-width: 640px;
+    max-width: var(--admin-column);
 }
 
 .howto-box {
@@ -1235,7 +1236,7 @@
     display: flex;
     flex-direction: column;
     gap: 0;
-    max-width: 500px;
+    max-width: var(--admin-column);
     background: var(--bg-secondary);
     border-radius: 8px;
     overflow: hidden;
@@ -1306,6 +1307,30 @@
 .reject-btn:hover {
     color: var(--color-danger);
     border-color: var(--color-danger);
+}
+
+/* The filled red button: a delete for good that stands next to a blue action (the Media tab's "Delete {n}
+   uploads" after the find). The outlined .reject-btn is too quiet for it: on the box's own background it reads
+   as a disabled control. The size matches .upload-button, its neighbour. */
+.danger-btn {
+    background: var(--color-danger);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+
+.danger-btn:hover:not(:disabled) {
+    opacity: 0.85;
+}
+
+.danger-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .refresh-btn {
@@ -3510,7 +3535,7 @@
 /* The admin's Danger Zone (AD-37 to AD-39), under the Users tab: the room page's danger items in the admin's own
    box, with a full red frame. The items share the unprefixed rules of the room page (.danger-item and friends). */
 .page-admin .danger-section {
-    max-width: 640px;
+    max-width: var(--admin-column);
     margin-top: 2rem;
     padding: 1.25rem;
     border: 1px solid var(--color-danger);
