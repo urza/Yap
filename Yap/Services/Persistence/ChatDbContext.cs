@@ -159,10 +159,9 @@ public class ChatDbContext : DbContext
                   .HasForeignKey(r => r.MessageId)
                   .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasOne(m => m.User)
-                  .WithMany()
-                  .HasForeignKey(m => m.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
+            // No foreign key from UserId to Users: an account deletion keeps the messages (AD-40). A cascade would
+            // take the person's whole history, other people's reactions on it included, and the rows a startup did
+            // not load into memory. The same holds for Reactions below.
 
             entity.Property(m => m.ReplyToMessageId);
             entity.Property(m => m.ClientId);
@@ -254,11 +253,7 @@ public class ChatDbContext : DbContext
         {
             entity.HasKey(r => r.Id);
             entity.HasIndex(r => new { r.MessageId, r.Emoji, r.UserId }).IsUnique();
-
-            entity.HasOne(r => r.User)
-                  .WithMany()
-                  .HasForeignKey(r => r.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(r => r.UserId);   // the relabel of a deleted account finds its reactions by this
         });
 
         // ChannelReadState configuration (composite primary key)

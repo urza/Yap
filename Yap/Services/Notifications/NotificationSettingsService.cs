@@ -183,5 +183,12 @@ public class NotificationSettingsService
             _overrides.TryRemove(key, out _);
     }
 
+    /// <summary>Drops the overrides of a deleted account (AD-40). The database cascades its rows.</summary>
+    public void ClearOverridesForUser(Guid userId)
+    {
+        foreach (var key in _overrides.Keys.Where(k => k.UserId == userId).ToList())
+            _overrides.TryRemove(key, out _);
+    }
+
     #endregion
 }

@@ -207,6 +207,14 @@ public class SystemBotService
         return _botUserId == userId;
     }
 
+    /// <summary>An account is deleted (AD-40). Both guards are keyed by username, and the name is free again: a
+    /// newcomer who takes it gets a welcome of their own.</summary>
+    public void Forget(string username)
+    {
+        lock (_welcomedUsers) _welcomedUsers.Remove(username);
+        _lastReplyTimes.TryRemove(username, out _);
+    }
+
     /// <summary>
     /// Gets the bot's user ID, or null if not initialized.
     /// </summary>

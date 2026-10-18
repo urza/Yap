@@ -151,6 +151,15 @@ public partial class GifService
             }
         }
 
+        return Purge(entry);
+    }
+
+    // The admin's delete, everywhere: out of every favorites list and index, soft-deleted while a message still
+    // shows it (the file stays so history renders), gone with its files otherwise.
+    private GifDeleteResult Purge(GifEntry entry)
+    {
+        var entryId = entry.Id;
+
         // Purge from every user's favorites, remembering who to notify.
         var affectedUsers = new List<Guid>();
         foreach (var (uid, map) in _favoritesByUser)
@@ -195,9 +204,26 @@ public partial class GifService
         foreach (var uid in affectedUsers)
             OnFavoritesChanged?.Invoke(uid);
 
-        _logger.LogInformation("GIF {Id} {Mode}-deleted by {Actor} (refs: {Refs})",
-            entryId, softDelete ? "soft" : "hard", actorUserId, entry.ReferenceCount);
+        _logger.LogInformation("GIF {Id} {Mode}-deleted (refs: {Refs})", entryId, softDelete ? "soft" : "hard", entry.ReferenceCount);
         return softDelete ? GifDeleteResult.SoftDeleted : GifDeleteResult.Deleted;
+    }
+
+    /// <summary>
+    /// An account is deleted (AD-40). Its favorites go (the database cascades them). Its own uploads that nothing
+    /// shows and nobody else starred go with their files. The rest stay for the messages and the stars that use them,
+    /// without an uploader, as the database leaves them; a soft delete would blank the GIF in the kept messages.
+    /// </summary>
+    public void RemoveAccount(Guid userId)
+    {
+        _favoritesByUser.TryRemove(userId, out _);
+        foreach (var entry in _entries.Values.Where(e => e.UploadedByUserId == userId).ToList())
+        {
+            if (IsOwnUpload(entry, userId) && !entry.IsServerGif && entry.DeletedAt is null
+                && entry.ReferenceCount == 0 && CountOtherFavoriters(entry.Id, userId) == 0)
+                Purge(entry);
+            else
+                entry.UploadedByUserId = null;   // memory agrees with the database's SET NULL, so a later row write keeps it null
+        }
     }
 
     private int CountOtherFavoriters(Guid entryId, Guid excludeUserId)

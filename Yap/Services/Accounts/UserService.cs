@@ -279,6 +279,21 @@ public class UserService
     }
 
     /// <summary>
+    /// Forgets the account (AD-40): the cookie, the passphrase and smart login all resolve through these dictionaries
+    /// and fail from now on, and the username is free again. The admin is refused: without an admin the next sign-up
+    /// would become one (AU-06). Everything the account owns elsewhere is AccountDeletionService's job.
+    /// </summary>
+    public User? Remove(Guid userId)
+    {
+        if (IsAdmin(userId) || !_users.TryRemove(userId, out var user)) return null;
+        _usernameToId.TryRemove(user.Username, out _);
+        _tokenToId.TryRemove(user.Token, out _);
+        _writer.Enqueue(Writes.DeleteUser(userId));
+        _logger.LogInformation("Deleted user: {Username}", user.Username);
+        return user;
+    }
+
+    /// <summary>
     /// Updates a user's profile (display name, profile picture, bio).
     /// </summary>
     public string? UpdateProfile(Guid userId, string? displayName, string? profilePictureUrl, string? bio, string? country)

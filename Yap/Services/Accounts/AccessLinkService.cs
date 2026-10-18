@@ -161,6 +161,18 @@ public class AccessLinkService
         _writer.Enqueue(Writes.AccessLink(link));
     }
 
+    /// <summary>A deleted account's links go with it (AD-40): the database cascades the rows, memory follows here.
+    /// An invite the person created stays; it belongs to the server, not to its minter.</summary>
+    public void ForgetUser(Guid userId)
+    {
+        foreach (var link in _links.Values.Where(l => l.UserId == userId).ToList())
+        {
+            _links.TryRemove(link.Id, out _);
+            _byCompactCode.TryRemove(Compact(link.Code), out _);
+        }
+        _originOf.TryRemove(userId, out _);
+    }
+
     public void SetExpiry(Guid linkId, DateTime? expiresAt)
     {
         if (!_links.TryGetValue(linkId, out var link)) return;

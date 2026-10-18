@@ -37,6 +37,7 @@ connection.on('typing', (channelId, username, on) => store.setTyping(channelId, 
 connection.on('unread', (channelId, count) => store.setUnread(channelId, count));
 connection.on('presence', (username, status, kind) => store.setPresence(username, status, kind));
 connection.on('profile', u => store.setUser(u));
+connection.on('accountDeleted', username => store.removeUser(username));   // AD-40
 connection.on('rooms', rooms => store.setRooms(rooms));
 connection.on('pins', (channelId, pins) => store.setPins(channelId, pins));
 connection.on('dm', dm => store.addDm(dm));

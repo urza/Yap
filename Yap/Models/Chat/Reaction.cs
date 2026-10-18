@@ -1,5 +1,3 @@
-using Yap.Models.Accounts;
-
 namespace Yap.Models.Chat;
 
 public class Reaction
@@ -8,7 +6,7 @@ public class Reaction
     public Guid MessageId { get; set; }
 
     /// <summary>
-    /// The user who added this reaction (foreign key to User).
+    /// The reacting user's id. No foreign key, as on <see cref="ChatMessage.UserId"/>: the reaction outlives the account (AD-40).
     /// </summary>
     public Guid UserId { get; set; }
 
@@ -21,7 +19,6 @@ public class Reaction
 
     // Navigation properties
     public ChatMessage Message { get; set; } = null!;
-    public User User { get; set; } = null!;
 }
 
 public static class ReactionExtensions

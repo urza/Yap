@@ -262,6 +262,14 @@ public class ChatService
         if (!_userService.IsAdmin(adminUserId)) return false;
         if (GetRoom(channelId) is not { } room || room.IsDefault) return false;
 
+        Purge(channelId);
+        OnRoomsChanged?.Invoke();
+        return true;
+    }
+
+    // A conversation leaves memory with everything keyed on it; the database cascade follows the one write.
+    private void Purge(Guid channelId)
+    {
         _channels.TryRemove(channelId, out _);
         if (_channelMessages.TryRemove(channelId, out var messages))
             foreach (var m in messages) _channelOfMessage.TryRemove(m.Id, out _);
@@ -270,10 +278,40 @@ public class ChatService
             _readStates.TryRemove(key, out _);
         _presence.ForgetChannel(channelId);
         _notifications.ClearOverridesForChannel(channelId);
-
-        OnRoomsChanged?.Invoke();
         _writer.Enqueue(Writes.DeleteChannel(channelId));
-        return true;
+    }
+
+    /// <summary>
+    /// An account is deleted (AD-40). Its direct messages go on both sides: a conversation with nobody could not be
+    /// opened or answered, and nothing lets the other person dismiss it. Its room messages and reactions stay under
+    /// <paramref name="ghostName"/>, which no account can register, so a newcomer with the old name inherits nothing.
+    /// Rooms it created keep the name as text and lose the id, as the database does. Returns the deleted direct messages.
+    /// </summary>
+    public List<Guid> RemoveAccount(Guid userId, string ghostName)
+    {
+        var dms = DmChannelsOf(userId).Select(c => c.Id).ToList();
+        foreach (var id in dms) Purge(id);
+
+        foreach (var (channelId, messages) in _channelMessages)
+        {
+            lock (LockOf(channelId))
+                foreach (var m in messages)
+                {
+                    if (m.UserId == userId) m.Username = ghostName;
+                    lock (m.Reactions)
+                        foreach (var r in m.Reactions.Where(r => r.UserId == userId)) r.Username = ghostName;
+                }
+        }
+        foreach (var room in _channels.Values.Where(c => c.CreatedById == userId))
+        {
+            room.CreatedById = null;
+            room.CreatedBy = ghostName;
+        }
+        foreach (var key in _readStates.Keys.Where(k => k.UserId == userId).ToList()) _readStates.TryRemove(key, out _);
+        foreach (var key in _byClientId.Keys.Where(k => k.UserId == userId).ToList()) _byClientId.TryRemove(key, out _);
+
+        _writer.Enqueue(Writes.RelabelAuthor(userId, ghostName));
+        return dms;
     }
 
     private static string? Clean(string? description) =>
