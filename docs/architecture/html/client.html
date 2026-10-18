@@ -258,6 +258,7 @@ connection.on(<span class="s">&#x27;typing&#x27;</span>,         (channelId, use
 connection.on(<span class="s">&#x27;unread&#x27;</span>,         (channelId, count) =&gt; store.setUnread(channelId, count));
 connection.on(<span class="s">&#x27;presence&#x27;</span>,       (username, status, kind) =&gt; store.setPresence(username, status, kind));
 connection.on(<span class="s">&#x27;profile&#x27;</span>,        u =&gt; store.setUser(u));
+connection.on(<span class="s">&#x27;accountDeleted&#x27;</span>, username =&gt; store.removeUser(username));
 connection.on(<span class="s">&#x27;rooms&#x27;</span>,          rooms =&gt; store.setRooms(rooms));
 connection.on(<span class="s">&#x27;dm&#x27;</span>,             dm =&gt; store.addDm(dm));
 connection.on(<span class="s">&#x27;me&#x27;</span>,             partial =&gt; store.mergeMe(partial));

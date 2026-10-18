@@ -112,7 +112,11 @@ Message {
 }
 
 Pin {   // a copy of what the panel shows, stored with the channel; it outlives the startup load window (SH-48)
-  messageId, username, text, timestamp, hasMedia, thumb, pinnedBy, pinnedAt   // thumb: the first image or the video poster, else null
+  messageId, username, text, timestamp, hasMedia, media, pinnedBy, pinnedAt
+  // media: null, or { kind, src, poster, width, height, title }. kind: image (src: a picture, or a GIF that is an
+  // image file), gif (src: a video file to loop; no src when the file is gone), video (poster, title: an upload or a
+  // cached link video), link (poster, title of a link card), voice. Resolved when the pin is made; a link card that
+  // arrives later, or changes with an edit, updates it.
 }
 ```
 

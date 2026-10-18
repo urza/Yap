@@ -29,7 +29,7 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
         On<ChatMessage>(h => chat.OnMessageEdited += h, h => chat.OnMessageEdited -= h, m => ToChannel(m.ChannelId, "messageEdited", map.From(m, null)));
         On<Guid, Guid>(h => chat.OnMessageDeleted += h, h => chat.OnMessageDeleted -= h, (channelId, id) => ToChannel(channelId, "messageDeleted", channelId, id));
         On<ChatMessage>(h => chat.OnReactionChanged += h, h => chat.OnReactionChanged -= h, m => ToChannel(m.ChannelId, "reactions", m.Id, map.Reactions(m)));
-        On<ChatMessage>(h => chat.OnPreviewsReady += h, h => chat.OnPreviewsReady -= h, m => ToChannel(m.ChannelId, "previews", m.Id, map.Previews(m)));
+        On<ChatMessage>(h => chat.OnPreviewsReady += h, h => chat.OnPreviewsReady -= h, m => ToChannel(m.ChannelId, "previews", m.Id, chat.Previews(m)));
         On<Guid, Guid, int>(h => chat.OnUnreadChanged += h, h => chat.OnUnreadChanged -= h, (userId, channelId, count) => ToUser(userId, "unread", channelId, count));
         On<Channel>(h => chat.OnDmStarted += h, h => chat.OnDmStarted -= h, DmStarted);
         On<Channel>(h => chat.OnPinsChanged += h, h => chat.OnPinsChanged -= h, c => ToChannel(c.Id, "pins", c.Id, chat.PinsFor(c.Id)));   // SH-48

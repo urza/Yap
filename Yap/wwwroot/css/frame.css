@@ -1169,6 +1169,8 @@
 
 .pins-list {
     overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--bg-muted) transparent;   /* the sidebar's thin bar, not the browser's grey one; --bg-header is too close to the panel's own colour */
     padding: 0.5rem;
     display: flex;
     flex-direction: column;
@@ -1225,12 +1227,73 @@
     overflow-wrap: break-word;
 }
 
-.pin-thumb {
+/* Media under the text, at the panel's width (SH-48): the picture, the GIF itself, or a poster with a play mark. The
+   user asked to see the GIF and the media, not a label (2026-10-18). The height cap keeps three entries in one view.
+   The frame shrinks to the picture, so the play mark centres on it and not on the row. */
+.pin-media {
+    margin-top: 0.375rem;
+}
+
+.pin-frame {
+    position: relative;
+    display: block;
+    width: fit-content;
+    max-width: 100%;
+}
+
+.pin-picture,
+.pin-gif {
     display: block;
     max-width: 100%;
-    max-height: 180px;
-    margin-top: 0.375rem;
+    max-height: 240px;
     border-radius: 4px;
+}
+
+.pin-play {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 40px;
+    height: 40px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+}
+
+.pin-play::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 55%;
+    transform: translate(-50%, -50%);
+    border-left: 14px solid white;
+    border-top: 9px solid transparent;
+    border-bottom: 9px solid transparent;
+}
+
+.pin-card {
+    display: block;
+}
+
+.pin-card-title {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Links in the text look as in the row: message.css styles them under .message-content only. */
+.pin-text a.message-link {
+    color: var(--accent-focus);
+    text-decoration: none;
+}
+
+.pin-text a.message-link:hover {
+    text-decoration: underline;
 }
 
 .pin-attachment-label {

@@ -116,10 +116,24 @@ export function pinLocally(m) {
   if (!open || isPinned(m.id) || open.pins.length >= 3) return null;
   const before = open.pins;
   open.pins = [{ messageId: m.id, username: m.username, text: m.text || null, timestamp: m.timestamp,
-                 hasMedia: m.images.length + m.videos.length + m.gifs.length > 0, thumb: m.images[0]?.medium ?? m.videos[0]?.poster ?? null,
+                 hasMedia: m.images.length + m.videos.length + m.gifs.length > 0 || !!m.voice, media: pinMediaOf(m),
                  pinnedBy: state.user.username, pinnedAt: new Date().toISOString() }, ...before];
   changed('pins');
   return () => { if (state.open === open) { open.pins = before; changed('pins'); } };
+}
+
+// The media of the local copy, as the server's Pin.Media (SH-48): the row's first picture, video poster, GIF, voice
+// note or link card. The server's copy replaces it with the pins event.
+function pinMediaOf(m) {
+  if (m.images[0]) return { kind: 'image', src: m.images[0].medium };
+  if (m.videos[0]) return { kind: 'video', poster: m.videos[0].poster };
+  const g = m.gifs[0];
+  if (g) return g.src ? { kind: g.isImage ? 'image' : 'gif', src: g.src, width: g.width, height: g.height } : { kind: 'gif' };
+  if (m.voice) return { kind: 'voice' };
+  const card = m.previews?.find(p => p.media?.poster || p.imageUrl);
+  if (!card) return null;
+  return card.media?.type === 'video' ? { kind: 'video', poster: card.media.poster ?? card.imageUrl, title: card.title }
+                                       : { kind: 'link', poster: card.imageUrl, title: card.title };
 }
 
 export function unpinLocally(id) {

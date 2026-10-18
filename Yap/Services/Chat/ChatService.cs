@@ -389,9 +389,33 @@ public class ChatService
         }
     }
 
+    /// <summary>The cards of a text message: one per link with a title or a description, at most five (MR-19, MR-20).
+    /// The mapper puts them into the row; the pin copy takes its picture from the first one (SH-48).</summary>
+    public IReadOnlyList<PreviewDto> Previews(ChatMessage m)
+    {
+        if (!_linkPreviewSettings.Enabled || m.HasMedia) return [];
+        var result = new List<PreviewDto>();
+        foreach (var url in LinkPreviewService.ExtractUrls(m.Content).Take(LinkPreviewService.MaxLinksPerMessage))
+        {
+            var p = _linkPreviewService.GetCachedPreview(url);
+            // The file outlives the scrape: it is on disk across restarts, the scrape is in memory for an hour.
+            if (p?.CachedMediaUrl is null && _mediaCacheService.GetOrLoadCachedMedia(url) is { } file) p = _linkPreviewService.AttachMedia(url, file);
+            if (p is null || (!p.HasContent && p.CachedMediaUrl is null)) continue;
+            var media = p.CachedMediaUrl is null ? null
+                : new PreviewMediaDto(p.MediaType?.ToString().ToLowerInvariant() ?? "video", p.CachedMediaUrl, p.CachedPosterUrl, p.MediaWidth, p.MediaHeight, p.MediaDurationSeconds);
+            result.Add(new PreviewDto(url, p.SiteName, p.Title, Cut(p.Description, 300), p.ImageUrl, media));
+        }
+        return result;
+    }
+
+    private static string? Cut(string? text, int max) =>
+        text is null || text.Length <= max ? text : text[..max].TrimEnd() + "…";
+
     private void RaisePreviewsReady(Guid messageId)
     {
-        if (GetMessage(messageId) is { } message) OnPreviewsReady?.Invoke(message);
+        if (GetMessage(messageId) is not { } message) return;
+        RefreshPinMedia(message);   // a pinned link gets its card's picture when the card arrives after the pin
+        OnPreviewsReady?.Invoke(message);
     }
 
     private List<ChatMessage> RepliesTo(ChatMessage original)
@@ -460,7 +484,7 @@ public class ChatService
         QueuePreviews(message);   // an edit that adds or removes a link adds or removes the card (MR-22)
         if (_channels.TryGetValue(message.ChannelId, out var channel) && channel.Pins.Any(p => p.MessageId == message.Id))
         {
-            lock (LockOf(channel.Id)) channel.Pins = channel.Pins.Select(p => p.MessageId == message.Id ? p with { Text = text } : p).ToList();   // the panel shows the new text (SH-48)
+            lock (LockOf(channel.Id)) channel.Pins = channel.Pins.Select(p => p.MessageId == message.Id ? p with { Text = text, Media = PinMediaOf(message) } : p).ToList();   // the panel shows the new text, and a link card that came or went with it (SH-48)
             PinsChanged(channel);
         }
         return null;
@@ -527,7 +551,7 @@ public class ChatService
         {
             if (channel.Pins.Any(p => p.MessageId == messageId)) return null;   // someone else pinned it a moment ago: nothing to say
             if (channel.Pins.Count >= Channel.MaxPins) return $"Up to {Channel.MaxPins} pinned messages. Unpin one first.";
-            channel.Pins = [Models.Chat.Pin.Of(message, username, Thumb(message)), .. channel.Pins];   // qualified: Pin is also this method
+            channel.Pins = [Models.Chat.Pin.Of(message, username, PinMediaOf(message)), .. channel.Pins];   // qualified: Pin is also this method
         }
         PinsChanged(channel);
         return null;
@@ -560,11 +584,43 @@ public class ChatService
     }
 
     // The picture the panel shows for a media message: the first image, else the first video's poster (SH-48). The same
-    // URLs the row uses (MessageMapper). A GIF has none: its file can move or go, and the panel shows a label instead.
-    private static string? Thumb(ChatMessage m) =>
-        m.ImageUrls.FirstOrDefault() is { } image ? Media.ImageService.GetMediumUrl(image)
-        : m.VideoUrls.FirstOrDefault() is { } video ? Media.VideoService.GetPosterUrl(video)
-        : null;
+    /// <summary>What the pin entry shows under the text (SH-48, <see cref="PinMedia"/>), in the row's order: the first
+    /// picture, else the first video's poster, else the first GIF, else the voice note, else the first link card with
+    /// a picture. The URLs are the row's own (MessageMapper), copied because the pin outlives the memory window.</summary>
+    private PinMedia? PinMediaOf(ChatMessage m)
+    {
+        if (m.ImageUrls.FirstOrDefault() is { } image) return new("image", Src: Media.ImageService.GetMediumUrl(image));
+        if (m.VideoUrls.FirstOrDefault() is { } video) return new("video", Poster: Media.VideoService.GetPosterUrl(video));
+        if (m.GifAttachments.FirstOrDefault() is { } gif)
+        {
+            var entry = _gifService.GetEntry(gif.GifEntryId);
+            if (entry is null || entry.DeletedAt is not null || entry.Src is null) return new("gif");   // the file is gone: the panel shows a label
+            var (w, h) = gif.Width > 0 && gif.Height > 0 ? (gif.Width, gif.Height) : (entry.Width, entry.Height);
+            return new(entry.SrcIsImage ? "image" : "gif", Src: entry.Src, Width: w, Height: h);
+        }
+        if (m.HasVoice) return new("voice");
+        var card = Previews(m).FirstOrDefault(p => p.Media?.Poster is not null || p.ImageUrl is not null);
+        return card switch
+        {
+            null => null,
+            { Media: { Type: "video" } media } => new("video", Poster: media.Poster ?? card.ImageUrl, Title: card.Title),
+            _ => new("link", Poster: card.ImageUrl, Title: card.Title),
+        };
+    }
+
+    /// <summary>The pin copy of a text message follows its link cards: the first scrape lands after the pin when
+    /// someone pins a fresh message, and an edit can change the link.</summary>
+    private void RefreshPinMedia(ChatMessage message)
+    {
+        if (!_channels.TryGetValue(message.ChannelId, out var channel) || channel.Pins.All(p => p.MessageId != message.Id)) return;
+        var media = PinMediaOf(message);
+        lock (LockOf(channel.Id))
+        {
+            if (channel.Pins.FirstOrDefault(p => p.MessageId == message.Id) is not { } pin || pin.Media == media) return;   // records: value equality
+            channel.Pins = channel.Pins.Select(p => p.MessageId == message.Id ? p with { Media = media } : p).ToList();
+        }
+        PinsChanged(channel);
+    }
 
     private static readonly string[] DefaultQuickReactions = ["❤️", "😂", "👍"];
 
