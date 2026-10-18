@@ -169,6 +169,43 @@ the tens of milliseconds, or where the writer queue or the thread pool queue cli
 - File descriptors on Linux: a worker holds one WebSocket per user. `ulimit -n 4096` on the load
   machine covers four workers of 250. Windows needs nothing.
 
+## Tracing the server during a run
+
+The load card says how busy the process is; a CPU trace says where. The diagnostic tools are single-file
+downloads that need no SDK. On the VPS, where Yap runs as a process on the host:
+
+```bash
+# once: the tools
+mkdir -p ~/diag && cd ~/diag
+curl -sL -o dotnet-trace https://aka.ms/dotnet-trace/linux-x64 && curl -sL -o dotnet-counters https://aka.ms/dotnet-counters/linux-x64 && curl -sL -o dotnet-stack https://aka.ms/dotnet-stack/linux-x64 && chmod +x dotnet-*
+PID=$(pgrep -f 'Yap.dll' | head -1); echo $PID      # the app's process; run the tools as the same user, or with sudo
+
+# at the plateau: 30 s of CPU samples of the app
+./dotnet-trace collect -p $PID --profile cpu-sampling --duration 00:00:30 -o plateau-<users>.nettrace
+
+# while it runs, in a second terminal: the runtime counters once a second
+./dotnet-counters monitor -p $PID --counters System.Runtime,Microsoft.AspNetCore.Hosting,Microsoft.AspNetCore.Http.Connections
+
+# when the thread count climbs: what every thread is doing right now
+./dotnet-stack report -p $PID > stacks-<users>.txt
+```
+
+The tools talk to the app through a socket in the app's temp folder, so they run as the user the app runs as
+(or with sudo). In a container the same files go in with `docker cp` and run with `docker exec`.
+
+Take one trace per level you hold (1,000, 1,500, 2,000) and one during the idle wave five minutes after a
+ramp. Copy the files next to the run's results. To read a trace without Visual Studio:
+
+```bash
+dotnet tool install -g dotnet-trace
+dotnet-trace report plateau-1500.nettrace topN -n 30            # the hottest methods by exclusive time
+dotnet-trace convert plateau-1500.nettrace --format speedscope   # a JSON for https://www.speedscope.app, drag and drop
+```
+
+The trace is the app's own threads: Kestrel, the hub fan-out, the writer, the presence service, the GC. What
+it cannot show is the kernel's share of the box, which the host CSV has as the gap between the box's CPU and the
+process's CPU.
+
 ## Results
 
 `results/<time>/timeline.csv` has one row per second: the settings of that second, the window
