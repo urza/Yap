@@ -131,3 +131,35 @@ work for 16 MB/s out, 27 MB/s at peak, and 3,200 TCP connections). Load average 
 2.5 MB/s: the writer is bound by CPU in EF and SQLite, not by the disk. RSS 1,000 MB mean and 1,650 MB max, 56
 threads at most. For five minutes after the users left, Yap still used 1.5 cores and the disk wrote 2.5 MB/s:
 the backlog draining.
+
+## Run 4 (23:21 to 23:28 local, previews off, main through 481663a8: all fan-out cuts, the coalesced writer, the presence fixes)
+
+Files in `run4/`: the orchestrator's `summary.md`, `timeline.csv` and `log.txt` (run from `loadtest/runs/`), and
+`server-load.csv`, the server's own one-second samples. The host CSV of this run is not in the folder yet.
+The run went 1,000 → 1,250 → 1,500 → 1,750 → 2,000 with short holds; the 1,750 hold was 2.5 minutes.
+
+| Level | Send to appear p50 / p95 / p99 | Yap CPU | Threads | Sweep | Hub sends/s | Writer max | Load | Errors |
+|---|---|---|---|---|---|---|---|---|
+| 1,000 | 78 / 122 / 138 ms | 43 % | 12 | 1.4 ms | 1,300 | 705 | 4 | 0 |
+| 1,250 | 97 / 160 / 676 ms | 59 % | 12 | 14 ms | 2,800 | 2,185 | 8 | 0 |
+| 1,500 | about 100 / 200 / 500 ms | 66 % | 19 | 48 ms | 3,300 | 2,570 | 12 | 0 |
+| 1,750 | 153 / 328 / 627 ms | 68 % | 27 | 28 ms, 189 max | 3,500 | 1,434 | 17 | 125 upload timeouts |
+| 2,000 | 277 / 614 / 1,000 ms | 71 % | 52 | 52 ms, 203 max | 2,400 | 1,239 | 21 | 82 upload timeouts |
+
+**Against run 3 at the same levels.** At 1,000 the sweep went from 13 ms to 1.4 ms and the hub sends from 2,500
+to 1,300 a second. At 1,500 the thread count is 19 instead of 63 and the sweep 48 ms instead of 70 to 486: the
+presence lock is no longer what the threads wait for. The writer stays under 2,600 rows at every level, and the
+working set reaches 709 MB at 2,000 instead of 1.6 GB at 1,000 in run 2.
+
+**The ceiling of the 4-core box is between 1,500 and 2,000 users in one room at normal pace.** 1,500 runs with a
+p95 of 200 ms. At 2,000 the p95 is 614 ms and the p99 one second, the load average is 21 on four cores, and the
+threads climb again, this time from CPU starvation rather than a lock: the pool's queue median is 157 and the
+sweep's 50 to 200 ms are wall time of a thread that waits for a core. The process takes 2.8 cores; the rest of
+the box is the kernel's. Where the 2.8 cores go is the question for the trace round: the message fan-out of
+30 messages a second to 2,000 connections, the 2,400 per-person unread calls, serialization, TLS, and a garbage
+collector that runs 25 to 90 gen 2 collections a minute with 16 to 23 ms of pause per second.
+
+**Upload timeouts at 1,750 and 2,000.** 207 image uploads passed the tool's 30 s limit; the server's request
+maximum was 95 to 136 s. The medium thumbnail runs inside the upload request and waits for a core on a saturated
+box. A queue for thumbnails with a concurrency limit, and the request answering before the thumbnail, would turn
+the timeouts into a slower appearance of the picture.
