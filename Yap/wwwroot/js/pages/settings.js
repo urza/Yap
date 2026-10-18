@@ -451,7 +451,8 @@ export function mount(root, route) {
   }
 
   // ---- the account's changes from elsewhere (ST-07, ST-10) ----
-  offs.push(on('user', () => { drawPicture(); drawThemes(); drawSizes(); drawLink(); drawClock(); drawFormats(); }));
+  // store.reset() fires this too, with no user: the device was signed out and the page unmounts a moment later.
+  offs.push(on('user', () => { if (!state.user) return; drawPicture(); drawThemes(); drawSizes(); drawLink(); drawClock(); drawFormats(); }));
 
   root.replaceChildren(page);
   if (route.hash === 'notification-settings') requestAnimationFrame(() => $('#notification-settings').scrollIntoView());   // ST-01
