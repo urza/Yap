@@ -277,16 +277,19 @@ export function Timeline(root) {
 
   // ---- lobby lines (MR-73) ----
   function onPresence(detail) {
-    if (!detail) return;                                   // a bootstrap replaces the map without a detail
-    const { username, kind } = detail;
+    if (!detail?.changes) return;                          // a bootstrap replaces the map without a detail
     if (!state.open || state.open.channelId !== lobby()?.id) return;
-    if (kind !== 'join' && kind !== 'leave') return;
-    const line = clone('t-system-line');
-    line.classList.add('lobby-line');
-    const text = kind === 'join' ? pick(state.texts?.joinLines, '{0} joined the chat', username) : pick(state.texts?.leaveLines, '{0} left the chat', username);
-    replace(line.querySelector('.message-content'), inline(text));
-    flow.append(line);
-    if (following) scrollToBottom();
+    let added = false;
+    for (const { username, kind } of detail.changes) {    // one tick of changes, a line per join or leave (MR-73)
+      if (kind !== 'join' && kind !== 'leave') continue;
+      const line = clone('t-system-line');
+      line.classList.add('lobby-line');
+      const text = kind === 'join' ? pick(state.texts?.joinLines, '{0} joined the chat', username) : pick(state.texts?.leaveLines, '{0} left the chat', username);
+      replace(line.querySelector('.message-content'), inline(text));
+      flow.append(line);
+      added = true;
+    }
+    if (added && following) scrollToBottom();
   }
 
   // The labels follow the clock: at midnight "today" becomes "Yesterday" (MR-06).

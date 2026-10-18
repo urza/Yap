@@ -285,9 +285,14 @@ export function setUnread(channelId, count) {
   changed('unread');
 }
 
-export function setPresence(username, status, kind) {
-  if (status === 'offline') delete state.presence[username]; else state.presence[username] = status;
-  changed('presence', { username, status, kind });
+// One tick of changes from the server, in order, and one 'presence' change for all of them: the listeners run
+// once per tick, not once per person. A wave of a thousand people going idle ran them a thousand times and
+// rebuilt the people list for each (2026-10-18 load test). The detail carries the list for the lobby lines.
+export function setPresences(list) {
+  for (const { username, status } of list) {
+    if (status === 'offline') delete state.presence[username]; else state.presence[username] = status;
+  }
+  changed('presence', { changes: list });
 }
 
 export function setUser(u) {
