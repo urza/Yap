@@ -3773,6 +3773,82 @@
     color: var(--text-primary);
 }
 
+/* The admin's Danger Zone (AD-37 to AD-39), under the Users tab: the room page's danger items in the admin's own
+   box, with a full red frame. The items share the unprefixed rules of the room page (.danger-item and friends). */
+.page-admin .danger-section {
+    max-width: 640px;
+    margin-top: 2rem;
+    padding: 1.25rem;
+    border: 1px solid var(--color-danger);
+    border-radius: 8px;
+    background: var(--bg-secondary);
+}
+
+.page-admin .danger-section h3 {
+    margin: 0 0 1rem;
+    color: var(--color-danger);
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.page-admin .danger-item + .danger-item,
+.danger-found {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-dark);
+}
+
+.danger-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.page-admin .danger-select { max-width: 220px; }
+.page-admin .danger-days { width: 5rem; }
+
+.danger-unit,
+.danger-found-ago {
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+}
+
+.danger-found-title,
+.danger-result {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+}
+
+.danger-result { margin-top: 1rem; }
+
+.danger-found ul {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    margin: 0.75rem 0 1rem;
+    padding: 0;
+    list-style: none;
+}
+
+.danger-found li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.danger-found-username {
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+}
+
+@media (max-width: 600px) {
+    .danger-controls { width: 100%; flex-wrap: wrap; }
+    .page-admin .danger-select { max-width: none; flex: 1; }
+}
+
 /* The admin's standing warning (ProxyWatch): red, above every tab, until the server is configured. */
 .admin-warning {
     margin: 0 0 16px;

@@ -91,6 +91,20 @@ public static class Writes
 
     public static Write AccessLink(AccessLink link) => (db, ct) => Upsert(db, db.AccessLinks, link, ct, link.Id);
 
+    /// <summary>A deleted account's messages and reactions carry its ghost name from now on (AD-39). Database-wide,
+    /// so the rows a startup did not load are relabelled too.</summary>
+    public static Write RelabelAuthor(Guid userId, string username) => async (db, ct) =>
+    {
+        await db.Messages.Where(m => m.UserId == userId).ExecuteUpdateAsync(s => s.SetProperty(m => m.Username, username), ct);
+        await db.Reactions.Where(r => r.UserId == userId).ExecuteUpdateAsync(s => s.SetProperty(r => r.Username, username), ct);
+    };
+
+    /// <summary>The account row. Its read states, mute overrides, GIF favorites and access links cascade; rooms it created
+    /// and GIFs it uploaded lose the reference. Messages and reactions have no foreign key and stay (RelabelAuthor runs
+    /// ahead of this in the queue). Push subscriptions live in their own store, logs are kept on purpose.</summary>
+    public static Write DeleteUser(Guid userId) => (db, ct) =>
+        db.Users.Where(u => u.Id == userId).ExecuteDeleteAsync(ct);
+
     // ---- GIFs ----------------------------------------------------------------------------------------
 
     public static Write NewGifEntry(GifEntry entry) => (db, ct) =>

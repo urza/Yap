@@ -1072,6 +1072,20 @@
     color: var(--text-white);
 }
 
+/* The admin's red question (AD-37): the Danger Zone's frame and colour on the dialog. The text keeps its line
+   breaks, so the names stand on a line of their own. */
+.delete-confirm-dialog.danger {
+    border: 1px solid var(--color-danger);
+}
+
+.delete-confirm-dialog.danger .delete-confirm-title {
+    color: var(--color-danger);
+}
+
+.delete-confirm-dialog.danger .delete-confirm-text {
+    white-space: pre-line;
+}
+
 .delete-confirm-text {
     margin: 0 0 0.75rem;
     color: var(--text-secondary);

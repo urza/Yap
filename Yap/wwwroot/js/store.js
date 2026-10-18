@@ -233,6 +233,17 @@ export function setUser(u) {
 }
 export function setRooms(rooms) { state.rooms = rooms; changed('rooms'); }
 
+// An account is deleted (AD-39): the person leaves the directory and the sidebar, with the direct message. The
+// 'users' detail names them, so the chat page can leave that conversation. Their rows in the open timeline keep
+// the name until the next open; the server relabels them.
+export function removeUser(username) {
+  delete state.users[username];
+  delete state.presence[username];
+  state.dms = state.dms.filter(d => d.partner !== username);
+  changed('users', { removed: username });
+  changed('dms');
+}
+
 export function addDm(dm) {
   state.dms = [dm, ...state.dms.filter(d => d.channelId !== dm.channelId)];
   changed('dms');

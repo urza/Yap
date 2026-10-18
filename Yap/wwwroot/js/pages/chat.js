@@ -55,9 +55,10 @@ export function mount(root, params) {
     if (!room) { router.navigate('/lobby', { replace: true }); return; }                   // the open room was deleted: the lobby (TL-21)
     if (room.name !== target.room.name) { target.room = room; setTitles(target); }         // a rename reaches the header and the tab (U04 of the 2026-10-15 user test)
   });
+  const offUsers = on('users', d => { if (target.kind === 'dm' && d?.removed === target.partner) router.navigate('/lobby', { replace: true }); });   // the partner's account was deleted (AD-39)
 
   return () => {
-    offConnected(); offRooms();
+    offConnected(); offRooms(); offUsers();
     // leaving for another page marks the conversation read when the person was looking (NT-06)
     if (hub.connected() && hub.looking()) hub.send('markRead', state.open.channelId);
     unmounts.forEach(u => u());

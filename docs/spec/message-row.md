@@ -98,6 +98,8 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 **MR-76** A voice message shows a player: a round play button in the accent colour, the bars of the recording, the length as m:ss, and a speed button. The player is 320 px wide on desktop and full width on a phone. Play starts the message, and the button becomes a pause button. While the message plays, the bars fill from the left in the accent colour and the time shows the elapsed time. At the end, the bars and the time return to the start. A tap on the bars plays from that point. Only one voice message plays at a time: a play on another one stops the first. The speed button cycles through 1×, 1.5× and 2×. The speed applies to every voice message on the device and is kept. A voice message has no caption and no link cards.
 
+**MR-77** A message from a deleted account (AD-39) shows "{username} (deleted)" as its author, with the default picture. Its reactions and the quotes of replies to it name the author the same way. The profile card of such an author shows the name and nothing else.
+
 ### Reply quote
 
 **MR-32** A reply shows the quote line above its header. The quote line contains a 16 px avatar, the original author's display name, and the original text. The text is one line with an ellipsis, and two lines on a phone. For an original with media and no caption, the quote shows "Click to see attachment". For a voice message, the quote shows "Voice message". The quote shows emoji as small images and shows no links. The quote changes when the original is edited.

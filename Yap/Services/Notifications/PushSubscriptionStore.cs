@@ -132,6 +132,14 @@ public class PushSubscriptionStore
         }
     }
 
+    /// <summary>Every subscription of a deleted account (AD-39). Subscriptions are keyed by username with no foreign
+    /// key, in the JSON file or the database; left behind, a newcomer with the same name would ring the old devices.</summary>
+    public async Task RemoveAccountAsync(string username)
+    {
+        foreach (var sub in GetSubscriptions(username).ToList())
+            await RemoveSubscriptionAsync(sub.Endpoint);
+    }
+
     public IEnumerable<PushSubscriptionInfo> GetSubscriptions(string username)
     {
         var subs = _subscriptions.Values
