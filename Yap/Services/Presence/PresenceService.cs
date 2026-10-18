@@ -112,9 +112,9 @@ public sealed class PresenceService(UserService users, LoadCounters load, ILogge
 
             if (idleSeconds < InputFresh.TotalSeconds && _autoAway.Contains(s.UserId))
             {
-                var before = EffectiveLocked(s.UserId);
+                var before = StatusLocked(s.UserId);   // s is the person's session
                 _autoAway.Remove(s.UserId);
-                changes.AddPresence(s.Username, before, EffectiveLocked(s.UserId));
+                changes.AddPresence(s.Username, before, StatusLocked(s.UserId));
             }
         }
         changes.Raise(this);
@@ -223,12 +223,17 @@ public sealed class PresenceService(UserService users, LoadCounters load, ILogge
                 else if (s.DroppedAt is { } dropped && now - dropped > DropToOffline) RemoveLocked(s, changes);
             }
 
-            foreach (var userId in _sessions.Values.Where(s => !s.Permanent).Select(s => s.UserId).Distinct().ToList())
+            // One pass over the sessions, grouped by person. A scan of all sessions per person cost 2.25 million
+            // checks at 1,500 sessions, under the lock that every heartbeat and every send waits for: the sweep took
+            // 70 to 200 ms and the thread pool grew from 11 to 63 threads (2026-10-18 load test, run 3).
+            foreach (var group in _sessions.Values.GroupBy(s => s.UserId))
             {
+                if (group.All(s => s.Permanent)) continue;   // the people with a real session, as before; a permanent one alone is not a presence
+                var userId = group.Key;
                 if (_autoAway.Contains(userId)) continue;
                 if (users.GetById(userId)?.Status != UserStatus.Online) continue;   // a chosen Away or Invisible never changes by itself (PR-12)
 
-                var mine = _sessions.Values.Where(s => s.UserId == userId).ToList();
+                var mine = group.ToList();
                 var connected = mine.Where(s => s.Connected).ToList();
                 var anyVisible = connected.Any(s => s.Visible && now - s.LastHeartbeatAt <= ForegroundWindow);
                 var allIdle = connected.Count > 0 && connected.All(s => now - s.LastInputAt >= IdleToAway || now - s.LastHeartbeatAt > HeartbeatStale);
@@ -236,9 +241,9 @@ public sealed class PresenceService(UserService users, LoadCounters load, ILogge
 
                 if (allIdle || (droppedAWhile && !anyVisible))   // PR-10, PR-15
                 {
-                    var before = EffectiveLocked(userId);
+                    var before = StatusLocked(userId);   // the person has a session: this group is one
                     _autoAway.Add(userId);
-                    changes.AddPresence(mine[0].Username, before, EffectiveLocked(userId));
+                    changes.AddPresence(mine[0].Username, before, StatusLocked(userId));
                 }
             }
         }
@@ -329,7 +334,8 @@ public sealed class PresenceService(UserService users, LoadCounters load, ILogge
                             && s.Visible && now - s.LastHeartbeatAt <= ForegroundWindow
                             && now - s.LastInputAt < IdleToAway)
                 .Select(s => s.UserId)
-                .Where(id => EffectiveLocked(id) != EffectiveStatus.Away)
+                .Distinct()
+                .Where(id => StatusLocked(id) != EffectiveStatus.Away)   // these people have a session: no scan per candidate
                 .ToHashSet();
     }
 
@@ -484,13 +490,18 @@ public sealed class PresenceService(UserService users, LoadCounters load, ILogge
     private EffectiveStatus EffectiveLocked(Guid userId)
     {
         if (!_sessions.Values.Any(s => s.UserId == userId)) return EffectiveStatus.Offline;
-        return users.GetById(userId)?.Status switch
-        {
-            UserStatus.Invisible => EffectiveStatus.Offline,                                  // PR-05
-            UserStatus.Away => EffectiveStatus.Away,
-            _ => _autoAway.Contains(userId) ? EffectiveStatus.Away : EffectiveStatus.Online,          // PR-04
-        };
+        return StatusLocked(userId);
     }
+
+    /// <summary>The status of a person known to have a session. The scan for one is what <see cref="EffectiveLocked"/> adds;
+    /// a caller that holds the session, or iterates the sessions, skips it: per candidate of <see cref="Looking"/> that scan
+    /// made one message cost sessions × candidates under the lock.</summary>
+    private EffectiveStatus StatusLocked(Guid userId) => users.GetById(userId)?.Status switch
+    {
+        UserStatus.Invisible => EffectiveStatus.Offline,                                  // PR-05
+        UserStatus.Away => EffectiveStatus.Away,
+        _ => _autoAway.Contains(userId) ? EffectiveStatus.Away : EffectiveStatus.Online,          // PR-04
+    };
 
     private void RemoveLocked(Session s, Changes changes)
     {
