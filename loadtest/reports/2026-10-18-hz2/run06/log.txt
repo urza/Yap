@@ -1,0 +1,36 @@
+01:15:56 results: results\20261019-011556
+01:15:56 settings: registration open, approval off, previews off, media caching off
+01:15:56 rooms: the lobby
+01:15:56 admin: login link https://hz.urza.cc/invite/maroon-mantis-6054 (opens the admin page; the Diagnostics tab shows the server load)
+01:15:56 settings: 0 users, kinds all, pace normal
+01:15:58 settings: 250 users, kinds all, pace normal
+01:15:59 settings: 500 users, kinds all, pace normal
+01:15:59 settings: 750 users, kinds all, pace normal
+01:16:00 settings: 1000 users, kinds all, pace normal
+01:16:32 settings: 1250 users, kinds all, pace normal
+01:17:02 settings: 1500 users, kinds all, pace normal
+01:17:46 settings: 1750 users, kinds all, pace normal
+01:18:32 settings: 2000 users, kinds all, pace normal
+01:18:38 settings: 2250 users, kinds all, pace normal
+01:18:38 accounts: creating 250
+01:18:50 accounts: 250 created, 2250 in the state file
+01:18:50 settings: 2000 users, kinds all, pace normal
+01:19:36 settings: 2250 users, kinds all, pace normal
+01:19:52 settings: 2500 users, kinds all, pace normal
+01:19:52 accounts: creating 250
+01:20:11 accounts: 250 created, 2500 in the state file
+01:20:34 settings: 2750 users, kinds all, pace normal
+01:20:34 accounts: creating 250
+01:21:33 accounts: 250 created, 2750 in the state file
+01:21:33 settings: 3500 users, kinds all, pace normal
+01:21:33 accounts: creating 250
+01:22:06 accounts: 250 created, 3000 in the state file
+01:22:06 accounts: creating 250
+01:22:33 accounts: 250 created, 3250 in the state file
+01:22:33 settings: 4000 users, kinds all, pace normal
+01:22:33 accounts: creating 250
+01:22:42 accounts: 250 created, 3500 in the state file
+01:22:42 accounts: creating 250
+01:22:51 accounts: 250 created, 3750 in the state file
+01:22:51 accounts: creating 250
+01:23:00 accounts: 250 created, 4000 in the state file
