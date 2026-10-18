@@ -65,3 +65,21 @@ connections. Not a limit; `proc_fds` peaked at 1,183.
 2. Low priority for yt-dlp and ffmpeg children, or links off for the chat ceiling.
 3. Plan: 800 with links off, hold 3 minutes; then 1,200 and 1,600 to find the chat ceiling; then one segment with
    links on at the ceiling to see the media cost; then the same with persistence off to compare the writer.
+
+## The admin's own tab (found during run 2, 1,000 users, previews off)
+
+The person running the test waited more than a minute for a message in the lobby, with one tab open, while a
+message POST from another machine took 200 to 400 ms and the server answered anonymous requests in 250 ms. A
+headless Chromium on the same page, signed in as the admin, reproduced it: the page loaded in 3.5 s, then the
+main thread stopped answering (a fill and a screenshot both timed out after 30 s). The tab received only 13 hub
+frames a second (12 typing, 5 messages, 4 KB/s). A CPU profile over 20 s had the main thread busy for 32 of 34
+sampled seconds: DOM construction 41 % (`el`, `append`, `cloneNode`), the people list's sort and `renderPeople`
+11 %, the forced layouts of `scrollToBottom` and the scroll handler 13 %.
+
+The people list is every account, 1,002 on this server, and it was rebuilt on every presence, unread, DM, mute
+or open change. After the run stopped, the tab kept showing typing and new messages for minutes: the queued
+frames, worked through one rebuild at a time. The load tool cannot see this; its users have no DOM.
+
+Fix in bc0d7d53: the people list renders at most once per frame and at most every 250 ms, and skips the
+rebuild when a signature of everything a row shows is unchanged; scroll-to-bottom does one layout per frame.
+Next step if the rebuild itself still costs too much: rows keyed by username with in-place updates.
