@@ -156,7 +156,7 @@ All anonymous except sign-out. The reasons behind each are on the [sign-in page]
 | `GET /api/account/devices?device=` | One row per device, tabs share a row; `device` marks the caller's row as current (AU-19) (new). |
 | `POST /api/account/devices/sign-out-others` `{ deviceId, pushEndpoint? }` | Rotates the token, keeps this device's cookie and push subscription (AU-20) (new). |
 | `GET /api/account/link`, `POST /api/account/link`, `DELETE /api/account/link`, `PUT /api/account/link/expiry` | Login link (AU-11): the current one with its code and URL, a new one, revoke, expiry (new). The `url` carries `ChatSettings:PublicOrigin`, or else the address this person's own requests used; another person's Host header never reaches it (AU-15). |
-| `GET /api/account/passphrase`, `POST /api/account/passphrase`, `DELETE /api/account/passphrase` | Secret code (AU-13): reveal, replace, disable (new). |
+| `GET /api/account/passphrase`, `POST /api/account/passphrase`, `DELETE /api/account/passphrase` | Secret code (AU-13, retired): reveal, replace an existing code (410 for an account without one), disable (new). |
 | `PUT /api/account/mutes` | Server mute with duration, DM and room modes, new-DMs bell, one channel (NT-16..22) (new). |
 
 ### Messages and media

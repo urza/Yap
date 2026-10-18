@@ -151,12 +151,16 @@ public static class AccountEndpoints
         });
 
         // ---- the secret code (AU-13, ST-14) ------------------------------------------------------------------
+        // Retired since 2026-10-18: an account keeps the code it has, can replace it and can disable it, but
+        // nothing creates a new one. The login link does this job, and its code is typed on the verification
+        // page the same way (AU-12). Sign-out-others above still rotates an existing code (AU-20).
 
         account.MapGet("/passphrase", (ClaimsPrincipal me, UserService users) =>
             users.GetPassword(me.Id()) is { } code ? Results.Ok(new { passphrase = code }) : Results.NoContent());
 
         account.MapPost("/passphrase", (ClaimsPrincipal me, UserService users) =>
         {
+            if (users.GetPassword(me.Id()) is null) return Results.Problem("Secret codes are retired. Use your login link.", statusCode: 410);
             var code = UserService.GeneratePassphrase();
             users.SetPassword(me.Id(), code);
             return Results.Ok(new { passphrase = code });

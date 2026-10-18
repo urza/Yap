@@ -232,7 +232,7 @@ export function mount(root, route) {
       el('div', { class: 'registration-settings' },
         toggle('Close registration', 'Block all new signups. Login page shows "temporarily closed".', 'registrationClosed'),
         toggle('Require approval', 'New users must wait for admin approval before joining.', 'requireApproval'),
-        toggle('Smart login', 'Auto-login returning users from the same IP address without secret code. Users can disable it individually in Settings.', 'smartLogin')),
+        toggle('Smart login', 'Auto-login returning users from the same IP address without a code. Users can disable it individually in Settings.', 'smartLogin')),
       el('div', { class: 'section-header', style: { marginTop: '2rem' } }, el('h3', null, 'Link Previews'), el('span', { class: 'section-count' }, 'OpenGraph preview cards')),
       el('div', { class: 'registration-settings' },
         toggle('Enable link previews', 'Show OpenGraph preview cards below messages with URLs.', 'linkPreviews'),
