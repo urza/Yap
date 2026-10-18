@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Yap.Configuration;
 using Yap.Models.Accounts;
 using Yap.Models.Admin;
 using Yap.Models.Chat;
@@ -24,6 +26,7 @@ public class ChatService
 {
     private readonly PersistenceWriter _writer;
     private readonly IDbContextFactory<ChatDbContext>? _db;   // startup load only; null without persistence
+    private readonly LoadSettings _load;                       // what the startup load reads per conversation
     private readonly PushNotificationService _pushService;
     private readonly PresenceService _presence;
     private readonly UserService _userService;
@@ -61,9 +64,10 @@ public class ChatService
     public ChatService(IServiceProvider services, PersistenceWriter writer, PushNotificationService pushService, UserService userService,
         PresenceService presence, LinkPreviewService linkPreviewService, LinkPreviewSettingsService linkPreviewSettings,
         MediaCacheService mediaCacheService, GifService gifService, NotificationAudit audit,
-        NotificationSettingsService notifications, ILogger<ChatService> logger)
+        NotificationSettingsService notifications, IOptions<PersistenceSettings> persistence, ILogger<ChatService> logger)
     {
         _db = services.GetService<IDbContextFactory<ChatDbContext>>();
+        _load = persistence.Value.Load;
         _writer = writer;
         _pushService = pushService;
         _presence = presence;
@@ -92,7 +96,7 @@ public class ChatService
     public async Task InitializeAsync()
     {
         if (_db is null) return;
-        var snapshot = await Loads.ChatSnapshotAsync(_db);
+        var snapshot = await Loads.ChatSnapshotAsync(_db, _load);
 
         _channels.Clear();
         _channelMessages.Clear();
@@ -118,8 +122,12 @@ public class ChatService
         if (orphaned > 0)
             _logger.LogWarning("{Count} direct message channel(s) name a participant that no longer exists", orphaned);
 
-        _logger.LogInformation("Loaded {Channels} direct messages, {Messages} messages, {ReadStates} read states",
-            _channels.Count, _channelOfMessage.Count, _readStates.Count);
+        if (snapshot.MessagesLeft > 0)
+            _logger.LogInformation("Loaded {Channels} direct messages, {Messages} messages ({Left} more stay in the database: {Bounds}), {ReadStates} read states",
+                _channels.Count, _channelOfMessage.Count, snapshot.MessagesLeft, _load.Describe(), _readStates.Count);
+        else
+            _logger.LogInformation("Loaded {Channels} direct messages, {Messages} messages, {ReadStates} read states",
+                _channels.Count, _channelOfMessage.Count, _readStates.Count);
     }
 
     public ChatDiagnostics GetDiagnostics() => new()

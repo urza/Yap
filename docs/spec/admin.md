@@ -19,7 +19,7 @@ Administration is the admin's page for the server. It covers the people, the inv
 
 **AD-02** Users opens first. A link to a tab, such as the one in the GIF picker, opens that tab. Users, Bot, Invites and Settings load with the page. Logs, Media and Visitors load when they open for the first time. GIFs loads again each time it opens. Diagnostics refreshes every 30 seconds while it is open.
 
-**AD-03** Persistence is the optional saved copy of accounts, messages and settings. When the server runs without persistence, the top of the page shows "This server runs without persistence. Accounts, messages and settings last until the next restart." Logs, Media and Visitors then show "Not available without persistence." instead of an empty tab.
+**AD-03** Persistence is the optional saved copy of accounts, messages and settings. When the server runs without persistence, the top of the page shows "This server runs without persistence. Accounts, messages and settings last until the next restart." Logs, Media and Visitors then show "Not available without persistence." instead of an empty tab. With persistence, the server can start with only the newest messages of each conversation: a count and a number of days, both set in the server settings. Older messages stay in the saved copy. No one can read them, the admin included, until the limit changes and the server starts again.
 
 ### Users
 

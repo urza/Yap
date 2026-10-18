@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Data.Sqlite;
 using Yap.Models.Chat;
 using Yap.Services.Accounts;
 using Yap.Services.Chat;
@@ -106,6 +107,59 @@ public class ChatTests : IClassFixture<YapFactory>
         var empty = await alice.Http.PostAsJsonAsync($"/api/channels/{sent.ChannelId}/messages", new { clientId = Guid.NewGuid(), text = "   " });
         Assert.Equal(HttpStatusCode.BadRequest, empty.StatusCode);
         await adminHub.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "AD-03: the startup load keeps the newest messages of each conversation, within the count and the days")]
+    public async Task Startup_load_is_bounded_per_conversation()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"yap-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            Guid first, second;
+            await using (var app = new YapFactory { SqlitePath = db })
+            {
+                var boss = await app.AdminAsync();
+                var alice = await app.SignInAsync("alice_load");
+                var carol = await app.SignInAsync("carol_load");
+                var chat = app.Service<ChatService>();
+                var bossId = app.Service<Yap.Services.Accounts.UserService>().GetByUsername(boss.Username)!.Id;
+                first = chat.GetOrCreateDm(bossId, alice.Username)!.Id;    // the admin's two conversations (docs/dmonly.md)
+                second = chat.GetOrCreateDm(bossId, carol.Username)!.Id;
+                foreach (var (channel, text) in new[] { (first, "m1"), (first, "m2"), (first, "m3"), (first, "m4"), (first, "m5"), (second, "d1"), (second, "d2") })
+                {
+                    var sent = await boss.Http.PostAsJsonAsync($"/api/channels/{channel}/messages", new { clientId = Guid.NewGuid(), text });
+                    Assert.Equal(HttpStatusCode.OK, sent.StatusCode);
+                }
+            }   // the stop drains the writer
+
+            // m1, m2 and d1 are ten days old now, in the text form the writer stores
+            await using (var connection = new SqliteConnection($"Data Source={db}"))
+            {
+                await connection.OpenAsync();
+                await using var age = connection.CreateCommand();
+                age.CommandText = "update Messages set Timestamp = $t where Content in ('m1', 'm2', 'd1')";
+                age.Parameters.AddWithValue("$t", DateTime.UtcNow.AddDays(-10).ToString("yyyy-MM-dd HH:mm:ss.fffffff"));
+                Assert.Equal(3, await age.ExecuteNonQueryAsync());
+            }
+            SqliteConnection.ClearAllPools();
+
+            // The count bound cuts the first conversation to m4 and m5; the day bound cuts the second to d2.
+            await using (var app = new YapFactory { SqlitePath = db, Settings = { ["ChatSettings:Persistence:Load:MaxMessagesPerChannel"] = "2", ["ChatSettings:Persistence:Load:MaxDays"] = "5" } })
+            {
+                var chat = app.Service<ChatService>();
+                var bossId = app.Service<Yap.Services.Accounts.UserService>().GetByUsername("boss")!.Id;
+                var (firstTail, hasMore) = chat.Tail(first, 50, bossId);   // no cutoff tuple in this build
+                Assert.Equal(new[] { "m4", "m5" }, firstTail.Select(m => m.Content));
+                Assert.False(hasMore);   // the history starts at the oldest loaded message
+                var (secondTail, _) = chat.Tail(second, 50, bossId);
+                Assert.Equal(new[] { "d2" }, secondTail.Select(m => m.Content));
+            }
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            foreach (var f in Directory.GetFiles(Path.GetDirectoryName(db)!, Path.GetFileName(db) + "*")) File.Delete(f);
+        }
     }
 
     [Fact(DisplayName = "TL-01, TL-06: the tail is 50 and older pages follow the cursor, the same for both people")]
