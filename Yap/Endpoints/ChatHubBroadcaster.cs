@@ -29,8 +29,15 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
     // second at 1,000 users on the 2026-10-18 load test, most of the hub-send rate. The badge is a number, and the
     // latest number is all a tab needs. A markRead's zero goes through the same key, so a stale count cannot
     // overtake it. The wire event stays `unread(channelId, count)`; the client does not know the difference.
-    private static readonly TimeSpan UnreadTick = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan Tick = TimeSpan.FromMilliseconds(250);
     private readonly ConcurrentDictionary<(Guid User, Guid Channel), int> _unread = new();
+
+    // The presence changes of one tick go out as lists, cut per watcher like a single change (SendPresences). A
+    // crowd changes several times a second, and each change was a hub send of its own: main's broadcast to every
+    // connection wrote 105,000 frames a second on the 2026-10-18 load test (run 3, the idle rule five minutes
+    // after the ramp); here the admin's tab, which hears about every person, got one event per change. A queue,
+    // not a dictionary: a person who leaves and comes back inside a tick is two changes, in order.
+    private readonly ConcurrentQueue<PresenceDto> _presence = new();
     private readonly CancellationTokenSource _stopping = new();
     private Task? _unreadLoop;
 
@@ -41,13 +48,13 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
         On<Guid, Guid>(h => chat.OnMessageDeleted += h, h => chat.OnMessageDeleted -= h, (channelId, id) => ToChannel(channelId, "messageDeleted", channelId, id));
         On<ChatMessage>(h => chat.OnReactionChanged += h, h => chat.OnReactionChanged -= h, m => ToChannel(m.ChannelId, "reactions", m.Id, map.Reactions(m)));
         On<ChatMessage>(h => chat.OnPreviewsReady += h, h => chat.OnPreviewsReady -= h, m => ToChannel(m.ChannelId, "previews", m.Id, chat.Previews(m)));
-        On<Guid, Guid, int>(h => chat.OnUnreadChanged += h, h => chat.OnUnreadChanged -= h, (userId, channelId, count) => _unread[(userId, channelId)] = count);   // sent by SendUnreadAsync
-        _unreadLoop = SendUnreadAsync(_stopping.Token);
+        On<Guid, Guid, int>(h => chat.OnUnreadChanged += h, h => chat.OnUnreadChanged -= h, (userId, channelId, count) => _unread[(userId, channelId)] = count);   // sent by the tick
+        _unreadLoop = SendBatchesAsync(_stopping.Token);
         On<Channel>(h => chat.OnDmStarted += h, h => chat.OnDmStarted -= h, DmStarted);
         On<Channel>(h => chat.OnPinsChanged += h, h => chat.OnPinsChanged -= h, c => ToChannel(c.Id, "pins", c.Id, chat.PinsFor(c.Id)));   // SH-48
 
         On<string, EffectiveStatus, PresenceChange>(h => presence.OnPresenceChanged += h, h => presence.OnPresenceChanged -= h,
-            (username, status, change) => ToWatchersOf(username, "presence", username, status, change));
+            (username, status, change) => _presence.Enqueue(new PresenceDto(username, status, change)));   // sent by the tick, in order
         On<Guid, string, bool>(h => presence.OnTypingChanged += h, h => presence.OnTypingChanged -= h,
             (channelId, username, on) => ToWatching(channelId, username, "typing", channelId, username, on));
         On<Guid, UserStatus>(h => presence.OnChosenStatusChanged += h, h => presence.OnChosenStatusChanged -= h,
@@ -78,9 +85,11 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
         _unsubscribe.Clear();
     }
 
-    private async Task SendUnreadAsync(CancellationToken ct)
+    // The two batches of a tick: the latest unread counts, one call per person and channel, and the presence
+    // changes of the tick, one call to everyone.
+    private async Task SendBatchesAsync(CancellationToken ct)
     {
-        using var timer = new PeriodicTimer(UnreadTick);
+        using var timer = new PeriodicTimer(Tick);
         try
         {
             while (await timer.WaitForNextTickAsync(ct))
@@ -88,6 +97,9 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
                 // Remove, then send: a count written between the two lands in the next tick, never lost.
                 foreach (var key in _unread.Keys)
                     if (_unread.TryRemove(key, out var count)) ToUser(key.User, "unread", key.Channel, count);
+                var changes = new List<PresenceDto>();
+                while (_presence.TryDequeue(out var change)) changes.Add(change);
+                if (changes.Count > 0) SendPresences(changes);
             }
         }
         catch (OperationCanceledException) { }   // StopAsync: the hub goes down with us, and a tab bootstraps its counts on reconnect
@@ -134,6 +146,21 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
         if (connections.Count > 0) Fire(hub.Clients.Clients(connections).SendCoreAsync(name, args));
     }
 
+    // The presence batch of a tick, cut as ToWatchersOf cuts a single change: everyone hears about the admin and
+    // the bot; the admin hears about every person, in one list; a person hears about themself. The order holds
+    // inside each list, which is all the client needs: a leave and a return of one person are two entries.
+    private void SendPresences(List<PresenceDto> changes)
+    {
+        bool shared(PresenceDto c) => users.IsAdmin(c.Username) || bot.IsBotUser(c.Username);
+        var everyone = changes.Where(shared).ToList();
+        var people = changes.Where(c => !shared(c)).ToList();
+        if (everyone.Count > 0) ToAll("presences", everyone);
+        if (people.Count == 0) return;
+        if (users.GetAdminUserId() is { } admin) ToUser(admin, "presences", people);
+        foreach (var own in people.GroupBy(c => c.Username))
+            if (users.GetByUsername(own.Key) is { } subject) ToUser(subject.Id, "presences", own.ToList());
+    }
+
     private void ToUser(Guid userId, string name, params object?[] args) => Fire(hub.Clients.User(userId.ToString()).SendCoreAsync(name, args));
 
     // A deleted account (AD-40): every client drops the name; a person's client that never held it drops nothing.
@@ -152,3 +179,6 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
     private void On<T1, T2>(Action<Action<T1, T2>> add, Action<Action<T1, T2>> remove, Action<T1, T2> handler) { add(handler); _unsubscribe.Add(() => remove(handler)); }
     private void On<T1, T2, T3>(Action<Action<T1, T2, T3>> add, Action<Action<T1, T2, T3>> remove, Action<T1, T2, T3> handler) { add(handler); _unsubscribe.Add(() => remove(handler)); }
 }
+
+/// <summary>One presence change in a `presences` batch: the status is "online", "away" or "offline", the kind "join", "leave" or "change" (wire-contract.md).</summary>
+public sealed record PresenceDto(string Username, EffectiveStatus Status, PresenceChange Kind);

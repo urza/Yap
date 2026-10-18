@@ -49,7 +49,9 @@ get already. It is still a trade-off; it is recorded here.
   `/api/channels/{id}/messages` keeps its participant check.
 - The hub has no groups. Every event of a conversation goes to its two people by user id.
 - Presence and profile events go to everyone when they are about the admin or the bot, and to the person and
-  the admin when they are about anyone else (`ChatHubBroadcaster.ToWatchersOf`).
+  the admin when they are about anyone else (`ChatHubBroadcaster.ToWatchersOf`). Presence changes travel as the
+  `presences` lists of a 250 ms tick, cut the same way (`SendPresences`): the admin gets every person's changes
+  in one list.
 - No room is seeded. Rooms in a database from the room build are not loaded; their messages and read states are
   skipped. The `Channel` entity keeps its room columns so the schema and the migrations are unchanged.
 - The history cutoff (`HistoryLimit`, `SinceJoined`), the write permission, the room events (`rooms`), the room

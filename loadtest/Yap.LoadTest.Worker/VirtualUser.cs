@@ -97,7 +97,7 @@ public sealed class VirtualUser(Context ctx, string username, string token, int 
     private void Register(HubConnection hub)
     {
         hub.On<MessageDto>("message", OnMessage);
-        foreach (var name in new[] { "typing", "presence", "unread", "reactions", "previews", "messageEdited", "messageDeleted", "rooms", "me", "profile", "dm", "gifFavorites" })
+        foreach (var name in new[] { "typing", "presences", "unread", "reactions", "previews", "messageEdited", "messageDeleted", "rooms", "me", "profile", "dm", "gifFavorites" })
             hub.On(name, Array.Empty<Type>(), _ => { ctx.Stats.Event(); return Task.CompletedTask; });
     }
 

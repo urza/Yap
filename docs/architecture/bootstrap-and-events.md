@@ -147,7 +147,7 @@ public sealed class ChatHubBroadcaster(IHubContext<ChatHub> hub, ChatService cha
 | ChatService `OnUnreadChanged` | `unread` | the one person, all devices | channel id, count |
 | ChatService `OnDmStarted` | `dm` | the two persons | channel id, partner, time of the last message |
 | ChatService `OnRoomsChanged` | `rooms` | everyone | the full room list |
-| PresenceService `OnPresenceChanged` | `presence` | everyone | username, status, kind (join, leave, change) |
+| PresenceService `OnPresenceChanged` | `presences` | everyone | the changes of one 250 ms tick as a list of { username, status, kind (join, leave, change) } |
 | PresenceService `OnTypingChanged` | `typing` | the room's open connections, or the other DM person | channel id, username, on or off |
 | PresenceService `OnChosenStatusChanged` | `me` | the one person, all devices | `{ status }` |
 | UserService `OnProfileChanged` | `profile` | everyone | the public profile |
@@ -176,7 +176,7 @@ Each part of the bootstrap document has one hub message that updates it:
 | --- | --- |
 | `rooms` | `rooms` |
 | `users` | `profile` |
-| `presence` | `presence` |
+| `presence` | `presences` |
 | `unread` | `unread` |
 | `dms` | `dm` |
 | `user`, `mutes`, `emoji` | `me` |
