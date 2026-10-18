@@ -1,0 +1,13 @@
+00:50:38 results: results\20261019-005038
+00:50:39 settings: registration open, approval off, previews off, media caching off
+00:50:39 rooms: the lobby
+00:50:39 admin: login link https://hz.urza.cc/invite/maroon-mantis-6054 (opens the admin page; the Diagnostics tab shows the server load)
+00:50:39 settings: 0 users, kinds all, pace normal
+00:50:41 settings: 250 users, kinds all, pace normal
+00:50:42 settings: 500 users, kinds all, pace normal
+00:50:44 settings: 750 users, kinds all, pace normal
+00:50:46 settings: 1000 users, kinds all, pace normal
+00:50:48 settings: 1250 users, kinds all, pace normal
+00:50:50 settings: 1500 users, kinds all, pace normal
+00:53:38 settings: 1750 users, kinds all, pace normal
+00:57:07 settings: 2000 users, kinds all, pace normal
