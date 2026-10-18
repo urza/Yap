@@ -7,17 +7,17 @@ using Yap.LoadTest.Shared;
 // + and - step the user count, digits and Enter set it, t r l i d switch the kinds of traffic, < and > the pace.
 //
 //   dotnet Yap.LoadTest.Orchestrator.dll --server http://host:5221
-//     [--users 0] [--kinds all] [--pace normal] [--rooms 1] [--visible 0.3] [--rate 10] [--per-worker 250]
+//     [--users 0] [--kinds all] [--pace normal] [--previews on] [--rooms 1] [--visible 0.3] [--rate 10] [--per-worker 250]
 //     [--admin loadadmin] [--admin-code "blue fox 42"] [--prefix lt_u] [--links links.txt]
 //     [--state state] [--out results] [--for 30m] [--plain] [--worker path/to/Yap.LoadTest.Worker.dll]
 
 var a = new Args(args);
 if (a.Has("help") || !a.Has("server"))
 {
-    Console.WriteLine("usage: --server URL [--users 0] [--kinds all] [--pace normal] [--rooms 1] [--visible 0.3] [--rate 10] [--per-worker 250]");
+    Console.WriteLine("usage: --server URL [--users 0] [--kinds all] [--pace normal] [--previews on] [--rooms 1] [--visible 0.3] [--rate 10] [--per-worker 250]");
     Console.WriteLine("       [--admin NAME] [--admin-code CODE] [--prefix lt_u] [--links FILE] [--state DIR] [--out DIR] [--for 30m] [--plain] [--worker DLL]");
     Console.WriteLine("keys:  + -  50 users   PgUp PgDn  250 users   digits, Enter  an exact count   t r l i d  text, reactions, links, images, DMs on or off   < >  pace   q  quit");
-    Console.WriteLine("kinds: all, none, or a list such as text,links   pace: calm, normal, busy, frantic");
+    Console.WriteLine("kinds: all, none, or a list such as text,links   pace: calm, normal, busy, frantic   previews: on (link previews and media caching) or off");
     return 2;
 }
 
@@ -29,6 +29,7 @@ var visible = a.Double("visible", 0.3);
 var prefix = a.Get("prefix") ?? "lt_u";
 var stateDir = a.Get("state") ?? "state";
 var links = a.Get("links");
+var previews = (a.Get("previews") ?? "on").ToLowerInvariant() switch { "on" => true, "off" => false, var v => throw new ArgumentException($"--previews takes on or off, not '{v}'") };
 var runFor = a.Get("for") is { } f ? Duration(f) : (TimeSpan?)null;
 var workerDll = a.Get("worker") ?? Path.Combine(AppContext.BaseDirectory, "Yap.LoadTest.Worker.dll");
 if (!File.Exists(workerDll)) { Console.Error.WriteLine($"worker not found: {workerDll} (pass --worker)"); return 2; }
@@ -57,7 +58,7 @@ try
 {
     admin = await setup.EnsureAdminAsync(a.Get("admin") ?? "loadadmin", a.Get("admin-code"), ct);
     state.Save(statePath);
-    await setup.ApplySettingsAsync(admin, ct);
+    await setup.ApplySettingsAsync(admin, previews, ct);
     await setup.EnsureRoomsAsync(admin, rooms, ct);
     adminLink = await setup.AdminLinkAsync(admin, ct);
 }
