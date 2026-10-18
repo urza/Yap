@@ -28,13 +28,13 @@ public sealed record LoadSample(
 );
 
 /// <summary>
-/// Samples <see cref="LoadCounters"/> and the runtime once a second into a ring buffer of 15 minutes. The admin
+/// Samples <see cref="LoadCounters"/> and the runtime once a second into a ring buffer of one hour. The admin
 /// page and the load-test orchestrator read it through GET /api/admin/load. It exists for stress tests: the
 /// 30 s diagnostics snapshots are too coarse to see a knee in the curve.
 /// </summary>
 public sealed class LoadMetrics(LoadCounters counters, ChatService chat, PresenceService presence, PersistenceWriter writer) : BackgroundService
 {
-    private const int Capacity = 900;   // 15 min at 1 s
+    public const int Capacity = 3600;   // 1 h at 1 s; about 200 bytes a sample, so under 1 MB
     private readonly Queue<LoadSample> _samples = new(Capacity);
     private readonly Lock _gate = new();
     private readonly Process _process = Process.GetCurrentProcess();
@@ -42,6 +42,44 @@ public sealed class LoadMetrics(LoadCounters counters, ChatService chat, Presenc
     public IReadOnlyList<LoadSample> Last(int seconds)
     {
         lock (_gate) return _samples.TakeLast(Math.Clamp(seconds, 1, Capacity)).ToList();
+    }
+
+    /// <summary>
+    /// The last <paramref name="seconds"/> as buckets of <paramref name="step"/> seconds, so an hour of samples
+    /// comes back as a few hundred points. A bucket averages the gauges and rates, keeps the worst request and
+    /// the last GC counts, and carries the time of its last sample.
+    /// </summary>
+    public IReadOnlyList<LoadSample> Last(int seconds, int step)
+    {
+        var samples = Last(seconds);
+        if (step <= 1) return samples;
+        return samples.Chunk(step).Select(Bucket).ToList();
+    }
+
+    private static LoadSample Bucket(LoadSample[] chunk)
+    {
+        var last = chunk[^1];
+        double Avg(Func<LoadSample, double> of) => Math.Round(chunk.Average(of), 1);
+        double? AvgOrNull(Func<LoadSample, double?> of) => chunk.All(s => of(s) is null) ? null : Math.Round(chunk.Average(s => of(s) ?? 0), 1);
+        return last with
+        {
+            CpuPercent = Avg(s => s.CpuPercent),
+            WorkingSetMB = (long)Avg(s => s.WorkingSetMB),
+            HeapMB = (long)Avg(s => s.HeapMB),
+            GcPauseMs = Avg(s => s.GcPauseMs),
+            ThreadPoolThreads = (int)Avg(s => s.ThreadPoolThreads),
+            ThreadPoolQueue = (long)Avg(s => s.ThreadPoolQueue),
+            Connections = (int)Avg(s => s.Connections),
+            MessagesPerSec = (int)Math.Round(chunk.Average(s => s.MessagesPerSec)),
+            HubSendsPerSec = (int)Math.Round(chunk.Average(s => s.HubSendsPerSec)),
+            RequestsPerSec = (int)Math.Round(chunk.Average(s => s.RequestsPerSec)),
+            RequestP95Ms = chunk.Max(s => s.RequestP95Ms),
+            RequestMaxMs = chunk.Max(s => s.RequestMaxMs),
+            WriterDepth = (int)Avg(s => s.WriterDepth),
+            SweepMs = Avg(s => s.SweepMs),
+            MachineLoad1 = AvgOrNull(s => s.MachineLoad1),
+            MachineMemAvailableMB = (long?)AvgOrNull(s => s.MachineMemAvailableMB),
+        };
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

@@ -171,6 +171,7 @@ builder.Services.AddHostedService<RequestLogWriter>();
 
 builder.Services.AddSingleton<UserActionLogService>();
 builder.Services.AddSingleton<MediaUploadLogService>();
+builder.Services.AddSingleton<MediaCleanupService>();
 
 // Diagnostics collector (captures snapshots every 30s for admin charts)
 builder.Services.AddSingleton<DiagnosticsCollectorService>();

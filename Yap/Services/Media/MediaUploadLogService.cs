@@ -80,6 +80,25 @@ public class MediaUploadLogService
         }
     }
 
+    /// <summary>One row, for the admin's delete (AD-19).</summary>
+    public async Task<MediaUploadLog?> GetAsync(int id)
+    {
+        if (_dbFactory is null) return null;
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        return await db.MediaUploadLogs.FindAsync(id);
+    }
+
+    /// <summary>Every image and video row, oldest first: the clean-up's candidates. GIF rows belong to the GIF service.</summary>
+    public async Task<List<MediaUploadLog>> GetUploadsAsync()
+    {
+        if (_dbFactory is null) return new();
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        return await db.MediaUploadLogs.AsNoTracking().Where(l => l.FileType == "image" || l.FileType == "video").OrderBy(l => l.Date).ToListAsync();
+    }
+
+    /// <summary>Drops the row once its files are gone. Through the writer, like the insert; the page updates itself.</summary>
+    public void Delete(int id) => _writer.Enqueue(Writes.DeleteMediaUploadLog(id));
+
     /// <summary>
     /// Gets aggregate stats for the media section header.
     /// </summary>

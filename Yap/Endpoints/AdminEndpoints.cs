@@ -75,21 +75,43 @@ public static class AdminEndpoints
 
         // ---- Bot (AD-09) ------------------------------------------------------------------------------------
 
-        admin.MapGet("/bot", (SystemBotService bot, UserService users) => Results.Ok(new
+        admin.MapGet("/bot", (SystemBotService bot, UserService users) =>
         {
-            username = bot.BotUsername,
-            displayName = bot.BotUserId is { } id ? users.GetById(id)?.DisplayName ?? bot.BotUsername : bot.BotUsername,
-            welcomeMessage = bot.WelcomeMessage,
-        }));
+            var user = bot.BotUserId is { } id ? users.GetById(id) : null;
+            return Results.Ok(new
+            {
+                username = bot.BotUsername,
+                displayName = user?.DisplayName ?? bot.BotUsername,
+                avatarUrl = user?.ProfilePictureUrl,
+                customAvatar = user?.ProfilePictureUrl is { } url && url != SystemBotService.DefaultAvatarUrl,
+                serverName = bot.ServerName,
+                welcomeMessage = bot.WelcomeMessage,
+                phoneMessage = bot.PhoneMessage,
+                linkMessage = bot.LinkMessage,
+            });
+        });
 
         admin.MapPut("/bot", async (BotRequest body, SystemBotService bot) =>
         {
             if (body.DisplayName is { Length: > 32 }) return Results.Problem("A display name has at most 32 characters.", statusCode: 400);
-            if (body.WelcomeMessage is { Length: > 500 }) return Results.Problem("The welcome message has at most 500 characters.", statusCode: 400);
+            if (body.WelcomeMessage is { Length: > 1000 } || body.PhoneMessage is { Length: > 1000 } || body.LinkMessage is { Length: > 1000 })
+                return Results.Problem("A part of the welcome message has at most 1000 characters.", statusCode: 400);
             if (body.DisplayName is { } name) bot.UpdateDisplayName(name.Trim());
-            if (body.WelcomeMessage is { } welcome) await bot.UpdateWelcomeMessageAsync(welcome.Trim());
+            await bot.UpdateMessagesAsync(body.WelcomeMessage?.Trim(), body.PhoneMessage?.Trim(), body.LinkMessage?.Trim());
             return Results.NoContent();
         });
+
+        // The bot's picture, by the same rules as a person's own (ST-04). Lax cookies are not sent on cross-site
+        // form posts, which is the protection a form upload needs here.
+        admin.MapPut("/bot/avatar", async (IFormFile file, SystemBotService bot) =>
+        {
+            if (file.Length is 0 or > 10 * 1024 * 1024 || !file.ContentType.StartsWith("image/")) return Results.Problem("Choose an image up to 10 MB", statusCode: 400);
+            await using var stream = file.OpenReadStream();
+            var url = await bot.SetAvatarAsync(stream);
+            return url is null ? Results.Problem("Choose an image up to 10 MB", statusCode: 400) : Results.Ok(new { avatarUrl = url });
+        }).DisableAntiforgery();
+
+        admin.MapDelete("/bot/avatar", (SystemBotService bot) => { bot.ResetAvatar(); return Results.NoContent(); });
 
         // ---- Settings (AD-10 to AD-14) ----------------------------------------------------------------------
 
@@ -190,6 +212,27 @@ public static class AdminEndpoints
             });
         });
 
+        // One upload (AD-19). Without `force`, an upload a message still shows answers 409 with the count in the
+        // text, so the page asks the admin before the message loses its picture.
+        admin.MapDelete("/media/{id:int}", async (int id, MediaCleanupService cleanup, bool force = false) =>
+        {
+            var (outcome, uses, bytes) = await cleanup.DeleteAsync(id, force);
+            return outcome switch
+            {
+                MediaCleanupService.DeleteOutcome.Deleted => Results.Ok(new { bytes }),
+                MediaCleanupService.DeleteOutcome.InUse => Results.Problem($"Used in {uses} message{(uses == 1 ? "" : "s")}.", statusCode: 409),
+                MediaCleanupService.DeleteOutcome.NotAnUpload => Results.Problem("GIFs are deleted from the GIFs tab.", statusCode: 400),
+                _ => Results.Problem("Upload unknown", statusCode: 404),
+            };
+        });
+
+        // The uploads no message shows any more (AD-19): a count first, then the delete. `database` scans the whole
+        // saved history, not only the messages in memory (AD-03: the start may load the newest messages only).
+        admin.MapGet("/media/unreferenced", async (MediaCleanupService cleanup, bool database = false) =>
+            Results.Ok(await cleanup.UnreferencedAsync(database)));
+        admin.MapPost("/media/prune", async (PruneRequest body, MediaCleanupService cleanup) =>
+            Results.Ok(await cleanup.PruneAsync(body.Database)));
+
         admin.MapGet("/visitors", async (string? action, int? skip, UserActionLogService log, GeoLocationService geo, PersistenceWriter writer) =>
         {
             if (!writer.Enabled) return Results.Ok(new { available = false });
@@ -199,7 +242,7 @@ public static class AdminEndpoints
             {
                 available = true,
                 stats = new { visits, failures, uniqueIps, today },
-                rows = rows.Select(r => new { r.Date, r.IP, country = geo.Lookup(r.IP)?.Country, r.Action, r.Info, reason = VisitorReason(r.Info), r.UserAgent }).ToList(),
+                rows = rows.Select(r => new { r.Date, r.IP, country = geo.Lookup(r.IP)?.Country, r.Action, r.Url, r.Info, reason = VisitorReason(r.Info), r.UserAgent }).ToList(),
             });
         });
 
@@ -288,11 +331,12 @@ public static class AdminEndpoints
         });
 
         // One-second samples of the server under load (CPU, memory, GC, thread pool, hub rates, writer depth). The
-        // admin Diagnostics tab polls the last minute; the load-test orchestrator polls a few seconds at a time.
-        admin.MapGet("/load", (LoadMetrics load, int seconds = 60) =>
+        // admin Diagnostics tab polls a range up to an hour, bucketed by `step` seconds so the chart stays light;
+        // the load-test orchestrator polls a few seconds at a time. `latest` is always the real last second.
+        admin.MapGet("/load", (LoadMetrics load, int seconds = 60, int step = 1) =>
         {
-            var series = load.Last(seconds);
-            return Results.Ok(new { latest = series.LastOrDefault(), series });
+            var series = load.Last(seconds, Math.Clamp(step, 1, 60));
+            return Results.Ok(new { latest = load.Last(1).LastOrDefault(), series });
         });
 
         admin.MapGet("/generate-thumbnails", (ImageService imageService, UploadPaths uploads) =>
@@ -342,7 +386,7 @@ public static class AdminEndpoints
                 if (Guid.TryParse(stem, out var id) && gifs.GetEntry(id) is { } e) { thumb = e.PreviewUrl ?? e.GifUrl ?? e.RemoteGifUrl; link = e.GifUrl ?? e.RemoteGifUrl; }
                 break;
         }
-        return new { r.Date, r.Username, r.OriginalFileName, r.FileType, r.FileSize, r.CompressDurationMs, thumb, link };
+        return new { r.Id, r.Date, r.Username, r.OriginalFileName, r.FileType, r.FileSize, r.CompressDurationMs, thumb, link, deletable = r.FileType is "image" or "video" };
     }
 
     // The failure codes the sign-in service writes, as the Visitors tab shows them (AD-20).
@@ -369,7 +413,8 @@ public sealed record LastActionDto(string Action, DateTime At);
 public sealed record IpDto(string Ip, string? Country, DateTime? LastSeen);
 public sealed record ThemeUseDto(string Id, string Name, string PreviewBg, string PreviewAccent, int Count);
 public sealed record GenerateRequest(Guid ChannelId, int Count = 200, int Hours = 168);
-public sealed record BotRequest(string? DisplayName, string? WelcomeMessage);
+public sealed record BotRequest(string? DisplayName, string? WelcomeMessage, string? PhoneMessage, string? LinkMessage);
+public sealed record PruneRequest(bool Database);
 public sealed record SettingsRequest(bool? RegistrationClosed, bool? RequireApproval, bool? SmartLogin, bool? LinkPreviews, bool? MediaCaching, KlipyRating? GifRating);
 public sealed record PendingDto(string Username, DateTime RequestedAt);
 public sealed record CreateLinkRequest(Guid? UserId, string? Note, DateTime? ExpiresAt);
