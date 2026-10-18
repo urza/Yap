@@ -70,6 +70,33 @@
     align-items: flex-end;
     background: var(--bg-input);
     border-radius: 22px;
+    position: relative;   /* the containing block of the ring (::before). No z-index here: a
+                             stacking context would put the box above the [data-dragging] hint. */
+}
+
+/* The ring (IB-02): a theme may draw a 1 px border around the pill with --input-border, a colour
+   or a gradient. A pseudo-element with a mask that keeps only the outer 1 px (its padding), so
+   the pill keeps its size and a gradient follows the corners (border-image ignores border-radius).
+   `none` paints nothing, so themes without a ring pay nothing. The ring rests dim and comes up
+   to full while the draft has the focus, the way a browser tab lights up when it is selected. */
+.input-box::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;   /* follows the flat top corners under the reply bar */
+    padding: 1px;
+    background: var(--input-border);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;   /* after the shorthand: `mask` resets it to add */
+    opacity: 0.6;
+    transition: opacity 0.2s;
+    pointer-events: none;
+}
+
+.input-box:focus-within::before {
+    opacity: 1;
 }
 
 /* The tray (IB-33): the files that wait for Send, as thumbnails above the draft, inside the pill. */
@@ -495,11 +522,11 @@
    picker backdrop (z-index 999) — like .send-button — so a single click reaches the
    textarea, focusing it AND dismissing the picker in one gesture (the focusin handler in
    chat.js clears data-picker). The textarea is transparent now, so lifting only it would
-   float bare text over the mobile backdrop; the box brings its background along. Scoped
-   to [data-picker] so the [data-dragging] "Drop images here" hint (container ::after)
-   stays above the box otherwise. */
+   float bare text over the mobile backdrop; the box brings its background along. The
+   z-index is scoped to [data-picker] so the [data-dragging] "Drop images here" hint
+   (container ::after) stays above the box otherwise: the box is positioned at all times
+   for its ring (::before), but without a z-index the two keep their tree paint order. */
 .message-input-container[data-picker] .input-box {
-    position: relative;
     z-index: 1000;
 }
 

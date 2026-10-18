@@ -103,6 +103,9 @@
 
     --border-dark: #061319;
     --border-subtle: #030a0e;
+
+    /* The pill ring: deep water through the teal accent to a pale aqua. */
+    --input-border: linear-gradient(90deg, #2b7cc4, #26d0ce, #8ff2dc);
 }
 
 /* ==========================================================================
@@ -135,6 +138,9 @@
 
     --border-dark: #1a0e26;
     --border-subtle: #0d0713;
+
+    /* The pill ring: violet dusk through the pink accent to the orange of the sun. */
+    --input-border: linear-gradient(90deg, #a855f7, #ff6b9d, #ffb36b);
 }
 
 /* ==========================================================================
@@ -167,6 +173,9 @@
 
     --border-dark: #0a0420;
     --border-subtle: #050210;
+
+    /* The pill ring: the aurora itself, green through sky blue to the violet accent. */
+    --input-border: linear-gradient(90deg, #34d399, #38bdf8, #a78bfa);
 }
 
 /* ==========================================================================
@@ -454,6 +463,9 @@
 
     --glow-accent: 0 0 8px hsl(330 100% 59% / 0.55);
     --glow-status: 0 0 6px currentColor;
+
+    /* The pill ring: the magenta accent into the cyan of the rain. */
+    --input-border: linear-gradient(90deg, #ff2e88, #22d3ee);
 
     /* Same reason as Terminal: neon status greens need dark chip text. */
     --status-chip-text: var(--bg-darkest);
