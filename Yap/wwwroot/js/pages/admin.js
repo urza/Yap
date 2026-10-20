@@ -354,7 +354,10 @@ export function mount(root, route) {
       el('button', { class: 'reject-btn', type: 'button', onclick: async () => { try { await api.delete(`/api/admin/links/${l.id}`); await load(); } catch (e) { fail(e); } } }, 'Revoke'));
     const draw = () => {
       if (!data) { replace(host, [empty('Loading...')]); return; }
+      const chosen = forSelect.value;   // the redraw after Create keeps the person; no change event fires, so the note row is synced by hand
       replace(forSelect, [el('option', { value: '' }, 'Someone new (invite)'), ...users.filter(u => !u.isBot).map(u => el('option', { value: u.id }, u.username))]);
+      forSelect.value = chosen;
+      noteGroup.hidden = forSelect.value !== '';
       replace(host, [
         header('Invite & Login Links', `${data.open.length} open · ${data.users.filter(l => l.active).length} active`),
         el('div', { class: 'invite-create' }, el('div', { class: 'form-group' }, el('label', null, 'For'), forSelect), noteGroup, el('div', { class: 'form-group' }, el('label', null, 'Expires'), expires), create, result),
@@ -371,7 +374,11 @@ export function mount(root, route) {
       ]);
     };
     async function load() { data = await api.get('/api/admin/links'); draw(); }
-    Promise.all([load(), api.get('/api/admin/users').then(d => { users = d.users; }).catch(() => {})]).catch(e => replace(host, [empty(e.message)]));
+    // One draw after both answers. The people fill the "For" select, and they arrive after the links (two log
+    // queries against links in memory); a draw on the links alone left the select with only "Someone new".
+    Promise.all([api.get('/api/admin/links'), api.get('/api/admin/users').catch(() => ({ users: [] }))])
+      .then(([links, people]) => { data = links; users = people.users; draw(); })
+      .catch(e => replace(host, [empty(e.message)]));
     draw();
   }
 
