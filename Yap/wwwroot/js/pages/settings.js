@@ -456,7 +456,17 @@ export function mount(root, route) {
   offs.push(on('user', () => { if (!state.user) return; drawPicture(); drawThemes(); drawSizes(); drawLink(); drawClock(); drawFormats(); }));
 
   root.replaceChildren(page);
-  if (route.hash === 'notification-settings') requestAnimationFrame(() => $('#notification-settings').scrollIntoView());   // ST-01
+  // ST-01. The lists above the section (sessions, push devices, the login link) arrive after the first frame and
+  // push it down. The browser's scroll anchoring does not hold it on the phone. So each size change of the column
+  // scrolls to the section again, until the reader touches the page.
+  if (route.hash === 'notification-settings') {
+    const section = $('#notification-settings'), touched = new AbortController();
+    const pin = new ResizeObserver(() => section.scrollIntoView());   // it also fires once on observe: the first scroll
+    pin.observe($('.settings-content'));
+    const release = () => { pin.disconnect(); touched.abort(); };
+    for (const type of ['pointerdown', 'wheel', 'keydown']) $('.settings-container').addEventListener(type, release, { passive: true, signal: touched.signal });
+    offs.push(release);
+  }
   return () => {
     clearTimeout(profileTimer); flushProfile();                                                  // a typed edit is saved on leaving (ST-02)
     for (const t of Object.values(timers)) { clearInterval(t); clearTimeout(t); }
