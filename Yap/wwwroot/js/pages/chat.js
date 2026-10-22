@@ -17,6 +17,7 @@ import * as overlays from '../ui/overlays.js';
 let generation = 0;   // a switch during an open: the older answer is dropped
 let prompted = false; // the notification prompt shows once per page load (SH-38)
 let firstOpenPending = true;   // the first conversation of the page load is the app start (AD-26)
+const markOnce = name => { if (!performance.getEntriesByName(name, 'mark').length) performance.mark(name); };   // the boot report's phases (AD-41): the first of each per load
 
 function notificationPrompt() {
   if (prompted || !push.promptWanted()) return;
@@ -90,6 +91,7 @@ async function paintStored(target, me) {
   if (me !== generation || state.open) return;
   setOpen(stored ?? { channelId: target.channelId ?? null, messages: [], hasMore: true, restricted: false, typists: [], loading: true },
           target.kind === 'dm' ? target.partner : null);
+  if (stored) markOnce('paint');   // rows from the device (AD-41); the placeholder is not rows
 }
 
 async function openConversation(target, me, painted, timing) {
@@ -118,7 +120,10 @@ async function openConversation(target, me, painted, timing) {
 function reportOpened(mountedAt) {
   if (!firstOpenPending) { hub.report('open', performance.now() - mountedAt); return; }
   firstOpenPending = false;
+  markOnce('paint'); performance.mark('rows');   // the server's rows: the last phase of the boot report (AD-41)
   // Only when the conversation is the first page of the load: a sign-in or a settings visit before it would count
-  // the person's own time. A tab restored in the background is nobody's wait either.
-  if (performance.getEntriesByName('page-mount').length === 1 && document.visibilityState === 'visible') hub.report('start', performance.now());
+  // the person's own time.
+  if (performance.getEntriesByName('page-mount').length !== 1) return;
+  if (document.visibilityState === 'visible') hub.report('start', performance.now());   // a tab restored in the background is nobody's wait
+  hub.reportLoad();   // the boot report says hidden instead, so the phases of a background load still show (AD-41)
 }

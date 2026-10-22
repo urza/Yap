@@ -590,10 +590,25 @@ export function mount(root, route) {
       [...d.sessions, ...d.recentlyClosed].forEach(s => groupOf(s).sessions.push(s));   // live first, then the ring of closed ones
       return [...groups.values()].flatMap(g => [userRow(g), ...g.sessions.map(connectionRow)]);
     };
+    // The load-time table (AD-41): one row per page load that reported, from the live sessions and the ring of closed
+    // ones, the slowest server rows first. A load in a hidden tab is grey: the numbers are real, the wait was nobody's.
+    const PHASES = [
+      { key: 'html', text: 'HTML', title: 'The page has arrived.' },
+      { key: 'scripts', text: 'Scripts', title: 'Every module loaded and run.' },
+      { key: 'bootstrap', text: 'Account', title: 'The account data (the bootstrap answer) applied.' },
+      { key: 'paint', text: 'Paint', title: 'The first rows on screen, from the device or from the server.' },
+      { key: 'socket', text: 'Socket', title: 'The live connection is up.' },
+      { key: 'rows', text: 'Rows', title: "The server's rows of the first conversation on screen." },
+    ];
+    const loadRow = s => el('tr', s.load.hidden ? { style: { opacity: 0.55 } } : null,
+      td(s.username), td(`${s.isMobile ? '📱' : '🖥️'} ${[s.browser, s.os].filter(Boolean).join(' · ') || '—'}${s.pwa ? ' · app' : ''}`),
+      td(s.load.protocol ?? '—'), ...PHASES.map(p => td(ms(s.load[p.key]))), td(`${s.load.cached} / ${s.load.requests}`), td(ms(s.load.bytes / 1024)), td(ago(s.load.at)));
+    const loadRows = d => [...d.sessions, ...d.recentlyClosed].filter(s => s.load).sort((a, b) => (b.load.rows ?? -1) - (a.load.rows ?? -1)).map(loadRow);
     async function refresh() {
       let d;
       try { d = await api.get('/api/admin/diagnostics'); } catch (e) { replace(body, [empty(e.message)]); return; }
       const latest = d.latest ?? {};
+      const loads = loadRows(d);
       replace(body, [
         el('div', { class: 'diag-stats' }, statCard('Users', String(latest.uniqueUsers ?? 0)), statCard('Sessions', String(latest.userSessions ?? 0)), statCard('Messages', String(latest.totalMessages ?? 0)), statCard('Connections', String((latest.activeConnections ?? 0) + (latest.disconnectedConnections ?? 0))), statCard('Channels', String(latest.channels ?? latest.totalChannels ?? 0))),
         el('div', { class: 'diag-chart-card', style: { marginBottom: '16px' } }, el('h4', null, 'Sessions — presence truth table'), d.sessions.length ? table(['User', 'Device', 'Transport', 'Connected', { text: 'Visible', title: 'Page visibility as last reported — a visible session suppresses push for the whole account' }, 'Status', { text: 'Viewing', title: 'Channel this session has open' }, { text: 'Last input', title: 'Time since last real user input (client-reported)' }, { text: 'Heartbeat', title: 'Time since last client-state report' }, 'Age'], d.sessions.map(sessionRow)) : el('p', { style: { color: 'var(--text-secondary)', margin: 0 } }, 'No active sessions.')),
@@ -601,6 +616,10 @@ export function mount(root, route) {
           el('p', { class: 'section-hint', style: { margin: '0 0 8px' } }, 'Milliseconds since the last restart. A user row covers all their connections; under it are the live connections, in grey the recently closed. Hover or tap a header for what it measures.'),
           d.users.length || d.sessions.length || d.recentlyClosed.length ? table(['Who', { text: 'Connection', title: 'Fallback (SSE/long-polling) instead of WebSockets is the first latency suspect' }, ...WAITS.map(w => ({ text: w.text, title: w.title })), { text: 'Slow calls', title: 'Hub calls and message sends the server took ≥100 ms to process' }],
             latencyRows(d), 'users-table logs-table') : el('p', { style: { color: 'var(--text-secondary)', margin: 0 } }, 'No connections tracked yet.')),
+        el('div', { class: 'diag-chart-card', style: { marginBottom: '16px' } }, el('h4', null, 'Load time'),
+          el('p', { class: 'section-hint', style: { margin: '0 0 8px' } }, 'One row per page load since the restart, milliseconds from the start of the load, the slowest server rows first. Grey: the tab was hidden while it loaded.'),
+          loads.length ? table(['Who', 'Device', { text: 'HTTP', title: 'h2, h3 or http/1.1: how the page came' }, ...PHASES.map(p => ({ text: p.text, title: p.title })), { text: 'Cached / files', title: 'Same-origin files a cache answered with no bytes on the wire / all files of the load, the page included' }, { text: 'KB', title: 'Kilobytes on the wire, same-origin files' }, 'When'],
+            loads, 'users-table logs-table') : el('p', { style: { color: 'var(--text-secondary)', margin: 0 } }, 'No load reported yet.')),
         el('div', { class: 'diag-chart-card', style: { marginBottom: '16px' } }, el('h4', null, 'Push notifications'),
           d.push.keyStatus === 'valid' ? el('p', { style: { color: 'var(--color-success)', margin: 0 } }, '✅ Configured — VAPID keypair verified at startup.')
           : d.push.keyStatus === 'invalid' ? [el('p', { style: { color: 'var(--color-danger)', margin: 0, fontWeight: 600 } }, '❌ DISABLED — VAPID keypair is invalid.'), el('p', { style: { color: 'var(--text-secondary)', margin: '4px 0 0' } }, d.push.detail ?? '')]

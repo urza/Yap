@@ -80,6 +80,7 @@ export async function connect() {
   everConnected = true;
   attempts = 0;
   store.setConnection('connected');
+  if (!wasReconnect) performance.mark('socket');   // the boot report (AD-41): the first connect of the load
   retryFailedImages();   // emoji pictures that the CDN did not deliver while the network was poor (MR-15)
 
   const results = await Promise.allSettled([
@@ -195,6 +196,29 @@ let ticks = 0;
 export function report(name, ms) {
   if (samples.length >= 50) samples.shift();
   samples.push({ name, ms: Math.round(ms) });
+}
+
+// The boot report (AD-41): the phases of this page load in ms from the navigation start, and what the network did.
+// The marks: scripts and bootstrap in main.js, socket above, paint and rows in the chat page, which sends the report
+// once, when the server's rows of the first conversation are on screen. Same-origin files only: a cross-origin file
+// without Timing-Allow-Origin reports transferSize 0 and would count as cached. The page itself counts as a file.
+// A hidden tab still measures (Navigation Timing is not throttled) and says so, so the admin can set it aside.
+let hiddenDuringLoad = document.visibilityState !== 'visible';
+document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') hiddenDuringLoad = true; });
+export function reportLoad() {
+  const phase = name => { const [m] = performance.getEntriesByName(name, 'mark'); return m ? Math.round(m.startTime) : null; };
+  const [nav] = performance.getEntriesByType('navigation');
+  const files = performance.getEntriesByType('resource').filter(r => r.name.startsWith(location.origin));
+  if (nav) files.push(nav);
+  send('reportLoad', {
+    html: nav ? Math.round(nav.responseEnd) : null,
+    scripts: phase('scripts'), bootstrap: phase('bootstrap'), paint: phase('paint'), socket: phase('socket'), rows: phase('rows'),
+    protocol: nav?.nextHopProtocol || null,
+    requests: files.length,
+    cached: files.filter(r => r.transferSize === 0).length,
+    bytes: files.reduce((sum, r) => sum + (r.transferSize || 0), 0),
+    hidden: hiddenDuringLoad,
+  });
 }
 
 async function beat() {

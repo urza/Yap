@@ -142,6 +142,16 @@ public sealed class PresenceService(UserService users, LoadCounters load, ILogge
         }
     }
 
+    /// <summary>The boot report of one page load (AD-41), kept on the connection that load opened. The ring of the
+    /// last 50 closed connections keeps theirs, so the admin table still shows a load after the tab is gone.</summary>
+    public void ReportLoad(string connectionId, LoadReport report)
+    {
+        lock (_gate)
+        {
+            if (_sessions.TryGetValue(connectionId, out var s)) s.Load = report.Clean();
+        }
+    }
+
     // The waits a client may report by name. Rtt has its own argument and Post is the server's own measurement,
     // so a client can write neither.
     private static readonly Dictionary<string, Wait> ClientWaits = new(StringComparer.OrdinalIgnoreCase)
