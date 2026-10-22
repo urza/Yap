@@ -337,6 +337,10 @@ app.UseStaticFiles(new StaticFileOptions
 // Built-in emoji packs (wwwroot/emoji-packs/{pack}/) ship in the build output at a STABLE url, so
 // they must NOT be immutable: redrawing one has to propagate on the next deploy. A day of max-age
 // still stops the per-image revalidation that every picker render would otherwise trigger.
+// This header reaches only a browser without the worker (the first visit, workers off) and the
+// worker's own fetch on a miss. The service worker (service-worker.js, EMOJI_CACHE) answers these
+// paths cache-first and never revalidates, so a device that has an image keeps the old drawing
+// until EMOJI_CACHE gets a new name or the pack URLs carry a stamp. A redraw alone does not propagate.
 var emojiPacksPath = Path.Combine(app.Environment.WebRootPath, "emoji-packs");
 Directory.CreateDirectory(emojiPacksPath); // PhysicalFileProvider throws if the root is missing
 app.UseStaticFiles(new StaticFileOptions
