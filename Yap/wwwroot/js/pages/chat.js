@@ -40,7 +40,15 @@ export function mount(root, params) {
   const unmounts = [Timeline(timelineRoot), Composer(composerRoot)];
 
   const target = resolve(params);
-  if (!target) { unmounts.forEach(u => u()); router.navigate('/lobby', { replace: true }); return () => {}; }
+  if (!target) {
+    unmounts.forEach(u => u());
+    // The stored bootstrap paints first and may not know this room or person yet (new, or made on another device):
+    // the server's bootstrap of this load is on its way. Wait for it once and take the route again; only a target the
+    // server does not know either leads to the lobby (SH-43).
+    if (!hub.synced()) { hub.firstSync().then(() => { if (me === generation) router.navigate(params.path, { replace: true }); }); return () => {}; }
+    router.navigate('/lobby', { replace: true });
+    return () => {};
+  }
 
   setTitles(target);
   router.rememberRoute(target.kind === 'dm' ? router.dmPath(target.partner) : router.roomPath(target.room, lobby()?.id));
@@ -90,7 +98,7 @@ async function paintStored(target, me) {
   const stored = await snapshot.loadTail(snapshot.keyOf({ partner: target.partner ?? null, channelId: target.channelId }));
   if (me !== generation || state.open) return;
   setOpen(stored ?? { channelId: target.channelId ?? null, messages: [], hasMore: true, restricted: false, typists: [], loading: true },
-          target.kind === 'dm' ? target.partner : null);
+          target.kind === 'dm' ? target.partner : null, { fromDevice: !!stored });
   if (stored) markOnce('paint');   // rows from the device (AD-41); the placeholder is not rows
 }
 

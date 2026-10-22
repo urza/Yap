@@ -115,6 +115,8 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 
 **TL-38** Retired 2026-10-18. The bar is removed. A tap on an entry of the panel goes to the message, see [SH-47 to SH-49](frame.md#SH-47).
 
+**TL-39** While the messages on screen are the device's copy and the server has not answered yet (an open from the stored copy, or a connection that returns), a small "Catching up…" pill with a spinner floats over the top of the list. It takes no space of its own, so no row moves when it comes or goes, and a fast answer never shows it (the same 400 ms rule as the loading line). It ends when the server's messages are on screen, not when the connection is back. Without a connection, or after a failed try, it reads "No connection. Showing older messages." with no spinner. With reduced motion the spinner is still.
+
 ## States
 
 | State or trigger | Input | What the user sees |
@@ -161,6 +163,7 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 | Pill when the list is missing | "New messages" |
 | Viewer controls | "‹" (title "Previous"); "›" (title "Next"); "×" (title "Close"); the fill icon (title "Fill screen"); counter "{n} / {total}"; image alt "Full size image" |
 | Without a connection | "Needs a connection" |
+| Catching-up pill | "Catching up…"; "No connection. Showing older messages." |
 | Admin history setting, for reference | "History Visibility"; "Unlimited", "1 Day", "3 Days", "1 Week", "2 Weeks", "1 Month", "3 Months"; "Only show messages since user joined" |
 
 ## Related

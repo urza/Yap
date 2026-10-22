@@ -4,6 +4,7 @@
 
 export const state = {
   connection: 'connecting',     // 'connecting' | 'connected' | 'reconnecting' | 'offline' | 'signedOut'
+  connectionFailed: false,      // the last connect attempt failed: the catching-up pill stops spinning (TL-39)
   user: null, config: null, texts: null,
   rooms: [], users: {}, presence: {}, dms: [], unread: {}, mutes: null, emoji: null, favoriteGifIds: new Set(),
   catalog: null,                // the emoji catalogue from GET /api/emoji, loaded once per build
@@ -53,13 +54,20 @@ export function setConnection(value) {
   changed('connection');
 }
 
+export function setConnectionFailed(value) {
+  if (state.connectionFailed === value) return;
+  state.connectionFailed = value;
+  changed('connection');
+}
+
 export function setCatalog(doc) { state.catalog = doc; changed('catalog'); }
 
 // ---- the open conversation ----
 // 'messages' listeners receive a detail that says what changed, so the timeline can update one row
 // instead of redrawing hundreds: { type: 'reset' | 'add' | 'replace' | 'remove' | 'older', ... }.
 
-export function setOpen(conversation, partner = null) {
+// fromDevice: the rows are the device's stored copy, not yet confirmed by the server (TL-39).
+export function setOpen(conversation, partner = null, { fromDevice = false } = {}) {
   // The same conversation again (a reconnect): the pages loaded before the new tail stay (TL-35), but only
   // when the new tail reaches back into them. A tail that shares no message with the loaded rows begins after
   // a gap (more than a page arrived while the connection was down); the rows before the gap would then sit
@@ -76,7 +84,7 @@ export function setOpen(conversation, partner = null) {
   }
   // The typists of the open answer typed within the last 3 s; they expire here like any other (the server
   // sends no 'off' for a typist whose 3 s already passed).
-  state.open = { ...conversation, messages, hasMore, partner, typists: Object.fromEntries((conversation.typists ?? []).map(u => [u, Date.now() + 3500])),
+  state.open = { ...conversation, messages, hasMore, partner, fromDevice, typists: Object.fromEntries((conversation.typists ?? []).map(u => [u, Date.now() + 3500])),
                  pins: conversation.pins ?? [] };   // a tail stored before pins existed has none
   changed('open');
   changed('messages', { type: 'reset' });

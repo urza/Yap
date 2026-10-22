@@ -52,7 +52,7 @@ The phases, in ms from the navigation start (Navigation Timing and `performance.
 | --- | --- |
 | `html` | The page has arrived (`responseEnd`). |
 | `scripts` | The modules are loaded: a mark as the first statement of `js/main.js`, which runs after its whole static import graph. The existing `page-mount` mark does not fit, because it is set after the bootstrap, the drafts read and the frame mount. |
-| `bootstrap` | The bootstrap answer is applied. |
+| `bootstrap` | The server's bootstrap answer is applied: the fetch on a first load, the connection-bound request otherwise. |
 | `paint` | The first rows are on screen, from the device or from the server. |
 | `socket` | The hub reports connected. |
 | `rows` | The server's rows are on screen. |
@@ -121,7 +121,9 @@ With these headers the Cloudflare deployments serve the versioned files from a n
 
 ### 4. The resume
 
-**The client drops a dead socket at once.** On `visibilitychange` to visible, when the page was hidden longer than the server's client timeout (30 s, the default on both sides), the client stops the SignalR connection object and connects again at once, without the 30 s client timeout and without the 1 s retry delay. The server has dropped the connection already. Two details of `js/hub.js` matter here. The exported `hub.stop()` is the sign-out stop: it sets the `stopped` flag and the red dot, and `connect()` then returns at once, so the resume must not call it. The `onclose` handler schedules its own 1 s retry, so the deliberate stop marks itself and the handler skips that retry. The `online` event does the same as the visible event. The chat page re-opens the conversation on `connected`, as today (TL-35). The `reconnect` wait keeps its rule: a loss noticed within 35 s of the return counts from the return, which the deliberate stop meets.
+Landed 2026-10-22, rule TL-39.
+
+**The client drops a dead socket at once.** On `visibilitychange` to visible, when the page was hidden longer than the server's client timeout (30 s, the default on both sides), the client stops the SignalR connection object and connects again at once, without the 30 s client timeout and without the 1 s retry delay. The server has dropped the connection already. Two details of `js/hub.js` matter here. The exported `hub.stop()` is the sign-out stop: it sets the `stopped` flag and the red dot, and `connect()` then returns at once, so the resume must not call it. The `onclose` handler schedules its own 1 s retry, so the deliberate stop marks itself and the handler skips that retry. The `online` event needs no change: the `offline` handler already stops the connection, so `reconnectNow` connects at once. The chat page re-opens the conversation on `connected`, as today (TL-35). The `reconnect` wait keeps its rule: a loss noticed within 35 s of the return counts from the return, which the deliberate stop meets.
 
 When the page was hidden for less than 30 s, nothing changes: the socket is alive, or the existing client timeout handles it.
 
@@ -140,10 +142,27 @@ The "Loading messages..." line for a conversation with no snapshot stays.
 
 ### 5. The shorter cold chain
 
+Landed 2026-10-22. The beacon nonce moved from the bootstrap's `?connection=` query to a hub method, `beaconNonce`, because a client that skips the negotiate step does not know its connection id.
+
 1. **Paint from the stored bootstrap at once.** Today the stored bootstrap is used only when the fetch throws, and the fetch has no timeout. With it, the frame and the snapshot paint before any network answer. The fetched bootstrap replaces it when it arrives.
 2. **Start the hub connect in parallel with the bootstrap fetch.** When the stored bootstrap says signed in, `hub.connect()` starts at once. Today it starts after the bootstrap answer: before the paint, but after the round trip.
 3. **One bootstrap fetch per cold load.** Today there are two: `main.js` before anything, and `hub.js` after every connect. The second one replaces the whole store, mints the beacon nonce, and after a reconnect corrects unread counts and presence. It runs in parallel with `openRoom`, so it costs bandwidth and server time, not a round trip. With the stored paint, the `main.js` fetch goes, and the connection-bound fetch is the one network fetch of the load; it also replaces the stored copy. When no stored bootstrap exists (the first load on a device, or after a sign-out), the `main.js` fetch stays, as today. The fetch after a reconnect stays.
 4. **Skip the negotiate round trip.** `skipNegotiation: true` with the WebSockets transport saves one round trip per connect. SignalR then has no fallback transport, so the client tries the direct WebSocket first and, when that fails, builds a connection with negotiation as today. Caddy and Cloudflare both pass WebSockets. The admin diagnostics already show the transport per session (the Sessions table, AD-25, and the connection rows of the latency table, AD-26), which tells whether any deployment needs the fallback.
+
+## Measurements
+
+`npm run load` on 2026-10-22, one machine, HTTP/1.1, through the script's link of 900 ms round trip and 1 Mbit/s. Milliseconds from the navigation start. "rows" is the server's rows of the first conversation on screen. "cached" counts the files that came with no body bytes on the wire, a 304 included.
+
+| Load | html | scripts | bootstrap | paint | socket | rows | files | cached | on the wire |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| cold, before | 1170 | 13122 | 14065 | 18381 | 17218 | 18381 | 62 | 0 | 803 KB |
+| warm, before | 1174 | 9270 | 10206 | 10243 | 12939 | 14043 | 61 | 55 | 98 KB |
+| warm, after step 3 | 3 | 57 | 989 | 1028 | 3720 | 4823 | 61 | 56 | 8 KB |
+| warm, after step 5 | 3 | 49 | 3018 | 88 | 1876 | 2980 | 58 | 56 | 4 KB |
+
+The cold load is unchanged (17.7 s after; a first visit has nothing stored). After step 5 the paint comes from the stored copy at 88 ms, and the `bootstrap` phase is the server's answer, which now lands with the rows.
+
+The resume in the script (35 s hidden and frozen, the socket's server side gone): 1.7 s before, 3.0 s after. The frozen page's overdue 30 s timer fires at the thaw in this browser, so the emulation never showed the 30 s wait that step 4 removes, and it does not exercise the restart path either. The 3.0 s after is three round trips (upgrade, handshake, openRoom), the floor of this link; the 1.7 s before is below that floor and is not explained, so the two are not a comparison. The gain of step 4 shows on a browser whose timer does not fire at the thaw, which this emulation cannot model (see Open points).
 
 ## After the work
 

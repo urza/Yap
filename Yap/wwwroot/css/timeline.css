@@ -319,6 +319,22 @@
     to { opacity: 1; }
 }
 
+/* The catching-up pill (TL-39): over the top of the list, no space of its own, so no row moves when it comes or
+   goes. Invisible for the first 400 ms like .loading-tail: on a fast link the server answers before anyone could
+   read it. pointer-events: none, because it overlaps the first row's edge and a tap there belongs to the row. */
+.catching-up {
+    position: absolute; left: 50%; top: 0.5rem; transform: translateX(-50%); z-index: 5;
+    display: flex; align-items: center; gap: 0.5rem;
+    background: var(--bg-tertiary); color: var(--text-secondary); border-radius: 999px;
+    padding: 0.25rem 0.75rem; font-size: 0.8125rem; white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    pointer-events: none;
+    opacity: 0; animation: loading-tail-appear 150ms ease-out 400ms forwards;
+}
+.catching-up .loading-spinner { width: 12px; height: 12px; }
+.catching-up.failed .loading-spinner { display: none; }
+@media (prefers-reduced-motion: reduce) { .catching-up .loading-spinner { animation: none; } }
+
 /* History start message */
 .history-start {
     text-align: center;

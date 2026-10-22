@@ -36,7 +36,7 @@ api.MapGet("/bootstrap", (HttpContext http, ClaimsPrincipal principal, UserServi
     return Results.Ok(new BootstrapDto
     {
         User = UserDto.Me(me, hasLink: links.HasActiveLink(me.Id)),
-        Config = config.ForClient(push.PublicKey, presence.CreateBeaconNonce(connectionId), gifs.ProviderInfo),   // the nonce is bound to the hub connection, not the account
+        Config = config.ForClient(push.PublicKey, gifs.ProviderInfo),   // the beacon nonce comes from the hub (BeaconNonce), which knows its connection id
         Texts = texts.All(),
         Rooms = chat.Rooms().Select(RoomDto.From),
         Users = users.All().Select(UserDto.Public),

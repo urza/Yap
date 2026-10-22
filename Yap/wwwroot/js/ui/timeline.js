@@ -27,6 +27,8 @@ export function Timeline(root) {
   let loading = false;
   let pill = null;
   let pillPick = '';
+  let catching = null;             // the catching-up pill (TL-39)
+  let stale = false;               // the rows on screen are the device's copy, or older than the connection (TL-39)
   let unread = false;              // the server counted a message in the open conversation and markRead has not answered yet (NT-07)
   let shownChannel = null;         // the channel the rows belong to
 
@@ -263,6 +265,19 @@ export function Timeline(root) {
   }
   function hidePill() { pill?.remove(); pill = null; pillPick = ''; }
 
+  // ---- the catching-up pill (TL-39) ----
+  // The rows came from the device, or the connection went away since they came: the server has not confirmed them.
+  // The pill floats over the top of the list and takes no space, so no row moves. It ends with the server's answer
+  // (setOpen from openRoom), not with the socket: the dot reports the socket, the pill reports the content.
+  function renderCatchingUp() {
+    const show = stale && !!state.open && !state.open.loading;
+    if (!show) { catching?.remove(); catching = null; return; }
+    if (!catching) { catching = clone('t-catching-up'); list.parentElement.append(catching); }
+    const failed = state.connection === 'offline' || state.connectionFailed;
+    catching.classList.toggle('failed', failed);
+    catching.querySelector('.catching-up-text').textContent = failed ? 'No connection. Showing older messages.' : 'Catching up…';
+  }
+
   // NT-07: unread rows, the view at the bottom, and the person looking (hub.looking: visible, not away, not idle).
   function markReadIfSeen() {
     if (!unread || !following || !hub.looking()) return;
@@ -324,7 +339,9 @@ export function Timeline(root) {
 
   const offs = [
     on('messages', onMessages), on('pending', onPending), on('presence', onPresence),
-    on('connection', renderTop), on('rooms', renderTop),
+    on('connection', () => { if (state.connection !== 'connected') stale = true; renderTop(); renderCatchingUp(); }),   // a lost socket: the rows may be old (TL-39)
+    on('open', () => { stale = !!state.open?.fromDevice; renderCatchingUp(); }),                                           // the server's answer ends the pill
+    on('rooms', renderTop),
     on('unread', onUnread),
     on('user', () => markReadIfSeen()), on('presence', () => markReadIfSeen()),   // Away ended, here or on the server: the three conditions may hold again (NT-07)
     on('users', redrawAll),            // a new display name or avatar shows on every row (ST-07)
@@ -334,7 +351,7 @@ export function Timeline(root) {
   current = { jumpTo };
   reset();
   return () => {
-    offs.forEach(off => off()); aborter.abort(); sizes.disconnect(); clearInterval(clock); hidePill(); list.remove();
+    offs.forEach(off => off()); aborter.abort(); sizes.disconnect(); clearInterval(clock); hidePill(); catching?.remove(); list.remove();
     if (current?.jumpTo === jumpTo) current = null;
   };
 }
