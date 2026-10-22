@@ -43,6 +43,9 @@ public sealed class ChatHub(ChatService chat, PresenceService presence, UserServ
             Username = MyName,
             DeviceId = deviceId,
             IsMobile = UserAgent.IsMobile(http.Request.Headers.UserAgent),
+            Browser = UserAgent.Browser(http.Request.Headers.UserAgent),
+            Os = UserAgent.Os(http.Request.Headers.UserAgent),
+            Pwa = http.Request.Query["pwa"] == "1",
             ClientIp = IpHelper.GetClientIp(http),
             Transport = Context.Features.Get<IHttpTransportFeature>()?.TransportType.ToString() ?? "",   // the connection's features, not the request's (AD-26)
             Abort = Context.Abort,
@@ -98,6 +101,10 @@ public sealed class ChatHub(ChatService chat, PresenceService presence, UserServ
         presence.Heartbeat(Context.ConnectionId, visible, idleSeconds, lastRttMs, samples);
         return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     }
+
+    /// <summary>Once per page load, from the first conversation when the server's rows are on screen: the phases of
+    /// the load and what the network did, for the load-time table (AD-41).</summary>
+    public void ReportLoad(LoadReport report) => presence.ReportLoad(Context.ConnectionId, report);
 
     public void SetStatus(UserStatus status) => presence.SetChosenStatus(Me, status);   // PR-01
 

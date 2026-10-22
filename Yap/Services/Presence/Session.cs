@@ -24,6 +24,9 @@ public sealed class Session
     public required string DeviceId { get; init; }
 
     public bool IsMobile { get; init; }                  // from the User-Agent at connect (PR-25)
+    public string Browser { get; init; } = "";           // the family from the User-Agent: Chrome, Safari, ... (AD-41)
+    public string Os { get; init; } = "";                // iOS, Android, Windows, ... (AD-41)
+    public bool Pwa { get; init; }                       // the hub URL said pwa=1: the installed app, not a tab (AD-41)
     public string? ClientIp { get; init; }
     public string? ClientIpv4 { get; set; }              // from the opt-in IPv4 beacon; display only, never an auth input
     public string Transport { get; init; } = "";         // WebSockets, ServerSentEvents or LongPolling (AD-26)
@@ -49,6 +52,9 @@ public sealed class Session
 
     public LatencyStats Latency { get; } = new();
 
+    /// <summary>The boot report of the page load that opened this connection, when the client sent one (AD-41).</summary>
+    public LoadReport? Load { get; set; }
+
     /// <summary>Closes the connection from outside the hub. Captured from HubCallerContext at connect, used
     /// by "sign out all other devices" (AU-20).</summary>
     public Action? Abort { get; init; }
@@ -65,6 +71,28 @@ public enum Wait { Rtt, Send, Post, Open, Older, Start, Reconnect }
 
 /// <summary>One wait reported by the client: its name as the client spells it, and the milliseconds.</summary>
 public sealed record WaitSample(string Name, int Ms);
+
+/// <summary>
+/// One page load as the client measured it (AD-41): six phases in ms from the navigation start, and what the network
+/// did. A phase the load did not reach is null. Sent once per load, by the first conversation of the load, over the
+/// connection that load opened; a reconnect is a new connection and carries no report.
+/// </summary>
+public sealed record LoadReport(int? Html, int? Scripts, int? Bootstrap, int? Paint, int? Socket, int? Rows,
+    string? Protocol, int Requests, int Cached, long Bytes, bool Hidden)
+{
+    public DateTime At { get; init; } = DateTime.UtcNow;
+
+    /// <summary>Client numbers are untrusted: a phase outside 0..10 min (the same bound as the waits) becomes null, the
+    /// counts are clamped and the protocol is cut to a short token, so a forged report cannot poison the table.</summary>
+    public LoadReport Clean() => this with
+    {
+        Html = Phase(Html), Scripts = Phase(Scripts), Bootstrap = Phase(Bootstrap), Paint = Phase(Paint), Socket = Phase(Socket), Rows = Phase(Rows),
+        Protocol = Protocol is { Length: > 0 and <= 16 } p ? p : null,
+        Requests = Math.Clamp(Requests, 0, 10_000), Cached = Math.Clamp(Cached, 0, 10_000), Bytes = Math.Clamp(Bytes, 0, 1L << 40),
+    };
+
+    private static int? Phase(int? ms) => ms is >= 0 and <= 600_000 ? ms : null;
+}
 
 /// <summary>
 /// The numbers of one wait. Immutable and replaced whole on each sample, so the admin endpoint can read a

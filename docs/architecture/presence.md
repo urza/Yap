@@ -35,6 +35,9 @@ public sealed class Session
     public required string Username { get; init; }
     public required string DeviceId { get; init; }         // from local storage; tabs on one device share it (AU-19)
     public required bool IsMobile { get; init; }           // User-Agent at connect (PR-25)
+    public string Browser { get; init; }                   // User-Agent family, and the system below (AD-41)
+    public string Os { get; init; }
+    public bool Pwa { get; init; }                         // the hub URL said pwa=1: the installed app (AD-41)
     public required string ClientIp { get; init; }
     public required string Transport { get; init; }        // WebSockets, ServerSentEvents, LongPolling (AD-26)
     public DateTime ConnectedAt { get; init; }
@@ -49,6 +52,7 @@ public sealed class Session
     public Guid? Viewing { get; set; }           // the open conversation, for diagnostics and typing
 
     public LatencyStats Latency { get; } = new(); // RTT and send-to-appear: last, average, max, slow events
+    public LoadReport? Load { get; set; }         // the boot report of the page load that opened this connection (AD-41)
 }
 ```
 
@@ -170,7 +174,7 @@ PresenceService depends on UserService for the chosen status and on nothing else
 
 ## Diagnostics
 
-The sessions table (AD-25) is a dump of the session objects: user, device and address, transport, connected, visible, effective status, viewing, last input, last heartbeat, age. A row with `Visible` true and `Connected` false shows in the warning colour. The latency table (AD-26) is one `LatencyStats` per person, kept in PresenceService since the restart, with the `Latency` of each live session under it and a ring of the last 50 removed sessions. A stat is one `Wait` (rtt, send, post, open, older, start, reconnect) with last, average, maximum and count; the record is replaced whole on each sample, so the admin endpoint reads it outside the lock. A hub filter times every inbound invocation and `ApiLatencyFilter` times the message send; both count calls over 100 ms as slow events. The send lands on the person only, because the request carries no connection id.
+The sessions table (AD-25) is a dump of the session objects: user, device and address, transport, connected, visible, effective status, viewing, last input, last heartbeat, age. A row with `Visible` true and `Connected` false shows in the warning colour. The latency table (AD-26) is one `LatencyStats` per person, kept in PresenceService since the restart, with the `Latency` of each live session under it and a ring of the last 50 removed sessions. A stat is one `Wait` (rtt, send, post, open, older, start, reconnect) with last, average, maximum and count; the record is replaced whole on each sample, so the admin endpoint reads it outside the lock. A hub filter times every inbound invocation and `ApiLatencyFilter` times the message send; both count calls over 100 ms as slow events. The send lands on the person only, because the request carries no connection id. The load-time table (AD-41) is the `Load` of each live session and of the ring of closed ones: one `LoadReport` per page load, six phases in ms from the navigation start plus the file counts, sent once by the chat page over the connection the load opened.
 
 ## Spec notes met here
 

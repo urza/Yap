@@ -16,6 +16,8 @@ import './sender.js';   // the outbox listens to the hub
 import './notify.js';   // the sound, the title and the badge listen to the store
 import * as snapshot from './offline/snapshot.js';
 
+performance.mark('scripts');   // the boot report's second phase (AD-41): every static module above has loaded and run when this line runs
+
 const app = document.getElementById('app');
 const framed = new Set(['chat', 'people', 'settings']);
 const anonymous = new Set(['login', 'verify', 'invite']);
@@ -150,6 +152,7 @@ async function start() {
   catch { doc = await snapshot.loadBootstrap(); }          // no network: the last known state (OF-06)
   if (doc?.user) {
     applyBootstrap(doc);
+    performance.mark('bootstrap');   // AD-41
     snapshot.saveBootstrap(doc);
     loadCatalog();
     hub.connect();

@@ -42,6 +42,8 @@ Measure first, then the caching, then the resume, then the cold chain. The first
 
 ### 1. The boot report
 
+Landed 2026-10-22, rule AD-41.
+
 One report per page load. The existing waits of AD-26 travel inside the heartbeat as name and value pairs, and the server accepts five names (`send`, `open`, `older`, `start`, `reconnect`; see the memory `latency-telemetry-waits`). The boot report has six phases and four facts, so it does not fit that shape. It goes through a new hub method, `ReportLoad`, called once when the `rows` phase lands. Without a socket nothing can report anyway. Only the first page mount of a load reports, like `start`.
 
 The phases, in ms from the navigation start (Navigation Timing and `performance.mark`):
@@ -66,7 +68,7 @@ The facts, once per load:
 
 The device facts come from the server at connect. Mobile or desktop comes from the User-Agent header, as today (`UserAgent.IsMobile`, stored on the `Session`). The PWA flag comes from the hub URL (`pwa=1`), which today is written only to the user record (`PwaInstalledAt`); the `Session` gets a `Pwa` field from the same query. The browser name and the OS are new: a small regex table next to `IsMobile`, no library. Both go on the `Session`.
 
-Storage: in memory since restart, as the existing latency stats. The last report per connection on the `Session`, and per person a stat (last, average, maximum, count) per phase, as the waits have.
+Storage: in memory since restart, as the existing latency stats. The last report per connection on the `Session`; the ring of the last 50 closed connections keeps theirs, so the table shows a load after the tab is gone. No per-person average: the table has one row per load, and an average had no reader.
 
 Admin: a "Load time" table in the Diagnostics tab. One row per load: person, browser and OS, mobile or desktop, PWA or tab, protocol, the six phases, requests, cached, bytes. The slowest `rows` first.
 

@@ -396,12 +396,13 @@ public static class AdminEndpoints
 
     private static object SessionRow(Session s, PresenceService presence, ChatService chat) => new
     {
-        s.ConnectionId, s.UserId, s.Username, s.DeviceId, s.IsMobile, s.ClientIp, s.ClientIpv4, s.Transport, s.ConnectedAt, s.Connected, s.ClosedAt, s.DroppedAt,
+        s.ConnectionId, s.UserId, s.Username, s.DeviceId, s.IsMobile, s.Browser, s.Os, s.Pwa, s.ClientIp, s.ClientIpv4, s.Transport, s.ConnectedAt, s.Connected, s.ClosedAt, s.DroppedAt,
         s.Visible, s.LastInputAt, s.LastHeartbeatAt,
         status = presence.EffectiveOf(s.UserId),
         viewing = s.Viewing is { } id && chat.GetChannel(id) is { } c ? $"DM: {c.Participant1} ↔ {c.Participant2}" : null,
         ghost = s.Visible && !s.Connected,   // AD-25: counts as visible with no connection
         s.Latency,
+        s.Load,   // AD-41: the boot report of the page load, when one came
     };
 
     // The preview and the link of one upload row (AD-19), by file type.

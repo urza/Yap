@@ -22,6 +22,11 @@ server, runs its steps, prints PASS or FAIL for each step, and stops the server 
 - `latency.mjs` checks the latency table of the admin's Diagnostics tab (AD-26): one person loads a room, taps
   a room, loads an older page, sends a text, loses and regains the connection, and every wait shows up on
   the person and on the connection.
+- `load.mjs` prints the load and the resume of one person on a slow link (900 ms round trip, 1 Mbit/s): the six
+  phases of the boot report (AD-41) for a cold load and a warm load, the files answered by a cache, and the time
+  from a return after a frozen background with a dead socket to the server's rows. It asserts nothing on the
+  numbers; run it before and after a change and compare. The link is a TCP proxy inside the script, so the
+  service worker and the WebSocket go through it too.
 - `screenshots.mjs` regenerates the images of the product spec in `docs/spec/img/`. It seeds people, rooms,
   messages, mutes and statuses, builds the state that each image's caption names, and overwrites the image. A
   step that fails keeps the old image. The run takes about three minutes: it waits for an offline person
@@ -46,6 +51,7 @@ npm run offline
 npm run features
 npm run pages
 npm run latency
+npm run load
 npm run screenshots
 ```
 
