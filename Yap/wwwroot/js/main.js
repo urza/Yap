@@ -1,5 +1,6 @@
-// Start-up (client.md, "Start-up"): the bootstrap, then the router, the frame and the page; the hub connects
-// and requests the bootstrap again. The pages inside the frame share one mounted frame (SH-01).
+// Start-up (client.md, "Start-up"): the stored bootstrap, or the fetched one on a first load, then the router, the
+// frame and the page; the hub connects at once and requests the bootstrap. The pages inside the frame share one
+// mounted frame (SH-01).
 
 import { state, on, applyBootstrap, applyAnonymous, setUpdateAvailable, adminUsername } from './store.js';
 import { api, onSignedOut } from './api.js';
@@ -161,13 +162,19 @@ function showPageError(root, route) {
   root.replaceChildren(screen);
 }
 
+// The stored bootstrap paints the frame and the conversation before any network answer (TL-02, OF-06), and the hub
+// connects at once; its bootstrap request then replaces the stored copy, so a load with a stored copy makes one
+// bootstrap request, not two. Without a stored copy (a first load, or after a sign-out) the fetch comes first: the
+// page has nothing to paint with, and the answer decides between the frame and the login page.
 async function start() {
-  let doc = await fetchBootstrap();
-  if (!doc?.user && launchToken) { await handoff(launchToken); doc = await fetchBootstrap(); }   // the first launch of the installed app (OF-03)
+  let doc = await snapshot.loadBootstrap();
+  if (!doc) {
+    doc = await fetchBootstrap();
+    if (!doc?.user && launchToken) { await handoff(launchToken); doc = await fetchBootstrap(); }   // the first launch of the installed app (OF-03)
+    if (doc?.user) { performance.mark('bootstrap'); snapshot.saveBootstrap(doc); }   // AD-41: the server's answer; with a stored copy hub.js marks it
+  }
   if (doc?.user) {
     applyBootstrap(doc);
-    performance.mark('bootstrap');   // AD-41
-    snapshot.saveBootstrap(doc);
     loadCatalog();
     hub.connect();
   } else {
@@ -178,9 +185,10 @@ async function start() {
   router.start();
 }
 
+// The server's answer, or null when it cannot be had; start() has read the stored copy before it gets here.
 async function fetchBootstrap() {
   try { return await api.get('/api/bootstrap'); }
-  catch { return await snapshot.loadBootstrap(); }          // no network: the last known state (OF-06)
+  catch { return null; }
 }
 
 // The server's /pwa-launch plants the cookie and redirects. 'manual' keeps the fetch from following the redirect

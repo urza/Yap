@@ -106,6 +106,10 @@ public sealed class ChatHub(ChatService chat, PresenceService presence, UserServ
     /// the load and what the network did, for the load-time table (AD-41).</summary>
     public void ReportLoad(LoadReport report) => presence.ReportLoad(Context.ConnectionId, report);
 
+    /// <summary>The single-use nonce for the IPv4 beacon of this connection. The hub mints it because a client that
+    /// skips the negotiate step does not know its connection id, so the bootstrap request cannot name it.</summary>
+    public string? BeaconNonce() => presence.CreateBeaconNonce(Context.ConnectionId, Me);
+
     public void SetStatus(UserStatus status) => presence.SetChosenStatus(Me, status);   // PR-01
 
     // ---- messages ----------------------------------------------------------------------------------------

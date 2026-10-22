@@ -40,7 +40,15 @@ export function mount(root, params) {
   const unmounts = [Timeline(timelineRoot), Composer(composerRoot)];
 
   const partner = resolve(params);
-  if (!partner) { unmounts.forEach(u => u()); router.navigate('/', { replace: true }); return () => {}; }
+  if (!partner) {
+    unmounts.forEach(u => u());
+    // The stored bootstrap paints first and may not know this person yet (new, or made on another device): the
+    // server's bootstrap of this load is on its way. Wait for it once and take the route again; only a name the
+    // server does not know either leads to the home (SH-43).
+    if (!hub.synced()) { hub.firstSync().then(() => { if (me === generation) router.navigate(params.path, { replace: true }); }); return () => {}; }
+    router.navigate('/', { replace: true });
+    return () => {};
+  }
 
   frame.setTitle('dm', { partner });                                   // SH-06
   setTitle(`${state.config.projectName} | @${partner}`);               // SH-45
@@ -78,7 +86,7 @@ function resolve({ dmUser }) {
 async function paintStored(partner, me) {
   const stored = await snapshot.loadTail(snapshot.keyOf({ partner }));
   if (me !== generation || state.open) return;
-  setOpen(stored ?? { channelId: null, messages: [], hasMore: true, typists: [], loading: true }, partner);
+  setOpen(stored ?? { channelId: null, messages: [], hasMore: true, typists: [], loading: true }, partner, { fromDevice: !!stored });
   if (stored) markOnce('paint');   // rows from the device (AD-41); the placeholder is not rows
 }
 

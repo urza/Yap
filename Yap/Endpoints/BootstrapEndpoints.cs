@@ -28,7 +28,7 @@ public static class BootstrapEndpoints
 
     public static void MapBootstrap(this RouteGroupBuilder api)
     {
-        api.MapGet("/bootstrap", (HttpContext http, ClaimsPrincipal principal, string? connection,
+        api.MapGet("/bootstrap", (HttpContext http, ClaimsPrincipal principal,
             UserService users, ChatService chat, PresenceService presence, NotificationSettingsService mutes, GifService gifs,
             AccessLinkService links, RegistrationGateService gate, LinkPreviewSettingsService previews,
             PushNotificationService push, SystemBotService bot, ServerConfig config) =>
@@ -51,7 +51,7 @@ public static class BootstrapEndpoints
             return Results.Ok(new BootstrapDto(
                 User: MeDto.From(me, isAdmin, links.HasActiveLink(me.Id)),
                 Config: new ClientConfigDto(config.ProjectName, config.UploadUrl, config.MaxUploadSizeMB, VoiceService.MaxSeconds,
-                    config.Ipv4BeaconUrl, connection is null ? null : presence.CreateBeaconNonce(connection, me.Id),
+                    config.Ipv4BeaconUrl,
                     previews.Enabled, previews.MediaCachingEnabled,
                     new GifProviderDto(gifs.Provider.DisplayName, gifs.IsConfigured, gifs.Provider.AttributionImageUrl),
                     push.GetPublicKey(), BuildInfo.Time, gate.SmartMode, ThemeRegistry.All),
@@ -73,7 +73,7 @@ public sealed record BootstrapDto(
     EmojiStateDto Emoji, List<Guid> FavoriteGifIds);
 
 public sealed record ClientConfigDto(
-    string ProjectName, string UploadUrl, int MaxUploadMB, int VoiceMaxSeconds, string BeaconUrl, string? BeaconNonce,
+    string ProjectName, string UploadUrl, int MaxUploadMB, int VoiceMaxSeconds, string BeaconUrl,
     bool LinkPreviews, bool MediaCaching, GifProviderDto GifProvider, string? VapidPublicKey, string BuildStamp, bool SmartLoginAllowed,
     IReadOnlyList<ThemeDefinition> Themes);   // the Settings theme grid (ST-08): the registry is the server's
 

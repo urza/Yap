@@ -23,7 +23,7 @@ The route is anonymous and answers both states. Without a valid cookie it return
 
 The client branches on the presence of `user`.
 
-The client fetches it **every time the hub connects**: at start, after a sleep, after a deploy. There is no second "state" route. The document replaces the shared parts of the store whole (rooms, users, presence, unread, mutes, favourites); hub events that arrive after it apply on top. Because the request is made after the hub is connected, no change can fall between the snapshot and the first event. Until the document arrives, the client shows the cached copy from the previous visit, as it does for a conversation tail (TL-02). In the same handler the client re-opens the current conversation (`openRoom` or `openDm`) and wakes the outbox sender (OF-13, TL-35).
+The client fetches it **every time the hub connects**: after a sleep, after a deploy, and at start, where a device with a stored copy paints that copy first and makes no separate request before the connect. There is no second "state" route. The document replaces the shared parts of the store whole (rooms, users, presence, unread, mutes, favourites); hub events that arrive after it apply on top. Because the request is made after the hub is connected, no change can fall between the snapshot and the first event. Until the document arrives, the client shows the cached copy from the previous visit, as it does for a conversation tail (TL-02). In the same handler the client re-opens the current conversation (`openRoom` or `openDm`) and wakes the outbox sender (OF-13, TL-35).
 
 What the client keeps across a reconnect: the view position, the draft, the pending rows, and the random texts already picked (GEN-12). What it replaces: everything in the document below.
 
@@ -31,7 +31,7 @@ What the client keeps across a reconnect: the view position, the draft, the pend
 {
   user:   { id, username, displayName, avatarUrl, isAdmin, theme, fontSize, timeZone, locale,
             dateFormat, status, smartLoginOptOut, hasPassphrase, hasLink, createdAt },
-  config: { projectName, uploadUrl, maxUploadMB, voiceMaxSeconds, beaconUrl, beaconNonce, linkPreviews, mediaCaching,   // voiceMaxSeconds: the recorder's cap, 300 (IB-69)
+  config: { projectName, uploadUrl, maxUploadMB, voiceMaxSeconds, beaconUrl, linkPreviews, mediaCaching,   // voiceMaxSeconds: the recorder's cap, 300 (IB-69)
             gifProvider: { name, configured, attributionImageUrl }, vapidPublicKey, buildStamp, smartLoginAllowed,
             themes: [ { id, name, previewBg, previewAccent, hasGradient } ] },
   texts:  { roomHeaders[], placeholders[], typingOne[], typingTwo[], typingMany[], peopleHeaders[],
@@ -61,6 +61,7 @@ The client calls the methods with these camelCase names; SignalR matches the ser
 | `markRead` | channelId | | The client decides by NT-06 and NT-07. Clears the whole conversation (NT-08). Dropped for a conversation the person cannot access. |
 | `typing` | channelId, on | | `on` at the first non-blank input and then at most every 2 s; `off` by IB-59. Dropped unless `channelId` is the connection's open conversation (Viewing): a typist shows only to the people who share the conversation (PR-19). |
 | `heartbeat` | visible, idleSeconds, lastRttMs, samples[] | serverTimeMs | Every 10 s visible, 60 s hidden. A sample is `{ name, ms }`; the name is send, open, older, start or reconnect. A hidden tab sends no lastRttMs. Feeds presence and the latency table (AD-25, AD-26). |
+| `beaconNonce` | | nonce or null | The single-use nonce for the IPv4 beacon of this connection, asked for when the bootstrap names a beacon URL. The hub mints it because a client that skips the negotiate step does not know its connection id. |
 | `reportLoad` | { html, scripts, bootstrap, paint, socket, rows, protocol, requests, cached, bytes, hidden } | | Once per page load, from the first conversation of the load when the server's rows are on screen. The six phases are ms from the navigation start; a phase the load did not reach is null. The counts are same-origin files, the page included. Feeds the load-time table (AD-41). |
 | `setStatus` | "online" \| "away" \| "invisible" | | Account-wide (PR-01). |
 | `react` | messageId, emoji | error | Toggle (MR-40). Also updates recent emoji (MR-44). |
@@ -155,7 +156,7 @@ All anonymous except sign-out. The reasons behind each are on the [sign-in page]
 
 | Route | Purpose |
 | --- | --- |
-| `GET /api/bootstrap?connection=` | Anonymous. The full document with a cookie, the texts-only shape without. Fetched at start and on every hub connect. `connection` is the hub connection id; it binds the beacon nonce to the session (new). |
+| `GET /api/bootstrap` | Anonymous. The full document with a cookie, the texts-only shape without. Fetched on every hub connect, and at start only when the device has no stored copy. The beacon nonce comes from the hub (`beaconNonce`), not from here. |
 | `PATCH /api/account` | Display name, bio, location, theme, fontSize, timeZone, locale, dateFormat, smartLoginOptOut (new). |
 | `PUT /api/account/avatar` (multipart), `DELETE /api/account/avatar` | (new) |
 | `GET /api/account/location` | Country suggestion from the address; 204 when unknown (new). |

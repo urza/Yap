@@ -163,10 +163,17 @@ await step(4, 'Resume: hidden and frozen 35 s with a dead socket, then back', as
   const t0 = Date.now();
   if (frozen) await cdp.send('Page.setWebLifecycleState', { state: 'active' });
   await P.evaluate(() => { delete document.visibilityState; delete document.hidden; document.dispatchEvent(new Event('visibilitychange')); });
-  const back = await waitTrue(async () => (await row(P, text).count()) > 0, 90_000, 100);
+  // The connection states on the way, as the dot shows them, for a reading of where the time goes.
+  const seen = new Map();
+  const back = await waitTrue(async () => {
+    const cls = await P.evaluate(() => document.querySelector('.connection-dot')?.className ?? '').catch(() => '');
+    for (const c of cls.split(/\s+/)) if (c && c !== 'connection-dot' && !seen.has(c)) seen.set(c, Date.now() - t0);
+    return (await row(P, text).count()) > 0;
+  }, 90_000, 100);
   const took = Date.now() - t0;
+  notes.push(`dot states after the return: ${[...seen].map(([c, ms]) => `${c} at ${ms} ms`).join(', ') || 'none seen'}`);
   check(back, `the return to the server's rows: ${back ? took : '> 90000'} ms`);
-  notes.push(`resume         return → rows ${took} ms (today: the 30 s client timeout fires on the thaw, then 1 s, negotiate, upgrade, handshake, openRoom)`);
+  notes.push(`resume         return → rows ${took} ms (three round trips on this link: upgrade, handshake, openRoom; the frozen page's overdue timer fires at the thaw, so the 30 s wait does not show here)`);
   await ctxB.close();
 });
 
