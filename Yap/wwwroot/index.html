@@ -66,47 +66,12 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-    <!-- Every module at once, instead of one import level per round trip. No version in these URLs: the
-         imports inside the modules have none, and a preload with a different URL is a wasted download. -->
-    <link rel="modulepreload" href="js/main.js" />
-    <link rel="modulepreload" href="js/store.js" />
-    <link rel="modulepreload" href="js/api.js" />
-    <link rel="modulepreload" href="js/hub.js" />
-    <link rel="modulepreload" href="js/router.js" />
-    <link rel="modulepreload" href="js/session.js" />
-    <link rel="modulepreload" href="js/sender.js" />
-    <link rel="modulepreload" href="js/upload.js" />
-    <link rel="modulepreload" href="js/notify.js" />
-    <link rel="modulepreload" href="js/render/avatar.js" />
-    <link rel="modulepreload" href="js/offline/db.js" />
-    <link rel="modulepreload" href="js/offline/snapshot.js" />
-    <link rel="modulepreload" href="js/offline/outbox.js" />
-    <link rel="modulepreload" href="js/render/dom.js" />
-    <link rel="modulepreload" href="js/render/text.js" />
-    <link rel="modulepreload" href="js/render/time.js" />
-    <link rel="modulepreload" href="js/ui/frame.js" />
-    <link rel="modulepreload" href="js/ui/timeline.js" />
-    <link rel="modulepreload" href="js/ui/message.js" />
-    <link rel="modulepreload" href="js/ui/composer.js" />
-    <link rel="modulepreload" href="js/ui/overlays.js" />
-    <link rel="modulepreload" href="js/ui/emoji-picker.js" />
-    <link rel="modulepreload" href="js/ui/gif-picker.js" />
-    <link rel="modulepreload" href="js/ui/gallery.js" />
-    <link rel="modulepreload" href="js/pages/chat.js" />
-    <link rel="modulepreload" href="js/pages/login.js" />
-    <link rel="modulepreload" href="js/pages/verify.js" />
-    <link rel="modulepreload" href="js/pages/invite.js" />
-    <link rel="modulepreload" href="js/pages/people.js" />
-    <link rel="modulepreload" href="js/pages/settings.js" />
-    <link rel="modulepreload" href="js/pages/admin.js" />
-    <link rel="modulepreload" href="js/push.js" />
-    <link rel="modulepreload" href="js/pwa.js" />
-    <link rel="modulepreload" href="js/ui/gif-library.js" />
-    <link rel="modulepreload" href="js/ui/pins.js" />
-    <link rel="modulepreload" href="js/ui/confirm.js" />
-    <link rel="modulepreload" href="js/ui/voice.js" />
-    <link rel="modulepreload" href="js/ui/recorder.js" />
-    <link rel="modulepreload" href="js/ui/tooltip.js" />
+    <!-- Every module has a URL with the build stamp: the import map rewrites the imports inside the modules, and the
+         preloads request the same URLs, all at once instead of one import level per round trip. Both are written in
+         by the server from one scan of wwwroot/js (ShellAssets), so no list is kept by hand. The map must come before
+         the first module request. -->
+    <script type="importmap">{{importmap}}</script>
+    {{modulepreload}}
 </head>
 
 <body>
@@ -1132,8 +1097,9 @@
     </template>
 
     <!-- The SignalR client is a classic script: it defines the global `signalR` that js/hub.js uses. -->
-    <script src="lib/signalr.min.js"></script>
-    <script src="lib/tus.min.js"></script>
-    <script type="module" src="js/main.js"></script>
+    <!-- Not imports, so the import map does not reach them: the stamp is written here. -->
+    <script src="lib/signalr.min.js?v={{build}}"></script>
+    <script src="lib/tus.min.js?v={{build}}"></script>
+    <script type="module" src="js/main.js?v={{build}}"></script>
 </body>
 </html>

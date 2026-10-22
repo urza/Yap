@@ -18,6 +18,12 @@ import * as snapshot from './offline/snapshot.js';
 
 performance.mark('scripts');   // the boot report's second phase (AD-41): every static module above has loaded and run when this line runs
 
+// The installed app launches at /pwa-launch?lt=<token>, the server's hand-off that signs the app in on its first
+// launch (OF-03). The worker answers that navigation with the stored shell, so the launch paints with no round
+// trip; this page does the hand-off itself when it is signed out (start, below), and the address becomes '/'.
+const launchToken = location.pathname === '/pwa-launch' ? new URLSearchParams(location.search).get('lt') : null;
+if (location.pathname === '/pwa-launch') history.replaceState(null, '', '/' + location.hash);
+
 const app = document.getElementById('app');
 const framed = new Set(['chat', 'people', 'settings']);
 const anonymous = new Set(['login', 'verify', 'invite']);
@@ -74,8 +80,17 @@ on('catalog', () => text.useCatalog(state.catalog));
 // A new build on the server: the strip asks for a reload and nothing reloads by itself (SH-20, OF-04).
 const build = document.documentElement.dataset.build;
 on('config', () => {
-  if (state.config?.buildStamp && build && state.config.buildStamp !== build) { notice('You are awesome and so is the new version of this app. Please refresh.', 'Reload', () => location.reload()); setUpdateAvailable(); }
+  if (state.config?.buildStamp && build && state.config.buildStamp !== build) { notice('You are awesome and so is the new version of this app. Please refresh.', 'Reload', reloadForNewBuild); setUpdateAvailable(); }
 });
+
+// The new build's worker may still be installing when the person taps Reload (the strip shows one round trip after
+// the load, the install takes a few seconds on a slow link). The shell is cache-first (OF-18), so a reload before the
+// new worker takes over would serve the old shell again and show the strip again. Wait for it, up to 15 s.
+async function reloadForNewBuild() {
+  const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration().catch(() => null) : null;
+  if (reg && (reg.installing || reg.waiting)) await Promise.race([new Promise(r => navigator.serviceWorker.addEventListener('controllerchange', r, { once: true })), new Promise(r => setTimeout(r, 15_000))]);
+  location.reload();
+}
 
 function notice(text, action, onAction) {
   const strip = document.getElementById('notice');
@@ -129,7 +144,7 @@ router.onRoute(async route => {
     document.title = 'Not Found';
     return;
   }
-  if (needsFreshLoad(route.page)) { location.reload(); return; }
+  if (needsFreshLoad(route.page)) { reloadForNewBuild(); return; }
   const page = await loader();
   loadedPages.add(route.page);
   performance.mark('page-mount');   // the chat page counts the app start only when it is the first page (AD-26)
@@ -147,9 +162,8 @@ function showPageError(root, route) {
 }
 
 async function start() {
-  let doc = null;
-  try { doc = await api.get('/api/bootstrap'); }
-  catch { doc = await snapshot.loadBootstrap(); }          // no network: the last known state (OF-06)
+  let doc = await fetchBootstrap();
+  if (!doc?.user && launchToken) { await handoff(launchToken); doc = await fetchBootstrap(); }   // the first launch of the installed app (OF-03)
   if (doc?.user) {
     applyBootstrap(doc);
     performance.mark('bootstrap');   // AD-41
@@ -163,5 +177,14 @@ async function start() {
   state.drafts = await snapshot.loadDrafts();
   router.start();
 }
+
+async function fetchBootstrap() {
+  try { return await api.get('/api/bootstrap'); }
+  catch { return await snapshot.loadBootstrap(); }          // no network: the last known state (OF-06)
+}
+
+// The server's /pwa-launch plants the cookie and redirects. 'manual' keeps the fetch from following the redirect
+// into a second page load; the browser stores the cookie of the redirect answer all the same.
+const handoff = token => fetch(`/pwa-launch?lt=${encodeURIComponent(token)}`, { redirect: 'manual', credentials: 'same-origin' }).catch(() => {});
 
 start().catch(e => { console.error('Yap could not start', e); document.getElementById('start-error').classList.add('show'); });   // SH-41

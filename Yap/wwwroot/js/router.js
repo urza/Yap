@@ -27,6 +27,7 @@ export let current = parse(location.pathname + location.hash);   // the hash pic
 export function onRoute(fn) { handler = fn; }
 
 export function start() {
+  current = parse(location.pathname + location.hash);   // main.js rewrites the installed app's launch address to '/' before this
   addEventListener('popstate', () => { current = parse(location.pathname + location.hash); handler(current); });
   handler(current);
 }

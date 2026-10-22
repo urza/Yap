@@ -44,6 +44,8 @@ Yap runs in the browser and can also be installed as an app on a phone or a desk
 
 **OF-16** A sign-out removes every draft, pending message, cached conversation and notification subscription of the previous account. A sign-in of a different account on the device does the same.
 
+**OF-18** Yap opens from the device: the page and its files come from the copy the device stored, and the server is not asked for them before the first paint. A new version is stored in the background while the open page keeps running; the notice strip then asks for a reload ([SH-20](frame.md#SH-20)), and the reload waits for the new copy when it is still on its way. The root address, the login page, the verification page and an invite ask the server first, because the server answers a signed-out visitor differently there; without a connection they fall back to the stored copy.
+
 **OF-17** When Yap is open in several tabs, one tab sends the pending messages of all of them. A tab that shows the new-version notice ([SH-20](frame.md#SH-20)) hands this over to a tab on the new version, when one is open, and takes it back when no such tab is left. Messages written in the old tab still go out.
 
 ## States
