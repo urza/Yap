@@ -254,9 +254,13 @@ export function GifPicker({ onSend, onWarn }) {
   }
 
   function preview(url, isImage, alt) {
-    return isImage
-      ? el('img', { src: url, alt, loading: 'lazy' })
-      : el('video', { src: url, autoplay: true, muted: true, loop: true, playsinline: true, preload: 'metadata', class: 'gif-card-video' });
+    if (isImage) return el('img', { src: url, alt, loading: 'lazy' });
+    const video = el('video', { src: url, autoplay: true, muted: true, loop: true, playsinline: true, preload: 'metadata', class: 'gif-card-video' });
+    // The attribute alone is not enough: Chrome reads the muted attribute into the muted state only when the
+    // parser creates the element, not when script does. Without the property, a Klipy MP4 with an audio track
+    // played out loud when the picker opened (PK-19: a muted preview).
+    video.muted = true;
+    return video;
   }
 
   // ---- upload (PK-38 to PK-42) ----
