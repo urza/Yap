@@ -330,8 +330,8 @@ export function mount(root, { roomId, dmUser }) {
 
 ## Start-up
 
-1. The browser loads `index.html`. An inline script reads the cached theme and text size from localStorage and sets them on `<html>`, before the first paint. Without this the page would flash the default theme.
-2. The browser loads `main.js` and its imports. `index.html` lists every module in `<link rel="modulepreload">`, so the browser requests all of them at once instead of one level at a time.
+1. The browser loads `index.html`. The service worker answers it, and every file of the shell, from the device's copy (OF-18), so nothing waits for the network before the first paint; a first visit and a new build fetch them. An inline script reads the cached theme and text size from localStorage and sets them on `<html>`, before the first paint. Without this the page would flash the default theme.
+2. The browser loads `main.js` and its imports. The server writes an import map and a `<link rel="modulepreload">` for every module into `index.html` (`ShellAssets`), so every module has a URL with the build stamp and the browser requests all of them at once instead of one level at a time.
 3. `main.js` reads the stored bootstrap document and the stored tail of the current conversation from IndexedDB, and paints them. The user sees the last known state at once (TL-02).
 4. `main.js` requests `GET /api/bootstrap`. Without `user` in the answer, the router shows the login, verify or invite page with the texts from the answer. With `user`, the store applies the document and the frame is current.
 5. `main.js` calls `hub.connect()`. When the hub is connected, the hub module requests the bootstrap again and opens the current conversation, in parallel. The second bootstrap exists so that no change can fall between the first answer and the first hub message (wire contract, "Bootstrap"). It costs one small request per cold start.

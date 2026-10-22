@@ -1,6 +1,8 @@
 /* Self-hosted Inter (variable, weights 100-900 in one file per style).
    Same niche as Discord's gg sans; the old stack led with Whitney, a commercial
-   font we never shipped, so users actually saw Arial/Helvetica/Roboto. */
+   font we never shipped, so users actually saw Arial/Helvetica/Roboto.
+   The server serves these files immutable for a year (Program.cs): a changed font needs a NEW FILE NAME here
+   and in the preload in index.html, or devices keep the old one. The regular file is precached by the worker. */
 @font-face {
     font-family: "Inter";
     font-style: normal;

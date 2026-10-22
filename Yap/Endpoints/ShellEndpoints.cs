@@ -1,5 +1,6 @@
 using System.Net;
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 using Yap.Configuration;
 using Yap.Helpers;
 using Yap.Models.Admin;
@@ -9,10 +10,11 @@ using Yap.Services.Admin;
 namespace Yap.Endpoints;
 
 /// <summary>
-/// The one HTML page. Every client route answers wwwroot/index.html, so a deep link, a reload and the
-/// installed app's start URL all land in the same shell and the router in the browser takes over (SH-42).
-/// The build stamp is written into the page so the client and its service worker know which build they
-/// run (the new-version strip and the shell cache).
+/// The one HTML page and the service worker. Every client route answers wwwroot/index.html, so a deep link, a
+/// reload and the installed app's start URL all land in the same shell and the router in the browser takes over
+/// (SH-42). Both files are templates: the build stamp, the import map, the modulepreload links, the worker's shell
+/// list and the client routes are written in at request time (ShellAssets), so the client and its worker know which
+/// build they run (the new-version strip, the shell cache) and no list of files is kept by hand.
 /// </summary>
 public static class ShellEndpoints
 {
@@ -25,13 +27,22 @@ public static class ShellEndpoints
     public static void MapShell(this WebApplication app)
     {
         var env = app.Environment;
-        string? cached = null;
-        // Development reads the file on every request, so an edit shows on reload. Production reads it once.
-        string Shell() => env.IsDevelopment() ? Read() : cached ??= Read();
-        string Read()
+        var assets = new ShellAssets(env.WebRootPath, BuildInfo.Time);
+        // The client routes as one pattern for the worker: "{id:guid}" and "{user}" become one path segment.
+        var routePattern = string.Join("|", Routes.Select(r => Regex.Replace(r, @"\{[^}]*\}", "[^/]+")));
+        string? cachedShell = null, cachedWorker = null;
+        // Development reads the files on every request, so an edit shows on reload. Production reads them once.
+        string Shell() => env.IsDevelopment() ? Read("index.html") : cachedShell ??= Read("index.html");
+        string Worker() => env.IsDevelopment() ? Read("service-worker.js") : cachedWorker ??= Read("service-worker.js");
+        string Read(string file)
         {
-            using var reader = new StreamReader(env.WebRootFileProvider.GetFileInfo("index.html").CreateReadStream());
-            return reader.ReadToEnd().Replace("{{build}}", BuildInfo.Time);
+            using var reader = new StreamReader(env.WebRootFileProvider.GetFileInfo(file).CreateReadStream());
+            return reader.ReadToEnd()
+                .Replace("{{build}}", BuildInfo.Time)
+                .Replace("{{importmap}}", assets.ImportMap)
+                .Replace("{{modulepreload}}", assets.ModulePreloads)
+                .Replace("{{shell}}", assets.ShellList)
+                .Replace("{{routes}}", routePattern);
         }
 
         foreach (var route in Routes)
@@ -52,10 +63,18 @@ public static class ShellEndpoints
                         info: route == "/login" && gate.RegistrationClosed ? "registration_closed" : null,
                         ip: IpHelper.GetClientIp(http), userAgent: http.Request.Headers.UserAgent.ToString());
 
-                http.Response.Headers.CacheControl = "no-cache";   // always revalidate: the service worker, not the HTTP cache, serves the shell offline
+                http.Response.Headers.CacheControl = "no-cache";   // always revalidate: the service worker, not the HTTP cache, serves the shell
                 return Results.Content(Shell(), "text/html; charset=utf-8");
             });
         }
+
+        // The worker names its cache after the build written in here, so a deploy is a byte change the browser sees
+        // when it fetches the worker at the next registration. no-cache: that fetch must reach the server.
+        app.MapGet("/service-worker.js", (HttpContext http) =>
+        {
+            http.Response.Headers.CacheControl = "no-cache";
+            return Results.Content(Worker(), "text/javascript; charset=utf-8");
+        });
     }
 
     // Data/welcome/welcome.html is a fragment (styles and markup) that the admin edits. It gets a document

@@ -33,6 +33,7 @@ export function onRoute(fn) { handler = fn; }
 
 // '/' means "where I was" (SH-43). The URL is rewritten so a reload lands on the same conversation.
 export function start() {
+  current = parse(location.pathname + location.hash);   // main.js rewrites the installed app's launch address to '/' before this
   if (current.path === '/') {
     const last = read(LAST_ROUTE) || '/lobby';
     history.replaceState(null, '', last); current = parse(last);

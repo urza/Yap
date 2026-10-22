@@ -347,14 +347,20 @@ app.UseStaticFiles(new StaticFileOptions
         ctx.Context.Response.Headers.CacheControl = "public, max-age=86400"
 });
 
-// Scripts and stylesheets revalidate on every load (an ETag round trip, 304 when unchanged), so a new
-// build is never served stale from the HTTP cache. The service worker serves them offline.
+// A script or stylesheet URL with the build stamp (?v=, written by the import map and the page) never changes its
+// content: immutable, so the browser and a Cloudflare edge keep it for a year. A bare URL (an old page's late import)
+// revalidates on every load, as before, so it is never stale. The fonts are immutable by file name: a changed font
+// needs a new name, see the @font-face comment in app.css. Icons, images and the sound keep the default (an ETag);
+// the service worker answers them from its cache.
 app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = ctx =>
     {
-        if (ctx.File.Name.EndsWith(".js") || ctx.File.Name.EndsWith(".css"))
-            ctx.Context.Response.Headers.CacheControl = "no-cache";
+        var name = ctx.File.Name;
+        if (name.EndsWith(".js") || name.EndsWith(".css"))
+            ctx.Context.Response.Headers.CacheControl = ctx.Context.Request.Query.ContainsKey("v") ? "public, max-age=31536000, immutable" : "no-cache";
+        else if (name.EndsWith(".woff2"))
+            ctx.Context.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
     }
 });
 
