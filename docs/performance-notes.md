@@ -1,6 +1,6 @@
 # Fast load and resume: design notes
 
-Written 2026-10-22. These notes guide the work on load time and resume time for one user on a slow connection. They record the decisions of the design dialogue of that day. They are not the product spec.
+Written 2026-10-22 and checked against the code the same day. These notes guide the work on load time and resume time for one user on a slow connection. They record the decisions of the design dialogue of that day. They are not the product spec.
 
 ## The target
 
@@ -10,24 +10,24 @@ The changes are universal. A change that removes a round trip from the critical 
 
 Constraints:
 
-- The app and the build need only dotnet. No node, no bundler. The `{{build}}` stamp is already written into the page by C# at request time (`Endpoints/ShellEndpoints.cs`), and the new generated parts use the same mechanism.
+- The app and the build need only dotnet. No node, no bundler. The `{{build}}` stamp is already substituted into the page by C# (`Endpoints/ShellEndpoints.cs`): once per process in Production, on the first request, and on every request in Development. The stamp has the form `2026-10-22-1815`. The new generated parts use the same mechanism.
 - The existing tests in `tests/browser` use node and Playwright. That stays the only place node appears. The app never depends on it.
-- The font stays as it is. Inter covers Latin, Greek and Cyrillic (2,852 code points) and no Arabic, Hebrew or CJK. The browser draws those from a system font. A subset would drop Greek and Cyrillic for no gain, because the font loads once per device and then stays cached.
+- The font stays as it is. Inter covers Latin, Greek and Cyrillic (2,852 code points in the regular file, 2,816 in the italic) and no Arabic, Hebrew or CJK. The browser draws those from a system font. A subset would drop Greek and Cyrillic for no gain, because the font loads once per device and then stays cached.
 - Simplicity wins. Build on the mechanisms that exist (the build stamp, the per-build worker cache, the heartbeat telemetry, the admin diagnostics, the connection dot).
 
 ## What the code does today
 
 Facts from the code on 2026-10-22, before any change.
 
-**The shell over HTTP.** The page, all scripts and all stylesheets are served with `Cache-Control: no-cache` (`Program.cs`, `ShellEndpoints.cs`). The two font files have no cache header at all. The service worker fetches the page, the scripts, the styles and the fonts network-first with no timeout (`service-worker.js`). So every open goes to the network for about 45 files before it paints. Caddy and Cloudflare answer over HTTP/2 or HTTP/3, so the requests run in parallel, but the paint still waits for the network. Cloudflare does not cache a `no-cache` answer, so no deployment gets the shell from the edge.
+**The shell over HTTP.** The page, all scripts and all stylesheets are served with `Cache-Control: no-cache` (`Program.cs` for every `.js` and `.css` file, `ShellEndpoints.cs` for the page). The fonts, the icons, the images and the notification sound have no cache header at all, so the browser applies its own heuristic. The page makes the browser fetch 52 files: the page, 9 stylesheets, 39 preloaded modules, 2 classic scripts and the font, plus the icon and the manifest. 51 of them are `no-cache`, so every open goes to the network for them before it paints. The service worker fetches the page, the scripts, the styles and the fonts network-first with no timeout (`service-worker.js`). It falls back to the cache only when the fetch throws, so a 5xx from a proxy reaches the page. Its precached stylesheets never match, because the list holds `/app.css` and the page asks for `app.css?v=…`. The theme images (`.webp`) pass the worker untouched. Where Caddy or Cloudflare stand in front of Kestrel, the requests run in parallel over HTTP/2, but the paint still waits for the network. Cloudflare does not cache a `no-cache` answer, so no deployment gets the shell from the edge. The repo does not record the deployments: the compose file publishes Kestrel directly, and the load-test box ran Cloudflare in front of Caddy. The `protocol` field of the boot report will show what the field has.
 
-**Media.** Uploads, GIF cache, media cache and emoji are already correct: immutable headers and cache-first in the worker. Profile pictures are excluded by design (stable URL). See the memory `static-asset-caching`.
+**Media.** Uploads, the GIF cache and the media cache are already correct: immutable headers and cache-first in the worker. Emoji images are cache-first in the worker, but their headers differ on purpose. The built-in packs ship at a stable URL and carry one day of `max-age`, so a redrawn image propagates on the next deploy. Custom emoji and the fallback images carry no header. The emoji catalogue (`/api/emoji?v=`) is immutable in the HTTP cache; the worker never touches `/api/`. Profile pictures are excluded by design (stable URL, `max-age=300`). See the memory `static-asset-caching`.
 
-**The cold load.** The order in `js/main.js` is: the page and its scripts, then `await /api/bootstrap` with nothing painted, then the frame, then the chat page paints the stored snapshot from IndexedDB, then the hub connects (negotiate, upgrade, handshake), then `openRoom` returns the newest 50 rows. The hub connect starts only after the bootstrap answer. The bootstrap is fetched a second time after the connect (`js/hub.js`). The stored bootstrap is used only when the fetch throws.
+**The cold load.** The order in `js/main.js` is: the page and its scripts load, then `await /api/bootstrap` with nothing painted but the themed empty page, then the hub connect starts (not awaited) together with the emoji catalogue fetch, then an IndexedDB read of the drafts, then the router mounts the frame, then the chat page paints the stored snapshot from IndexedDB. The negotiate, upgrade and handshake run while the frame and the snapshot paint. The `openRoom` at mount fails at once without a connection. The `openRoom` that returns the newest 50 rows runs from the `connected` hook (`js/chat.js`, TL-35), in parallel with a second bootstrap fetch (`js/hub.js`). That second fetch runs after every connect, also after a reconnect: it replaces the whole store and mints the beacon nonce. The stored bootstrap is used only when the first fetch throws, which includes every non-2xx answer. The fetch has no timeout.
 
-**The resume.** When the installed app returns after an hour in the background, the page is alive and shows the old rows. The socket is dead, but the client state is still `connected`. The visibility handler reconnects only when the state is `Disconnected`, so it does nothing. The client waits for SignalR's 30 s server timeout, then 1 s of retry delay, then negotiate, upgrade, handshake and `openRoom`. The dot hides when the socket connects, before the rows arrive. The user sees the old screen for about 30 s, then a short amber dot, then the new rows. Missed messages are not replayed; the client refetches the tail of 50 rows.
+**The resume.** When the installed app returns after an hour in the background, the page is alive and shows the old rows. The socket is dead, but the client state is still `connected`. The visibility handler reconnects only when the state is `Disconnected`, so it does nothing (`reconnectNow` in `js/hub.js`; the `online` event calls the same function). Neither side overrides the SignalR timeouts. The client waits for the 30 s server timeout, then the first 1 s delay of its own retry loop (1, 2, 4, 8, 16, 30 s; the client does not use SignalR's automatic reconnect), then negotiate, upgrade, handshake and `openRoom`. The dot hides when the socket connects, before the rows arrive. The user sees the old screen for about 30 s, then a short amber dot, then the new rows. Missed messages are not replayed; the client refetches the tail of 50 rows and keeps the older loaded pages only where the tail overlaps them.
 
-**The loading UI.** The connection dot (hidden when connected, amber while connecting, grey when offline, red when signed out or when a new build is up). The "Loading messages…" line shows only for a conversation with no stored snapshot. The notice strip shows only "Please refresh" for a new build. Nothing marks rows that came from the device and not yet from the server.
+**The loading UI.** The connection dot: hidden when connected, amber and pulsing while connecting or reconnecting, a grey ring when offline, red when signed out or when a new build is up while connected. The "Loading messages..." line shows only for a conversation with no stored snapshot, not while offline, and only after 400 ms. The notice strip shows one message in the code, "Please refresh" for a new build. SH-20 also specifies "Sign in to continue." for a signed-out page without a connection; the client does not implement it. Nothing marks rows that came from the device and not yet from the server.
 
 **Round trips before live rows**, counted from the code for an installed app with everything cached:
 
@@ -42,14 +42,14 @@ Measure first, then the caching, then the resume, then the cold chain. The first
 
 ### 1. The boot report
 
-One report per page load, sent with the first heartbeat, the same way as the waits of AD-26 (`hub.report`, see the memory `latency-telemetry-waits`). Only the first page mount of a load reports, like `start`.
+One report per page load. The existing waits of AD-26 travel inside the heartbeat as name and value pairs, and the server accepts five names (`send`, `open`, `older`, `start`, `reconnect`; see the memory `latency-telemetry-waits`). The boot report has six phases and four facts, so it does not fit that shape. It goes through a new hub method, `ReportLoad`, called once when the `rows` phase lands. Without a socket nothing can report anyway. Only the first page mount of a load reports, like `start`.
 
 The phases, in ms from the navigation start (Navigation Timing and `performance.mark`):
 
 | Phase | Meaning |
 | --- | --- |
 | `html` | The page has arrived (`responseEnd`). |
-| `scripts` | The modules are loaded (`page-mount` mark). |
+| `scripts` | The modules are loaded: a mark as the first statement of `js/main.js`, which runs after its whole static import graph. The existing `page-mount` mark does not fit, because it is set after the bootstrap, the drafts read and the frame mount. |
 | `bootstrap` | The bootstrap answer is applied. |
 | `paint` | The first rows are on screen, from the device or from the server. |
 | `socket` | The hub reports connected. |
@@ -64,9 +64,9 @@ The facts, once per load:
 | cached | The count of entries with `transferSize === 0`, answered by a cache. |
 | bytes | The sum of `transferSize`. |
 
-The device facts come from the server at connect, as they already do: the PWA flag from the hub URL (`pwa=1`), mobile or desktop from the User-Agent header (`UserAgent.IsMobile`). The browser name and the OS are new: a small regex table next to `IsMobile`, no library. Both go on the `Session`.
+The device facts come from the server at connect. Mobile or desktop comes from the User-Agent header, as today (`UserAgent.IsMobile`, stored on the `Session`). The PWA flag comes from the hub URL (`pwa=1`), which today is written only to the user record (`PwaInstalledAt`); the `Session` gets a `Pwa` field from the same query. The browser name and the OS are new: a small regex table next to `IsMobile`, no library. Both go on the `Session`.
 
-Storage: in memory since restart, as the existing latency stats. The last report per connection, and an average per person.
+Storage: in memory since restart, as the existing latency stats. The last report per connection on the `Session`, and per person a stat (last, average, maximum, count) per phase, as the waits have.
 
 Admin: a "Load time" table in the Diagnostics tab. One row per load: person, browser and OS, mobile or desktop, PWA or tab, protocol, the six phases, requests, cached, bytes. The slowest `rows` first.
 
@@ -86,19 +86,19 @@ It prints the numbers. It does not assert, because the throttle makes the number
 
 ### 3. The shell caching
 
-**The worker goes cache-first for the shell.** A navigation, a script, a stylesheet, a font, an icon and the notification sound are answered from the per-build cache (`yap-shell-{build}`) when present, and from the network otherwise. The per-build cache, the precache at install, `skipWaiting`, `clients.claim` and the cleanup at activate stay as they are. This changes rule OF-06 from "a page online always runs the build the server has" to "a page runs the build its worker installed, and the new-version strip asks for a refresh when the server's build differs". The check that drives the strip stays: the bootstrap's build stamp against the page's (`js/main.js`, SH-20, OF-04). The spec page `docs/spec/offline.md` gets the new OF-06 wording when this step lands.
+**The worker goes cache-first for the shell.** A navigation, a script, a stylesheet, a font, an icon, an image and the notification sound are answered from the per-build cache (`yap-shell-{build}`) when present, and from the network otherwise. The per-build cache, the precache at install, `skipWaiting`, `clients.claim` and the cleanup at activate stay as they are. This changes the worker's rule, stated in its header comment, from "a page online always runs the build the server has" to "a page runs the build its worker installed, and the new-version strip asks for a refresh when the server's build differs". The spec has no rule for the online case today: OF-06 covers the stored conversations, and OF-04, SH-20 and SH-50 cover the strip. The check that drives the strip stays: the bootstrap's build stamp against the page's (`js/main.js`). When this step lands, the worker comment changes and `docs/spec/offline.md` gets a new rule, OF-18, with the new wording.
 
 An open page of the old build that lazy-loads a page module after a deploy gets the current file from the network, as today. See the memory `mixed-build-document`. The strip asks for a refresh, as today.
 
-**The shell list is generated.** Today `SHELL_URLS` in the worker is 60 URLs kept by hand. The server serves `service-worker.js` through an endpoint that substitutes `{{build}}` and `{{shell}}`, as the shell endpoint does for the page. The list is computed once at startup from `wwwroot`: `js/**/*.js`, the stylesheets, `lib`, `fonts`, `images`, the icons, the sound. The query `?v={build}` on the registration stays, so the worker URL still changes per build.
+**The shell list is generated.** Today `SHELL_URLS` in the worker is 60 URLs kept by hand, and the worker is a plain static file that reads its build from its `?v=` query. The server serves `service-worker.js` through an endpoint that substitutes `{{shell}}`, as the shell endpoint does for `{{build}}` in the page; the build keeps coming from the query. The list is computed once at startup from `wwwroot`: `js/**/*.js`, the stylesheets, `lib`, `fonts`, `images`, the icons, the sound. Every entry carries the exact URL the page requests, with its `?v={build}` query, because `cache.match` compares the query. The worker's asset test gets `webp` for the theme images. The italic font is not precached; it loads on demand and the worker keeps it from then on. The query `?v={build}` on the registration stays, so the worker URL still changes per build.
 
 **Every module gets a versioned URL, with an import map.** The page gets `{{importmap}}` in its head, generated at startup from `wwwroot/js/**/*.js`:
 
 ```json
-{ "imports": { "/js/main.js": "/js/main.js?v=20261022…", "/js/store.js": "/js/store.js?v=20261022…" } }
+{ "imports": { "/js/store.js": "/js/store.js?v=2026-10-22-1815", "/js/hub.js": "/js/hub.js?v=2026-10-22-1815" } }
 ```
 
-A relative import such as `./store.js` resolves to `/js/store.js` first, and then the map rewrites it. No import in any script changes. The `modulepreload` links and the two classic scripts (`lib/signalr.min.js`, `lib/tus.min.js`) get `?v={{build}}` in the page, as the stylesheets already have. Import maps work in every browser since Safari 16.4 (2023).
+A relative import such as `./store.js` resolves to `/js/store.js` first, and then the map rewrites it. No import in any script changes. An import map rewrites `import` specifiers only. It does not touch a `<script src>` or a `modulepreload` href. So the entry script `js/main.js`, the `modulepreload` links and the two classic scripts (`lib/signalr.min.js`, `lib/tus.min.js`) get `?v={{build}}` in the page, as the stylesheets already have. The map comes before the first `modulepreload` link. Import maps work in every browser since Safari 16.4 (2023).
 
 **The HTTP headers.**
 
@@ -107,16 +107,17 @@ A relative import such as `./store.js` resolves to `/js/store.js` first, and the
 | The page | `no-cache`, as today. It carries the build stamp. |
 | `.js`, `.css` with a `v` query | `public, max-age=31536000, immutable` |
 | `.js`, `.css` without a `v` query | `no-cache`, as today, for a bare URL from an old page |
-| `.woff2` | `public, max-age=31536000, immutable`. The file name changes when the font changes. |
-| `service-worker.js` | `no-cache`. The browser checks it on every registration anyway. |
+| `.woff2` | `public, max-age=31536000, immutable`. The file name must change when the font changes. Nothing enforces that today; a comment at the header rule and a note in `fonts/` record it. |
+| icons, images, the sound | No header, as today. The worker answers them cache-first. |
+| `service-worker.js` | `no-cache`, as today (it is a `.js` file). The browser checks it on every registration anyway. |
 
 With these headers the Cloudflare deployments serve the versioned files from a nearby edge. The page still comes from the origin. The Caddy deployments need no change.
 
-**The build stamp invalidates every shell file on each deploy.** That is about 150 KB compressed, fetched by the new worker in the background while the old page runs. A per-file hash would invalidate only the changed files. It adds machinery, so the stamp stays until deploys become frequent enough to matter.
+**The build stamp invalidates every shell file on each deploy.** That is about 200 to 270 KB compressed for the scripts and styles, depending on the compression level (the server uses the framework default, the fastest). The new worker fetches it in the background while the old page runs. A per-file hash would invalidate only the changed files. It adds machinery, so the stamp stays until deploys become frequent enough to matter.
 
 ### 4. The resume
 
-**The client drops a dead socket at once.** On `visibilitychange` to visible, when the page was hidden longer than the server's client timeout (30 s), the client calls `stop()` and then `connect()` without waiting for the 30 s client timeout and without the 1 s retry delay. The server has dropped the connection already. The `online` event does the same. The chat page re-opens the conversation on `connected`, as today. The `reconnect` wait keeps its 35 s rule, measured from the return.
+**The client drops a dead socket at once.** On `visibilitychange` to visible, when the page was hidden longer than the server's client timeout (30 s, the default on both sides), the client stops the SignalR connection object and connects again at once, without the 30 s client timeout and without the 1 s retry delay. The server has dropped the connection already. Two details of `js/hub.js` matter here. The exported `hub.stop()` is the sign-out stop: it sets the `stopped` flag and the red dot, and `connect()` then returns at once, so the resume must not call it. The `onclose` handler schedules its own 1 s retry, so the deliberate stop marks itself and the handler skips that retry. The `online` event does the same as the visible event. The chat page re-opens the conversation on `connected`, as today (TL-35). The `reconnect` wait keeps its rule: a loss noticed within 35 s of the return counts from the return, which the deliberate stop meets.
 
 When the page was hidden for less than 30 s, nothing changes: the socket is alive, or the existing client timeout handles it.
 
@@ -131,21 +132,22 @@ It ends when the server's rows render, not when the socket connects. When the re
 
 Wording: "Catching up…" describes the check, and stays true when no new message arrived. "Updating…" reads as an app update next to the "Please refresh" strip. "Loading new messages…" promises a result that most catch-ups do not have.
 
-The "Loading messages…" line for a conversation with no snapshot stays.
+The "Loading messages..." line for a conversation with no snapshot stays.
 
 ### 5. The shorter cold chain
 
-1. **Paint from the stored bootstrap at once.** Today the stored bootstrap is used only when the fetch throws. With it, the frame and the snapshot paint before any network answer. The fetched bootstrap replaces it when it arrives.
-2. **Start the hub connect in parallel with the bootstrap fetch.** When the stored bootstrap says signed in, `hub.connect()` starts at once. Today it waits for the bootstrap answer.
-3. **One bootstrap request per load.** Today there are two (`main.js` and `hub.js`). The connection-bound request mints the beacon nonce, so the implementation decides which of the two stays and where the nonce goes.
-4. **Skip the negotiate round trip.** `skipNegotiation: true` with the WebSockets transport saves one round trip per connect. SignalR then has no fallback transport, so the client tries the direct WebSocket first and, when that fails, builds a connection with negotiation as today. Caddy and Cloudflare both pass WebSockets. The admin diagnostics already show the transport per session (AD-26), which tells whether any deployment needs the fallback.
+1. **Paint from the stored bootstrap at once.** Today the stored bootstrap is used only when the fetch throws, and the fetch has no timeout. With it, the frame and the snapshot paint before any network answer. The fetched bootstrap replaces it when it arrives.
+2. **Start the hub connect in parallel with the bootstrap fetch.** When the stored bootstrap says signed in, `hub.connect()` starts at once. Today it starts after the bootstrap answer: before the paint, but after the round trip.
+3. **One bootstrap fetch per cold load.** Today there are two: `main.js` before anything, and `hub.js` after every connect. The second one replaces the whole store, mints the beacon nonce, and after a reconnect corrects unread counts and presence. It runs in parallel with `openRoom`, so it costs bandwidth and server time, not a round trip. With the stored paint, the `main.js` fetch goes, and the connection-bound fetch is the one network fetch of the load; it also replaces the stored copy. When no stored bootstrap exists (the first load on a device, or after a sign-out), the `main.js` fetch stays, as today. The fetch after a reconnect stays.
+4. **Skip the negotiate round trip.** `skipNegotiation: true` with the WebSockets transport saves one round trip per connect. SignalR then has no fallback transport, so the client tries the direct WebSocket first and, when that fails, builds a connection with negotiation as today. Caddy and Cloudflare both pass WebSockets. The admin diagnostics already show the transport per session (the Sessions table, AD-25, and the connection rows of the latency table, AD-26), which tells whether any deployment needs the fallback.
 
 ## After the work
 
-Deploy. Read the Load time table after a few days. The slowest phase per device class is the next target. Likely candidates, to confirm with numbers and not before: the 50-row tail with media thumbnails, the size of the page (90 KB raw), the emoji catalog fetch at boot.
+Deploy. Read the Load time table after a few days. The slowest phase per device class is the next target. Likely candidates, to confirm with numbers and not before: the 50-row tail with media thumbnails, the size of the page (91 KB raw), the emoji catalog fetch at boot.
 
 ## Open points
 
 - The resume design treats a hidden page as alive. iOS often evicts the installed app instead, and a relaunch follows the cold path. Both paths end in the same pill, so the user sees the same thing.
 - Whether a browser's timer clock runs during suspension decides whether the 30 s client timeout fires at once on return or runs its full 30 s. The fix above makes this moot for a long background, and the question stays only for a short one.
+- The deployment facts (Caddy, Cloudflare, HTTP/2 or HTTP/3) are not in the repo. The `protocol` field of the boot report records what the field has.
 - `Microsoft.Playwright` (NuGet) could replace the node scripts in `tests/browser` one day, so that node leaves the repository entirely. Not part of this work.
