@@ -220,7 +220,7 @@ Differences that remain in the rewrite, by decision (2026-10-15, after the walk 
 | AD-09 | The bot's display name is saved | Saved in memory and on the user record; `ChatSettings:Bot:DisplayName` wins again at the next start |
 | OF-06 | Media not seen before shows "Needs a connection" | The browser's broken-image state shows instead |
 | MR-51 | The touch bar hides after a 50 px scroll | It hides after 5 s only |
-| TL-12 | Changes above the view never move the row the reader reads | Older pages are compensated; edits and loads above rely on the browser's scroll anchoring (not in Safari) |
+| TL-12 | Changes above the view never move the row the reader reads | Older pages are compensated and land only while the view is still (TL-06); edits and loads above rely on the browser's scroll anchoring (Safari from 27 only) |
 | MR-59 vs GEN-03 | A closed phone keyboard stays closed on Edit (MR-59); Edit may open it (GEN-03) | The editor takes the focus, so the keyboard opens (GEN-03) |
 
 ## Phases
