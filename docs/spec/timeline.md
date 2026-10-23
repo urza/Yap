@@ -18,6 +18,7 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 4. **New messages pill.** A rounded pill in the accent colour, with a down chevron. It shows centred above the typing strip when messages arrive while the user reads older messages.
 5. **Pending rows.** Rows for the user's own messages that the server did not accept yet. They are at the end of the list.
 6. **Gallery viewer.** A full-screen layer over the whole app, which opens from an image. It shows the picture, the previous and next controls, the fill and close controls, and a counter.
+7. **Down arrow.** A small round button with a down arrow, in the bottom right corner above the typing strip. It shows when the view is more than one screen above the bottom and the pill is not shown.
 
 ## Rules
 
@@ -51,7 +52,7 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 
 **TL-12** While the view does not follow, the list keeps its position for all content that arrives. This includes new messages, reactions, edits, deletions, and images that load above or below. The row that the user reads stays in the same position.
 
-**TL-13** The follow resumes when the user scrolls back to within 80 px of the bottom, or taps the New messages pill.
+**TL-13** The follow resumes when the user scrolls back to within 80 px of the bottom, or taps the New messages pill or the down arrow.
 
 **TL-14** When the user sends a message, the view always goes to the bottom, with the pending row in view. The send also turns the follow on.
 
@@ -116,6 +117,10 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 **TL-38** Retired 2026-10-18. The bar is removed. A tap on an entry of the panel goes to the message, see [SH-47 to SH-49](frame.md#SH-47).
 
 **TL-39** While the messages on screen are the device's copy and the server has not answered yet (an open from the stored copy, or a connection that returns), a small "Catching up…" pill with a spinner floats over the top of the list. It takes no space of its own, so no row moves when it comes or goes, and a fast answer never shows it (the same 400 ms rule as the loading line). It ends when the server's messages are on screen, not when the connection is back. Without a connection, or after a failed try, it reads "No connection. Showing older messages." with no spinner. With reduced motion the spinner is still.
+
+### Down arrow
+
+**TL-40** While the view does not follow and the bottom is more than one screen height away, a round button with a down arrow shows in the bottom right corner above the typing strip. Within one screen of the bottom it does not show. It does not show while the New messages pill is shown: the pill says more and does the same. A tap scrolls to the bottom and turns the follow on. The arrow is hidden when the follow resumes and when the conversation changes. Like the pill, it never covers the draft.
 
 ## States
 
