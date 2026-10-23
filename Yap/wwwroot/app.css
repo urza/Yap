@@ -362,6 +362,16 @@ img.emoji-pill { height: 18px; width: 18px; vertical-align: -3px; }
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
+/* The down arrow (TL-40): a round button in the bottom right corner above the typing strip, while the bottom is more
+   than a screen away. 1.5rem from the edge keeps it clear of the 16 px scrollbar of the list. */
+.down-arrow {
+    position: absolute; right: 1.5rem; bottom: calc(18px + 0.75rem); z-index: 5;
+    display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0;
+    background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--bg-muted); border-radius: 50%;
+    cursor: pointer; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.down-arrow:hover { color: var(--text-primary); background: var(--bg-hover); }
+
 /* The connection dot before the status chip (SH-17) and its bubble (SH-18). */
 .connection-dot { width: 10px; height: 10px; border-radius: 50%; border: none; padding: 0; background: #f0a030; cursor: pointer; position: relative; animation: connection-pulse 1.2s ease-in-out infinite; }
 .connection-dot.offline { background: transparent; border: 2px solid #888; animation: none; }

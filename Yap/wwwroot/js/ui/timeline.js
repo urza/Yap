@@ -1,6 +1,6 @@
-// The list of messages (timeline.md): the rows, the follow rule, the New messages pill, older pages, the top
-// note, the lobby lines. The rows themselves are drawn by ui/message.js. The timeline is the one component
-// that updates rows in place, because it can hold hundreds of them.
+// The list of messages (timeline.md): the rows, the follow rule, the New messages pill, the down arrow, older
+// pages, the top note. The rows themselves are drawn by ui/message.js. The timeline is the one
+// component that updates rows in place, because it can hold hundreds of them.
 
 import { state, on, prependOlder } from '../store.js';
 import { clone, el, replace } from '../render/dom.js';
@@ -27,6 +27,7 @@ export function Timeline(root) {
   let loading = false;
   let pill = null;
   let pillPick = '';
+  let down = null;                 // the down arrow (TL-40)
   let catching = null;             // the catching-up pill (TL-39)
   let stale = false;               // the rows on screen are the device's copy, or older than the connection (TL-39)
   let unread = false;              // the server counted a message in the open conversation and markRead has not answered yet (NT-07)
@@ -43,7 +44,7 @@ export function Timeline(root) {
     for (const r of rows.values()) r.node.remove();
     rows.clear();
     pendingNodes.forEach(n => n.remove()); pendingNodes = [];
-    hidePill();
+    hidePill(); hideDown();
     shownChannel = state.open?.channelId ?? null;
     unread = state.unread[shownChannel] > 0;   // a count from before this open; chat.js marks it read on open, this is the fallback
     if (!state.open) { renderTop(); return; }
@@ -56,6 +57,7 @@ export function Timeline(root) {
     renderTop();
     if (same && !keptFollowing) {
       following = false; list.scrollTop = keptTop;
+      syncDown();   // the same value as before gives no scroll event, so the arrow is checked here (TL-40)
       if (list.scrollTop <= 100) loadOlder();   // still at the top after a reconnect: the page the person waited for (TL-06)
       return;
     }
@@ -229,30 +231,57 @@ export function Timeline(root) {
     touchScrolled(list.scrollTop);                                            // MR-51: 50 px hides the touch bar
     const up = list.scrollTop < lastTop;
     lastTop = list.scrollTop;
-    if (up && distanceFromBottom() > 80) following = false;                  // only an upward scroll stops the follow (TL-11)
-    else if (distanceFromBottom() <= 80 && !following) { following = true; hidePill(); markReadIfSeen(); }   // TL-13
+    const distance = distanceFromBottom();
+    if (up && distance > 80) following = false;                               // only an upward scroll stops the follow (TL-11)
+    else if (distance <= 80 && !following) { following = true; hidePill(); markReadIfSeen(); }   // TL-13
+    syncDown(distance);                                                       // TL-40
     if (list.scrollTop <= 100) loadOlder();                                   // TL-06
   }, { passive: true, signal });
 
   // The list and its container: a taller input box or an open sheet shrinks the list, and the bottom must stay in view (TL-10).
-  const sizes = new ResizeObserver(() => { if (following) list.scrollTop = list.scrollHeight; if (state.open?.hasMore && !loading) renderTop(); });
+  // The pill and the arrow are placed again: the strip they sit above moved with the list's bottom edge.
+  const sizes = new ResizeObserver(() => {
+    if (following) list.scrollTop = list.scrollHeight;
+    if (state.open?.hasMore && !loading) renderTop();
+    if (pill) place(pill);
+    if (down) place(down);
+  });
   sizes.observe(flow); sizes.observe(list);
+
+  // Above the typing strip and the input box, never over the draft (TL-16, TL-40). Measured against the positioned
+  // column the node sits in: the timeline root has `display: contents` and so no box of its own.
+  function place(node) {
+    const column = node.offsetParent ?? list.parentElement;
+    const strip = column.querySelector('.typing-indicator-container');
+    const top = strip ? strip.getBoundingClientRect().top : list.getBoundingClientRect().bottom;
+    node.style.bottom = `${Math.max(0, column.getBoundingClientRect().bottom - top) + 8}px`;
+  }
 
   function showPill() {
     if (pill) return;
+    hideDown();   // the pill says more and does the same (TL-40)
     pill = clone('t-pill');
     pillPick ||= pick(state.texts?.pillTexts, 'New messages');   // the phrase does not change while shown (TL-17)
     pill.querySelector('.pill-text').textContent = pillPick;
     pill.addEventListener('click', () => { following = true; scrollToBottom(); hidePill(); markReadIfSeen(); });
     list.parentElement.append(pill);
-    // Above the typing strip and the input box, never over the draft (TL-16). Measured against the positioned
-    // column the pill sits in: the timeline root has `display: contents` and so no box of its own.
-    const column = pill.offsetParent ?? list.parentElement;
-    const strip = column.querySelector('.typing-indicator-container');
-    const top = strip ? strip.getBoundingClientRect().top : list.getBoundingClientRect().bottom;
-    pill.style.bottom = `${Math.max(0, column.getBoundingClientRect().bottom - top) + 8}px`;
+    place(pill);
   }
   function hidePill() { pill?.remove(); pill = null; pillPick = ''; }
+
+  // ---- the down arrow (TL-40) ----
+  // The way back after a jump to a pinned message or a long read up: the view is more than a screen above the
+  // bottom and there is no pill. The pill wins, because it also says that something new arrived. A few rows up
+  // show nothing: the person can scroll that far by hand.
+  function syncDown(distance = distanceFromBottom()) {
+    if (following || pill || distance <= list.clientHeight) { hideDown(); return; }
+    if (down) return;
+    down = clone('t-down-arrow');
+    down.addEventListener('click', () => { following = true; scrollToBottom(); hideDown(); markReadIfSeen(); });
+    list.parentElement.append(down);
+    place(down);
+  }
+  function hideDown() { down?.remove(); down = null; }
 
   // ---- the catching-up pill (TL-39) ----
   // The rows came from the device, or the connection went away since they came: the server has not confirmed them.
@@ -322,7 +351,7 @@ export function Timeline(root) {
   current = { jumpTo };
   reset();
   return () => {
-    offs.forEach(off => off()); aborter.abort(); sizes.disconnect(); clearInterval(clock); hidePill(); catching?.remove(); list.remove();
+    offs.forEach(off => off()); aborter.abort(); sizes.disconnect(); clearInterval(clock); hidePill(); hideDown(); catching?.remove(); list.remove();
     if (current?.jumpTo === jumpTo) current = null;
   };
 }
