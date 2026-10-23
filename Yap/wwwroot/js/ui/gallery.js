@@ -28,6 +28,7 @@ export function openGallery(message, startIndex = 0) {
 
   const stages = [...strip.children];
   const counter = modal.querySelector('.modal-counter-index');
+  const download = modal.querySelector('.modal-download');
   const prev = modal.querySelector('.modal-nav.prev'), next = modal.querySelector('.modal-nav.next');
   const step = dir => strip.scrollBy({ left: dir * strip.clientWidth, behavior: 'smooth' });
   const visible = () => strip.children[Math.round(strip.scrollLeft / strip.clientWidth)];
@@ -36,8 +37,11 @@ export function openGallery(message, startIndex = 0) {
     if (e.target.closest('.modal-nav.prev')) step(-1);
     else if (e.target.closest('.modal-nav.next')) step(1);
     else if (e.target.closest('.modal-fill')) toggleFill(visible());
-    else if (!e.target.closest('img, video')) close();   // the backdrop, the counter or × (TL-27)
+    else if (!e.target.closest('img, video, .modal-download')) close();   // the backdrop, the counter or × (TL-27); Download keeps the viewer open
   });
+  // A long press or a right click on the picture opens no browser menu, on a phone or on a PC: the Download
+  // control is the one way to save (TL-24). The row's pictures do the same (MR-53).
+  modal.addEventListener('contextmenu', e => { if (e.target.closest('img')) e.preventDefault(); });
   const keys = e => {
     if (e.key === 'ArrowRight') { e.preventDefault(); step(1); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
@@ -98,6 +102,7 @@ export function openGallery(message, startIndex = 0) {
       if (entry.isIntersecting) {
         const index = stages.indexOf(entry.target);
         if (counter) counter.textContent = String(index + 1);
+        download.href = items[index].image.original;   // the file as uploaded, under its own name (TL-24)
         if (prev) prev.hidden = index === 0;
         if (next) next.hidden = index === stages.length - 1;
       }

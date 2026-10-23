@@ -434,6 +434,14 @@
     cursor: pointer;
 }
 
+/* iOS: no save menu on a long press of the picture (MR-53); message.js blocks the contextmenu event for the other
+   browsers. The long press was meant for the row's bar, and the viewer's Download control replaces the menu. */
+.gallery-image {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
 /* Multi-image: square thumbnails that fill their container */
 .gallery-row .gallery-image {
     width: 100%;

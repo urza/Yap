@@ -148,7 +148,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 **MR-52** On a phone, the buttons of the bar are larger. The bar also contains the GIF star for the first GIF of the row. On a voice row, the bar sits above the row, so it never covers the player.
 
-**MR-53** A long press on a row does nothing.
+**MR-53** A long press on a row does nothing. A long press or a right click on an image opens no menu of the device. *Why:* users who meant to show the bar long-pressed the image and got the save menu of the device instead. The viewer has a download control (TL-24).
 
 ### More menu
 

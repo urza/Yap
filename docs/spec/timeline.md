@@ -80,17 +80,17 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 
 **TL-23** The viewer covers the whole app with a black layer. The layer is 90 % opaque on desktop and fully black on a phone. The picture is centred and is never cropped. On desktop, it fits within 85 % of the screen. On a phone, it fits within the whole screen. On a phone, the controls are smaller and are 8 px from the edges.
 
-**TL-24** The controls are on top of the picture. Close is at the top right, previous and next are at mid height, and fill is at the bottom right. The counter "{n} / {total}" is at the bottom centre. With one image, there are no previous and next controls and no counter.
+**TL-24** The controls are on top of the picture. Close is at the top right, download is left of close, previous and next are at mid height, and fill is at the bottom right. The counter "{n} / {total}" is at the bottom centre. With one image, there are no previous and next controls and no counter. Download saves the image in view to the device, as the file that was uploaded, in its own format and size. The viewer stays open. A long press or a right click on the picture opens no menu of the device. *Why:* the download control is the one way to save, on a phone and on a PC.
 
 **TL-25** On touch, each horizontal swipe moves one image. Previous, next and the arrow keys move one image. The viewer does not loop. At the first image, the previous control is hidden. At the last image, the next control is hidden. A swipe or an arrow key past an end does nothing. The counter changes when 60 % of an image is in view.
 
 **TL-26** The fill control or a double tap switches between fit and fill. The icon of the fill control changes between maximize and minimize. In fill, the picture covers the screen along one axis and is centred on the tapped point. The user can pan the picture up to its edges. A pan does not move to the next image. A move to another image resets the picture to fit. There is no pinch zoom of the picture itself and no rotation.
 
-**TL-27** The viewer closes on the close control and on Escape. It also closes on a tap anywhere outside the picture and its four buttons. A tap on the counter closes it too. In fit mode on touch, it closes on a drag down of more than 120 px. During the drag, the picture moves with the finger and the background fades. After a shorter drag, the picture goes back to its position. At every close, the viewer fades out over 0.15 s. Escape closes only the viewer.
+**TL-27** The viewer closes on the close control and on Escape. It also closes on a tap anywhere outside the picture and its five controls. A tap on the counter closes it too. In fit mode on touch, it closes on a drag down of more than 120 px. During the drag, the picture moves with the finger and the background fades. After a shorter drag, the picture goes back to its position. At every close, the viewer fades out over 0.15 s. Escape closes only the viewer.
 
 **TL-28** The viewer does not move the focus when it opens or closes. The phone keyboard and the list position do not change.
 
-**TL-29** The viewer has no caption, no download control and no video. A conversation switch closes it. If the message is deleted while the viewer is open, the viewer closes.
+**TL-29** The viewer has no caption and no video. A conversation switch closes it. If the message is deleted while the viewer is open, the viewer closes.
 
 ### Media in the list
 

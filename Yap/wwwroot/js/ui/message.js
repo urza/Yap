@@ -126,9 +126,12 @@ const ROWS = { 2: [2], 3: [3], 4: [2, 2], 5: [2, 3], 6: [3, 3], 7: [2, 2, 3], 8:
 function imageGallery(m) {
   const open = index => openGallery(m, index);
   const item = (img, index, single) => {
-    const attrs = { src: img.medium, alt: 'Uploaded image', class: 'gallery-image', loading: 'lazy', width: 800, height: single ? 600 : 800, onerror: imageFailed };   // a poor connection: load again (MR-24)
+    // draggable=false: on Android a long press whose menu is suppressed (below) would start a drag of the picture instead
+    const attrs = { src: img.medium, alt: 'Uploaded image', class: 'gallery-image', loading: 'lazy', width: 800, height: single ? 600 : 800, draggable: 'false', onerror: imageFailed };   // a poor connection: load again (MR-24)
     if (img.width && img.height) { attrs.class += ' sized'; attrs.style = `--w: ${img.width}; --h: ${img.height}`; }   // the box before the file loads (MR-24); an old stored row has no size
-    return el('div', { class: 'gallery-item', onclick: () => open(index) }, el('img', attrs));
+    // No browser menu on a long press or a right click (MR-53): users who meant to show the row's bar long-pressed the
+    // picture and got the save menu instead; the viewer's Download control replaces it. iOS needs the CSS touch-callout too.
+    return el('div', { class: 'gallery-item', onclick: () => open(index), oncontextmenu: e => e.preventDefault() }, el('img', attrs));
   };
   if (m.images.length === 1) return el('div', { class: 'image-gallery gallery-single' }, item(m.images[0], 0, true));
   const rows = [];
