@@ -129,7 +129,7 @@ The App column says which app a state needs: old is the page at `0cb67422` on po
 | `pickers-phone-sheet-gifs` | old | Phone, the sheet on the GIFs tab with Favorites open: the rail, the search row, alice's GIF card. The whole screen. |
 | `timeline-desktop-open` | old | `#lobby` just opened, at the bottom: the last messages and the input box. The conversation column, about 600 px from the bottom, starting in the gap above a row with a name. |
 | `timeline-desktop-history-start` | old | `#lobby` scrolled to the top with the wheel: "This is the beginning of #lobby", the space under it, the first messages. The top of the column. |
-| `timeline-phone-gallery` | old | Phone, a tap on the first of alice's two photos in the direct thread: the viewer on black, previous and next, close, fill, the counter "1 / 2". The whole screen. |
+| `timeline-phone-gallery` | old | Phone, a tap on the first of alice's two photos in the direct thread: the viewer on black, next (previous is hidden on the first image), close, download, fill, the counter "1 / 2". The whole screen. |
 | `frame-desktop-room` | old | `#lobby`, the whole window: title, status chip, mailbox, people count, header line, the sidebar with ROOMS and the people. |
 | `frame-desktop-status-menu` | old | A click on alice's chip: the menu with Online (marked), Away, Invisible, Settings, Notification settings, Admin, Sign Out. The right side of the header with the menu. |
 | `frame-desktop-profile-card` | old | The pointer on "Bob K." in the sidebar: his card. The card and the people section. |

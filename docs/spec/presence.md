@@ -30,7 +30,7 @@ Presence is the information that Yap shows about the current state of each perso
 
 ### Automatic away
 
-**PR-10** A person becomes away after 5 minutes without input on any of their devices. Input is a key press, a tap, a pointer move, a wheel movement or a return to the tab. Incoming messages are not input. Other people see the change within 10 seconds after the 5 minutes. When every tab of the person is hidden, the change can show up to a minute later.
+**PR-10** A person becomes away after 5 minutes without input on any of their devices. Input is a key press, a tap, a pointer move, a wheel movement or a return to the tab. Incoming messages are not input. Other people see the change within 10 seconds after the 5 minutes.
 
 **PR-11** A hidden tab alone does not make a person away. The rule of 5 minutes without input applies. A person who watches a video for 5 minutes without input shows as away. Both behaviours are accepted.
 

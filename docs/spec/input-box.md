@@ -277,7 +277,7 @@ The input box is the part of a conversation where the user writes and sends a me
 | Upload dialog, too many files | "Choose at most 10 files." |
 | Dialog buttons | "Got It"; "✕" |
 | GIF dialog title | "Couldn't send GIF" |
-| GIF dialog texts | "That GIF isn't available anymore — try another one."; "File is too large (max 50MB)"; "Could not process this file as a GIF"; "Upload failed" |
+| GIF dialog texts | "File is too large (max 50MB)"; "Could not process this file as a GIF"; "Upload failed" |
 | Phone sheet tabs | "GIFs", "Emoji" |
 | Phone sheet buttons | "Keyboard", "Full height" |
 | Typing, direct message | "{name} is typing..." |
