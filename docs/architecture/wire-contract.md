@@ -116,11 +116,13 @@ Message {
 }
 
 Pin {   // a copy of what the panel shows, stored with the channel; it outlives the startup load window (SH-48)
-  messageId, username, text, timestamp, hasMedia, media, pinnedBy, pinnedAt
-  // media: null, or { kind, src, poster, width, height, title }. kind: image (src: a picture, or a GIF that is an
-  // image file), gif (src: a video file to loop; no src when the file is gone), video (poster, title: an upload or a
-  // cached link video), link (poster, title of a link card), voice. Resolved when the pin is made; a link card that
-  // arrives later, or changes with an edit, updates it.
+  messageId, username, text, timestamp, media, pinnedBy, pinnedAt
+  // media: [ { kind, src, poster, width, height, title, site, durationMs, peaks } ], in the row's order. kind: image
+  // (src: a picture, or a GIF that is an image file), gif (src: a video file to loop; no src when the file is gone),
+  // video (src, poster: an upload, or a cached link video with title and site), link (poster, title, site of the first
+  // link card), voice (src, durationMs, peaks: what the row's player draws). Resolved when the pin is made; an edit,
+  // or a link card that arrives later, updates it; a server start resolves the pins of messages in memory again.
+  // Channel rows written before 2026-10-23 hold one object or null here: the server reads it as a list of one or none.
 }
 ```
 

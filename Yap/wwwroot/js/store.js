@@ -129,8 +129,7 @@ export function mayPin() {
 export function pinLocally(m) {
   const open = state.open;
   if (!open || isPinned(m.id) || open.pins.length >= 3) return null;
-  open.pins = [{ messageId: m.id, username: m.username, text: m.text || null, timestamp: m.timestamp,
-                 hasMedia: hasMedia(m), media: pinMediaOf(m),
+  open.pins = [{ messageId: m.id, username: m.username, text: m.text || null, timestamp: m.timestamp, media: pinMediaOf(m),
                  pinnedBy: state.user.username, pinnedAt: new Date().toISOString() }, ...open.pins];
   changed('pins');
   return () => { if (state.open === open) { open.pins = open.pins.filter(p => p.messageId !== m.id); changed('pins'); } };   // only this pin goes: a pins event may have landed meanwhile
@@ -139,18 +138,21 @@ export function pinLocally(m) {
 // Whether a row shows media (MR-14): pictures, videos, GIFs, a voice note, or a pending row's files before the upload (IB-34).
 export const hasMedia = m => m.images.length > 0 || m.videos.length > 0 || m.gifs.length > 0 || !!m.voice || (m.files?.length ?? 0) > 0;
 
-// The media of the local copy, as the server's Pin.Media (SH-48): the row's first picture, video poster, GIF, voice
-// note or link card. The server's copy replaces it with the pins event.
+// The media of the local copy, as the server's Pin.Media (SH-48), in the row's order: the pictures, the videos, the
+// GIFs, the voice note; for a text row, the first link card with something to show. The server's copy replaces it
+// with the pins event.
 function pinMediaOf(m) {
-  if (m.images[0]) return { kind: 'image', src: m.images[0].medium };
-  if (m.videos[0]) return { kind: 'video', poster: m.videos[0].poster };
-  const g = m.gifs[0];
-  if (g) return g.src ? { kind: g.isImage ? 'image' : 'gif', src: g.src, width: g.width, height: g.height } : { kind: 'gif' };
-  if (m.voice) return { kind: 'voice' };
-  const card = m.previews?.find(p => p.media?.poster || p.imageUrl);
-  if (!card) return null;
-  return card.media?.type === 'video' ? { kind: 'video', poster: card.media.poster ?? card.imageUrl, title: card.title }
-                                       : { kind: 'link', poster: card.imageUrl, title: card.title };
+  const list = [
+    ...m.images.map(i => ({ kind: 'image', src: i.medium })),
+    ...m.videos.map(v => ({ kind: 'video', src: v.src, poster: v.poster })),
+    ...m.gifs.map(g => g.src ? { kind: g.isImage ? 'image' : 'gif', src: g.src, width: g.width, height: g.height } : { kind: 'gif' }),
+  ];
+  if (m.voice) list.push({ kind: 'voice', src: m.voice.src, durationMs: m.voice.durationMs, peaks: m.voice.peaks });
+  if (list.length) return list;
+  const card = m.previews?.find(p => p.title || p.imageUrl || p.media);
+  if (!card) return [];
+  return [card.media?.type === 'video' ? { kind: 'video', src: card.media.src, poster: card.media.poster ?? card.imageUrl, title: card.title, site: card.siteName }
+                                        : { kind: 'link', poster: card.imageUrl, title: card.title, site: card.siteName }];
 }
 
 export function unpinLocally(id) {

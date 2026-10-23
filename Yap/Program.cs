@@ -215,6 +215,7 @@ await app.Services.GetRequiredService<ChatService>().InitializeAsync();
 app.Services.GetRequiredService<VideoService>();   // the ffmpeg probe (a child process, up to 3 s) runs here, not inside the first upload
 app.Services.GetRequiredService<VoiceService>();   // its ffmpeg detection (the GIF helper's) must be done before the first voice upload is judged
 await app.Services.GetRequiredService<GifService>().InitializeAsync();
+app.Services.GetRequiredService<ChatService>().RefreshPinMedia();   // after the GIF entries: a pinned GIF resolves through them
 await app.Services.GetRequiredService<PushSubscriptionStore>().InitializeAsync();
 await app.Services.GetRequiredService<SystemBotService>().InitializeAsync();
 

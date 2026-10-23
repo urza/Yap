@@ -782,28 +782,52 @@ public class ChatService
         _writer.Enqueue(Writes.Channel(channel));
     }
 
-    /// <summary>What the pin entry shows under the text (SH-48, <see cref="PinMedia"/>), in the row's order: the first
-    /// picture, else the first video's poster, else the first GIF, else the voice note, else the first link card with
-    /// a picture. The URLs are the row's own (MessageMapper), copied because the pin outlives the memory window.</summary>
-    private PinMedia? PinMediaOf(ChatMessage m)
+    /// <summary>What the pin entry shows under the text (SH-48, <see cref="PinMedia"/>), in the row's order: every
+    /// picture, every uploaded video, every GIF, the voice note; for a text message, the first link card that has
+    /// something to show. The URLs are the row's own (MessageMapper), copied because the pin outlives the memory window.</summary>
+    private IReadOnlyList<PinMedia> PinMediaOf(ChatMessage m)
     {
-        if (m.ImageUrls.FirstOrDefault() is { } image) return new("image", Src: Media.ImageService.GetMediumUrl(image));
-        if (m.VideoUrls.FirstOrDefault() is { } video) return new("video", Poster: Media.VideoService.GetPosterUrl(video));
-        if (m.GifAttachments.FirstOrDefault() is { } gif)
+        var list = new List<PinMedia>();
+        foreach (var image in m.ImageUrls) list.Add(new("image", Src: Media.ImageService.GetMediumUrl(image)));
+        foreach (var video in m.VideoUrls) list.Add(new("video", Src: Media.VideoService.GetCompressedUrl(video), Poster: Media.VideoService.GetPosterUrl(video)));
+        foreach (var gif in m.GifAttachments)
         {
             var entry = _gifService.GetEntry(gif.GifEntryId);
-            if (entry is null || entry.DeletedAt is not null || entry.Src is null) return new("gif");   // the file is gone: the panel shows a label
+            if (entry is null || entry.DeletedAt is not null || entry.Src is null) { list.Add(new("gif")); continue; }   // the file is gone: the panel shows a label
             var (w, h) = gif.Width > 0 && gif.Height > 0 ? (gif.Width, gif.Height) : (entry.Width, entry.Height);
-            return new(entry.SrcIsImage ? "image" : "gif", Src: entry.Src, Width: w, Height: h);
+            list.Add(new(entry.SrcIsImage ? "image" : "gif", Src: entry.Src, Width: w, Height: h));
         }
-        if (m.HasVoice) return new("voice");
-        var card = Previews(m).FirstOrDefault(p => p.Media?.Poster is not null || p.ImageUrl is not null);
+        if (m.Voice is { } voice) list.Add(new("voice", Src: voice.Url, DurationMs: voice.DurationMs, Peaks: voice.Peaks));
+        if (list.Count > 0) return list;
+        var card = Previews(m).FirstOrDefault(p => p.Title is not null || p.ImageUrl is not null || p.Media is not null);
         return card switch
         {
-            null => null,
-            { Media: { Type: "video" } media } => new("video", Poster: media.Poster ?? card.ImageUrl, Title: card.Title),
-            _ => new("link", Poster: card.ImageUrl, Title: card.Title),
+            null => [],
+            { Media: { Type: "video" } media } => [new("video", Src: media.Src, Poster: media.Poster ?? card.ImageUrl, Title: card.Title, Site: card.SiteName)],
+            _ => [new("link", Poster: card.ImageUrl, Title: card.Title, Site: card.SiteName)],
         };
+    }
+
+    /// <summary>At start, once the GIF entries are in: the pins of messages still in memory get their media resolved
+    /// again, so a pin made on an older build shows what this build shows (the whole gallery, the video itself). A
+    /// text message's pin keeps its copy: its link card is not in memory after a restart, and the copy is all there is.</summary>
+    public void RefreshPinMedia()
+    {
+        foreach (var channel in _channels.Values)
+        {
+            var changed = false;
+            var pins = channel.Pins.Select(p =>
+            {
+                if (GetMessage(p.MessageId) is not { HasMedia: true } message) return p;
+                var media = PinMediaOf(message);
+                if (p.Media.SequenceEqual(media)) return p;
+                changed = true;
+                return p with { Media = media };
+            }).ToList();
+            if (!changed) continue;
+            lock (LockOf(channel.Id)) channel.Pins = pins;
+            PinsChanged(channel);
+        }
     }
 
     /// <summary>The pin copy of a text message follows its link cards: the first scrape lands after the pin when
@@ -814,7 +838,7 @@ public class ChatService
         var media = PinMediaOf(message);
         lock (LockOf(channel.Id))
         {
-            if (channel.Pins.FirstOrDefault(p => p.MessageId == message.Id) is not { } pin || pin.Media == media) return;   // records: value equality
+            if (channel.Pins.FirstOrDefault(p => p.MessageId == message.Id) is not { } pin || pin.Media.SequenceEqual(media)) return;   // records: value equality per item
             channel.Pins = channel.Pins.Select(p => p.MessageId == message.Id ? p with { Media = media } : p).ToList();
         }
         PinsChanged(channel);
@@ -860,12 +884,12 @@ public class ChatService
                     urls.AddRange(message.VideoUrls);
                     if (message.Voice is { } voice) urls.Add(voice.Url);
                 }
-        // A pin's copy outlives the memory window (SH-48): its picture or poster is in use as long as the pin is.
+        // A pin's copy outlives the memory window (SH-48): its pictures, posters and files are in use as long as the pin is.
         foreach (var channel in _channels.Values)
-            foreach (var pin in channel.Pins)
+            foreach (var item in channel.Pins.SelectMany(pin => pin.Media))
             {
-                if (pin.Media?.Src is { } src) urls.Add(src);
-                if (pin.Media?.Poster is { } poster) urls.Add(poster);
+                if (item.Src is { } src) urls.Add(src);
+                if (item.Poster is { } poster) urls.Add(poster);
             }
         return urls;
     }
