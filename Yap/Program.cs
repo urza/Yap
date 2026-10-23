@@ -151,6 +151,7 @@ builder.Services.AddSingleton<UploadPaths>();
 builder.Services.AddSingleton<MediaSizes>();   // picture and poster sizes, read from the files once: the row's box before the load
 builder.Services.AddSingleton<ImageService>();
 builder.Services.AddSingleton<VideoService>();
+builder.Services.AddSingleton<VideoPosterBackfill>();   // posters for the videos in memory that have none: the row's box
 builder.Services.AddSingleton<VoiceService>();
 builder.Services.AddSingleton<PushSubscriptionStore>();
 builder.Services.AddSingleton<PushNotificationService>();
@@ -217,6 +218,7 @@ app.Services.GetRequiredService<VideoService>();   // the ffmpeg probe (a child 
 app.Services.GetRequiredService<VoiceService>();   // its ffmpeg detection (the GIF helper's) must be done before the first voice upload is judged
 await app.Services.GetRequiredService<GifService>().InitializeAsync();
 app.Services.GetRequiredService<ChatService>().RefreshPinMedia();   // after the GIF entries: a pinned GIF resolves through them
+app.Services.GetRequiredService<VideoPosterBackfill>().Start();   // after the pins: it refreshes them again when it makes a poster
 await app.Services.GetRequiredService<PushSubscriptionStore>().InitializeAsync();
 await app.Services.GetRequiredService<SystemBotService>().InitializeAsync();
 

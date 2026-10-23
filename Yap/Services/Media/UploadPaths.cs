@@ -20,4 +20,18 @@ public sealed class UploadPaths
             ? Path.Combine(env.WebRootPath, "uploads")
             : Path.GetFullPath(Path.Combine(env.ContentRootPath, configured));
     }
+
+    /// <summary>The file behind an <c>/uploads/</c> URL, or null for any other URL (a pin may keep a <c>/media-cache/</c>
+    /// video) and for a path that leaves the folder. The file may not exist.</summary>
+    public string? PathOf(string url)
+    {
+        const string prefix = "/uploads/";
+        if (!url.StartsWith(prefix, StringComparison.Ordinal)) return null;
+        var relative = url[prefix.Length..];
+        var query = relative.IndexOf('?');
+        if (query >= 0) relative = relative[..query];
+        var root = Root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var path = Path.GetFullPath(Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar)));
+        return path.StartsWith(root, StringComparison.Ordinal) ? path : null;
+    }
 }
