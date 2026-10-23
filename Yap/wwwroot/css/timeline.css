@@ -147,6 +147,28 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='7 10 12 15 17 10'/%3E%3Cline x1='12' y1='15' x2='12' y2='3'/%3E%3C/svg%3E");
 }
 
+/* The installed app on iOS fetches the file before the share sheet (gallery.js): the control pulses meanwhile, and the
+   hint under it asks for a second tap when the tap expired during a long fetch. */
+.modal-download.busy {
+    animation: modalBusy 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes modalBusy {
+    to { opacity: 0.3; }
+}
+
+.modal-hint {
+    position: absolute;
+    top: 76px;   /* under the top-right controls: 20 px edge + 48 px control + 8 px gap */
+    right: 20px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    font-size: 0.875rem;
+    pointer-events: none;
+}
+
 .modal-nav {
     top: 50%;
     transform: translateY(-50%);
@@ -220,6 +242,11 @@
     .modal-download {
         top: 8px;
         right: 56px;   /* 8 px edge + 40 px Close + 8 px gap */
+    }
+
+    .modal-hint {
+        top: 56px;   /* 8 px edge + 40 px control + 8 px gap */
+        right: 8px;
     }
 
     .modal-nav.prev {
