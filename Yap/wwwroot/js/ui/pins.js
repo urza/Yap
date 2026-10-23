@@ -104,7 +104,7 @@ function attachments(media, key) {
 
 function single(m) {
   const node = picture(m);
-  if (m.kind === 'gif' && m.width && m.height) {   // its own size, no wider than the panel, no taller than the 240 px cap
+  if (m.width && m.height) {   // its own size (a GIF's pixels, a picture's or a poster's), no wider than the panel, no taller than the 240 px cap
     node.style.width = `${m.width}px`;   // not 100%: the frame fits its content, and a video is 300 px wide until it loads
     node.style.aspectRatio = `${m.width} / ${m.height}`;
     node.style.maxWidth = `min(100%, ${m.width}px, ${Math.round(240 * m.width / m.height)}px)`;

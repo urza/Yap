@@ -106,8 +106,8 @@ The client calls the methods with these camelCase names; SignalR matches the ser
 Message {
   id, channelId, clientId?, username, text, timestamp, edited,
   replyTo: { id, username, text, hasMedia, voice } | { id, unavailable: true } | null,   // voice: the original is a voice message, quoted as "Voice message" (MR-32)
-  images:  [ { medium, large } ],
-  videos:  [ { poster, src } ],
+  images:  [ { medium, large, width, height } ],   // width, height: the medium picture's pixels, read from the file; null when it is gone. The row's box before the load
+  videos:  [ { poster, src, width, height } ],     // the poster's pixels; null without a poster
   gifs:    [ { entryId, src, isImage, width, height, uploader } ],
   voice:   { src, durationMs, peaks } | null,       // MR-76. peaks: a string, one base-36 digit per bar, as the recorder measured them
   reactions: [ { emoji, users: [username] } ],      // in first-use order (MR-38)

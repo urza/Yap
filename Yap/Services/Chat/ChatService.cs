@@ -32,6 +32,7 @@ public class ChatService
     private readonly LinkPreviewSettingsService _linkPreviewSettings;
     private readonly MediaCacheService _mediaCacheService;
     private readonly GifService _gifService;
+    private readonly MediaSizes _mediaSizes;
     private readonly NotificationAudit _audit;
     private readonly NotificationSettingsService _notifications;
     private readonly ILogger<ChatService> _logger;
@@ -67,7 +68,7 @@ public class ChatService
 
     public ChatService(IServiceProvider services, PersistenceWriter writer, PushNotificationService pushService, UserService userService,
         PresenceService presence, LinkPreviewService linkPreviewService, LinkPreviewSettingsService linkPreviewSettings,
-        MediaCacheService mediaCacheService, GifService gifService, NotificationAudit audit,
+        MediaCacheService mediaCacheService, GifService gifService, MediaSizes mediaSizes, NotificationAudit audit,
         NotificationSettingsService notifications, IOptions<PersistenceSettings> persistence, ILogger<ChatService> logger)
     {
         _db = services.GetService<IDbContextFactory<ChatDbContext>>();
@@ -80,6 +81,7 @@ public class ChatService
         _linkPreviewSettings = linkPreviewSettings;
         _mediaCacheService = mediaCacheService;
         _gifService = gifService;
+        _mediaSizes = mediaSizes;
         _audit = audit;
         _notifications = notifications;
         _logger = logger;
@@ -788,8 +790,18 @@ public class ChatService
     private IReadOnlyList<PinMedia> PinMediaOf(ChatMessage m)
     {
         var list = new List<PinMedia>();
-        foreach (var image in m.ImageUrls) list.Add(new("image", Src: Media.ImageService.GetMediumUrl(image)));
-        foreach (var video in m.VideoUrls) list.Add(new("video", Src: Media.VideoService.GetCompressedUrl(video), Poster: Media.VideoService.GetPosterUrl(video)));
+        foreach (var image in m.ImageUrls)
+        {
+            var src = Media.ImageService.GetMediumUrl(image);
+            var size = _mediaSizes.Of(src);   // the box before the file loads, as in the row
+            list.Add(new("image", Src: src, Width: size?.Width, Height: size?.Height));
+        }
+        foreach (var video in m.VideoUrls)
+        {
+            var poster = Media.VideoService.GetPosterUrl(video);
+            var size = _mediaSizes.Of(poster);
+            list.Add(new("video", Src: Media.VideoService.GetCompressedUrl(video), Poster: poster, Width: size?.Width, Height: size?.Height));
+        }
         foreach (var gif in m.GifAttachments)
         {
             var entry = _gifService.GetEntry(gif.GifEntryId);

@@ -125,8 +125,11 @@ const ROWS = { 2: [2], 3: [3], 4: [2, 2], 5: [2, 3], 6: [3, 3], 7: [2, 2, 3], 8:
 
 function imageGallery(m) {
   const open = index => openGallery(m, index);
-  const item = (img, index, single) => el('div', { class: 'gallery-item', onclick: () => open(index) },
-    el('img', { src: img.medium, alt: 'Uploaded image', class: 'gallery-image', loading: 'lazy', width: 800, height: single ? 600 : 800, onerror: imageFailed }));   // a poor connection: load again (MR-24)
+  const item = (img, index, single) => {
+    const attrs = { src: img.medium, alt: 'Uploaded image', class: 'gallery-image', loading: 'lazy', width: 800, height: single ? 600 : 800, onerror: imageFailed };   // a poor connection: load again (MR-24)
+    if (img.width && img.height) { attrs.class += ' sized'; attrs.style = `--w: ${img.width}; --h: ${img.height}`; }   // the box before the file loads (MR-24); an old stored row has no size
+    return el('div', { class: 'gallery-item', onclick: () => open(index) }, el('img', attrs));
+  };
   if (m.images.length === 1) return el('div', { class: 'image-gallery gallery-single' }, item(m.images[0], 0, true));
   const rows = [];
   let index = 0;
@@ -143,6 +146,7 @@ function video(v) {
   const node = clone('t-video');
   const player = node.querySelector('video');
   player.poster = v.poster; player.src = v.src;
+  if (v.width && v.height) { player.classList.add('sized'); player.style.setProperty('--w', v.width); player.style.setProperty('--h', v.height); }   // the poster's shape before it loads (MR-27)
   const overlay = node.querySelector('.video-play-overlay');
   overlay.addEventListener('click', () => { player.controls = true; overlay.hidden = true; player.play().catch(() => {}); });
   const back = () => { if (player.currentTime === 0 || player.ended) overlay.hidden = false; };

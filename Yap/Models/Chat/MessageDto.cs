@@ -29,10 +29,14 @@ public sealed record ReplyToDto(Guid Id, string? Username, string? Text, bool Ha
 /// (one base-36 digit per bar, see <see cref="VoiceAttachment"/>).</summary>
 public sealed record VoiceDto(string Src, int DurationMs, string Peaks);
 
-/// <summary>Two sizes of one uploaded image: the row shows the medium one, the viewer the large one (MR-24, TL-22).</summary>
-public sealed record ImageDto(string Medium, string Large);
+/// <summary>Two sizes of one uploaded image: the row shows the medium one, the viewer the large one (MR-24, TL-22).
+/// Width and Height are the medium picture's pixels, so the row has its box before the file loads and nothing moves
+/// when it arrives; null when the file is gone, and the row then uses its fallback box.</summary>
+public sealed record ImageDto(string Medium, string Large, int? Width, int? Height);
 
-public sealed record VideoDto(string Poster, string Src);
+/// <summary>Width and Height are the poster's pixels, the shape the row shows before and after play; null without a
+/// poster (no ffmpeg), and the row then takes the shape of whatever loads.</summary>
+public sealed record VideoDto(string Poster, string Src, int? Width, int? Height);
 
 /// <summary>One GIF in a message. <see cref="IsImage"/> says whether <see cref="Src"/> is an image or a video file.
 /// <see cref="Uploader"/> is the username for "via {name}" (MR-31); null for provider GIFs. Null <see cref="Src"/>
