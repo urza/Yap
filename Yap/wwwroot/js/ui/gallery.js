@@ -69,7 +69,7 @@ export function openGallery(message, startIndex = 0) {
     if (ready.has(url)) { share(ready.get(url)); return; }
     if (download.classList.contains('busy')) return;   // a tap during the fetch
     download.classList.add('busy');
-    fetch(url).then(r => r.blob()).then(blob => {
+    fetch(url).then(r => r.ok ? r.blob() : Promise.reject(new Error(r.statusText))).then(blob => {   // a 404 page is no picture to share
       const file = new File([blob], url.split('/').pop(), { type: blob.type });
       ready.set(url, file);
       if (download.href === url) return share(file);   // the user may have swiped on meanwhile

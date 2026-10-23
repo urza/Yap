@@ -40,7 +40,7 @@ export function openPins(anchor, onClose) {
     if (shown.length) { media.hidden = false; media.append(...shown); } else media.remove();
     replace(node.querySelector('.pin-by'), inline(displayName(p.pinnedBy)));
     node.addEventListener('click', e => { if (!e.target.closest('a, .voice-message')) jump(node, p); });   // a link in the text opens as a link; the voice player plays in place
-    node.addEventListener('keydown', e => { if (e.target === node && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); jump(node, p); } });   // the trash button and a link handle their own keys
+    node.addEventListener('keydown', e => { if (e.target === node && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); jump(node, p); } });   // the unpin button and a link handle their own keys
     const unpin = node.querySelector('.pin-unpin');
     if (allowed) unpin.addEventListener('click', e => { e.stopPropagation(); unpinNow(node, p); }); else unpin.remove();
     return node;
@@ -131,7 +131,7 @@ function picture(m) {
       video.muted = true; video.play?.().catch(() => {});   // the attribute alone does not satisfy every autoplay rule; a still first frame is fine
       return video;
     }
-    default: return el('video', { class: 'pin-video', src: m.src, poster: m.poster, muted: true, playsinline: true, preload: 'metadata' });
+    case 'video': return el('video', { class: 'pin-video', src: m.src, poster: m.poster, muted: true, playsinline: true, preload: 'metadata' });
   }
 }
 

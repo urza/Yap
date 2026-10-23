@@ -46,6 +46,7 @@ export function Timeline(root) {
     rows.clear();
     pendingNodes.forEach(n => n.remove()); pendingNodes = [];
     hidePill(); hideDown();
+    landed = null;   // the rows it measured are gone (the still view, below)
     shownChannel = state.open?.channelId ?? null;
     unread = state.unread[shownChannel] > 0;   // a count from before this open; chat.js marks it read on open, this is the fallback
     if (!state.open) { renderTop(); return; }
