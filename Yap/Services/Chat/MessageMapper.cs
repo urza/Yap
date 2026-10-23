@@ -31,7 +31,7 @@ public sealed class MessageMapper(ChatService chat, GifService gifs, UserService
     {
         var medium = ImageService.GetMediumUrl(url);
         var size = sizes.Of(medium);
-        return new ImageDto(medium, ImageService.GetLargeUrl(url), size?.Width, size?.Height);
+        return new ImageDto(url, medium, ImageService.GetLargeUrl(url), size?.Width, size?.Height);
     }
 
     private VideoDto Video(string url)

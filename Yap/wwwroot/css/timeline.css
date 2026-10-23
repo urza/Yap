@@ -72,6 +72,11 @@
     max-width: 85%;
     max-height: 85%;
     object-fit: contain;
+    /* iOS: no save menu on a long press (gallery.js blocks the contextmenu event for the other browsers); the
+       Download control is the one way to save (TL-24). user-select: no selection highlight on the hold either. */
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 /* ---- Fill: the picture covers the viewport, native scroll is the pan ---- */
@@ -103,7 +108,8 @@
 
 .modal-close,
 .modal-nav,
-.modal-fill {
+.modal-fill,
+.modal-download {
     position: absolute;
     width: 48px;
     height: 48px;
@@ -121,13 +127,24 @@
 
 .modal-close:hover,
 .modal-nav:hover,
-.modal-fill:hover {
+.modal-fill:hover,
+.modal-download:hover {
     background-color: rgba(255, 255, 255, 0.25);
 }
 
 .modal-close {
     top: 20px;
     right: 20px;
+}
+
+/* Download sits left of Close: 20 px edge + 48 px Close + 12 px gap (TL-24). Feather "download" (MIT). */
+.modal-download {
+    top: 20px;
+    right: 80px;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 20px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='7 10 12 15 17 10'/%3E%3Cline x1='12' y1='15' x2='12' y2='3'/%3E%3C/svg%3E");
 }
 
 .modal-nav {
@@ -187,7 +204,8 @@
 
     .modal-close,
     .modal-nav,
-    .modal-fill {
+    .modal-fill,
+    .modal-download {
         width: 40px;
         height: 40px;
         font-size: 1.5rem;
@@ -197,6 +215,11 @@
     .modal-close {
         top: 8px;
         right: 8px;
+    }
+
+    .modal-download {
+        top: 8px;
+        right: 56px;   /* 8 px edge + 40 px Close + 8 px gap */
     }
 
     .modal-nav.prev {
