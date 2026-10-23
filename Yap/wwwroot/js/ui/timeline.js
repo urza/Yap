@@ -138,7 +138,9 @@ export function Timeline(root) {
                        // after it leaves the rows off from where the scroll put them, and Chrome then scores the whole
                        // prepend as a layout shift: it discounts a compensated move only when the scroll matches it
                        // within 3 px (the old spinner row did exactly that: 49 px off, 0.5 per page).
-        list.scrollTop = beforeTop + (list.scrollHeight - before);   // the view does not move (TL-06)
+        const top = beforeTop + (list.scrollHeight - before);
+        placeTop(top, caught);                                             // the view does not move (TL-06)
+        if (touchWebKit && top - beforeTop >= 400) landed = { top, delta: top - beforeTop };   // checked at the next move
         break;
       }
     }
@@ -212,8 +214,14 @@ export function Timeline(root) {
     const page = await hub.invoke('older', open.channelId, oldest.timestamp, oldest.id);
     if (token !== loadToken || state.open !== open) return;   // the rows changed meanwhile; reset() released the spinner
     if (page?.error) { loading = false; renderTop(); overlays.reason(list.parentElement, page.error); return; }   // GEN-02
+    const fetched = performance.now() - startedAt;
+    await whenStill();                                                   // the rows go in while the view is still (TL-06)
+    if (token !== loadToken || state.open !== open) return;              // a reset meanwhile: the page belongs to removed rows
+    const placing = performance.now();
     prependOlder(page);
-    hub.report('older', performance.now() - startedAt);   // the rows are in place: the 'older' change ran inside prependOlder (AD-26)
+    // the rows are in place: the 'older' change ran inside prependOlder. The wait for a still view is the reader's
+    // own time and is not counted (AD-26).
+    hub.report('older', fetched + performance.now() - placing);
   }
 
   // ---- following and the pill (TL-10 to TL-18) ----
@@ -251,6 +259,7 @@ export function Timeline(root) {
     else if (distance <= 80 && !following) { following = true; hidePill(); markReadIfSeen(); }   // TL-13
     syncDown(distance);                                                       // TL-40
     if (nearTop(up)) loadOlder();                                             // TL-06
+    moved(list.scrollTop);                                                    // the still view (TL-06)
   }, { passive: true, signal });
 
   // TL-06: the next page loads while the reader scrolls up and is still two screens from the top, so the prepend
@@ -258,6 +267,80 @@ export function Timeline(root) {
   // to the top (the open, a reconnect, a jump, a downward scroll) keeps the 100 px floor: a short conversation sits
   // within two screens of its top at the bottom, and must not fetch a page nobody asked for.
   function nearTop(up = false) { return list.scrollTop <= (up ? Math.max(100, 2 * list.clientHeight) : 100); }
+
+  // ---- the still view (TL-06) ----
+  // A page lands only while the view is still: no finger on the list and no scroll event for 200 ms. iOS drops a
+  // scrollTop write while a finger is on the glass, and before iOS 27 a write halts the fling. With the page two
+  // screens early it landed mid-gesture, the compensating write was lost, and the view stayed on the new rows, a
+  // whole page off (iPhone, 2026-10-23). A write at rest lands everywhere, and the hold shows nothing: the rows go
+  // in above the view, and the pill covers a long one. 200 ms clears the rubber-band bounce at the top, whose
+  // scroll events come up to 134 ms apart.
+  const STILL_MS = 200;
+  // iOS WebKit only (iPadOS reports a Mac, so the touch points tell): a finger that lands during a fling sends no
+  // touch or pointer event at all, so the touch flag misses it. stoppedFromSpeed and verifyLanded cover that finger.
+  const touchWebKit = navigator.maxTouchPoints > 0 && /AppleWebKit/.test(navigator.userAgent) && !/Chrome|Chromium|Android/.test(navigator.userAgent);
+  let lastScrollAt = -Infinity, touching = false, caught = false, ownTop = null, landed = null, stillWaiter = null, stillTimer = 0;
+  const samples = [];   // the last scroll positions with their times: the speed at the last event
+  list.addEventListener('touchstart', () => { touching = true; caught = false; }, { passive: true, signal });   // a reported finger: the unreported one is gone
+  for (const type of ['touchend', 'touchcancel']) list.addEventListener(type, () => {
+    touching = false;
+    samples.length = 0;   // the finger is up: a fling that follows sends new events, and a dead stop before the lift is no caught fling
+    checkStill();
+  }, { passive: true, signal });
+
+  function moved(top) {
+    if (top === ownTop) { ownTop = null; return; }   // the event of the handler's own write: the reader did not move
+    ownTop = null;
+    const now = performance.now();
+    lastScrollAt = now;
+    samples.push({ top, now });
+    while (samples.length > 2 && now - samples[1].now > 40) samples.shift();   // the last 40 ms, two at least
+    if (landed) verifyLanded(top);
+    checkStill();
+  }
+
+  // Resolves when the view is still. An earlier waiter belongs to rows a reset removed; it resolves and its token check drops the page.
+  function whenStill() { return new Promise(resolve => { stillWaiter?.(); stillWaiter = resolve; checkStill(); }); }
+
+  function checkStill() {
+    clearTimeout(stillTimer); stillTimer = 0;
+    if (!stillWaiter || touching) return;                                       // touchend calls again
+    const wait = STILL_MS - (performance.now() - lastScrollAt);
+    if (wait > 0) { stillTimer = setTimeout(checkStill, wait); return; }
+    if (touchWebKit && stoppedFromSpeed()) { caught = true; return; }            // a finger on the glass: the next scroll event calls again
+    const resolve = stillWaiter; stillWaiter = null; resolve();
+  }
+
+  // A fling that ends by itself slows to a crawl first. One that stops from speed was caught by a finger, which iOS
+  // does not report. Others measured the line at 0.05 px/ms over the last 40 ms (TanStack virtual #1307); 0.1 here,
+  // because a crawl of one whole pixel per frame reads 0.06 when the browser reports whole pixels, and a fling
+  // caught that slow is a case for verifyLanded. The top edge stops a fling from speed too, without a finger.
+  function stoppedFromSpeed() {
+    if (samples.length < 2) return false;
+    const a = samples[0], b = samples[samples.length - 1];
+    return b.top > 0 && Math.abs(b.top - a.top) / (b.now - a.now) >= 0.1;
+  }
+
+  // The compensating write. Its scroll event is no move of the reader (ownTop). Forced: iOS drops a write while a
+  // finger is on the glass, and after a caught fling that unreported finger may still rest there. With overflow
+  // hidden around the write the list is no scroll view for that moment, and the position is the page's alone. A
+  // gesture under such a finger ends there; the next touch starts anew.
+  function placeTop(top, force) {
+    if (force) list.style.overflow = 'hidden';
+    ownTop = top;
+    list.scrollTop = top;
+    if (force) list.style.overflow = '';
+    caught = false;
+  }
+
+  // The first real scroll event after a prepend tells where the view is. Near the position from before the prepend
+  // means iOS dropped the write (a finger was on the glass after all) and the view shows the new rows: the write
+  // repeats, forced.
+  function verifyLanded(top) {
+    const { top: expected, delta } = landed; landed = null;
+    if (Math.abs(top - (expected - delta)) > 150) return;
+    placeTop(top + delta, true);
+  }
 
   // The list and its container: a taller input box or an open sheet shrinks the list, and the bottom must stay in view (TL-10).
   // The pill and the arrow are placed again: the strip they sit above moved with the list's bottom edge.
@@ -399,7 +482,7 @@ export function Timeline(root) {
   current = { jumpTo };
   reset();
   return () => {
-    offs.forEach(off => off()); aborter.abort(); sizes.disconnect(); clearInterval(clock); hidePill(); hideDown(); catching?.remove(); loadingPill?.remove(); list.remove();
+    offs.forEach(off => off()); aborter.abort(); sizes.disconnect(); clearInterval(clock); hidePill(); hideDown(); catching?.remove(); loadingPill?.remove(); clearTimeout(stillTimer); list.remove();
     if (current?.jumpTo === jumpTo) current = null;
   };
 }
