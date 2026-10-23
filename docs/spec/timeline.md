@@ -13,8 +13,8 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 ![Gallery viewer, phone. A photo on a black background, the previous and next controls, the counter at the bottom, the close and fill controls.](img/timeline-phone-gallery.png)
 
 1. **The list.** The list fills the conversation column above the input box and scrolls vertically. A short conversation shows at the bottom, with empty space above it.
-2. **The top note.** A note that shows only when all history is loaded. It is the room description, the "beginning" note, or the restricted-history note. While older messages exist, nothing shows above the first row. The exceptions are the loading row while a page loads, the "Load earlier messages" link in a conversation too short to scroll, and "Needs a connection" without a connection. There are no date separators and no unread divider.
-3. **The loading row.** A row with "Loading older messages..." and a spinner. It shows at the top while a page loads.
+2. **The top note.** A note that shows only when all history is loaded. It is the room description, the "beginning" note, or the restricted-history note. While older messages exist, nothing shows above the first row. The exceptions are the "Load earlier messages" link in a conversation too short to scroll, and "Needs a connection" without a connection. There are no date separators and no unread divider.
+3. **The loading pill.** A small "Loading older messages..." pill with a spinner. It floats over the top of the list while a page loads. It takes no space of its own, so no row moves when it comes or goes, and a fast answer never shows it (the 400 ms rule of TL-02).
 4. **New messages pill.** A rounded pill in the accent colour, with a down chevron. It shows centred above the typing strip when messages arrive while the user reads older messages.
 5. **Pending rows.** Rows for the user's own messages that the server did not accept yet. They are at the end of the list.
 6. **Gallery viewer.** A full-screen layer over the whole app, which opens from an image. It shows the picture, the previous and next controls, the fill and close controls, and a counter.
@@ -36,13 +36,13 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 
 ### Older messages
 
-**TL-06** When the user scrolls to within 100 px of the top and older messages exist, the next 50 load. The loading row shows while they load. When the older messages appear, the row that was at the top stays in its position. The view does not move.
+**TL-06** When the user scrolls to within two screen heights of the top and older messages exist, the next 50 load. The loading pill shows while they load. The older messages appear above the view, and the row that was at the top stays in its position. The view does not move.
 
 **TL-07** When the conversation is too short to scroll and older messages exist, a "Load earlier messages" link shows above the first row instead.
 
 **TL-08** Older messages loaded during a visit stay loaded until the user leaves the conversation. When the user returns to a conversation, it opens as TL-01 describes.
 
-**TL-09** When all history is loaded, the top note shows in place of the loading row. The history starts at the oldest message that the server loaded at its start ([AD-03](admin.md#AD-03)). Older messages in the saved history do not show. In a room, the note is the restricted note "Older messages are not available in this channel" when TL-05 hides messages. Otherwise, the note is the room's description, with one line for each line break. When there is no description, the note is "This is the beginning of #{room}". In a direct message, the note is the italic line "This is the beginning of your direct message history with {username}.", with the name in bold.
+**TL-09** When all history is loaded, the top note shows above the first row. The history starts at the oldest message that the server loaded at its start ([AD-03](admin.md#AD-03)). Older messages in the saved history do not show. In a room, the note is the restricted note "Older messages are not available in this channel" when TL-05 hides messages. Otherwise, the note is the room's description, with one line for each line break. When there is no description, the note is "This is the beginning of #{room}". In a direct message, the note is the italic line "This is the beginning of your direct message history with {username}.", with the name in bold.
 
 ### Following the bottom
 
@@ -104,7 +104,7 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 
 ### Without a connection
 
-**TL-34** Without a connection, the list shows the last messages that it had for the conversation. The user can read and scroll them. The user cannot get older messages that were not loaded. The top of the list shows "Needs a connection" in place of the loading row.
+**TL-34** Without a connection, the list shows the last messages that it had for the conversation. The user can read and scroll them. The user cannot get older messages that were not loaded. The top of the list shows "Needs a connection".
 
 **TL-35** When the connection returns, the newest messages load again and the loaded rows are updated. When more messages arrived than one page holds, the missing messages load as the user scrolls up. If the view did not follow, it stays where it is. If the view followed, it stays at the bottom.
 
@@ -128,7 +128,7 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 | --- | --- | --- |
 | Conversation opened | all | Newest 50 messages, view at the bottom. |
 | Opened again on this device | all | Last known messages immediately, then the new list. |
-| Scroll to within 100 px of the top | mouse, touch, keyboard | "Loading older messages..." then 50 more above; the view does not move. |
+| Scroll to within two screens of the top | mouse, touch, keyboard | The loading pill, then 50 more above; the view does not move. |
 | Too short to scroll, more history | all | "Load earlier messages" above the first row. |
 | All history loaded, room | all | Restricted note, room description, or "This is the beginning of #{room}". |
 | All history loaded, direct message | all | Italic "This is the beginning of your direct message history with {username}." |
@@ -152,14 +152,14 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 | Close control, Escape, tap outside | mouse, touch, keyboard | Viewer closes with a fade; focus unchanged. |
 | Message deleted while viewing | all | Viewer closes. |
 | GIF autoplay blocked | all | Next tap or key starts all GIFs. |
-| No connection, older messages exist | all | Last messages readable; "Needs a connection" at the top in place of the loading row. |
+| No connection, older messages exist | all | Last messages readable; "Needs a connection" at the top. |
 | Connection returns | all | Newest messages updated; view stays when not following, at the bottom when following. |
 
 ## Wording
 
 | Where | Text |
 | --- | --- |
-| Loading row | "Loading older messages..." |
+| Loading pill | "Loading older messages..." |
 | Short conversation with more history | "Load earlier messages" |
 | Restricted history | "Older messages are not available in this channel" |
 | Start of a room | "This is the beginning of #{room}" |

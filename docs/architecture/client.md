@@ -11,7 +11,7 @@ wwwroot/
   themes.css, themes/     one block per theme (as today)
   css/
     frame.css             header, sidebar, status menu, profile card (flattened from the old scoped files; css/README.md)
-    timeline.css          the message list, the loading row, the top note, the gallery viewer
+    timeline.css          the message list, the loading pill, the top note, the gallery viewer
     message.css           one message row: header, content, media, reactions, action bar, editor, cards
     composer.css          the input box, the reply bar, the typing strip, the drop ring
     pickers.css           the emoji picker, the GIF picker, the phone sheet

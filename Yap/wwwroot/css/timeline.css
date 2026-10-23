@@ -283,7 +283,7 @@
     line-height: 1.4;
 }
 
-/* Loading indicator for infinite scroll */
+/* The "Loading messages..." line (TL-02). The older-page pill is .top-pill below. */
 .loading-more {
     display: flex;
     align-items: center;
@@ -319,10 +319,13 @@
     to { opacity: 1; }
 }
 
-/* The catching-up pill (TL-39): over the top of the list, no space of its own, so no row moves when it comes or
-   goes. Invisible for the first 400 ms like .loading-tail: on a fast link the server answers before anyone could
-   read it. pointer-events: none, because it overlaps the first row's edge and a tap there belongs to the row. */
-.catching-up {
+/* The pills over the top of the list: the loading pill (TL-06) and the catching-up pill (TL-39). They sit outside
+   the scroller and take no space of their own, so no row moves when they come or go. The loading row that lived in
+   the flow moved the first rows by its height, and as the first box in the flow it could become the browser's
+   scroll anchor near the top, which froze the view while pictures loaded below it. Invisible for the first 400 ms
+   like .loading-tail: on a fast link the server answers before anyone could read it. pointer-events: none, because
+   they overlap the first row's edge and a tap there belongs to the row. */
+.top-pill {
     position: absolute; left: 50%; top: 0.5rem; transform: translateX(-50%); z-index: 5;
     display: flex; align-items: center; gap: 0.5rem;
     background: var(--bg-tertiary); color: var(--text-secondary); border-radius: 999px;
@@ -331,9 +334,9 @@
     pointer-events: none;
     opacity: 0; animation: loading-tail-appear 150ms ease-out 400ms forwards;
 }
-.catching-up .loading-spinner { width: 12px; height: 12px; }
+.top-pill .loading-spinner { width: 12px; height: 12px; }
 .catching-up.failed .loading-spinner { display: none; }
-@media (prefers-reduced-motion: reduce) { .catching-up .loading-spinner { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .top-pill .loading-spinner { animation: none; } }
 
 /* History start message */
 .history-start {
