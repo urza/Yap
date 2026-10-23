@@ -177,8 +177,7 @@ function gif(g, m) {
   if (g.entryId) {
     const star = node.querySelector('.gif-message-fav');
     star.hidden = false;
-    const draw = () => { const on = state.favoriteGifIds.has(g.entryId); star.classList.toggle('favorited', on); star.title = on ? 'Remove from favorites' : 'Add to favorites'; };
-    draw();
+    drawStar(star, g.entryId);
     star.addEventListener('click', e => { e.stopPropagation(); toggleFavorite(g.entryId, row(node)); });
   }
   if (g.uploader) {
@@ -189,6 +188,21 @@ function gif(g, m) {
 }
 
 const row = node => node.closest('.message-group');
+
+// A star reads its state from the store; `data-entry` lets redrawStars find it again (MR-30).
+function drawStar(star, entryId) {
+  const on = state.favoriteGifIds.has(entryId);
+  star.dataset.entry = entryId;
+  star.classList.toggle('favorited', on);
+  star.title = on ? 'Remove from favorites' : 'Add to favorites';
+}
+
+// Every star on the page follows the account (PK-36). Only the stars repaint: a rebuild of every row
+// re-decodes every GIF and video and cost ~800 ms per click, twice per click (the local flip, then
+// the server's gifFavorites answer).
+export function redrawStars() {
+  for (const star of document.querySelectorAll('.gif-message-fav[data-entry], .action-gif-fav[data-entry]')) drawStar(star, star.dataset.entry);
+}
 
 async function toggleFavorite(entryId, rowNode) {
   if (state.connection !== 'connected') { overlays.reason(rowNode, 'Needs a connection'); return; }   // MR-75
@@ -313,8 +327,7 @@ function renderActions(rowNode, m) {
   const star = bar.querySelector('.action-gif-fav');
   if (firstGif?.entryId && !m.pending) {
     star.hidden = false;
-    const draw = () => { const on = state.favoriteGifIds.has(firstGif.entryId); star.classList.toggle('favorited', on); star.title = on ? 'Remove from favorites' : 'Add to favorites'; };
-    draw();
+    drawStar(star, firstGif.entryId);
     star.addEventListener('click', () => toggleFavorite(firstGif.entryId, rowNode));
   } else star.remove();
   const edit = bar.querySelector('.action-edit');
