@@ -200,7 +200,7 @@ The spec is right. Listed so the user sees them.
 | --- | --- | --- |
 | AU-19 | One session row per device; tabs share a row | One row per circuit (tab) |
 | TL-10..12 | The view follows only while at the bottom; otherwise it holds | Every received message scrolls to the bottom |
-| TL-06 | The next page loads when within 100 px of the top | Same, plus an artificial 500 ms delay on the server |
+| TL-06 | The next page loads when within two screens of the top | Same, plus an artificial 500 ms delay on the server |
 | TL-07 | "Load earlier messages" link in a conversation too short to scroll | Not present; infinite scroll only |
 | IB-36 | An upload during a reply is sent as a reply | Media messages never carry the reply target |
 | OF-06, TL-02 | Last known messages show after an offline reload | No snapshot cache; Blazor needed a live circuit |

@@ -144,7 +144,7 @@ await step(6, 'Older messages', async (check, notes) => {
   const s0 = await scrollInfo(B);
   check(n0 <= 50 && n0 > 0, `initial rows ${n0}; scroll ${JSON.stringify(s0)}; at bottom ${s0.h - s0.top - s0.ch < 5}`);
   let sawLoading = false;
-  const watchLoading = async ms => { const end = Date.now() + ms; while (Date.now() < end) { if (await B.locator('.loading-more').count()) sawLoading = true; await sleep(20); } };
+  const watchLoading = async ms => { const end = Date.now() + ms; while (Date.now() < end) { if (await B.locator('.loading-older').count()) sawLoading = true; await sleep(20); } };
   await scroller(B).evaluate(e => { e.scrollTop = 0; });
   const p = watchLoading(1500);
   const more = await waitTrue(async () => (await countRows(B)) > n0, 5000, 50);
@@ -152,7 +152,7 @@ await step(6, 'Older messages', async (check, notes) => {
   await sleep(300);
   const n1 = await countRows(B);
   const s1 = await scrollInfo(B);
-  check(more && n1 > 50 && s1.top > 0, `after scroll to top: .loading-more seen ${sawLoading}; rows ${n1}; scrollTop ${s1.top} (> 0 means no jump to the top)`);
+  check(more && n1 > 50 && s1.top > 0, `after scroll to top: .loading-older seen ${sawLoading}; rows ${n1}; scrollTop ${s1.top} (> 0 means no jump to the top)`);
   let n = n1, pages = 1, start = false;
   for (let i = 0; i < 10 && !start; i++) {
     await scroller(B).evaluate(e => { e.scrollTop = 0; });

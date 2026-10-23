@@ -293,8 +293,9 @@
         </div>
     </template>
 
-    <template id="t-loading-more">
-        <div class="loading-more"><div class="loading-spinner"></div><span>Loading older messages...</span></div>
+    <!-- The loading pill (TL-06): over the top of the list like the catching-up pill, so no row moves. -->
+    <template id="t-loading-older">
+        <div class="top-pill loading-older" role="status"><div class="loading-spinner"></div><span>Loading older messages...</span></div>
     </template>
 
     <template id="t-loading-tail">
@@ -311,7 +312,7 @@
 
     <!-- The catching-up pill (TL-39): the rows are the device's copy until the server answers. -->
     <template id="t-catching-up">
-        <div class="catching-up" role="status"><div class="loading-spinner"></div><span class="catching-up-text"></span></div>
+        <div class="top-pill catching-up" role="status"><div class="loading-spinner"></div><span class="catching-up-text"></span></div>
     </template>
     <!-- The New messages pill (TL-16). -->
     <template id="t-pill">

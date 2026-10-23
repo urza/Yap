@@ -123,7 +123,7 @@ await step(6, 'Offline reload', async (check) => {
   const guestRow = await A.locator('.users-list .user-item', { hasText: 'guest' }).count();
   check(guestRow > 0, `guest row in people list: ${guestRow > 0} (${(await A.locator('.users-list .user-item').allInnerTexts()).map(t => t.trim()).join(' | ')})`);
   check(!!pend && pend.includes('pending'), `"sent offline" row class: ${pend}`);
-  const top = await A.locator('.messages-container .history-start, .messages-container .load-earlier, .messages-container .loading-more').allInnerTexts().catch(() => []);
+  const top = await A.locator('.messages-container .history-start, .messages-container .load-earlier, .messages-container .loading-older').allInnerTexts().catch(() => []);
   const s = await dotState(A).catch(() => null);
   check(!!s && !s.hidden && s.cls.includes('offline'), `top note(s): ${JSON.stringify(top.map(t => t.trim()))}; dot ${s ? `hidden=${s.hidden} display=${s.display} class "${s.cls}"` : 'missing'}`);
   await A.screenshot({ path: SHOTS + '11-offline-reload.png' });

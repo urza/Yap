@@ -29,6 +29,7 @@ export function Timeline(root) {
   let pillPick = '';
   let down = null;                 // the down arrow (TL-40)
   let catching = null;             // the catching-up pill (TL-39)
+  let loadingPill = null;          // the loading pill (TL-06)
   let stale = false;               // the rows on screen are the device's copy, or older than the connection (TL-39)
   let unread = false;              // the server counted a message in the open conversation and markRead has not answered yet (NT-07)
   let shownChannel = null;         // the channel the rows belong to
@@ -58,7 +59,7 @@ export function Timeline(root) {
     if (same && !keptFollowing) {
       following = false; list.scrollTop = keptTop;
       syncDown();   // the same value as before gives no scroll event, so the arrow is checked here (TL-40)
-      if (list.scrollTop <= 100) loadOlder();   // still at the top after a reconnect: the page the person waited for (TL-06)
+      if (nearTop()) loadOlder();   // still at the top after a reconnect (the 100 px floor): the page the person waited for (TL-06)
       return;
     }
     following = true;
@@ -132,9 +133,10 @@ export function Timeline(root) {
         if (all[detail.count]) redraw(all[detail.count], all[detail.count - 1]);   // the old first row may lose its header
         spacer.after(...nodes);
         loading = false;
-        renderTop();   // the spinner leaves BEFORE the measurement below. Measured with it still in place, the rows
-                       // ended 49 px above where the scroll put them, and Chrome scored the whole prepend as a layout
-                       // shift: it discounts a compensated move only when the scroll matches it within 3 px.
+        renderTop();   // the top slot changes (the note when history ended) BEFORE the measurement below. A change
+                       // after it leaves the rows off from where the scroll put them, and Chrome then scores the whole
+                       // prepend as a layout shift: it discounts a compensated move only when the scroll matches it
+                       // within 3 px (the old spinner row did exactly that: 49 px off, 0.5 per page).
         list.scrollTop = beforeTop + (list.scrollHeight - before);   // the view does not move (TL-06)
         break;
       }
@@ -171,12 +173,12 @@ export function Timeline(root) {
 
   function renderTop() {
     const open = state.open;
+    renderLoadingOlder();
     if (!open) { replace(top, []); return; }
-    if (loading) { replace(top, [clone('t-loading-more')]); return; }
     if (open.loading && state.connection !== 'offline') { replace(top, [clone('t-loading-tail')]); return; }   // the first answer is on its way (TL-02)
     if (open.hasMore) {
       if (state.connection !== 'connected') { replace(top, [el('div', { class: 'history-start' }, 'Needs a connection')]); return; }
-      if (list.scrollHeight <= list.clientHeight + 1) {
+      if (!loading && list.scrollHeight <= list.clientHeight + 1) {   // the pill stands in for the link while the page loads
         const button = clone('t-load-earlier');
         button.addEventListener('click', loadOlder);
         replace(top, [button]);
@@ -237,8 +239,14 @@ export function Timeline(root) {
     if (up && distance > 80) following = false;                               // only an upward scroll stops the follow (TL-11)
     else if (distance <= 80 && !following) { following = true; hidePill(); markReadIfSeen(); }   // TL-13
     syncDown(distance);                                                       // TL-40
-    if (list.scrollTop <= 100) loadOlder();                                   // TL-06
+    if (nearTop(up)) loadOlder();                                             // TL-06
   }, { passive: true, signal });
+
+  // TL-06: the next page loads while the reader scrolls up and is still two screens from the top, so the prepend
+  // lands out of sight and the pictures of the new page start loading before they reach the view. Every other way
+  // to the top (the open, a reconnect, a jump, a downward scroll) keeps the 100 px floor: a short conversation sits
+  // within two screens of its top at the bottom, and must not fetch a page nobody asked for.
+  function nearTop(up = false) { return list.scrollTop <= (up ? Math.max(100, 2 * list.clientHeight) : 100); }
 
   // The list and its container: a taller input box or an open sheet shrinks the list, and the bottom must stay in view (TL-10).
   // The pill and the arrow are placed again: the strip they sit above moved with the list's bottom edge.
@@ -284,6 +292,15 @@ export function Timeline(root) {
     place(down);
   }
   function hideDown() { down?.remove(); down = null; }
+
+  // ---- the loading pill (TL-06) ----
+  // Over the top of the list like the catching-up pill, outside the scroller. A row in the flow moved the first rows
+  // by its height when it came and went (the 'older' handler had to measure around it), and as the first box in the
+  // flow it could become the browser's scroll anchor near the top, which froze the view while pictures loaded.
+  function renderLoadingOlder() {
+    if (!loading) { loadingPill?.remove(); loadingPill = null; return; }
+    if (!loadingPill) { loadingPill = clone('t-loading-older'); list.parentElement.append(loadingPill); }
+  }
 
   // ---- the catching-up pill (TL-39) ----
   // The rows came from the device, or the connection went away since they came: the server has not confirmed them.
@@ -353,7 +370,7 @@ export function Timeline(root) {
   current = { jumpTo };
   reset();
   return () => {
-    offs.forEach(off => off()); aborter.abort(); sizes.disconnect(); clearInterval(clock); hidePill(); hideDown(); catching?.remove(); list.remove();
+    offs.forEach(off => off()); aborter.abort(); sizes.disconnect(); clearInterval(clock); hidePill(); hideDown(); catching?.remove(); loadingPill?.remove(); list.remove();
     if (current?.jumpTo === jumpTo) current = null;
   };
 }
