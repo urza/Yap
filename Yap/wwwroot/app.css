@@ -199,6 +199,12 @@
     inset: 0;
     z-index: -1;
     pointer-events: none;
+    /* Not a scroll anchor. With inset: 0 this layer is partly visible at every scroll position
+       and has no children, so Chrome picked it as the anchor of .messages before any message
+       row. It never moves, so every adjustment was 0: anchoring never ran in the list, and each
+       image that loaded above the view slid the text down (the CLS 1.24 on history paging,
+       2026-10-23). Any other absolutely positioned layer that spans the flow needs the same. */
+    overflow-anchor: none;
     background-color: var(--pattern-color);
     -webkit-mask-image: var(--canvas-pattern);
     mask-image: var(--canvas-pattern);

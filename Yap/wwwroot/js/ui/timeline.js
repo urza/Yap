@@ -132,9 +132,11 @@ export function Timeline(root) {
         for (let i = 0; i < detail.count; i++) nodes.push(makeRow(all[i], all[i - 1] ?? null));
         if (all[detail.count]) redraw(all[detail.count], all[detail.count - 1]);   // the old first row may lose its header
         spacer.after(...nodes);
-        list.scrollTop = beforeTop + (list.scrollHeight - before);   // the view does not move (TL-06)
         loading = false;
-        renderTop();
+        renderTop();   // the spinner leaves BEFORE the measurement below. Measured with it still in place, the rows
+                       // ended 49 px above where the scroll put them, and Chrome scored the whole prepend as a layout
+                       // shift: it discounts a compensated move only when the scroll matches it within 3 px.
+        list.scrollTop = beforeTop + (list.scrollHeight - before);   // the view does not move (TL-06)
         break;
       }
     }
