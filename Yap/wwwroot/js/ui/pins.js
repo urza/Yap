@@ -12,6 +12,7 @@ import { avatar } from '../render/avatar.js';
 import * as hub from '../hub.js';
 import * as overlays from './overlays.js';
 import { jumpTo } from './timeline.js';
+import { voicePlayer } from './voice.js';
 
 // Opens the panel at the anchor and returns the function that closes it. onClose runs on every close.
 export function openPins(anchor, onClose) {
@@ -34,13 +35,11 @@ export function openPins(anchor, onClose) {
     node.querySelector('.pin-time').textContent = messageTime(p.timestamp);
     const text = node.querySelector('.pin-text');
     if (p.text) text.append(...messageText(p.text).nodes); else text.remove();
-    const media = node.querySelector('.pin-media'), label = node.querySelector('.pin-attachment-label');
-    const shown = attachment(p.media);
-    if (shown) { media.hidden = false; media.append(shown); label.remove(); }
-    else if (p.hasMedia || p.media) { media.remove(); label.hidden = false; label.textContent = labelFor(p.media); }
-    else { media.remove(); label.remove(); }
+    const media = node.querySelector('.pin-media');
+    const shown = attachments(p.media, p.messageId);
+    if (shown.length) { media.hidden = false; media.append(...shown); } else media.remove();
     replace(node.querySelector('.pin-by'), inline(displayName(p.pinnedBy)));
-    node.addEventListener('click', e => { if (!e.target.closest('a')) jump(node, p); });   // a link in the text opens as a link
+    node.addEventListener('click', e => { if (!e.target.closest('a, .voice-message')) jump(node, p); });   // a link in the text opens as a link; the voice player plays in place
     node.addEventListener('keydown', e => { if (e.target === node && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); jump(node, p); } });   // the trash button and a link handle their own keys
     const unpin = node.querySelector('.pin-unpin');
     if (allowed) unpin.addEventListener('click', e => { e.stopPropagation(); unpinNow(node, p); }); else unpin.remove();
@@ -82,37 +81,61 @@ export function openPins(anchor, onClose) {
   return close;
 }
 
-// What an entry shows under its text (SH-48, Pin.media): the picture, the GIF itself, a poster with a play mark, or a
-// link card's picture and title, each at the panel's width. Null when there is nothing to show; labelFor names it then.
-function attachment(media) {
-  if (!media) return null;
-  const frame = el('span', { class: 'pin-frame' });
-  switch (media.kind) {
-    case 'image':
-      frame.append(el('img', { class: 'pin-picture', src: media.src, alt: 'Attachment', loading: 'lazy' }));
-      return frame;
+// What an entry shows under its text (SH-48, Pin.media, in the row's order). The pictures, the uploaded videos and the
+// GIFs make one block: alone, at its own size and no taller than 240 px; two or more, a grid of square cells in at most
+// two rows, so three entries still fit in one view. A voice message is the row's own player, a link card its picture,
+// title and site, a GIF whose file is gone a label. An empty list when there is nothing to show.
+const PICTURES = new Set(['image', 'video', 'gif', 'link']);
+
+function attachments(media, key) {
+  const items = Array.isArray(media) ? media : [];   // an offline snapshot from before 2026-10-23 holds one object; the next connection replaces it
+  const pictures = items.filter(m => PICTURES.has(m.kind) && (m.src || m.poster));
+  const nodes = [];
+  if (pictures.length === 1) nodes.push(single(pictures[0]));
+  else if (pictures.length > 1) nodes.push(grid(pictures));
+  for (const m of items) {
+    if (pictures.includes(m)) continue;
+    if (m.kind === 'voice' && m.src) nodes.push(voicePlayer(m, key));
+    else if (m.title) nodes.push(card(null, m));   // a link card without a picture, or a cached video whose poster is gone
+    else nodes.push(el('span', { class: 'pin-attachment-label' }, m.kind === 'voice' ? 'Voice message' : m.kind === 'gif' ? 'GIF attachment' : 'Attachment'));
+  }
+  return nodes;
+}
+
+function single(m) {
+  const node = picture(m);
+  if (m.kind === 'gif' && m.width && m.height) {   // its own size, no wider than the panel, no taller than the 240 px cap
+    node.style.width = `${m.width}px`;   // not 100%: the frame fits its content, and a video is 300 px wide until it loads
+    node.style.aspectRatio = `${m.width} / ${m.height}`;
+    node.style.maxWidth = `min(100%, ${m.width}px, ${Math.round(240 * m.width / m.height)}px)`;
+  }
+  const frame = el('span', { class: 'pin-frame' }, node, m.kind === 'video' ? playMark() : null);
+  return m.title ? card(frame, m) : frame;
+}
+
+// The count sets the columns (--cols, frame.css): one row up to four pictures, two rows above that.
+function grid(items) {
+  const cols = items.length <= 4 ? items.length : Math.ceil(items.length / 2);
+  return el('span', { class: 'pin-grid', style: `--cols: ${cols}` },
+    items.map(m => el('span', { class: 'pin-cell' }, picture(m), m.kind === 'video' ? playMark() : null)));
+}
+
+// The picture itself: an image, a link card's picture, a GIF that loops, or a video with its poster. The video shows
+// its first frame when the poster file is missing (a server without ffmpeg); it plays in the row, not here.
+function picture(m) {
+  switch (m.kind) {
+    case 'image': return el('img', { class: 'pin-picture', src: m.src, alt: '', loading: 'lazy' });
+    case 'link': return el('img', { class: 'pin-picture', src: m.poster, alt: '', loading: 'lazy' });
     case 'gif': {
-      if (!media.src) return null;   // the file is gone
-      const video = el('video', { class: 'pin-gif', src: media.src, autoplay: true, loop: true, muted: true, playsinline: true, preload: 'auto' });
-      if (media.width && media.height) {   // its own size, no wider than the panel, no taller than the 240 px cap
-        video.style.width = `${media.width}px`;   // not 100%: the frame fits its content, and a video is 300 px wide until it loads
-        video.style.aspectRatio = `${media.width} / ${media.height}`;
-        video.style.maxWidth = `min(100%, ${media.width}px, ${Math.round(240 * media.width / media.height)}px)`;
-      }
+      const video = el('video', { class: 'pin-gif', src: m.src, autoplay: true, loop: true, muted: true, playsinline: true, preload: 'auto' });
       video.muted = true; video.play?.().catch(() => {});   // the attribute alone does not satisfy every autoplay rule; a still first frame is fine
-      frame.append(video);
-      return frame;
+      return video;
     }
-    case 'video':
-    case 'link': {
-      if (!media.poster) return null;
-      frame.append(el('img', { class: 'pin-picture', src: media.poster, alt: media.title ?? 'Attachment', loading: 'lazy' }));
-      if (media.kind === 'video') frame.append(el('span', { class: 'pin-play', 'aria-hidden': 'true' }));
-      return media.title ? el('span', { class: 'pin-card' }, frame, el('span', { class: 'pin-card-title' }, media.title)) : frame;
-    }
-    default:
-      return null;
+    default: return el('video', { class: 'pin-video', src: m.src, poster: m.poster, muted: true, playsinline: true, preload: 'metadata' });
   }
 }
 
-const labelFor = media => media?.kind === 'voice' ? 'Voice message' : media?.kind === 'gif' ? 'GIF attachment' : 'Attachment';
+const playMark = () => el('span', { class: 'pin-play', 'aria-hidden': 'true' });
+
+// A link card, or a cached link video: the picture when there is one, then the title and the site (MR-20).
+const card = (frame, m) => el('span', { class: 'pin-card' }, frame, el('span', { class: 'pin-card-title' }, m.title), m.site ? el('span', { class: 'pin-card-site' }, m.site) : null);
