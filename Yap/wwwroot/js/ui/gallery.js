@@ -5,7 +5,11 @@ import { clone, el } from '../render/dom.js';
 import * as overlays from './overlays.js';
 import { on } from '../store.js';
 
-const DOUBLE_TAP_MS = 300, DOUBLE_TAP_PX = 25, DRAG_CLOSE_PX = 120, DRAG_FADE_PX = 300;
+const DOUBLE_TAP_MS = 300, DOUBLE_TAP_PX = 25, DRAG_CLOSE_PX = 120, DRAG_FADE_PX = 300, HINT_MS = 4000;
+
+// The installed app on iOS: navigator.standalone is WebKit's own flag for it (web.dev advises it over the user agent).
+// Only there Download goes through the share sheet; see the handler below.
+const SHARE_FILES = navigator.standalone === true && typeof navigator.canShare === 'function';
 
 let current = null;   // { modal, close, messageId }
 
@@ -42,6 +46,35 @@ export function openGallery(message, startIndex = 0) {
   // A long press or a right click on the picture opens no browser menu, on a phone or on a PC: the Download
   // control is the one way to save (TL-24). The row's pictures do the same (MR-53).
   modal.addEventListener('contextmenu', e => { if (e.target.closest('img')) e.preventDefault(); });
+
+  // The installed app on iOS has no download manager: the download attribute shows the Quick Look page there, a file
+  // icon with "Open in Preview" and "More…", which nobody reads as a save (2026-10-23). The share sheet with the file
+  // is the way: "Save Image" puts it in Photos. Safari allows share() only inside the tap, and a fetch keeps the tap
+  // alive for a short time only (WebKit bug 197779), so a slow file ends in NotAllowedError. The file is kept, a hint
+  // asks for a second tap, and that tap shares the ready file at once. Everywhere else the link downloads as is.
+  const ready = new Map();   // original url → File, once fetched
+  const hint = modal.querySelector('.modal-hint');
+  let hintTimer = null, native = false;
+  const showHint = () => { hint.hidden = false; clearTimeout(hintTimer); hintTimer = setTimeout(() => { hint.hidden = true; }, HINT_MS); };
+  const fallback = () => { native = true; download.click(); native = false; };   // no file sharing on this WebKit: the Quick Look page beats nothing
+  const share = file => navigator.share({ files: [file] }).catch(err => {
+    if (err.name === 'NotAllowedError') showHint();   // the tap expired during the fetch
+    else if (err.name !== 'AbortError') fallback();   // AbortError: the sheet was dismissed
+  });
+  download.addEventListener('click', e => {
+    if (!SHARE_FILES || native) return;
+    e.preventDefault();
+    hint.hidden = true;
+    const url = download.href;
+    if (ready.has(url)) { share(ready.get(url)); return; }
+    if (download.classList.contains('busy')) return;   // a tap during the fetch
+    download.classList.add('busy');
+    fetch(url).then(r => r.blob()).then(blob => {
+      const file = new File([blob], url.split('/').pop(), { type: blob.type });
+      ready.set(url, file);
+      if (download.href === url) return share(file);   // the user may have swiped on meanwhile
+    }).catch(() => {}).finally(() => download.classList.remove('busy'));
+  });
   const keys = e => {
     if (e.key === 'ArrowRight') { e.preventDefault(); step(1); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
