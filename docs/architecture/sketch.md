@@ -194,7 +194,7 @@ Taken on 2026-10-14 with the user.
 
 ## Spec versus code: differences met so far
 
-The spec is right. Listed so the user sees them.
+The spec is right. Listed so the user sees them. The first table is the list from the Blazor build of 2026-10-14. The rewrite of 2026-10-15 replaced that code, so these rows are history. The second table is the live one.
 
 | Rule | Spec | Code today |
 | --- | --- | --- |
@@ -216,10 +216,8 @@ Differences that remain in the rewrite, by decision (2026-10-15, after the walk 
 | --- | --- | --- |
 | SH-20, GEN-11 | "Sign in to continue." strip when signed out without a connection | Not shown: a sign-out reaches the device only with a connection, and then the login page opens |
 | AD-12 | The link preview switch applies at once to open chats | New answers follow the switch; open chats keep their cards until a reload |
-| AD-02 | Users, Bot, Invites and Settings load with the page | Each tab loads when it opens |
-| AD-09 | The bot's display name is saved | Saved in memory and on the user record; `ChatSettings:Bot:DisplayName` wins again at the next start |
+| AD-02 | Users, Bot, Invites and Settings load with the page | Each tab loads again each time it opens |
 | OF-06 | Media not seen before shows "Needs a connection" | The browser's broken-image state shows instead |
-| MR-51 | The touch bar hides after a 50 px scroll | It hides after 5 s only |
 | TL-12 | Changes above the view never move the row the reader reads | Older pages are compensated and land only while the view is still (TL-06); edits and loads above rely on the browser's scroll anchoring (Safari from 27 only) |
 | MR-59 vs GEN-03 | A closed phone keyboard stays closed on Edit (MR-59); Edit may open it (GEN-03) | The editor takes the focus, so the keyboard opens (GEN-03) |
 

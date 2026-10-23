@@ -10,14 +10,14 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 
 ![Timeline, desktop, the start of a room's history. The note "This is the beginning of #lobby" at the top, empty space, then the messages.](img/timeline-desktop-history-start.png)
 
-![Gallery viewer, phone. A photo on a black background, the previous and next controls, the counter at the bottom, the close and fill controls.](img/timeline-phone-gallery.png)
+![Gallery viewer, phone. The first of two photos on a black background, the next control, the counter at the bottom, the close, download and fill controls.](img/timeline-phone-gallery.png)
 
 1. **The list.** The list fills the conversation column above the input box and scrolls vertically. A short conversation shows at the bottom, with empty space above it.
 2. **The top note.** A note that shows only when all history is loaded. It is the room description, the "beginning" note, or the restricted-history note. While older messages exist, nothing shows above the first row. The exceptions are the "Load earlier messages" link in a conversation too short to scroll, and "Needs a connection" without a connection. There are no date separators and no unread divider.
 3. **The loading pill.** A small "Loading older messages..." pill with a spinner. It floats over the top of the list while a page loads or waits for a still view. It takes no space of its own, so no row moves when it comes or goes, and a fast answer never shows it (the 400 ms rule of TL-02).
 4. **New messages pill.** A rounded pill in the accent colour, with a down chevron. It shows centred above the typing strip when messages arrive while the user reads older messages.
 5. **Pending rows.** Rows for the user's own messages that the server did not accept yet. They are at the end of the list.
-6. **Gallery viewer.** A full-screen layer over the whole app, which opens from an image. It shows the picture, the previous and next controls, the fill and close controls, and a counter.
+6. **Gallery viewer.** A full-screen layer over the whole app, which opens from an image. It shows the picture, the previous and next controls, the download, fill and close controls, and a counter.
 7. **Down arrow.** A small round button with a down arrow, in the bottom right corner above the typing strip. It shows when the view is more than one screen above the bottom and the pill is not shown.
 
 ## Rules
@@ -80,7 +80,7 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 
 **TL-23** The viewer covers the whole app with a black layer. The layer is 90 % opaque on desktop and fully black on a phone. The picture is centred and is never cropped. On desktop, it fits within 85 % of the screen. On a phone, it fits within the whole screen. On a phone, the controls are smaller and are 8 px from the edges.
 
-**TL-24** The controls are on top of the picture. Close is at the top right, download is left of close, previous and next are at mid height, and fill is at the bottom right. The counter "{n} / {total}" is at the bottom centre. With one image, there are no previous and next controls and no counter. Download saves the image in view to the device, as the file that was uploaded, in its own format and size. The viewer stays open. In the installed app on iOS, download opens the share sheet with the image instead, where "Save Image" puts it in Photos. *Why:* the installed app on iOS has no download manager; a download there shows a file preview page that reads as nothing. When the file takes long to arrive, the download control pulses, and a second tap opens the sheet; a hint under the control says so. A long press or a right click on the picture opens no menu of the device. *Why:* the download control is the one way to save, on a phone and on a PC.
+**TL-24** The controls are on top of the picture. Close is at the top right, download is left of close, previous and next are at mid height, and fill is at the bottom right. The counter "{n} / {total}" is at the bottom centre. With one image, there are no previous and next controls and no counter. Download saves the image in view to the device, as the file that was uploaded, in its own format and size. The viewer stays open. In the installed app on iOS, download opens the share sheet with the image instead, where "Save Image" puts it in Photos. *Why:* the installed app on iOS has no download manager; a download there shows a file preview page that reads as nothing. While the file arrives, the download control pulses, and a tap does nothing. When the file takes too long for the tap, the sheet does not open. The hint "Ready. Tap again to save." then shows under the control for 4 seconds, and the next tap opens the sheet. A long press or a right click on the picture opens no menu of the device. *Why:* the download control is the one way to save, on a phone and on a PC.
 
 **TL-25** On touch, each horizontal swipe moves one image. Previous, next and the arrow keys move one image. The viewer does not loop. At the first image, the previous control is hidden. At the last image, the next control is hidden. A swipe or an arrow key past an end does nothing. The counter changes when 60 % of an image is in view.
 
@@ -94,7 +94,7 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 
 ### Media in the list
 
-**TL-30** Images, GIF previews and card thumbnails load when they come near the view. Thumbnails, GIFs with a known size and cards have their final size before they load. A single image has a 4:3 box until it loads. Then it changes to its own ratio. A video has the size of its poster from the time the poster is known. The list never moves the row that the user reads.
+**TL-30** Images, GIF previews and card thumbnails load when they come near the view. Thumbnails, GIFs with a known size and cards have their final size before they load. A single image has a box of its final size before it loads. A video has the shape of its poster before the poster loads. An image without a known size has no box until it loads. The list never moves the row that the user reads.
 
 **TL-31** GIFs play automatically and muted. When the browser blocks autoplay, the next tap or key press anywhere starts all paused GIFs.
 
@@ -104,9 +104,11 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 
 ### Without a connection
 
-**TL-34** Without a connection, the list shows the last messages that it had for the conversation. The user can read and scroll them. The user cannot get older messages that were not loaded. The top of the list shows "Needs a connection".
+**TL-34** Without a connection, the list shows the last messages that it had for the conversation. The user can read and scroll them. The user cannot get older messages that were not loaded. The top of the list shows "Needs a connection", and the pill of TL-39 floats over it.
 
 **TL-35** When the connection returns, the newest messages load again and the loaded rows are updated. When more messages arrived than one page holds, the missing messages load as the user scrolls up. If the view did not follow, it stays where it is. If the view followed, it stays at the bottom.
+
+**TL-39** While the messages on screen are the device's copy and the server has not answered yet (an open from the stored copy, or a connection that returns), a small "Catching up…" pill with a spinner floats over the top of the list. It takes no space of its own, so no row moves when it comes or goes, and a fast answer never shows it (the same 400 ms rule as the loading line). It ends when the server's messages are on screen, not when the connection is back. Without a connection, or after a failed try, it reads "No connection. Showing older messages." with no spinner. With reduced motion the spinner is still. When the connection goes away, the messages on screen count as the device's copy, and the pill shows at once.
 
 ### Pinned messages
 
@@ -115,8 +117,6 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 **TL-37** Retired 2026-10-18. The bar is removed. The panel follows edits, deletes, pins and unpins, see [SH-47 to SH-49](frame.md#SH-47).
 
 **TL-38** Retired 2026-10-18. The bar is removed. A tap on an entry of the panel goes to the message, see [SH-47 to SH-49](frame.md#SH-47).
-
-**TL-39** While the messages on screen are the device's copy and the server has not answered yet (an open from the stored copy, or a connection that returns), a small "Catching up…" pill with a spinner floats over the top of the list. It takes no space of its own, so no row moves when it comes or goes, and a fast answer never shows it (the same 400 ms rule as the loading line). It ends when the server's messages are on screen, not when the connection is back. Without a connection, or after a failed try, it reads "No connection. Showing older messages." with no spinner. With reduced motion the spinner is still.
 
 ### Down arrow
 
@@ -128,6 +128,7 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 | --- | --- | --- |
 | Conversation opened | all | Newest 50 messages, view at the bottom. |
 | Opened again on this device | all | Last known messages immediately, then the new list. |
+| Rows from the device, server not answered after 400 ms | all | "Catching up…" pill over the top of the list; it goes when the server's messages are on screen. |
 | Scroll up to within two screens of the top | mouse, touch, keyboard | The loading pill, then 50 more above once the view is still; the view does not move. |
 | Too short to scroll, more history | all | "Load earlier messages" above the first row. |
 | All history loaded, room | all | Restricted note, room description, or "This is the beginning of #{room}". |
@@ -137,10 +138,12 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 | Keyboard opens or input box grows, following | touch, keyboard | Newest message stays in view. |
 | Upward scroll | mouse, touch, keyboard | Follow stopped; the view keeps its position from now on. |
 | New message from someone else, not following | all | View keeps its position; pill above the typing strip. |
+| Bottom more than one screen away, not following, no pill | all | Down arrow at the bottom right. |
 | Reaction, edit or card from anyone, not following | all | View keeps its position; no pill. |
 | Own send, not following | all | List goes to the bottom with the pending row. |
-| Scroll back within 80 px of the bottom | mouse, touch, keyboard | Follow on; pill hidden. |
+| Scroll back within 80 px of the bottom | mouse, touch, keyboard | Follow on; pill and arrow hidden. |
 | Pill tap | mouse, touch | Bottom; follow on; pill hidden. |
+| Down arrow tap | mouse, touch | Bottom; follow on; arrow hidden. |
 | Return to the tab, following | all | View goes back to the bottom. |
 | Return to the tab, not following | all | View unchanged; pill if messages arrived. |
 | Conversation switched | all | New header and messages together; pill hidden; the old pending rows leave the screen but stay in the queue; picker and viewer closed. |
@@ -148,6 +151,7 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 | Swipe, arrow key, previous or next | touch, keyboard, mouse | One image; counter updates at 60 % in view. |
 | First or last image in view | all | The previous or the next control is hidden. |
 | Double tap or fill control | touch, mouse | Fit to fill or back; pan in fill. |
+| Download control | mouse, touch | The uploaded file saves to the device; the viewer stays open. Installed app on iOS: the share sheet. |
 | Drag down 120 px, fit mode | touch | Viewer closes with a fade. |
 | Close control, Escape, tap outside | mouse, touch, keyboard | Viewer closes with a fade; focus unchanged. |
 | Message deleted while viewing | all | Viewer closes. |
@@ -160,13 +164,15 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 | Where | Text |
 | --- | --- |
 | Loading pill | "Loading older messages..." |
+| First open, slow answer | "Loading messages..." |
 | Short conversation with more history | "Load earlier messages" |
 | Restricted history | "Older messages are not available in this channel" |
 | Start of a room | "This is the beginning of #{room}" |
 | Start of a direct message | "This is the beginning of your direct message history with {username}." |
 | Pill (configured; these are the defaults) | "new gold just spawned", "fresh yaps below", "new loot dropped", "chat moved on, catch up", "new heat below", "someone said something", "fresh tea down there", "plot twist below", "new drops, no cap", "scroll down, legend" |
 | Pill when the list is missing | "New messages" |
-| Viewer controls | "‹" (title "Previous"); "›" (title "Next"); "×" (title "Close"); the fill icon (title "Fill screen"); counter "{n} / {total}"; image alt "Full size image" |
+| Down arrow | title "Scroll to bottom" |
+| Viewer controls | "‹" (title "Previous"); "›" (title "Next"); "×" (title "Close"); the download icon (title "Download"); the fill icon (title "Fill screen"); counter "{n} / {total}"; image alt "Full size image"; hint "Ready. Tap again to save." |
 | Without a connection | "Needs a connection" |
 | Catching-up pill | "Catching up…"; "No connection. Showing older messages." |
 | Admin history setting, for reference | "History Visibility"; "Unlimited", "1 Day", "3 Days", "1 Week", "2 Weeks", "1 Month", "3 Months"; "Only show messages since user joined" |

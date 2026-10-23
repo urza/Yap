@@ -290,7 +290,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 | Pin refusals | "Up to 3 pinned messages. Unpin one first."; "You cannot pin messages here."; "You cannot unpin messages here." |
 | Editor | "✓ Save" (tooltip "Save"); "✕ Cancel" (tooltip "Cancel"); "Enter to save · Shift+Enter for newline · Esc to cancel" |
 | Delete dialog | "Delete Message"; "Are you sure you want to delete this message?"; "GIF attachment"; "Voice message"; preview alt texts "Attachment", "Video attachment"; "Pro tip: hold Shift when deleting to skip this confirmation." with Shift as a keycap; "Cancel"; "Delete" |
-| Pending row | "Cancel upload"; "Failed"; "Retry"; "Remove"; the reason is the server's refusal text, or "Could not send" when there is none |
+| Pending row | "Cancel upload"; "Failed"; "Retry"; "Remove"; the reason is the server's refusal text, "Waited more than a day" after one day, or "Could not send" when there is none |
 | Reaction tooltip | the display names joined with ", " |
 | Without a connection | "Needs a connection" |
 | Lobby join lines (configured; defaults) | "{0} just dropped", "{0} is here", "{0} arrives", "W {0} joined", "{0} spawned in", "{0} returns" |

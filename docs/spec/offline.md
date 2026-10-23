@@ -18,9 +18,9 @@ Yap runs in the browser and can also be installed as an app on a phone or a desk
 
 ### Without a connection
 
-**OF-05** The header shows the connection state. It shows a grey ring while the device is offline and a pulsing orange dot while it reconnects. No banner covers the content. Other people see the person as away after 30 seconds and as offline after 5 minutes, as the [presence page](presence.md#PR-15) says. A device that is signed out from elsewhere receives the sign-out when the connection returns.
+**OF-05** The header shows the connection state. It shows a grey ring while the device is offline and a pulsing orange dot while it reconnects. No banner covers the content. Only the small pill of [TL-39](timeline.md#TL-39) floats over the top of the list. Other people see the person as away after 30 seconds and as offline after 5 minutes, as the [presence page](presence.md#PR-15) says. A device that is signed out from elsewhere receives the sign-out when the connection returns.
 
-**OF-06** Every conversation that the user opened on this device shows its last messages. The user can read and scroll it, also after a reload. When older messages were not loaded, the top of the list shows "Needs a connection". Media that was seen before shows. Media that was not seen before shows "Needs a connection" in its place.
+**OF-06** Every conversation that the user opened on this device shows its last messages. The user can read and scroll it, also after a reload. When older messages were not loaded, the top of the list shows "Needs a connection". The pill over the top of the list reads "No connection. Showing older messages." ([TL-39](timeline.md#TL-39)). Media that was seen before shows. Media that was not seen before shows "Needs a connection" in its place.
 
 **OF-07** Typing, drafts, emoji, the emoji picker, the GIF picker's own lists, a switch between conversations and reading all work without a connection. Settings and Administration need a connection.
 
@@ -32,9 +32,9 @@ Yap runs in the browser and can also be installed as an app on a phone or a desk
 
 **OF-11** When the server refuses a pending message, the message shows as failed, with the reason, "Retry" and "Remove". A pending message that waits for more than one day also shows as failed. Remove deletes the message from the device only.
 
-**OF-12** Reactions, edits and deletions of sent messages, the GIF star, GIF uploads, search and trending need a connection. When the user tries one of them, Yap shows "Needs a connection" there, and nothing changes. A GIF pick is queued like a message. The user can still edit and remove a pending message on the device. The status items in the status menu are dimmed.
+**OF-12** Reactions, edits and deletions of sent messages, the GIF star, GIF uploads, search and trending need a connection. When the user tries one of them, Yap shows "Needs a connection" there, and nothing changes. A GIF pick is queued like a message. The user can still edit and remove a pending message on the device. The status items in the status menu are dimmed. Sign Out needs a connection too. Without one, "Needs a connection" shows at the status chip, and nothing is removed.
 
-**OF-13** Yap reconnects automatically when the network returns and when the tab becomes visible again. It also reconnects when the user taps the connection dot. The tap also shows the bubble of the dot. Yap then refreshes the newest messages and corrects the unread counts. The view keeps its position.
+**OF-13** Yap reconnects automatically when the network returns and when the tab becomes visible again. It also reconnects when the user taps the connection dot. The tap also shows the bubble of the dot. Yap then refreshes the newest messages and corrects the unread counts. Until the server's messages are on screen, the pill over the top of the list reads "Catching up…" ([TL-39](timeline.md#TL-39)). The view keeps its position.
 
 ### The promise and its limits
 
@@ -44,7 +44,7 @@ Yap runs in the browser and can also be installed as an app on a phone or a desk
 
 **OF-16** A sign-out removes every draft, pending message, cached conversation and notification subscription of the previous account. A sign-in of a different account on the device does the same.
 
-**OF-18** Yap opens from the device: the page and its files come from the copy the device stored, and the server is not asked for them before the first paint. A new version is stored in the background while the open page keeps running; the notice strip then asks for a reload ([SH-20](frame.md#SH-20)), and the reload waits for the new copy when it is still on its way. The root address, the login page, the verification page and an invite ask the server first, because the server answers a signed-out visitor differently there; without a connection they fall back to the stored copy.
+**OF-18** Yap opens from the device: the page and its files come from the copy the device stored, and the server is not asked for them before the first paint. A new version is stored in the background while the open page keeps running; the notice strip then asks for a reload ([SH-20](frame.md#SH-20)), and the reload waits up to 15 seconds for the new copy when it is still on its way. The root address, the login page, the verification page and an invite ask the server first, because the server answers a signed-out visitor differently there; without a connection they fall back to the stored copy.
 
 **OF-17** When Yap is open in several tabs, one tab sends the pending messages of all of them. A tab that shows the new-version notice ([SH-20](frame.md#SH-20)) hands this over to a tab on the new version, when one is open, and takes it back when no such tab is left. Messages written in the old tab still go out.
 
@@ -66,7 +66,7 @@ Yap runs in the browser and can also be installed as an app on a phone or a desk
 | Server refuses a pending message | all | "Failed", reason, "Retry", "Remove". |
 | Pending for more than a day | all | Shown as failed. |
 | App closed with pending messages, reopened online | touch | They are sent. |
-| Sign out | touch, mouse | Device data removed; a confirmation first when pending messages exist. |
+| Sign out | touch, mouse | The confirmation about unsent messages first, when they exist; then "Needs a connection" at the status chip. Nothing is removed. |
 
 ## Wording
 
@@ -80,7 +80,8 @@ Yap runs in the browser and can also be installed as an app on a phone or a desk
 | Top of the list without older messages | "Needs a connection" |
 | Row actions and media not seen before, without a connection | "Needs a connection" |
 | Input box, too much to queue | "Needs a connection" |
-| Failed message | "Failed"; "Retry"; "Remove" |
+| Failed message | "Failed"; the reason, or "Waited more than a day" after one day; "Retry"; "Remove" |
+| Pill over the top of the list | "No connection. Showing older messages."; "Catching up…" |
 
 ## Related
 

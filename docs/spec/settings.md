@@ -15,7 +15,7 @@ Settings is the one page where the user changes their profile, appearance, sign-
 
 ### Page
 
-**ST-01** Settings opens from "Settings" and "Notification settings" in the status menu. It also opens from "Manage your GIFs in Settings" in the GIF picker. The bot's messages refer to Settings by name. "Notification settings" and the picker link scroll to their sections. A signed-out visit goes to the login page. Settings needs a connection.
+**ST-01** Settings opens from "Settings" and "Notification settings" in the status menu. It also opens from "Manage your GIFs in Settings" in the GIF picker. The bot's messages refer to Settings by name. "Notification settings" and the picker link scroll to their sections. The section stays in view while the page fills, until the first tap, scroll or key press. A signed-out visit goes to the login page. Settings needs a connection.
 
 **ST-02** Every control saves at once when its value changes. Profile text saves after a short pause in typing. It also saves when the user leaves the page, so no typed text is lost. A failed save shows "Could not save. Try again." next to the control.
 

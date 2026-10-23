@@ -63,7 +63,7 @@ The emoji picker and the GIF picker open from the input box. The emoji picker pu
 
 **PK-19** Cards are in two masonry columns with 6 px gaps. Each card has the aspect ratio of its GIF. It shows a small, muted preview that loops. When a preview cannot start, it starts on the next tap or key press anywhere.
 
-**PK-20** A tap on a card sends the GIF immediately and closes the picker, as the [input box](input-box.md#IB-47) describes. The search text at that time is added to the GIF as a tag. A later search for that text finds the GIF. On a keyboard, Enter or Space on a focused card sends the GIF. When the GIF is no longer available at the time of the send, the dialog "Couldn't send GIF" tells the reader.
+**PK-20** A tap on a card sends the GIF immediately and closes the picker, as the [input box](input-box.md#IB-47) describes. The search text at that time is added to the GIF as a tag. A later search for that text finds the GIF. On a keyboard, Enter or Space on a focused card sends the GIF. When the GIF is no longer available at the time of the send, the pending row shows as failed with the reason "That GIF isn't available anymore — try another one." ([OF-11](offline.md#OF-11)).
 
 **PK-21** Library cards have a favourite star at the top right. Library cards are the cards in Recent, Favorites, Server library, and the library hits of a search. On desktop, the star appears on hover. On a touch screen, it is always visible. A favourited star is gold everywhere. A tap on the star changes only the favourite. Provider cards have no star. To keep a provider GIF, the reader sends it and then stars it in Recent or in the message.
 
@@ -93,7 +93,7 @@ The emoji picker and the GIF picker open from the input box. The emoji picker pu
 
 **PK-32** Favorites shows the folder tiles first. Next is an "Unsorted" header when folders exist, then the unfiled favourites. Below the content is the link "Manage your GIFs in Settings". When Favorites is empty, it shows "⭐ Tap the star on any GIF to save it here".
 
-**PK-33** A folder tile is a 2:1 tile. It shows a blurred, darkened GIF from the folder and the folder name in white. The GIF on the tile can change between visits. A tap on the tile opens the folder and shows a back row "← {folder}". A tap on the back row goes back.
+**PK-33** A folder tile is a 2:1 tile. It shows a blurred, darkened GIF from the folder and the folder name in white. When the folder has no still preview, the tile shows only the name. The GIF on the tile can change between visits. A tap on the tile opens the folder and shows a back row "← {folder}". A tap on the back row goes back.
 
 **PK-34** Folders have one level only and are ordered A to Z. The reader creates and fills folders in Settings, not in the picker. A star from the picker adds the GIF as unsorted. When a GIF is already a favourite, it keeps its folder when it is uploaded or imported again.
 
@@ -188,7 +188,8 @@ The emoji picker and the GIF picker open from the input box. The emoji picker pu
 | Star tooltips | "Add to favorites"; "Remove from favorites" |
 | Upload overlay | "Adding GIF…" |
 | Attribution | "Powered by Klipy" (alt "Klipy") |
-| GIF dialog | "Couldn't send GIF"; "That GIF isn't available anymore — try another one."; "File is too large (max 50MB)"; "Could not process this file as a GIF"; "GIF storage quota exceeded"; "Upload failed"; "Got It" |
+| GIF dialog | "Couldn't send GIF"; "File is too large (max 50MB)"; "Could not process this file as a GIF"; "GIF storage quota exceeded"; "Upload failed"; "Got It" |
+| Failed GIF send, pending row | "That GIF isn't available anymore — try another one." |
 | Phone sheet tabs | "GIFs", "Emoji" |
 | Reaction picker opener | "Add Reaction" |
 | Without a connection | "Needs a connection" |

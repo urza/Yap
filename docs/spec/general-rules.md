@@ -30,7 +30,7 @@ This page holds the rules that every component follows. A component page can mak
 
 **GEN-10** Without a connection, the app stays readable and usable. The user can read what is loaded, can write, and can queue messages. An action that needs the server shows "Needs a connection" where the user takes it, or is dimmed.
 
-**GEN-11** The header shows the connection state. When a state needs action from the user, the notice strip also shows it. The connection state never shows as a layer over the content.
+**GEN-11** The header shows the connection state. When a state needs action from the user, the notice strip also shows it. The connection state never shows as a layer over the content. The one exception is the small pill of [TL-39](timeline.md#TL-39), which floats over the top of the list.
 
 ## Texts and look
 
