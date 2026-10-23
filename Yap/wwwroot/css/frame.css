@@ -1133,8 +1133,10 @@
     background: rgba(79, 84, 92, 0.4);
 }
 
-/* The unpin control is a trash icon in the danger colour, like "Delete Message" in the More menu: a grey ✕ next
-   to the panel's own ✕ read as "close", not "remove" (user feedback 2026-10-18). */
+/* The unpin control is a crossed pin in the danger colour: a grey ✕ next to the panel's own ✕ read as "close", not
+   "remove" (user feedback 2026-10-18), and a trash icon read as "delete the message" (2026-10-23). The icon is
+   Material Symbols "keep_off", the twin of the "push_pin" in the header and the More menu, with the slash gap built
+   into the one path, so no mask and no id that the cloned template entries would share. */
 .pin-unpin {
     color: var(--color-danger);
 }
