@@ -10,7 +10,7 @@ namespace Yap.Services.Chat;
 /// use it, so every reader sees the same message. It resolves what the row needs from other services: image
 /// sizes, video posters, GIF files and uploaders, the quoted original of a reply, and the link cards.
 /// </summary>
-public sealed class MessageMapper(ChatService chat, GifService gifs, UserService users)
+public sealed class MessageMapper(ChatService chat, GifService gifs, UserService users, MediaSizes sizes)
 {
     /// <summary>The wire shape for one reader. The reader matters for the quote of a reply: a room with a history
     /// cutoff hides the original from some readers (TL-05), and their quote says "unavailable" instead of carrying
@@ -19,12 +19,27 @@ public sealed class MessageMapper(ChatService chat, GifService gifs, UserService
     public MessageDto From(ChatMessage m, Guid? viewerId) => new(
         m.Id, m.ChannelId, m.ClientId, m.Username, m.Content, m.Timestamp, m.IsEdited,
         ReplyTo(m, viewerId),
-        m.ImageUrls.Select(url => new ImageDto(ImageService.GetMediumUrl(url), ImageService.GetLargeUrl(url))).ToList(),
-        m.VideoUrls.Select(url => new VideoDto(VideoService.GetPosterUrl(url), VideoService.GetCompressedUrl(url))).ToList(),
+        m.ImageUrls.Select(Image).ToList(),
+        m.VideoUrls.Select(Video).ToList(),
         m.GifAttachments.Select(Gif).ToList(),
         m.Voice is { } voice ? new VoiceDto(voice.Url, voice.DurationMs, voice.Peaks) : null,
         Reactions(m),
         chat.Previews(m));
+
+    /// <summary>The row's picture with the size of the file it shows, so the row has its box before the file loads.</summary>
+    private ImageDto Image(string url)
+    {
+        var medium = ImageService.GetMediumUrl(url);
+        var size = sizes.Of(medium);
+        return new ImageDto(medium, ImageService.GetLargeUrl(url), size?.Width, size?.Height);
+    }
+
+    private VideoDto Video(string url)
+    {
+        var poster = VideoService.GetPosterUrl(url);
+        var size = sizes.Of(poster);
+        return new VideoDto(poster, VideoService.GetCompressedUrl(url), size?.Width, size?.Height);
+    }
 
     /// <summary>Reactions grouped by emoji, in the order each emoji was first used (MR-38); users in reaction order (MR-39).</summary>
     public IReadOnlyList<ReactionGroupDto> Reactions(ChatMessage m)

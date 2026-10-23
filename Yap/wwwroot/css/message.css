@@ -460,6 +460,17 @@
     display: block;
 }
 
+/* The box before the picture loads (MR-24): the server sends the medium picture's size, and --w/--h give the box
+   its final size at once, so nothing moves when the file arrives. The width is the smallest of the gallery, the
+   picture itself and the width at the 350 px cap; the ratio sets the height, so the box equals the loaded picture.
+   Without a size (a row stored before the size existed, a file that is gone) the rule above applies and the box
+   takes shape on load: the picture is 0 px tall until then, and a row at the top edge of the list grows under the
+   scroll anchor and moves every row below it. */
+.gallery-single .gallery-image.sized {
+    aspect-ratio: var(--w) / var(--h);
+    width: min(100%, calc(var(--w) * 1px), calc(350px * var(--w) / var(--h)));
+}
+
 .gallery-item:hover .gallery-image {
     opacity: 0.85;
 }
@@ -684,6 +695,12 @@
     display: block;
     object-fit: contain;
     background: var(--bg-sidebar);
+}
+
+/* The poster's shape before it loads (MR-27): with --w/--h the box is final at once. Without them the player is
+   300 x 150 until the poster arrives, and the row grows. */
+.video-player.sized {
+    aspect-ratio: var(--w) / var(--h);
 }
 
 .video-play-overlay {
@@ -1286,6 +1303,10 @@
 
     .gallery-single .gallery-image {
         max-height: 450px;
+    }
+
+    .gallery-single .gallery-image.sized {
+        width: min(100%, calc(var(--w) * 1px), calc(450px * var(--w) / var(--h)));   /* the same box at the phone's 450 px cap */
     }
 
     /* Mobile: bottom sheet emoji picker */

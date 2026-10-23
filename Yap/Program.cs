@@ -148,6 +148,7 @@ builder.Services.AddSingleton<GeoLocationService>();
 builder.Services.AddSingleton<CustomEmojiService>();
 builder.Services.AddSingleton<EmojiCatalog>();
 builder.Services.AddSingleton<UploadPaths>();
+builder.Services.AddSingleton<MediaSizes>();   // picture and poster sizes, read from the files once: the row's box before the load
 builder.Services.AddSingleton<ImageService>();
 builder.Services.AddSingleton<VideoService>();
 builder.Services.AddSingleton<VoiceService>();
