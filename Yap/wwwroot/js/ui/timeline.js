@@ -8,7 +8,7 @@ import { pick } from '../render/text.js';
 import { messageTime } from '../render/time.js';
 import * as hub from '../hub.js';
 import * as overlays from './overlays.js';
-import { renderRow, needsHeader, rowReplaced, touchScrolled } from './message.js';
+import { renderRow, needsHeader, rowReplaced, touchScrolled, redrawStars } from './message.js';
 
 let current = null;   // the mounted instance, for jumpTo
 
@@ -448,7 +448,7 @@ export function Timeline(root) {
     on('unread', onUnread),
     on('user', () => markReadIfSeen()), on('presence', () => markReadIfSeen()),   // Away ended, here or on the server: the three conditions may hold again (NT-07)
     on('users', redrawAll),            // a new display name or avatar shows on every row (ST-07)
-    on('favoriteGifIds', redrawAll),   // the stars follow the account (PK-36)
+    on('favoriteGifIds', redrawStars), // the stars follow the account (PK-36); a full redraw here cost ~800 ms per click
     on('emoji', redrawAll),            // the quick reactions of the bar (MR-41)
   ];
   current = { jumpTo };
