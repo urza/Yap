@@ -826,20 +826,8 @@ public class ChatService
     public void RefreshPinMedia()
     {
         foreach (var channel in _channels.Values)
-        {
-            var changed = false;
-            var pins = channel.Pins.Select(p =>
-            {
-                if (GetMessage(p.MessageId) is not { HasMedia: true } message) return p;
-                var media = PinMediaOf(message);
-                if (p.Media.SequenceEqual(media)) return p;
-                changed = true;
-                return p with { Media = media };
-            }).ToList();
-            if (!changed) continue;
-            lock (LockOf(channel.Id)) channel.Pins = pins;
-            PinsChanged(channel);
-        }
+            foreach (var pin in channel.Pins)   // the refresh replaces channel.Pins with a new list; this loop walks the old one
+                if (GetMessage(pin.MessageId) is { HasMedia: true } message) RefreshPinMedia(message);
     }
 
     /// <summary>The pin copy of a text message follows its link cards: the first scrape lands after the pin when
