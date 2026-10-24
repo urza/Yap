@@ -68,7 +68,7 @@ Sign-in gives a device access to an account. An account needs only a username, w
 
 ### Messages the bot sends
 
-**AU-26** One minute after a person's first session, the bot sends the welcome message with the login link and, on a phone, the install line. On every sign-in of a new device, the bot tells the account which sign-in method was used and from which address. The message advises the person to use "Sign out all other devices" if the person did not make this sign-in. The new device cannot use it for one hour. The admin gets a message for a pending request, for the first join of a new account, and for the sign-in pause.
+**AU-26** One minute after a person's first session, the bot sends the welcome message with the login link and, on a phone, the install line. On every sign-in of a new device, the bot tells the account which sign-in method was used and from which address. The message advises the person to use "Sign out all other devices" if the person did not make this sign-in. The new device cannot use it for one hour. The admin gets a message for a pending request, for the first join of a new account, for a return after a long absence (PR-18), and for the sign-in pause.
 
 ## States
 

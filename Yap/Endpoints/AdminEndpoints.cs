@@ -118,6 +118,7 @@ public static class AdminEndpoints
                 welcomeMessage = bot.WelcomeMessage,
                 phoneMessage = bot.PhoneMessage,
                 linkMessage = bot.LinkMessage,
+                returnAfterHours = bot.ReturnAfterHours,
             });
         });
 
@@ -126,8 +127,10 @@ public static class AdminEndpoints
             if (body.DisplayName is { Length: > 32 }) return Results.Problem("A display name has at most 32 characters.", statusCode: 400);
             if (body.WelcomeMessage is { Length: > 1000 } || body.PhoneMessage is { Length: > 1000 } || body.LinkMessage is { Length: > 1000 })
                 return Results.Problem("A part of the welcome message has at most 1000 characters.", statusCode: 400);
+            if (body.ReturnAfterHours is < 0 or > SystemBotService.MaxReturnAfterHours)
+                return Results.Problem($"The return notice waits between 0 and {SystemBotService.MaxReturnAfterHours} hours.", statusCode: 400);
             if (body.DisplayName is { } name) bot.UpdateDisplayName(name.Trim());
-            await bot.UpdateMessagesAsync(body.WelcomeMessage?.Trim(), body.PhoneMessage?.Trim(), body.LinkMessage?.Trim());
+            await bot.UpdateSettingsAsync(body.WelcomeMessage?.Trim(), body.PhoneMessage?.Trim(), body.LinkMessage?.Trim(), body.ReturnAfterHours);
             return Results.NoContent();
         });
 
@@ -448,7 +451,7 @@ public sealed record DeleteUsersRequest(List<string>? Usernames);
 public sealed record IpDto(string Ip, string? Country, DateTime? LastSeen);
 public sealed record ThemeUseDto(string Id, string Name, string PreviewBg, string PreviewAccent, int Count);
 public sealed record GenerateRequest(string Username, int Count = 200, int Hours = 168);
-public sealed record BotRequest(string? DisplayName, string? WelcomeMessage, string? PhoneMessage, string? LinkMessage);
+public sealed record BotRequest(string? DisplayName, string? WelcomeMessage, string? PhoneMessage, string? LinkMessage, int? ReturnAfterHours);
 public sealed record PruneRequest(bool Database);
 public sealed record SettingsRequest(bool? RegistrationClosed, bool? RequireApproval, bool? SmartLogin, bool? LinkPreviews, bool? MediaCaching, KlipyRating? GifRating);
 public sealed record PendingDto(string Username, DateTime RequestedAt);

@@ -131,7 +131,7 @@ public Task SetStatus(UserStatus status) => presence.SetChosenStatus(Context.Use
 public void Typing(Guid channelId, bool on) => presence.SetTyping(Context.ConnectionId, channelId, on);
 ```
 
-`Connect` is a join when the person had no session (PR-17). `Disconnect` only stamps `ClosedAt` or `DroppedAt`; the sweep does the rest. The hub also tells PresenceService the open conversation from `openRoom`, `openDm` and `leave`, for the diagnostics table and for typing.
+`Connect` is a join when the person had no session (PR-17), and returns that, so the hub writes the JOIN row of the action log (AD-18) with the address and the browser it alone knows. The hub stamps `LastSeenAt` after the call, not before: the join event is where the bot reads it as the end of the previous visit, for the return notice (PR-18). `Disconnect` only stamps `ClosedAt` or `DroppedAt`; the sweep does the rest. The hub also tells PresenceService the open conversation from `openRoom`, `openDm` and `leave`, for the diagnostics table and for typing.
 
 The heartbeat is the single source of liveness, as it is today. The client sends it every 10 seconds while visible and every 60 seconds while hidden, and at once when the tab becomes visible or hidden or the hub reconnects. The hidden beat matters: the server reads the flag for unread counts (NT-07), for push, and for the away sweep. It carries the idle time since the last input, the previous round trip and the waits the client measured since the last beat (AD-26): send, open, older, start and reconnect, each as a name and milliseconds. A hidden tab sends no round trip; its throttled timers would measure the throttle. The return value lets the client measure the round trip.
 

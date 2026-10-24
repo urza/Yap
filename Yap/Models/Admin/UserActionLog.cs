@@ -74,6 +74,12 @@ public class UserActionLog
         /// </summary>
         public const string LOGIN_FAIL = "LOGIN_FAIL";
 
+        /// <summary>
+        /// A join (PR-17): the first hub connection of a person who had no session. A second tab or a reload is
+        /// not one. Info holds the browser and the system, "(app)" for the installed app.
+        /// </summary>
+        public const string JOIN = "JOIN";
+
     }
 
 }

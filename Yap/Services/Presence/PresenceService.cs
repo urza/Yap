@@ -49,17 +49,25 @@ public sealed class PresenceService(UserService users, LoadCounters load, ILogge
 
     // ---- connections -----------------------------------------------------------------------------------
 
-    public void Connect(Session session)
+    /// <summary>
+    /// Adds the connection. True when it is the person's join (PR-17): no session of the person existed, not
+    /// even one in its grace period, so a reload or a second tab is false. This is by sessions, not by the
+    /// effective status: an invisible person joins too, for the admin's log, while others hear nothing.
+    /// </summary>
+    public bool Connect(Session session)
     {
         EffectiveStatus before, after;
+        bool first;
         lock (_gate)
         {
+            first = !_sessions.Values.Any(s => s.UserId == session.UserId);
             before = EffectiveLocked(session.UserId);
             _sessions[session.ConnectionId] = session;
             _totalConnections++;
             after = EffectiveLocked(session.UserId);
         }
         Announce(session.Username, before, after);
+        return first;
     }
 
     /// <summary>The connection ended. Nothing changes yet: the sweep applies the grace period, so a reload

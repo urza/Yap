@@ -1492,6 +1492,11 @@
     color: var(--status-away);
 }
 
+.action-join {
+    background: rgba(250, 166, 26, 0.12);
+    color: var(--status-away);
+}
+
 .action-default {
     background: var(--bg-tertiary);
     color: var(--text-secondary);
@@ -3599,6 +3604,7 @@
 
 .page-admin .danger-select { max-width: 220px; }
 .page-admin .danger-days { width: 5rem; }
+.page-admin .bot-hours { width: 6rem; }   /* a number of hours, not a text column */
 
 .danger-unit,
 .danger-found-ago {

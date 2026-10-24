@@ -40,7 +40,7 @@ public class UserActionLogService
     }
 
     /// <summary>
-    /// Deletes entries older than 6 months, then trims to last 100 per user.
+    /// Deletes entries older than 6 months, then trims to the last 100 joins and the last 100 other rows per user.
     /// </summary>
     public async Task CleanupAsync()
     {
@@ -56,9 +56,10 @@ public class UserActionLogService
                 .Where(l => l.Date < cutoff)
                 .ExecuteDeleteAsync();
 
-            // Per user, keep only the last 100 entries. The anonymous bucket keeps 1000 request rows and, apart
-            // from them, 1000 visitor rows (VISIT, LOGIN_FAIL): one busy day of requests must not push the few
-            // failed sign-ins out of the Visitors tab (AD-20).
+            // Per user, keep the last 100 joins and, apart from them, the last 100 other rows: a phone that opens
+            // the app twenty times a day must not push the few sign-ins and sign-outs out of the Logs tab. The
+            // anonymous bucket keeps 1000 request rows and, apart from them, 1000 visitor rows (VISIT, LOGIN_FAIL):
+            // one busy day of requests must not push the few failed sign-ins out of the Visitors tab (AD-20).
             var usersWithExcess = await db.UserActionLogs
                 .GroupBy(l => l.UserUid)
                 .Where(g => g.Count() > 100)
@@ -73,7 +74,11 @@ public class UserActionLogService
                     deletedExcess += await TrimAsync(db, l => l.UserUid == "" && l.Action == UserActionLog.KnownActions.HTTP_REQUEST, 1000);
                     deletedExcess += await TrimAsync(db, l => l.UserUid == "" && l.Action != UserActionLog.KnownActions.HTTP_REQUEST, 1000);
                 }
-                else deletedExcess += await TrimAsync(db, l => l.UserUid == userUid, 100);
+                else
+                {
+                    deletedExcess += await TrimAsync(db, l => l.UserUid == userUid && l.Action == UserActionLog.KnownActions.JOIN, 100);
+                    deletedExcess += await TrimAsync(db, l => l.UserUid == userUid && l.Action != UserActionLog.KnownActions.JOIN, 100);
+                }
             }
 
             if (deletedOld > 0 || deletedExcess > 0)
