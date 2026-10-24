@@ -569,6 +569,7 @@ public class SystemBotService
         // Skip own messages
         if (IsBotUser(message.Username)) return;
         if (message.Username == "System") return;
+        if (message.Kind != MessageKind.Normal) return;   // a pin line in a DM with the bot is not a message to answer (MR-80)
 
         try
         {
