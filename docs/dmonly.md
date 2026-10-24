@@ -106,6 +106,10 @@ file is not a supported setup in either build.
   channel pages. They need a pass for this build. `Yap.Tests` is adapted and passes.
 - `loadtest/` (a separate solution) opens the lobby with `OpenRoom`. It does not run against this build.
 - `docs/spec/*` and `docs/architecture/*` describe the room build. This file lists the differences.
+- Main's windowed sidebar list (2026-10-18, "rows for the people in view, padding for the rest") is not ported
+  to the people page. The page rebuilds its rows at most four times a second and skips a rebuild when nothing a
+  row shows has changed; at a few thousand accounts the rebuild itself would still cost, and a windowed list is
+  the next step then.
 
 ## Files
 
