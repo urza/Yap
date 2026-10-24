@@ -15,6 +15,7 @@ using Yap.Services.Accounts;
 using Yap.Services.Chat;
 using Yap.Services.Gifs;
 using Yap.Services.Media;
+using Yap.Services.Presence;
 
 namespace Yap.Tests;
 
@@ -354,18 +355,20 @@ public class SecurityTests : IClassFixture<YapFactory>
         Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
     }
 
-    [Fact(DisplayName = "AD-26: the IPv4 beacon nonce is minted for the caller's own connection only")]
+    [Fact(DisplayName = "AD-26: the IPv4 beacon nonce is minted by the hub for the caller's own connection only")]
     public async Task Beacon_nonce_needs_the_callers_connection()
     {
         var nina = await _app.SignInAsync("nina_beacon");
         var noel = await _app.SignInAsync("noel_beacon");
         var hub = await nina.ConnectAsync();
         await hub.InvokeAsync<Conversation>("OpenDm", (await _app.AdminAsync()).Username);   // a call completes after the server's connect hook registered the session
-        var connectionId = hub.ConnectionId!;
-        var own = await nina.Http.GetFromJsonAsync<JsonElement>($"/api/bootstrap?connection={connectionId}");
-        Assert.Equal(JsonValueKind.String, own.GetProperty("config").GetProperty("beaconNonce").ValueKind);
-        var foreign = await noel.Http.GetFromJsonAsync<JsonElement>($"/api/bootstrap?connection={connectionId}");
-        Assert.Equal(JsonValueKind.Null, foreign.GetProperty("config").GetProperty("beaconNonce").ValueKind);
+        // The hub mints the nonce for the calling connection: a client that skips the negotiate step does not know
+        // its connection id, so the bootstrap carries none (main's resume work, 2026-10-22).
+        Assert.False(string.IsNullOrEmpty(await hub.InvokeAsync<string?>("BeaconNonce")));
+        var noelId = _app.Service<UserService>().GetByUsername("noel_beacon")!.Id;
+        Assert.Null(_app.Service<PresenceService>().CreateBeaconNonce(hub.ConnectionId!, noelId));   // another person's id for that connection
+        var bootstrap = await nina.Http.GetFromJsonAsync<JsonElement>("/api/bootstrap");
+        Assert.False(bootstrap.GetProperty("config").TryGetProperty("beaconNonce", out _));
         await hub.DisposeAsync();
     }
 }

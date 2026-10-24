@@ -94,6 +94,7 @@ public class AccountDeletionTests : IClassFixture<YapFactory>
             u.LastSeenAt = DateTime.UtcNow.AddDays(-200);
         }
         var busyHub = await busy.ConnectAsync();
+        await busyHub.InvokeAsync<Conversation>("OpenDm", admin.Username);   // the start returns before the server's connect hook; a call completes after it, so the session exists here
 
         var list = await admin.Http.GetFromJsonAsync<JsonElement>("/api/admin/inactive?days=90");
         var names = list.GetProperty("users").EnumerateArray().Select(u => u.GetProperty("username").GetString()).ToList();
