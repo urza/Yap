@@ -2,7 +2,7 @@
 // opens the conversation on the hub, and re-opens it after every reconnect (TL-35). A person opens the admin
 // only; the admin opens anyone (docs/dmonly.md).
 
-import { state, setOpen, closeOpen } from '../store.js';
+import { state, on, setOpen, closeOpen } from '../store.js';
 import * as hub from '../hub.js';
 import * as router from '../router.js';
 import * as frame from '../ui/frame.js';
