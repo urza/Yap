@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.Http.Connections.Features;
 using Microsoft.AspNetCore.SignalR;
 using Yap.Helpers;
 using Yap.Models.Accounts;
+using Yap.Models.Admin;
 using Yap.Models.Chat;
 using Yap.Services.Accounts;
+using Yap.Services.Admin;
 using Yap.Services.Chat;
 using Yap.Services.Presence;
 
@@ -19,7 +21,7 @@ namespace Yap.Endpoints;
 /// SignalR group membership. This class stores nothing.
 /// </summary>
 [Authorize]
-public sealed class ChatHub(ChatService chat, PresenceService presence, UserService users, MessageMapper map) : Hub
+public sealed class ChatHub(ChatService chat, PresenceService presence, UserService users, MessageMapper map, UserActionLogService log) : Hub
 {
     private const int PageSize = 50;   // TL-01, TL-06
 
@@ -32,11 +34,10 @@ public sealed class ChatHub(ChatService chat, PresenceService presence, UserServ
     public override Task OnConnectedAsync()
     {
         var http = Context.GetHttpContext()!;
-        users.UpdateLastSeen(Me);                                           // AD-04: the admin list orders by the newest activity
         if (http.Request.Query["pwa"] == "1") users.MarkPwaInstalled(Me);   // AD-05: the client runs as the installed app
         var deviceId = http.Request.Query["device"].FirstOrDefault() ?? "unknown";
         users.RecordDevice(Me, deviceId);                                   // AU-20: the device's first hour starts here
-        presence.Connect(new Session
+        var session = new Session
         {
             ConnectionId = Context.ConnectionId,
             UserId = Me,
@@ -49,7 +50,19 @@ public sealed class ChatHub(ChatService chat, PresenceService presence, UserServ
             ClientIp = IpHelper.GetClientIp(http),
             Transport = Context.Features.Get<IHttpTransportFeature>()?.TransportType.ToString() ?? "",   // the connection's features, not the request's (AD-26)
             Abort = Context.Abort,
-        });
+        };
+        var joined = presence.Connect(session);
+        // After the presence call, not before: the join it raises is where the bot reads LastSeenAt as the end
+        // of the previous visit, for the return notice (PR-18). The stamp itself serves AD-04 (the admin list
+        // orders by the newest activity) and AD-39 (the inactive sweep).
+        users.UpdateLastSeen(Me);
+        // A join is a row in the admin's log (AD-18), written here and not from the presence event because the
+        // address and the browser are known here. A reload or a second tab is not a join and writes nothing.
+        if (joined)
+        {
+            var device = string.Join(" on ", new[] { session.Browser, session.Os }.Where(s => s != "")) + (session.Pwa ? " (app)" : "");
+            log.Log(Me.ToString(), UserActionLog.KnownActions.JOIN, info: device, ip: session.ClientIp, userAgent: http.Request.Headers.UserAgent.ToString());
+        }
         return Task.CompletedTask;
     }
 

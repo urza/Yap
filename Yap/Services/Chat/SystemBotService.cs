@@ -42,6 +42,17 @@ public class SystemBotService
     // The three parts of the welcome DM, from Data/bot-settings.json once the admin saved them (AD-09)
     private string? _welcomeMessageFromFile, _phoneMessageFromFile, _linkMessageFromFile;
 
+    // The return notice (PR-18): hours away before the admin hears that a person is back. From the same file.
+    private int? _returnAfterHoursFromFile;
+    private const int DefaultReturnAfterHours = 2;
+    public const int MaxReturnAfterHours = 720;   // 30 days; the admin page offers the same range
+
+    // A restart reconnects everyone within a minute, and LastSeenAt of a session the restart cut is that
+    // session's start (the hub stamps it on connect and on disconnect, and a crash skips the disconnect).
+    // Every such join would read as a long absence, so no return notice goes out this soon after start.
+    internal DateTime StartedAt { get; set; } = DateTime.UtcNow;
+    private static readonly TimeSpan StartupQuiet = TimeSpan.FromMinutes(2);
+
     public const string DefaultAvatarUrl = "/images/bot-avatar.svg";
     private const string DefaultWelcomeMessage = "👋 Hey! Welcome to {server}! I am bot for sending system messages.";
     private const string DefaultPhoneMessage = "📱 I noticed you're on a phone. It's a much better experience if you [pwa-install] to your homescreen — it will look and feel like a normal app. Please also allow notifications when prompted so you don't miss messages. You can change this anytime in Settings.";
@@ -91,14 +102,18 @@ public class SystemBotService
     /// <summary>The part added when the person has a login link: {link} is the URL, {code} its code. Empty: no link part.</summary>
     public string LinkMessage => _linkMessageFromFile ?? DefaultLinkMessage;
 
+    /// <summary>Hours a person must be away before the admin hears that the person is back (PR-18). 0 turns the notice off.</summary>
+    public int ReturnAfterHours => _returnAfterHoursFromFile ?? DefaultReturnAfterHours;
+
     public string ServerName => ProjectName;
 
-    /// <summary>Saves the parts the admin edited to Data/bot-settings.json. A null part keeps its text.</summary>
-    public async Task UpdateMessagesAsync(string? welcome, string? phone, string? link)
+    /// <summary>Saves what the admin edited to Data/bot-settings.json. A null value keeps the current one.</summary>
+    public async Task UpdateSettingsAsync(string? welcome, string? phone, string? link, int? returnAfterHours)
     {
         if (welcome is not null) _welcomeMessageFromFile = welcome;
         if (phone is not null) _phoneMessageFromFile = phone;
         if (link is not null) _linkMessageFromFile = link;
+        if (returnAfterHours is not null) _returnAfterHoursFromFile = Math.Clamp(returnAfterHours.Value, 0, MaxReturnAfterHours);
         await SaveSettingsAsync();
     }
 
@@ -176,6 +191,7 @@ public class SystemBotService
         _botUserId = botUser.Id;
         _botUsername = botUser.Username;
         _initialized = true;
+        StartedAt = DateTime.UtcNow;
 
         _presence.RegisterPermanent(_botUserId, _botUsername);   // the bot is always online (PR-09)
 
@@ -279,6 +295,7 @@ public class SystemBotService
                 _welcomeMessageFromFile = settings?.WelcomeMessage;
                 _phoneMessageFromFile = settings?.PhoneMessage;
                 _linkMessageFromFile = settings?.LinkMessage;
+                _returnAfterHoursFromFile = settings?.ReturnAfterHours;
 
                 _logger.LogInformation("Loaded bot settings from {Path}", SettingsFilePath);
             }
@@ -293,7 +310,11 @@ public class SystemBotService
     {
         try
         {
-            var settings = new BotSettings { WelcomeMessage = _welcomeMessageFromFile, PhoneMessage = _phoneMessageFromFile, LinkMessage = _linkMessageFromFile };
+            var settings = new BotSettings
+            {
+                WelcomeMessage = _welcomeMessageFromFile, PhoneMessage = _phoneMessageFromFile, LinkMessage = _linkMessageFromFile,
+                ReturnAfterHours = _returnAfterHoursFromFile,
+            };
             var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(SettingsFilePath, json);
             _logger.LogInformation("Saved bot settings to {Path}", SettingsFilePath);
@@ -309,6 +330,7 @@ public class SystemBotService
         public string? WelcomeMessage { get; set; }
         public string? PhoneMessage { get; set; }
         public string? LinkMessage { get; set; }
+        public int? ReturnAfterHours { get; set; }
     }
 
     #endregion
@@ -349,18 +371,22 @@ public class SystemBotService
     }
 
     /// <summary>
-    /// When a new user joins: send them a welcome DM, and notify admin.
+    /// When a person joins: a new account gets a welcome DM and the admin hears of it; an account that was
+    /// away for long tells the admin that the person is back.
     /// </summary>
     private void HandlePresenceChanged(string username, EffectiveStatus status, PresenceChange change)
     {
         if (change != PresenceChange.Join) return;   // the first connection of a person (PR-17, PR-18)
         if (IsBotUser(username)) return;
+        // LastSeenAt is read here, inside the raise, while it still holds the end of the previous visit: the hub
+        // tells PresenceService about the connection first and stamps LastSeenAt after, for this one reader.
+        var lastSeen = _userService.GetByUsername(username)?.LastSeenAt;
         // Not async void: the welcome waits a minute, and an async void handler makes the raiser's
         // synchronization context (xUnit's, for one) wait with it. The task owns its errors.
-        _ = GreetAsync(username);
+        _ = GreetAsync(username, lastSeen);
     }
 
-    private async Task GreetAsync(string username)
+    private async Task GreetAsync(string username, DateTime? lastSeen)
     {
         try
         {
@@ -368,7 +394,9 @@ public class SystemBotService
             if (joiningUser == null) return;
 
             // A new account's first join: the admin hears of it at once, the person a minute later (PR-18, AU-26).
+            // Any later join: the admin hears of it when the person was away long enough (PR-18).
             if (joiningUser.CreatedAt > DateTime.UtcNow.AddMinutes(-5)) await NotifyAdminOfJoinAsync(joiningUser);
+            else if (lastSeen is { } seen) NotifyAdminOfReturn(joiningUser, DateTime.UtcNow - seen);
             if (_userService.IsAdmin(joiningUser.Id)) NotifyAdminOfUntrustedProxy();   // the notice waited for an admin to exist
             await SendWelcomeDmAsync(joiningUser);
         }
@@ -428,6 +456,25 @@ public class SystemBotService
         if (AdminDm() is not { } channel) return;
         _chatService.Send(new SendMessage(channel.Id, _botUserId, _botUsername,
             $"👋 {joiningUser.EffectiveDisplayName} just joined the chat!"));
+    }
+
+    /// <summary>The admin hears that a person is back after at least ReturnAfterHours away (PR-18).</summary>
+    private void NotifyAdminOfReturn(User user, TimeSpan away)
+    {
+        var hours = ReturnAfterHours;
+        if (hours <= 0 || away < TimeSpan.FromHours(hours)) return;
+        if (_userService.IsAdmin(user.Id)) return;   // not about the admin's own return
+        if (DateTime.UtcNow - StartedAt < StartupQuiet) return;   // see StartedAt
+        if (AdminDm() is not { } channel) return;
+        _chatService.Send(new SendMessage(channel.Id, _botUserId, _botUsername,
+            $"👋 {user.EffectiveDisplayName} is back after {Describe(away)}."));
+    }
+
+    /// <summary>"3 hours", "1 day", "12 days": whole units, days from two days on.</summary>
+    internal static string Describe(TimeSpan away)
+    {
+        var (n, unit) = away.TotalHours < 48 ? ((int)away.TotalHours, "hour") : ((int)away.TotalDays, "day");
+        return n == 1 ? $"1 {unit}" : $"{n} {unit}s";
     }
 
     /// <summary>

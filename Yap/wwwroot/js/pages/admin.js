@@ -187,6 +187,7 @@ export function mount(root, route) {
     const username = el('input', { type: 'text', class: 'form-input disabled', disabled: true });
     const part = rows => el('textarea', { class: 'form-input form-textarea', rows, maxlength: 1000 });
     const welcome = part(3), phone = part(3), link = part(4);
+    const returnAfter = el('input', { type: 'number', class: 'form-input bot-hours', min: 0, max: 720, step: 1 });   // the server clamps to the same range
     const result = el('span', { class: 'save-result' });
     const preview = el('pre', { class: 'bot-preview' });
     const avatarHost = el('div', { class: 'bot-avatar' });
@@ -218,13 +219,18 @@ export function mount(root, route) {
         avatarResult)]);
     const save = el('button', { class: 'save-btn', type: 'button', onclick: async () => {
       save.disabled = true; save.textContent = 'Saving...';
-      try { await api.put('/api/admin/bot', { displayName: name.value, welcomeMessage: welcome.value, phoneMessage: phone.value, linkMessage: link.value }); result.textContent = 'Saved!'; }
+      try {
+        await api.put('/api/admin/bot', { displayName: name.value, welcomeMessage: welcome.value, phoneMessage: phone.value, linkMessage: link.value,
+          returnAfterHours: returnAfter.value === '' ? null : Number(returnAfter.value) });
+        result.textContent = 'Saved!';
+      }
       catch (e) { result.textContent = e.message; }
       save.disabled = false; save.textContent = 'Save';
     } }, 'Save');
     api.get('/api/admin/bot').then(d => {
       b = d; username.value = b.username ?? ''; name.value = b.displayName ?? '';
       welcome.value = b.welcomeMessage ?? ''; phone.value = b.phoneMessage ?? ''; link.value = b.linkMessage ?? '';
+      returnAfter.value = b.returnAfterHours ?? '';
       drawAvatar(); drawPreview();
     }).catch(e => { result.textContent = e.message; });
     host.append(header('Bot Settings', 'System bot configuration'),
@@ -236,6 +242,7 @@ export function mount(root, route) {
         el('div', { class: 'form-group' }, el('label', null, 'Phone part'), phone, hint('Added when the new user is on a phone. [pwa-install] becomes the install link. Empty: nothing is added.')),
         el('div', { class: 'form-group' }, el('label', null, 'Login link part'), link, hint('Added when the new user has a login link. {link} is the link, {code} its code. Empty: nothing is added.')),
         el('div', { class: 'form-group' }, el('label', null, 'Preview'), preview, hint('As a phone user with a login link receives it.')),
+        el('div', { class: 'form-group' }, el('label', null, 'Return notice (hours)'), returnAfter, hint('Hours a person must be away before the bot tells you that the person is back. 0 turns it off.')),
         el('div', { class: 'bot-actions' }, save, result)));
   }
 
@@ -423,10 +430,10 @@ export function mount(root, route) {
     return () => {};
   }
   const logs = host => paged(host, { title: 'Action Logs', route: '/api/admin/logs', emptyText: 'No log entries found.', countOf: rows => `${rows.length} loaded`,
-    filters: [{ key: 'action', options: [['', 'All actions'], ['LOGIN', 'LOGIN'], ['LOGOUT', 'LOGOUT'], ['SMART_LOGIN', 'SMART_LOGIN']] }, { key: 'user', placeholder: 'Filter by username...' }],
+    filters: [{ key: 'action', options: [['', 'All actions'], ['LOGIN', 'LOGIN'], ['LOGOUT', 'LOGOUT'], ['SMART_LOGIN', 'SMART_LOGIN'], ['JOIN', 'JOIN']] }, { key: 'user', placeholder: 'Filter by username...' }],
     columns: ['Date', 'User', 'Action', 'IP', 'Info'],
     rowOf: r => el('tr', null, td(stamp(r.date), 'date-cell'), td(r.username), td(pill(r.action, actionClass(r.action))), td(r.ip ?? '-', 'ip-mono'), td(r.info ?? '-', 'info-cell')) });
-  const actionClass = a => a === 'LOGIN' ? 'action-login' : a === 'LOGOUT' || a === 'LOGIN_FAIL' ? 'action-logout' : a === 'SMART_LOGIN' ? 'action-smart' : 'action-default';
+  const actionClass = a => a === 'LOGIN' ? 'action-login' : a === 'LOGOUT' || a === 'LOGIN_FAIL' ? 'action-logout' : a === 'SMART_LOGIN' ? 'action-smart' : a === 'JOIN' ? 'action-join' : 'action-default';
   // A row's delete that asks with a second tap: the first turns the button into "Sure?" for four seconds, the
   // second runs the action. The Media and the GIFs rows share it (AD-19, AD-23).
   const armedDelete = (action, title) => {
