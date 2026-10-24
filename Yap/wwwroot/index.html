@@ -310,6 +310,11 @@
         <div class="system-message"><div class="message-content">This is the beginning of your direct message history with <strong></strong>.</div></div>
     </template>
 
+    <!-- A stored system line such as "{name} pinned a message" (MR-80); ui/message.js draws it as a row. -->
+    <template id="t-system-line">
+        <div class="message-group system-message"><div class="message-body"><div class="message-content"></div></div></div>
+    </template>
+
     <!-- The catching-up pill (TL-39): the rows are the device's copy until the server answers. -->
     <template id="t-catching-up">
         <div class="top-pill catching-up" role="status"><div class="loading-spinner"></div><span class="catching-up-text"></span></div>

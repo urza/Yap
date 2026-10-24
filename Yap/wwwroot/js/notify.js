@@ -42,7 +42,7 @@ on('unread', () => {
 // The sound: a message from someone else while a conversation is open and the tab is hidden (NT-13).
 // A Web Lock per message lets one tab play it, whatever the number of tabs (NT-14).
 on('incoming', m => {
-  if (!state.user || m.username === state.user.username || !state.open) return;
+  if (!state.user || m.username === state.user.username || !state.open || m.kind) return;   // own messages and system lines make no sound (MR-80)
   if (document.visibilityState === 'visible' || isMuted(m.channelId)) return;
   const play = () => { ensureAudio(); audio?.play().catch(() => {}); };
   if (navigator.locks) navigator.locks.request(`yap-sound-${m.id}`, { ifAvailable: true }, lock => { if (lock) { play(); return new Promise(r => setTimeout(r, 3000)); } });

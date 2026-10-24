@@ -25,7 +25,13 @@ public class ChatMessage
     /// <summary>A voice message. Set, the message carries nothing else (IB-70).</summary>
     public VoiceAttachment? Voice { get; set; }
     public bool IsEdited { get; set; }
+
+    /// <summary>The quoted original of a reply (MR-32). For a system line, the message the line is about (MR-80).</summary>
     public Guid? ReplyToMessageId { get; set; }
+
+    /// <summary>A message, or a stored system line such as "{name} pinned a message" (MR-80). A system line has no
+    /// content of its own: the client writes its text from the kind and the author.</summary>
+    public MessageKind Kind { get; set; }
 
     /// <summary>
     /// The id the client made at send time. The server answers a repeated send with the same ClientId with the

@@ -18,6 +18,7 @@ public sealed class MessageMapper(ChatService chat, GifService gifs, UserService
     /// room, where one shape serves everyone.</summary>
     public MessageDto From(ChatMessage m, Guid? viewerId) => new(
         m.Id, m.ChannelId, m.ClientId, m.Username, m.Content, m.Timestamp, m.IsEdited,
+        Kind(m.Kind),
         ReplyTo(m, viewerId),
         m.ImageUrls.Select(Image).ToList(),
         m.VideoUrls.Select(Video).ToList(),
@@ -25,6 +26,9 @@ public sealed class MessageMapper(ChatService chat, GifService gifs, UserService
         m.Voice is { } voice ? new VoiceDto(voice.Url, voice.DurationMs, voice.Peaks) : null,
         Reactions(m),
         chat.Previews(m));
+
+    /// <summary>The wire name of a system line; null for a message (MR-80, <see cref="MessageDto.Kind"/>).</summary>
+    private static string? Kind(MessageKind kind) => kind switch { MessageKind.Pin => "pin", _ => null };
 
     /// <summary>The row's picture with the size of the file it shows, so the row has its box before the file loads.</summary>
     private ImageDto Image(string url)

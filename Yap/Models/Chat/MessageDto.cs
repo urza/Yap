@@ -4,6 +4,8 @@ namespace Yap.Models.Chat;
 /// A message as the client receives it, in the hub's <c>message</c> event, in a conversation tail and in the
 /// answer to a send. Text is plain text: the client renders links and emoji (sketch, principle 6). Display
 /// names and avatars are not here; the client resolves <see cref="Username"/> in its users directory.
+/// <see cref="Kind"/> is null for a message and "pin" for a stored system line (MR-80), so the client's test of
+/// <c>m.kind</c> alone tells a system row; a string, not the enum, so a reader without the enum converter parses it.
 /// </summary>
 public sealed record MessageDto(
     Guid Id,
@@ -13,6 +15,7 @@ public sealed record MessageDto(
     string Text,
     DateTime Timestamp,
     bool Edited,
+    string? Kind,
     ReplyToDto? ReplyTo,
     IReadOnlyList<ImageDto> Images,
     IReadOnlyList<VideoDto> Videos,

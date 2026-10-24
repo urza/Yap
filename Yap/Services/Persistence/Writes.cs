@@ -173,5 +173,5 @@ public static class Writes
     private static ChatMessage Detached(ChatMessage m) =>
         new(m.ChannelId, m.UserId, m.Username, m.Content, m.Timestamp, m.ImageUrls.ToList(),
             m.ReplyToMessageId, m.VideoUrls.ToList(), m.GifAttachments.ToList(), m.Voice)
-        { Id = m.Id, IsEdited = m.IsEdited, ClientId = m.ClientId };
+        { Id = m.Id, IsEdited = m.IsEdited, ClientId = m.ClientId, Kind = m.Kind };
 }

@@ -161,7 +161,7 @@ export function Timeline(root) {
   function arrived(m) {
     const own = m.username === state.user?.username;
     if (following) scrollToBottom();
-    else if (!own) showPill();
+    else if (!own && !m.kind) showPill();   // a system line is not a new message (TL-16, MR-80)
   }
 
   // The server counted a message in the open conversation: the person was hidden, away or idle when it came.

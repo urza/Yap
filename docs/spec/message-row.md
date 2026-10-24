@@ -20,7 +20,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 6. **Reaction pills.** Pills under the content with the emoji and the count. The reader's own reactions are highlighted.
 7. **Action bar.** A bar at the top right of the row. It shows on hover or after a tap. It contains the quick reactions, Add Reaction, Reply, the GIF star on phones, Edit on own text rows, and More.
 8. **Popups.** The reaction picker and the More menu open from the bar; the delete dialog opens from the More menu. On a phone, the picker and the menu are bottom sheets.
-9. **System line.** A centred italic line in the lobby when someone joins or leaves. It has no header, no actions and no hover effect.
+9. **System line.** A centred italic line: in the lobby when someone joins or leaves, and in a conversation when someone pins a message. It has no header, no actions and no hover effect.
 
 ## Rules
 
@@ -200,6 +200,8 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 **MR-73** In the lobby, a centred italic line appears when a person joins or leaves. The [presence page](presence.md#PR-17) specifies when it appears. The line shows a random text from the configured lists, with the username of the person. Invisible people get no line. The line is not stored, so a reload removes it.
 
+**MR-80** When a person pins a message, a centred italic line "{name} pinned a message" appears at the end of the conversation, for everyone who can read it. The line is stored with the messages: a person who opens the conversation later finds it at its place in time, and it loads with older messages. The name is the pinner's display name. The line counts as unread for nobody, and it sends no notification and no sound ([NT-02](notifications.md#NT-02)). It cannot be edited, quoted or pinned, and it takes no reactions (MR-45). The message after it starts a new group with a header. An unpin shows no line.
+
 **MR-74** A bot message can contain an "install it" link. The link opens the install dialog. See [Offline and installation](offline.md).
 
 ### Without a connection
@@ -210,7 +212,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 **MR-77** A conversation has up to three pinned messages. In a direct message, both people can pin and unpin. In a room, the admin can always pin and unpin. Other people follow the room's pin setting: nobody, everyone, or a list of selected people. See [Administration](admin.md#AD-37). A pending message cannot be pinned. The [header page](frame.md#SH-47) specifies the pin button and the panel that show the pins.
 
-**MR-78** "Pin Message" pins the row for every reader, and the header's pin count changes at once. When the conversation has three pins, the server refuses with "Up to 3 pinned messages. Unpin one first.", and the text shows at the row for two seconds. "Unpin Message" removes the pin. A pin or an unpin that the server refuses is undone, and the reason shows at the row.
+**MR-78** "Pin Message" pins the row for every reader, and the header's pin count changes at once. When the conversation has three pins, the server refuses with "Up to 3 pinned messages. Unpin one first.", and the text shows at the row for two seconds. "Unpin Message" removes the pin. A pin or an unpin that the server refuses is undone, and the reason shows at the row. A pin that the server accepts shows a system line (MR-80).
 
 ## States
 
@@ -266,6 +268,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 | Files uploading | all | File names, progress bar, "Cancel upload". |
 | No connection, reaction, star, Save or Delete | all | Nothing changes. "Needs a connection" at the row for 2 s. |
 | Someone joins or leaves the lobby | all | Centred italic system line. |
+| Someone pins a message | all | Centred italic system line "{name} pinned a message", kept in the history. No count, no notification, no pill. An unpin shows nothing. |
 
 ## Wording
 
@@ -287,7 +290,8 @@ A message row is one message as it appears in the conversation. The row shows wh
 | Bar tooltips | the emoji itself; "Add Reaction"; "Reply"; "Edit"; "More" |
 | Video play control | "Play video" |
 | More menu | "Copy Text"; "Pin Message"; "Unpin Message"; "Delete Message" |
-| Pin refusals | "Up to 3 pinned messages. Unpin one first."; "You cannot pin messages here."; "You cannot unpin messages here." |
+| Pin refusals | "Up to 3 pinned messages. Unpin one first."; "You cannot pin messages here."; "You cannot unpin messages here."; "A system line cannot be pinned." |
+| System line refusals | "A system line cannot be edited."; "A system line cannot be quoted."; "System lines do not accept reactions." |
 | Editor | "✓ Save" (tooltip "Save"); "✕ Cancel" (tooltip "Cancel"); "Enter to save · Shift+Enter for newline · Esc to cancel" |
 | Delete dialog | "Delete Message"; "Are you sure you want to delete this message?"; "GIF attachment"; "Voice message"; preview alt texts "Attachment", "Video attachment"; "Pro tip: hold Shift when deleting to skip this confirmation." with Shift as a keycap; "Cancel"; "Delete" |
 | Pending row | "Cancel upload"; "Failed"; "Retry"; "Remove"; the reason is the server's refusal text, "Waited more than a day" after one day, or "Could not send" when there is none |
@@ -296,6 +300,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 | Lobby join lines (configured; defaults) | "{0} just dropped", "{0} is here", "{0} arrives", "W {0} joined", "{0} spawned in", "{0} returns" |
 | Lobby leave lines (configured; defaults) | "{0} dipped", "{0} ghosted us", "{0} went to touch grass", "{0} logged off", "{0} left on read", "{0} has left the chat", "rip {0}" |
 | Lobby lines when the lists are missing | "{0} joined the chat"; "{0} left the chat" |
+| Pin line | "{name} pinned a message" |
 
 ## Related
 

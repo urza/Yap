@@ -67,7 +67,7 @@ The client calls the methods with these camelCase names; SignalR matches the ser
 | `react` | messageId, emoji | error | Toggle (MR-40). Also updates recent emoji (MR-44). |
 | `edit` | messageId, text | error | Own text rows only (MR-57). |
 | `delete` | messageId | error | Own rows only (MR-64). |
-| `pin` | channelId, messageId | error | Up to three per conversation, the newest first (MR-77, MR-78). Both people of a DM; in a room the admin, or whoever the room's pin setting allows (AD-37). |
+| `pin` | channelId, messageId | error | Up to three per conversation, the newest first (MR-77, MR-78). Both people of a DM; in a room the admin, or whoever the room's pin setting allows (AD-37). Also stores a system line in the conversation, sent as a `message` with `kind: "pin"`: it counts for nobody and sends no push (MR-80). |
 | `unpin` | channelId, messageId | error | The same rights. The channel id is named because the message may be older than the ones in memory. |
 | `emojiUsed` | emoji | | A pick in the composer picker (IB-44, PK-07). |
 
@@ -105,6 +105,7 @@ The client calls the methods with these camelCase names; SignalR matches the ser
 ```
 Message {
   id, channelId, clientId?, username, text, timestamp, edited,
+  kind: "pin" | null,   // null: a message. "pin": a stored system line "{name} pinned a message" (MR-80); username is the pinner, replyTo names the pinned message, text is empty
   replyTo: { id, username, text, hasMedia, voice } | { id, unavailable: true } | null,   // voice: the original is a voice message, quoted as "Voice message" (MR-32)
   images:  [ { medium, large, width, height } ],   // width, height: the medium picture's pixels, read from the file; null when it is gone. The row's box before the load
   videos:  [ { poster, src, width, height } ],     // the poster's pixels; null without a poster
