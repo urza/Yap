@@ -49,10 +49,18 @@ export function EmojiPicker({ onPick, recordUse = true }) {
   }
 
   function cell(c) {
-    // Cells are lazy images: a closed picker loads nothing (PK-11). The blur on pointerdown closes a phone keyboard before the pick (PK-47).
+    // Cells are lazy images: a closed picker loads nothing (PK-11).
     const button = el('button', { class: 'emoji-btn', type: 'button', 'data-emoji': c.value, 'data-kw': c.keywords, title: c.title ?? null }, c.node());
-    button.addEventListener('pointerdown', () => { if (document.activeElement === search) search.blur(); });   // PK-47
-    button.addEventListener('click', () => { if (recordUse) hub.send('emojiUsed', c.value); onPick(c.value); });   // PK-07, IB-44
+    // The tap moves no focus, and the phone keyboard closes only after the pick (PK-47). A search holds the focus, so
+    // the keyboard is open and the sheet sits above it (resizes-content, index.html). A blur on pointerdown closed the
+    // keyboard mid-tap: the sheet dropped by the keyboard's height, the tap ended on whatever took the cell's place,
+    // and the click never reached the cell (2026-10-24, "a tap on a search result inserts nothing").
+    button.addEventListener('pointerdown', e => e.preventDefault());
+    button.addEventListener('click', () => {
+      if (recordUse) hub.send('emojiUsed', c.value);                                 // PK-07
+      onPick(c.value);                                                               // IB-44
+      if (overlays.isPhone() && document.activeElement === search) search.blur();    // PK-47
+    });
     return button;
   }
 

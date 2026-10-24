@@ -127,7 +127,7 @@ The emoji picker and the GIF picker open from the input box. The emoji picker pu
 
 **PK-46** A tab switch is instant. Each tab keeps its search text, results and scroll position. The active tab is kept until the page is reloaded.
 
-**PK-47** When the sheet opens, no search field gets the focus. A tap on an emoji cell closes the phone keyboard before the emoji is inserted. A tap on a GIF card closes the sheet, and this closes the keyboard.
+**PK-47** When the sheet opens, no search field gets the focus. A tap on an emoji cell inserts the emoji and then closes the phone keyboard. A tap on a GIF card closes the sheet, and this closes the keyboard.
 
 **PK-48** The reaction picker on a phone is a sheet of the same size over a dimmed page.
 
