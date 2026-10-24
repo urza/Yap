@@ -2,7 +2,7 @@
 // pages, the top note, the lobby lines. The rows themselves are drawn by ui/message.js. The timeline is the one
 // component that updates rows in place, because it can hold hundreds of them.
 
-import { state, on, prependOlder, roomById, dmByChannel, lobby, displayName } from '../store.js';
+import { state, on, prependOlder, roomById, dmByChannel, lobby } from '../store.js';
 import { clone, el, replace } from '../render/dom.js';
 import { inline, pick } from '../render/text.js';
 import { messageTime } from '../render/time.js';
@@ -45,7 +45,7 @@ export function Timeline(root) {
     for (const r of rows.values()) r.node.remove();
     rows.clear();
     pendingNodes.forEach(n => n.remove()); pendingNodes = [];
-    flow.querySelectorAll('.lobby-line, .pin-line').forEach(n => n.remove());   // the lines are not stored (MR-73, MR-80); not .system-message, the DM start note in the top slot has it too
+    flow.querySelectorAll('.lobby-line').forEach(n => n.remove());
     hidePill(); hideDown();
     landed = null;   // the rows it measured are gone (the still view, below)
     shownChannel = state.open?.channelId ?? null;
@@ -162,7 +162,7 @@ export function Timeline(root) {
   function arrived(m) {
     const own = m.username === state.user?.username;
     if (following) scrollToBottom();
-    else if (!own) showPill();
+    else if (!own && !m.kind) showPill();   // a system line is not a new message (TL-16, MR-80)
   }
 
   // The server counted a message in the open conversation: the person was hidden, away or idle when it came.
@@ -439,17 +439,6 @@ export function Timeline(root) {
     if (added && following) scrollToBottom();
   }
 
-  // ---- pin lines (MR-80) ----
-  // The store announces a pin the open conversation did not have before (setPins); an unpin is silent.
-  function onPinned(pin) {
-    if (!state.open) return;
-    const line = clone('t-system-line');
-    line.classList.add('pin-line');
-    replace(line.querySelector('.message-content'), inline(`${displayName(pin.pinnedBy)} pinned a message`));
-    flow.append(line);
-    if (following) scrollToBottom();
-  }
-
   // The labels follow the clock: at midnight "today" becomes "Yesterday" (MR-06).
   const clock = setInterval(() => {
     for (const { node, message } of rows.values()) {
@@ -481,7 +470,7 @@ export function Timeline(root) {
   }
 
   const offs = [
-    on('messages', onMessages), on('pending', onPending), on('presence', onPresence), on('pinned', onPinned),
+    on('messages', onMessages), on('pending', onPending), on('presence', onPresence),
     on('connection', () => { if (state.connection !== 'connected') stale = true; renderTop(); renderCatchingUp(); }),   // a lost socket: the rows may be old (TL-39)
     on('open', () => { stale = !!state.open?.fromDevice; renderCatchingUp(); }),                                           // the server's answer ends the pill
     on('rooms', renderTop),

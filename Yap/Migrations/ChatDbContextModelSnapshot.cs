@@ -380,6 +380,9 @@ namespace Yap.Migrations
                     b.Property<bool>("IsEdited")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("Kind")
+                        .HasColumnType("INTEGER");
+
                     b.Property<Guid?>("ReplyToMessageId")
                         .HasColumnType("TEXT");
 

@@ -438,6 +438,45 @@ public class ChatTests : IClassFixture<YapFactory>
         await bobHub.DisposeAsync();
     }
 
+    [Fact(DisplayName = "MR-80, NT-02: a pin stores a system line in the conversation; it reaches the other person, counts for nobody and takes no edit, reaction, quote or pin")]
+    public async Task A_pin_stores_a_system_line_that_counts_for_nobody()
+    {
+        var alice = await _app.SignInAsync("alice_pinline");
+        var bob = await _app.SignInAsync("bob_pinline");
+        var chat = _app.Service<ChatService>();
+        var bobId = _app.Service<Yap.Services.Accounts.UserService>().GetByUsername("bob_pinline")!.Id;
+        var aliceHub = await alice.ConnectAsync();
+        var bobHub = await bob.ConnectAsync();   // connected, the conversation not open: a message counts for bob (NT-03)
+        var dm = (await aliceHub.InvokeAsync<Conversation>("OpenDm", "bob_pinline")).ChannelId;
+
+        var counted = new Expectation<int>();
+        bobHub.On<Guid, int>("unread", (channelId, count) => { if (channelId == dm && count == 1) counted.Set(count); });
+        var line = new Expectation<MessageDto>();
+        bobHub.On<MessageDto>("message", m => { if (m.Kind == "pin") line.Set(m); });
+
+        var sent = (await (await alice.Http.PostAsJsonAsync("/api/dm/bob_pinline/messages", new { clientId = Guid.NewGuid(), text = "pin me" })).Content.ReadFromJsonAsync<MessageDto>())!;
+        await counted.Within();
+
+        Assert.Null(await aliceHub.InvokeAsync<HubError?>("Pin", dm, sent.Id));
+        var row = await line.Within();
+        Assert.Equal("alice_pinline", row.Username);          // the pinner is the author
+        Assert.Equal(sent.Id, row.ReplyTo?.Id);               // the line names the pinned message
+        Assert.Equal("", row.Text);
+        Assert.Equal(1, chat.UnreadCount(bobId, dm));         // the line did not count (NT-02)
+
+        Assert.Equal("System lines do not accept reactions.", (await bobHub.InvokeAsync<HubError?>("React", row.Id, "👍"))?.Error);
+        Assert.Equal("A system line cannot be edited.", (await aliceHub.InvokeAsync<HubError?>("Edit", row.Id, "x"))?.Error);
+        Assert.Equal("A system line cannot be pinned.", (await aliceHub.InvokeAsync<HubError?>("Pin", dm, row.Id))?.Error);
+        var quoted = await alice.Http.PostAsJsonAsync("/api/dm/bob_pinline/messages", new { clientId = Guid.NewGuid(), text = "re", replyToId = row.Id });
+        Assert.Equal(HttpStatusCode.BadRequest, quoted.StatusCode);
+
+        var opened = await bobHub.InvokeAsync<Conversation>("OpenDm", "alice_pinline");   // in the history, after the message
+        Assert.Equal([sent.Id, row.Id], opened.Messages.Select(m => m.Id));
+        Assert.Equal([null, "pin"], opened.Messages.Select(m => m.Kind));
+        await aliceHub.DisposeAsync();
+        await bobHub.DisposeAsync();
+    }
+
     [Fact(DisplayName = "MR-77, AD-37, TL-05: in a room the admin always pins, the others follow the pin setting, a late joiner sees no pin from before their time")]
     public async Task Room_pin_permission_modes()
     {

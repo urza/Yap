@@ -20,7 +20,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 6. **Reaction pills.** Pills under the content with the emoji and the count. The reader's own reactions are highlighted.
 7. **Action bar.** A bar at the top right of the row. It shows on hover or after a tap. It contains the quick reactions, Add Reaction, Reply, the GIF star on phones, Edit on own text rows, and More.
 8. **Popups.** The reaction picker and the More menu open from the bar; the delete dialog opens from the More menu. On a phone, the picker and the menu are bottom sheets.
-9. **System line.** A centred italic line in the lobby when someone joins or leaves, and in a conversation when someone pins a message. It has no header, no actions and no hover effect.
+9. **System line.** A centred italic line: in the lobby when someone joins or leaves, and in a conversation when someone pins a message. It has no header, no actions and no hover effect.
 
 ## Rules
 
@@ -200,7 +200,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 **MR-73** In the lobby, a centred italic line appears when a person joins or leaves. The [presence page](presence.md#PR-17) specifies when it appears. The line shows a random text from the configured lists, with the username of the person. Invisible people get no line. The line is not stored, so a reload removes it.
 
-**MR-80** When a person pins a message, a centred italic line "{name} pinned a message" appears at the end of the conversation. The people who have the conversation open at that moment see it, the pinner included. The name is the pinner's display name. An unpin shows no line. The line is not stored, so a reload removes it.
+**MR-80** When a person pins a message, a centred italic line "{name} pinned a message" appears at the end of the conversation, for everyone who can read it. The line is stored with the messages: a person who opens the conversation later finds it at its place in time, and it loads with older messages. The name is the pinner's display name. The line counts as unread for nobody, and it sends no notification and no sound ([NT-02](notifications.md#NT-02)). It cannot be edited, quoted or pinned, and it takes no reactions (MR-45). The message after it starts a new group with a header. An unpin shows no line.
 
 **MR-74** A bot message can contain an "install it" link. The link opens the install dialog. See [Offline and installation](offline.md).
 
@@ -268,7 +268,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 | Files uploading | all | File names, progress bar, "Cancel upload". |
 | No connection, reaction, star, Save or Delete | all | Nothing changes. "Needs a connection" at the row for 2 s. |
 | Someone joins or leaves the lobby | all | Centred italic system line. |
-| Someone pins a message | all | Centred italic system line "{name} pinned a message". An unpin shows nothing. |
+| Someone pins a message | all | Centred italic system line "{name} pinned a message", kept in the history. No count, no notification, no pill. An unpin shows nothing. |
 
 ## Wording
 
@@ -290,7 +290,8 @@ A message row is one message as it appears in the conversation. The row shows wh
 | Bar tooltips | the emoji itself; "Add Reaction"; "Reply"; "Edit"; "More" |
 | Video play control | "Play video" |
 | More menu | "Copy Text"; "Pin Message"; "Unpin Message"; "Delete Message" |
-| Pin refusals | "Up to 3 pinned messages. Unpin one first."; "You cannot pin messages here."; "You cannot unpin messages here." |
+| Pin refusals | "Up to 3 pinned messages. Unpin one first."; "You cannot pin messages here."; "You cannot unpin messages here."; "A system line cannot be pinned." |
+| System line refusals | "A system line cannot be edited."; "A system line cannot be quoted."; "System lines do not accept reactions." |
 | Editor | "✓ Save" (tooltip "Save"); "✕ Cancel" (tooltip "Cancel"); "Enter to save · Shift+Enter for newline · Esc to cancel" |
 | Delete dialog | "Delete Message"; "Are you sure you want to delete this message?"; "GIF attachment"; "Voice message"; preview alt texts "Attachment", "Video attachment"; "Pro tip: hold Shift when deleting to skip this confirmation." with Shift as a keycap; "Cancel"; "Delete" |
 | Pending row | "Cancel upload"; "Failed"; "Retry"; "Remove"; the reason is the server's refusal text, "Waited more than a day" after one day, or "Could not send" when there is none |

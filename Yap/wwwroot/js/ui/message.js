@@ -39,7 +39,7 @@ function noteAutoplayBlocked() {
 
 // MR-01: a header when the row is the first, the author changed, the row is a reply, or an hour passed.
 export function needsHeader(prev, m) {
-  if (!prev) return true;
+  if (!prev || prev.kind) return true;   // the first row, and the row after a system line, start a group (MR-01, MR-80)
   if (prev.username !== m.username) return true;
   if (m.replyTo) return true;
   return new Date(m.timestamp) - new Date(prev.timestamp) >= 3_600_000;
@@ -48,6 +48,7 @@ export function needsHeader(prev, m) {
 const isOwn = m => m.username === state.user?.username;
 
 export function renderRow(m, { header }) {
+  if (m.kind) return systemRow(m);
   const row = clone('t-message');
   row.id = `msg-${m.id}`;
   row.dataset.author = m.username;
@@ -86,6 +87,17 @@ export function renderRow(m, { header }) {
   renderReactions(row, m);
   renderPending(row, m);
   renderActions(row, m);
+  return row;
+}
+
+// A stored system line (MR-80): a row of the list with the message's id, so the timeline keeps, moves and removes
+// it like any row. No header, no time, no actions: rowOf skips .system-message, so no bar attaches to it.
+function systemRow(m) {
+  const row = clone('t-system-line');
+  row.id = `msg-${m.id}`;
+  row.classList.add(`${m.kind}-line`);
+  const did = m.kind === 'pin' ? 'pinned a message' : m.kind;   // a kind from a newer server still reads as something
+  replace(row.querySelector('.message-content'), inline(`${displayName(m.username)} ${did}`));
   return row;
 }
 

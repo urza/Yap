@@ -46,7 +46,7 @@ on('unread', () => {
 // The sound: a direct message from someone else, on a direct message page, while the tab is hidden (NT-13).
 // A Web Lock per message lets one tab play it, whatever the number of tabs (NT-14).
 on('incoming', m => {
-  if (!state.user || m.username === state.user.username) return;
+  if (!state.user || m.username === state.user.username || m.kind) return;   // own messages and system lines make no sound (MR-80)
   if (document.visibilityState === 'visible' || isMuted(m.channelId)) return;
   if (!openIsDm() || !(dmByChannel(m.channelId) || m.channelId === state.open?.channelId)) return;
   const play = () => { ensureAudio(); audio?.play().catch(() => {}); };

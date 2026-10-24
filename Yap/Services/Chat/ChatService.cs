@@ -385,8 +385,8 @@ public class ChatService
         {
             var partner = channel.GetOtherParticipant(me.Username);
             if (string.IsNullOrEmpty(partner)) continue;
-            DateTime? last;
-            lock (LockOf(channel.Id)) last = _channelMessages.GetValueOrDefault(channel.Id)?.LastOrDefault()?.Timestamp;
+            DateTime? last;   // of the last message: a pin line (MR-80) is no reason to move the conversation up the list
+            lock (LockOf(channel.Id)) last = _channelMessages.GetValueOrDefault(channel.Id)?.LastOrDefault(m => m.Kind == MessageKind.Normal)?.Timestamp;
             if (last is { } at) result.Add((channel, partner, at));
         }
         return result;
@@ -494,6 +494,8 @@ public class ChatService
         // passes: the quote then says so (MR-35).
         if (request.ReplyToMessageId is { } replyId && _channelOfMessage.TryGetValue(replyId, out var home) && home != channel.Id)
             return SendResult.Refused("The original message is not in this conversation.");
+        if (request.ReplyToMessageId is { } quoted && GetMessage(quoted)?.Kind is { } kind && kind != MessageKind.Normal)
+            return SendResult.Refused("A system line cannot be quoted.");   // MR-80: the row offers no Reply; the call is refused too
 
         if (request.ClientId is { } clientId)
         {
@@ -664,6 +666,7 @@ public class ChatService
     public string? Edit(Guid userId, Guid messageId, string text)
     {
         if (GetMessage(messageId) is not { } message) return "Message not found.";
+        if (message.Kind != MessageKind.Normal) return "A system line cannot be edited.";   // MR-80: its text is not stored
         if (message.UserId != userId) return "You can edit your own messages only.";
         if (message.HasMedia && string.IsNullOrWhiteSpace(message.Content)) return "A media message without a caption cannot be edited.";   // the caption is the part that an edit changes (MR-57)
         if (text.Length > MaxTextLength) return $"A message has at most {MaxTextLength} characters.";
@@ -715,6 +718,7 @@ public class ChatService
     {
         if (emoji.Length is 0 or > 64) return "Not an emoji.";
         if (GetMessage(messageId) is not { } message) return "Message not found.";
+        if (message.Kind != MessageKind.Normal) return "System lines do not accept reactions.";   // MR-45
         if (!_channels.TryGetValue(message.ChannelId, out var channel) || !channel.CanAccess(userId)) return "Message not found.";
 
         bool added;
@@ -740,6 +744,7 @@ public class ChatService
     {
         if (!_channels.TryGetValue(channelId, out var channel)) return "Conversation not found.";
         if (GetMessage(messageId) is not { } message || message.ChannelId != channelId || !MayRead(userId, message)) return "Message not found.";   // MayRead covers access and the history cutoff (TL-05)
+        if (message.Kind != MessageKind.Normal) return "A system line cannot be pinned.";   // MR-80
         if (!channel.CanPin(userId, username, _userService.IsAdmin(userId))) return "You cannot pin messages here.";
         var media = PinMediaOf(message);   // outside the lock: it may read a cached card from disk
         lock (LockOf(channelId))
@@ -750,7 +755,23 @@ public class ChatService
             channel.Pins = [Models.Chat.Pin.Of(message, username, media), .. channel.Pins];   // qualified: Pin is also this method
         }
         PinsChanged(channel);
+        AddSystemLine(channel, userId, username, MessageKind.Pin, about: messageId);   // "{name} pinned a message" (MR-80); an unpin writes nothing
         return null;
+    }
+
+    /// <summary>
+    /// A stored system line (MR-80): a row of the conversation that stays in the history like a message, so a person
+    /// who opens the conversation later sees it at its place in time. Unlike a message it counts as unread for nobody
+    /// and sends no push (NT-02), gets no link card and stops no typing. The author is the person who acted;
+    /// <paramref name="about"/> is the message the line is about. The open tabs get it by the message event.
+    /// </summary>
+    private void AddSystemLine(Channel channel, Guid userId, string username, MessageKind kind, Guid about)
+    {
+        var line = new ChatMessage(channel.Id, userId, username, "", DateTime.UtcNow, replyToMessageId: about) { Kind = kind };
+        lock (LockOf(channel.Id)) _channelMessages.GetOrAdd(channel.Id, _ => []).Add(line);
+        _channelOfMessage[line.Id] = channel.Id;
+        _writer.Enqueue(Writes.Message(line));   // queued before anyone hears of the row, as in Send
+        OnMessageReceived?.Invoke(line);
     }
 
     /// <summary>MR-77. The pin goes; the message stays. Named by conversation and message, because a pinned message may be
