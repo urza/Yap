@@ -105,10 +105,15 @@ function openMessage(id) { return state.open?.messages.find(m => m.id === id); }
 // ---- pins (SH-47 to SH-49, MR-77) ----
 
 // The server's list for the open conversation. A list for another conversation is dropped: its open answer carries one.
+// A pin the list did not have before is announced as 'pinned', and the timeline draws a line for it (MR-80). The pinner's
+// own local copy does not count as "before": the line comes with the server's confirmation, so a refused pin shows none.
+// An unpin announces nothing.
 export function setPins(channelId, pins) {
   if (state.open?.channelId !== channelId) return;
+  const confirmed = new Set(state.open.pins.filter(p => !p.local).map(p => p.messageId));
   state.open.pins = pins;
   changed('pins');
+  for (const p of pins) if (!confirmed.has(p.messageId)) changed('pinned', p);
 }
 
 export function isPinned(id) { return !!state.open?.pins?.some(p => p.messageId === id); }
@@ -130,7 +135,7 @@ export function pinLocally(m) {
   const open = state.open;
   if (!open || isPinned(m.id) || open.pins.length >= 3) return null;
   open.pins = [{ messageId: m.id, username: m.username, text: m.text || null, timestamp: m.timestamp, media: pinMediaOf(m),
-                 pinnedBy: state.user.username, pinnedAt: new Date().toISOString() }, ...open.pins];
+                 pinnedBy: state.user.username, pinnedAt: new Date().toISOString(), local: true }, ...open.pins];   // local: setPins announces the server's copy (MR-80)
   changed('pins');
   return () => { if (state.open === open) { open.pins = open.pins.filter(p => p.messageId !== m.id); changed('pins'); } };   // only this pin goes: a pins event may have landed meanwhile
 }
