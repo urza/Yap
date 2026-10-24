@@ -22,6 +22,7 @@ export function mount(root) {
   frame.setTitle('home', { text: state.config.projectName });
   setTitle(state.config.projectName);
 
+  let timer = 0, at = 0, sig = '';   // before the first render() below: a let is dead until its line runs, a function is not
   filter.addEventListener('input', render);
   const offs = ['users', 'presence', 'dms', 'unread', 'mutes', 'user'].map(part => on(part, render));
   const clock = setInterval(render, 60_000);   // "5 minutes ago" follows the clock
@@ -32,7 +33,6 @@ export function mount(root) {
   // every 250 ms, and not at all when nothing a row shows has changed. Main's sidebar list got the same cure
   // after the 2026-10-18 load test, where the admin's tab froze under the presence churn of 1,000 users while
   // the server sat idle (loadtest/reports/2026-10-18-hz2/report.md).
-  let timer = 0, at = 0, sig = '';
   function render() {
     if (timer) return;
     const wait = Math.max(0, GAP_MS - (performance.now() - at));
