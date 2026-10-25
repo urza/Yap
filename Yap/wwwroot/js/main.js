@@ -15,6 +15,7 @@ import * as time from './render/time.js';
 import { clone } from './render/dom.js';
 import './sender.js';   // the outbox listens to the hub
 import './notify.js';   // the sound, the title and the badge listen to the store
+import { syncScene } from './scene.js';
 import * as snapshot from './offline/snapshot.js';
 
 performance.mark('scripts');   // the boot report's second phase (AD-41): every static module above has loaded and run when this line runs
@@ -73,6 +74,7 @@ on('user', () => {
   root.style.fontSize = u.fontSize ? `${u.fontSize}px` : '';
   try { localStorage.setItem('yap.theme', root.dataset.theme); localStorage.setItem('yap.fontSize', String(u.fontSize ?? '')); } catch { /* private mode */ }
   window.syncThemeColorMeta?.();
+  syncScene();   // the place for the Tea House sun, once per device and zone
   time.usePreferences(u);
 });
 

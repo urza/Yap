@@ -55,6 +55,11 @@ layers or the palette):
 - `gen_theme_css.py` - derives the theme CSS from `palette.json` and writes
   `Yap/wwwroot/themes/teahouse.css`. The CSS is generated, do not hand-edit it.
   The design behind the generator is in `docs/themes-2.0.md`.
+- `gen_zone_coords.py` - reads the tz database of the machine (`zone.tab`,
+  `zone1970.tab`, the links in `tzdata.zi`) and writes
+  `Yap/wwwroot/themes/zone-coords.json`: one latitude and longitude per time zone
+  name, the city the tz database names for the zone. Run it after a tzdata update
+  that adds zones. Independent of the two scripts above.
 
 ## How Gmail assembles a version
 
@@ -74,9 +79,17 @@ Sharing rules (from the theme's own viewer script):
   the 8am and noon environment layers respectively. Only `footer_bg_rside`
   (and the 10am footertile) are unique to them.
 - 6am, 6pm and 8pm have no `header_bg`.
-- Hour-to-version map: 0-1 -> midnight, 2 -> 2am, 3 -> 314am, 4-5 -> 4am,
+- Gmail's hour-to-version map: 0-1 -> midnight, 2 -> 2am, 3 -> 314am, 4-5 -> 4am,
   6-7 -> 6am, 8-9 -> 8am, 10-11 -> 10am, 12-13 -> noon, 14-15 -> 2pm,
-  16-17 -> 4pm, 18-19 -> 6pm, 20-21 -> 8pm, 22-23 -> 10pm.
+  16-17 -> 4pm, 18-19 -> 6pm, 20-21 -> 8pm, 22-23 -> 10pm. A fixed clock: the
+  light scenes always run 06:00 to 20:00, in Nairobi and in Copenhagen alike.
+- Yap follows the sun instead (ST-09, the inline script in `Yap/wwwroot/index.html`).
+  The seven day scenes (6am to 6pm) share the time from sunrise to sunset in equal
+  parts, the five night scenes (8pm, 10pm, midnight, 2am, 4am) share the rest, and
+  hour 3 is still the 3:14 easter egg. The place is the city of the device's time
+  zone, looked up in `zone-coords.json` (below) by `Yap/wwwroot/js/scene.js` and kept
+  in localStorage. Without a place (a zone such as UTC, or a first visit) the day is
+  06:00 to 20:00, which gives exactly Gmail's map.
 
 Gmail renders this resolution-independently by tiling, so the small source
 images scale to any screen. `compose.py` reproduces the layout at any size:

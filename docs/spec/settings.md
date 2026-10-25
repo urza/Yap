@@ -35,7 +35,7 @@ Settings is the one page where the user changes their profile, appearance, sign-
 
 **ST-08** Appearance shows a grid of theme cards. Each card has a preview, an accent dot and the name. The chosen card has a check badge. The themes are Discord Dark (the default), Midnight, Nord, Ocean, Sunset, Aurora, Terminal, Neon Glow, Tea House, Daylight and Solarized Light. A tap applies the theme to the whole app at once and saves it. When the saved theme no longer exists, the default theme applies.
 
-**ST-09** Tea House changes its picture automatically every two hours, based on the time of day on the device.
+**ST-09** Tea House changes its picture with the sun. Seven day pictures share the time from sunrise to sunset in equal parts, and five night pictures share the time from sunset to sunrise. Sunrise and sunset are those of the day and of the place: the city of the device's time zone (Copenhagen for Denmark, Nairobi for Kenya), with no location prompt. A time zone without a city (UTC) gets a fixed day from 06:00 to 20:00. From 3:00 to 3:59 a special picture shows, whatever the sun does.
 
 **ST-10** Text Size has six presets: 14, 15, 16 (Default), 17, 18 and 20 px. Each preset shows as "Aa" at its size. A tap changes the size of all text at once and saves it. The account's other devices apply the theme and the text size at once.
 

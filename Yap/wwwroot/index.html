@@ -21,10 +21,31 @@
                 if (size >= 12 && size <= 24) root.style.fontSize = size + 'px';
             } catch (e) { /* private mode */ }
 
-            // Hour -> scene for the scene themes (Tea House). Hour 3 is the 3:14 am easter egg. Themes without
-            // [data-scene] rules ignore the attribute.
-            var SCENES = ["midnight", "midnight", "2am", "314am", "4am", "4am", "6am", "6am", "8am", "8am", "10am", "10am",
-                          "noon", "noon", "2pm", "2pm", "4pm", "4pm", "6pm", "6pm", "8pm", "8pm", "10pm", "10pm"];
+            // The scene of the scene themes (Tea House) follows the sun (ST-09): the seven day scenes share the time
+            // from sunrise to sunset in equal parts, the five night scenes the rest. Hour 3 is the 3:14 am easter egg,
+            // whatever the sun does. The place is the city of the device's time zone, stored by js/scene.js; without
+            // one the day runs 06:00 to 20:00, the fixed clock of the Gmail original. Themes without [data-scene]
+            // rules ignore the attribute.
+            var DAY = ["6am", "8am", "10am", "noon", "2pm", "4pm", "6pm"], NIGHT = ["8pm", "10pm", "midnight", "2am", "4am"];
+            function sunTimes(now, lat, lon) {
+                // Sunrise and sunset in minutes after local midnight (Almanac for Computers, 1990; within a few minutes).
+                var R = Math.PI / 180, out = [];
+                var N = (Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) - Date.UTC(now.getFullYear(), 0, 0)) / 864e5;
+                for (var i = 0; i < 2; i++) {
+                    var t = N + ((i ? 18 : 6) - lon / 15) / 24;
+                    var M = 0.9856 * t - 3.289;
+                    var L = ((M + 1.916 * Math.sin(M * R) + 0.02 * Math.sin(2 * M * R) + 282.634) % 360 + 360) % 360;
+                    var RA = ((Math.atan(0.91764 * Math.tan(L * R)) / R) % 360 + 360) % 360;
+                    RA = (RA + Math.floor(L / 90) * 90 - Math.floor(RA / 90) * 90) / 15;
+                    var sinDec = 0.39782 * Math.sin(L * R), cosDec = Math.cos(Math.asin(sinDec));
+                    var cosH = (Math.cos(90.833 * R) - sinDec * Math.sin(lat * R)) / (cosDec * Math.cos(lat * R));
+                    cosH = Math.max(-0.85, Math.min(0.85, cosH));   // polar night and midnight sun: a 4-hour day or a 4-hour night, so the scenes still turn
+                    var H = (i ? Math.acos(cosH) : 2 * Math.PI - Math.acos(cosH)) / R / 15;
+                    var UT = ((H + RA - 0.06571 * t - 6.622 - lon / 15) % 24 + 24) % 24;
+                    out.push(((UT * 60 - now.getTimezoneOffset()) % 1440 + 1440) % 1440);
+                }
+                return out;
+            }
             function syncThemeColorMeta() {
                 // The phone's status bar takes its tint from this meta. Before the stylesheets load the computed
                 // colour is transparent; keep the default then.
@@ -34,10 +55,23 @@
                 if (meta && meta.content !== bg) meta.content = bg;
             }
             function applyScene() {
-                var s = SCENES[new Date().getHours()];
+                var now = new Date(), s = "314am";
+                if (now.getHours() !== 3) {
+                    var sun = [360, 1200];
+                    try {
+                        // "<zone>|<lat>|<lon>" from js/scene.js. The zone must be the device's current one: after a
+                        // flight the stored place is wrong until js/scene.js stores the new one.
+                        var p = (localStorage.getItem('yap.sun') || '').split('|');
+                        if (p.length === 3 && p[0] === Intl.DateTimeFormat().resolvedOptions().timeZone && isFinite(+p[1]) && isFinite(+p[2])) sun = sunTimes(now, +p[1], +p[2]);
+                    } catch (e) { /* private mode */ }
+                    // Minutes since sunrise, modulo a day, so a sunset past midnight (a far-west zone) still works.
+                    var day = ((sun[1] - sun[0]) % 1440 + 1440) % 1440, since = ((now.getHours() * 60 + now.getMinutes() - sun[0]) % 1440 + 1440) % 1440;
+                    s = since < day ? DAY[Math.floor(since / day * 7)] : NIGHT[Math.floor((since - day) / (1440 - day) * 5)];
+                }
                 if (root.dataset.scene !== s) { root.dataset.scene = s; syncThemeColorMeta(); }
             }
             window.syncThemeColorMeta = syncThemeColorMeta;
+            window.applyScene = applyScene;
             document.addEventListener("DOMContentLoaded", syncThemeColorMeta);
             applyScene();
             setInterval(applyScene, 60000);

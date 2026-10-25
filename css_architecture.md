@@ -6,7 +6,7 @@ and the order matters: a later file wins a tie.
 | File | Holds |
 | --- | --- |
 | `wwwroot/app.css` | fonts, CSS variables, resets, the body, and the rules of the vanilla client that the component files do not have (the emoji sizes, the pending row, the pill, the connection dot, the notice strip, the start-failure screen) |
-| `wwwroot/themes.css`, `wwwroot/themes/teahouse.css` | one block per theme; `[data-theme]` on `<html>` picks it, `[data-scene]` picks the Tea House picture by the hour |
+| `wwwroot/themes.css`, `wwwroot/themes/teahouse.css` | one block per theme; `[data-theme]` on `<html>` picks it, `[data-scene]` picks the Tea House picture by the sun (sunrise and sunset of the device's time zone city) |
 | `wwwroot/css/frame.css` | header, sidebar, status menu, profile card, the notice dots |
 | `wwwroot/css/pickers.css` | the emoji picker, the GIF picker, the phone sheet |
 | `wwwroot/css/timeline.css` | the message list, the loading row, the top note, the gallery viewer |
