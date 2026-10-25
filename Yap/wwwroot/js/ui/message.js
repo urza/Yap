@@ -37,12 +37,13 @@ function noteAutoplayBlocked() {
   document.addEventListener('keydown', resume, { once: true, capture: true });
 }
 
-// MR-01: a header when the row is the first, the author changed, the row is a reply, or an hour passed.
+// MR-01: a header when the row is the first, the author changed, the row is a reply, or 30 minutes passed.
+// The gap is from the previous row, not from the first row of the group: a slow steady talk stays one group.
 export function needsHeader(prev, m) {
   if (!prev || prev.kind) return true;   // the first row, and the row after a system line, start a group (MR-01, MR-80)
   if (prev.username !== m.username) return true;
   if (m.replyTo) return true;
-  return new Date(m.timestamp) - new Date(prev.timestamp) >= 3_600_000;
+  return new Date(m.timestamp) - new Date(prev.timestamp) >= 30 * 60_000;
 }
 
 const isOwn = m => m.username === state.user?.username;
