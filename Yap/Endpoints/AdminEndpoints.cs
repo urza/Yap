@@ -39,7 +39,7 @@ public static class AdminEndpoints
                 presence.StatusPill(u.Id), u.PwaInstalledAt, u.CreatedAt,
                 lastActions.TryGetValue(u.Id.ToString(), out var last) ? new LastActionDto(last.Action, last.Date) : null,
                 u.TimeZone, u.Locale,
-                (recentIps.GetValueOrDefault(u.Id.ToString()) ?? []).Select(ip => new IpDto(ip, geo.Lookup(ip)?.Country, null)).ToList())).ToList();
+                (recentIps.GetValueOrDefault(u.Id.ToString()) ?? []).Select(ip => new IpDto(ip, geo.CountryOf(ip), null)).ToList())).ToList();
 
             // Themes in order of use; a theme the registry no longer knows counts as the default (AD-07).
             var effective = all.Select(u => ThemeRegistry.IsKnown(u.Theme) ? u.Theme! : ThemeRegistry.DefaultId).ToList();
@@ -60,7 +60,7 @@ public static class AdminEndpoints
                 pushSubscriptions = push.GetSubscriptions(user.Username).Count(),
                 pwaInstalledAt = user.PwaInstalledAt,
                 theme = new { chosen = user.Theme, effective = theme, name = ThemeRegistry.All.First(t => t.Id == theme).Name },
-                ips = ips.Select(i => new IpDto(i.IP, geo.Lookup(i.IP)?.Country, i.LastSeen)).ToList(),
+                ips = ips.Select(i => new IpDto(i.IP, geo.CountryOf(i.IP), i.LastSeen)).ToList(),
                 userAgents = agents.Select(a => new { userAgent = a.UserAgent, lastSeen = a.LastSeen }).ToList(),
             });
         });
@@ -276,7 +276,7 @@ public static class AdminEndpoints
             {
                 available = true,
                 stats = new { visits, failures, uniqueIps, today },
-                rows = rows.Select(r => new { r.Date, r.IP, country = geo.Lookup(r.IP)?.Country, r.Action, r.Url, r.Info, reason = VisitorReason(r.Info), r.UserAgent }).ToList(),
+                rows = rows.Select(r => new { r.Date, r.IP, country = geo.CountryOf(r.IP), r.Action, r.Url, r.Info, reason = VisitorReason(r.Info), r.UserAgent }).ToList(),
             });
         });
 

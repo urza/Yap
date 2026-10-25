@@ -77,6 +77,11 @@ public class GeoLocationService
         }
     }
 
+    // The country name for the admin tables, or null when there is none to show. The database marks
+    // private and reserved ranges with the country code "-", which is not a name.
+    public string? CountryOf(string? ipAddress) =>
+        Lookup(ipAddress) is { CountryCode: not "-", Country.Length: > 0 } info ? info.Country : null;
+
     public GeoInfo? Lookup(string? ipAddress)
     {
         if (_data == null || string.IsNullOrEmpty(ipAddress)) return null;

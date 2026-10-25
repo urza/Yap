@@ -14,7 +14,7 @@ import { GifLibrary, size } from '../ui/gif-library.js';
 import { tooltips } from '../ui/tooltip.js';
 import { confirm, notice } from '../ui/confirm.js';
 
-const TABS = [['users', 'Users'], ['debug', 'Debug'], ['bot', 'Bot'], ['settings', 'Settings'], ['invites', 'Invites'], ['logs', 'Logs'], ['media', 'Media'], ['gifs', 'GIFs'], ['diagnostics', 'Diagnostics'], ['visitors', 'Visitors']];
+const TABS = [['users', 'Users'], ['invites', 'Invites'], ['diagnostics', 'Diagnostics'], ['media', 'Media'], ['gifs', 'GIFs'], ['settings', 'Settings'], ['bot', 'Bot'], ['logs', 'Logs'], ['visitors', 'Visitors'], ['debug', 'Debug']];
 const CHART_CDN = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js';
 
 const stamp = iso => iso ? new Date(iso).toISOString().slice(0, 16).replace('T', ' ') : '—';
@@ -392,7 +392,7 @@ export function mount(root, route) {
   }
 
   // ---- Logs (AD-18), Media (AD-19), Visitors (AD-20): one page of 100, Load more for the next ----
-  function paged(host, { title, route, filters, stats, toolbar, columns, rowOf, emptyText, countOf, onRemove }) {
+  function paged(host, { title, route, filters, stats, toolbar, columns, rowOf, emptyText, countOf, onRemove, tableClass = '' }) {
     let rows = [], skip = 0, data = null, selected = null;
     const filterValues = {};
     const list = el('div');
@@ -414,7 +414,7 @@ export function mount(root, route) {
     const removeRow = r => { rows = rows.filter(x => x !== r); if (data?.stats) onRemove?.(r, data.stats); draw(); drawStats(); };
     const draw = () => {
       countNode.textContent = countOf(rows, data);
-      replace(list, rows.length ? [table(columns, rows.map(r => rowOf(r, () => { selected = selected === r ? null : r; drawDetail(); }, () => removeRow(r))), 'users-table logs-table')] : [empty(emptyText)]);
+      replace(list, rows.length ? [table(columns, rows.map(r => rowOf(r, () => { selected = selected === r ? null : r; drawDetail(); }, () => removeRow(r))), `users-table logs-table ${tableClass}`.trim())] : [empty(emptyText)]);
       more.hidden = !(rows.length && rows.length % 100 === 0);
       drawDetail();
     };
@@ -501,7 +501,7 @@ export function mount(root, route) {
                                               : r.fileType === 'voice' && r.link ? el('audio', { controls: true, preload: 'none', src: r.link, class: 'admin-audio' }) : null),
       td(stamp(r.date), 'date-cell'), td(r.username), td(r.originalFileName, 'info-cell'), td(pill(r.fileType, r.fileType === 'video' ? 'action-video' : 'action-default')), td(size(r.fileSize ?? 0)), td(r.compressDurationMs ? `${(r.compressDurationMs / 1000).toFixed(1)}s` : '-'),
       td(deleteButton(r, remove), 'gif-actions-cell')) });
-  const visitorsRow = (r, toggle) => el('tr', { class: 'clickable-row', onclick: toggle }, td(stamp(r.date), 'date-cell'), td(r.ip ?? '---', 'ip-mono'), td(pill(r.action, actionClass(r.action))), td(r.reason ?? r.url ?? r.info ?? ''), td((r.userAgent ?? '').slice(0, 60), 'ua-cell'));
+  const visitorsRow = (r, toggle) => el('tr', { class: 'clickable-row', onclick: toggle }, td(stamp(r.date), 'date-cell'), td(r.ip ?? '---', 'ip-mono'), td(r.country ?? '—', 'geo-cell'), td(pill(r.action, actionClass(r.action))), td(r.reason ?? r.url ?? r.info ?? ''), td((r.userAgent ?? '').slice(0, 60), 'ua-cell'));
   visitorsRow.detail = r => el('div', { class: 'user-detail-panel' },
     el('div', { class: 'detail-header' }, el('div', { class: 'detail-header-info' }, el('h4', null, r.ip ?? 'Unknown IP'), r.country ? el('span', { class: 'user-username' }, r.country) : null)),
     el('div', { class: 'detail-tags' }, el('span', { class: 'detail-tag tag-muted' }, ago(r.date)), el('span', { class: 'detail-tag tag-muted' }, r.action), r.reason ? el('span', { class: 'detail-tag tag-muted' }, r.reason) : null),
@@ -509,7 +509,7 @@ export function mount(root, route) {
   const visitors = host => paged(host, { title: 'Visitors', route: '/api/admin/visitors', emptyText: 'No visitor data yet. Visitors are tracked when they load the login page or an invite while signed out.', countOf: (rows, d) => `${d?.stats?.visits ?? rows.length} visits tracked`,
     stats: s => [statCard('Total Visits', String(s.visits ?? 0)), statCard('Login Failures', String(s.failures ?? 0)), statCard('Unique IPs', String(s.uniqueIps ?? 0)), statCard('Today', String(s.today ?? 0))],
     filters: [{ key: 'action', options: [['', 'All'], ['VISIT', 'Visits only'], ['LOGIN_FAIL', 'Login failures only']] }],
-    columns: ['Date', 'IP', 'Action', 'Details', 'User-Agent'], rowOf: visitorsRow });
+    columns: ['Date', 'IP', 'Country', 'Action', 'Details', 'User-Agent'], rowOf: visitorsRow, tableClass: 'visitors-table' });
 
   // ---- GIFs (AD-21 to AD-23) ----
   function gifs(host) {
