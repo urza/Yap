@@ -221,22 +221,41 @@ export function mount(root, route) {
 
   // ---- Install as App (ST-16) ----
   if (push.installed()) { $('.pwa-installed-info').hidden = false; $('.pwa-not-installed').hidden = true; }
+  // The icon on the home screen carries the server's name, so the cards name it too (ST-16, ST-17).
+  for (const n of page.querySelectorAll('.pwa-name, .push-name')) n.textContent = push.appName();
+  $('.install-app').textContent = `Install ${push.appName()}`;   // one text node: the button is inline-flex, which drops the space before a span
+  $('.pwa-where').textContent = push.where().phone ? 'on your home screen' : 'as an app on this computer';
+  $('.pwa-device').textContent = push.where().device;
   $('.install-app').addEventListener('click', openInstallDialog);
 
-  // ---- Device Push Notifications (ST-17, NT-23, NT-24, NT-30) ----
+  // ---- Notifications on this device (ST-17, ST-27, NT-23, NT-24, NT-30) ----
+  // The card says what the person will see on this device, not how push works: the people who asked "why is my
+  // phone quiet" had installed the app and never found the switch behind "push" and "subscribe".
   const pushStatus = $('.push-status');
+  const Device = w => w.device === 'phone' || w.device === 'computer' ? w.device[0].toUpperCase() + w.device.slice(1) : w.device;   // "This Phone", but "This iPhone"
+  const pushIntro = (w, name) => {
+    if (w.ios && !w.installed) return `${w.browser} cannot show ${name} notifications. First add ${name} to your home screen (see Install as App above). Then open the ${name} icon and turn notifications on there. The app shows new messages like any other app, with a number on its icon.`;
+    if (w.installed && w.phone) return `When ${name} is closed, new messages show as notifications on this ${w.device}, with a number on the ${name} icon. Your ${w.device} treats ${name} like any other app. You can also change this in your ${w.device}'s Settings, under Notifications.`;
+    if (w.phone) return `When this tab is closed, new messages show in your phone's notifications. For a number on an icon, install ${name} on your home screen (see Install as App above).`;
+    if (w.installed) return `When ${name} is closed, new messages show as a pop-up in the corner of your screen. The number of unread messages shows on the ${name} icon in your taskbar or dock.`;
+    return 'When this tab is closed, new messages show as a pop-up in the corner of your screen. While the tab is open, the number of unread messages shows in the tab title.';
+  };
+  const scrollTo = sel => e => { e.preventDefault(); $(sel).scrollIntoView({ behavior: 'smooth' }); };
   async function drawPush() {
-    const supported = push.supported(), configured = !!state.config?.vapidPublicKey, permission = push.permission();
-    const sub = supported ? await push.current() : null;
+    const w = push.where(), name = push.appName(), device = w.device, card = `Notifications on This ${Device(w)}`;
+    const possible = push.supported() && !(w.ios && !w.installed);   // a browser on an iPhone has no notifications at all (NT-23)
+    const configured = !!state.config?.vapidPublicKey, blocked = possible && push.permission() === 'denied';
+    const sub = possible ? await push.current() : null;
     let devices = [];
     try { devices = await api.get('/api/push/devices'); } catch { /* keep */ }
     const mine = sub && devices.find(d => d.endpoint === sub.endpoint);
+    $('.push-heading').textContent = card;
+    $('.push-intro').textContent = pushIntro(w, name);
+    $('.push-this-label').textContent = `This ${device}`;
     const thisValue = $('.push-this');
-    const thisState = !supported ? ['Not Supported', 'status-unavailable'] : !configured ? ['Not Configured', 'status-unavailable'] : mine ? ['Subscribed', 'status-enabled'] : ['Not subscribed', 'status-disabled'];
-    thisValue.textContent = thisState[0]; thisValue.className = `notification-value ${thisState[1]}`;
-    $('.push-permission-row').hidden = !supported;
-    const perm = $('.push-permission'); perm.textContent = permission; perm.className = `notification-value ${permission === 'granted' ? 'status-enabled' : permission === 'denied' ? 'status-denied' : 'status-disabled'}`;
-    $('.push-count').textContent = `${devices.length} device(s)`;
+    const thisState = !possible ? ['Not possible here', 'status-unavailable'] : !configured ? ['Not set up on this server', 'status-unavailable'] : blocked ? ['Blocked', 'status-denied'] : mine ? ['On', 'status-enabled'] : ['Off', 'status-disabled'];
+    thisValue.textContent = thisState[0]; thisValue.className = `notification-value push-this ${thisState[1]}`;   // push-this stays: the next draw looks it up
+    $('.push-count').textContent = devices.length ? String(devices.length) : 'none yet';
     replace($('.push-list'), devices.map(d => {
       const item = clone('t-session-item');
       const current = sub && d.endpoint === sub.endpoint;
@@ -250,38 +269,55 @@ export function mount(root, route) {
       remove.addEventListener('click', async () => { try { await api.delete('/api/push/devices', { endpoint: d.endpoint }); if (current) await push.unsubscribe(); drawPush(); } catch (e) { saved(pushStatus, e.message, 'error'); } });
       return item;
     }));
+    // The reason when nothing can be done here. For a block, the steps for this browser or for the phone's Settings.
     const reason = $('.push-reason');
-    const text = !supported ? 'Push notifications are not supported in this browser.' : !configured ? 'Push notifications are not configured on this server.' : permission === 'denied' ? 'Notification permission was denied. Reset it in your browser settings to re-enable.' : null;
+    const text = !possible ? (w.ios ? null : 'This browser cannot show notifications.') : !configured ? 'Notifications are not set up on this server.' : blocked ? push.blockedHint() : null;
     reason.hidden = !text; if (text) reason.textContent = text;
-    $('.push-off-row').hidden = !!text || !mine; $('.push-off-hint').hidden = !!text || !mine;
-    $('.push-on').hidden = !!text || !!mine; $('.push-on-hint').hidden = !!text || !!mine;
+    const stuck = !possible || !configured || blocked;
+    $('.push-off-row').hidden = stuck || !mine; $('.push-off-hint').hidden = stuck || !mine;
+    $('.push-on').hidden = stuck || !!mine; $('.push-on-hint').hidden = stuck || !!mine;
+    $('.push-on').textContent = `Turn on notifications on this ${device}`;
+    $('.push-on-hint').textContent = w.phone ? `Your ${device} will ask you to allow notifications. Tap Allow.` : 'Your browser will ask you to allow notifications. Click Allow.';
+    $('.push-off').textContent = `Turn off notifications on this ${device}`;
+    $('.push-device-word').textContent = `this ${device}`;
     const canTest = configured && devices.length > 0;
     $('.push-test-row').hidden = !canTest; $('.push-test-hint').hidden = !canTest;
+    // The red notice above Allow / Mute (ST-27): the rules there belong to the account and cannot wake a quiet device.
+    const notice = $('.push-off-notice'), link = (label, sel) => el('a', { href: '#', onclick: scrollTo(sel) }, label);
+    const parts = !configured ? null
+      : !possible ? (w.ios ? [`${w.browser} cannot show notifications. `, link(`Install ${name} on your home screen`, '[data-section="install"]'), ' to get them.'] : [`This browser cannot show notifications when ${name} is closed.`])
+      : blocked ? [`Notifications are blocked on this ${device}. See `, link(card, '[data-section="push"]'), ' above for the fix.']
+      : mine ? null : [`This ${device} does not show notifications when ${name} is closed. Turn them on in `, link(card, '[data-section="push"]'), ' above.'];
+    notice.hidden = !parts;
+    if (parts) $('.push-off-notice-text').replaceChildren(...parts);
   }
   drawPush();
+  // Back from the phone's Settings or from the browser's permission popup: the state may have changed.
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') drawPush(); }, { signal: aborter.signal });
   $('.push-on').addEventListener('click', async e => {
-    e.target.disabled = true; e.target.textContent = 'Enabling...';
+    e.target.disabled = true; e.target.textContent = 'Turning on...';
     const result = await push.subscribe();
     if (!result.ok) saved(pushStatus, result.reason, 'error');
-    e.target.disabled = false; e.target.textContent = 'Enable push on this device';
-    drawPush();
+    e.target.disabled = false;
+    drawPush();   // also restores the label
   });
   $('.push-off').addEventListener('click', async e => {
     e.target.disabled = true; e.target.textContent = 'Turning off...';
     await push.unsubscribe();
-    e.target.disabled = false; e.target.textContent = 'Turn off push on this device';
+    e.target.disabled = false;
     drawPush();
   });
   $('.push-test').addEventListener('click', async e => {
     e.target.disabled = true; e.target.textContent = 'Sending...';
     try {
       const r = await api.post('/api/push/test', {});
-      saved(pushStatus, r.total === 0 ? 'No subscribed devices to notify.' : r.failed ? `Sent to ${r.sent}/${r.total} device(s); ${r.failed} failed (expired ones removed).` : `Sent to ${r.sent} device(s) — check them now.`);
+      const devices = n => `${n} ${n === 1 ? 'device' : 'devices'}`;
+      saved(pushStatus, r.total === 0 ? 'No phone or computer gets notifications yet.' : r.failed ? `Sent to ${r.sent} of ${devices(r.total)}. ${r.failed} could not be reached and the dead ones were removed.` : `Sent to ${devices(r.sent)}. Check them now.`);
     } catch { saved(pushStatus, 'Failed to send test notification.', 'error'); }
-    e.target.disabled = false; e.target.textContent = 'Send a test to all devices';
+    e.target.disabled = false; e.target.textContent = 'Send a test to all my devices';
     drawPush();
   });
-  $('.to-mutes').addEventListener('click', e => { e.preventDefault(); $('#notification-settings').scrollIntoView({ behavior: 'smooth' }); });
+  $('.to-mutes').addEventListener('click', scrollTo('#notification-settings'));
 
   // ---- Allow / Mute Notifications (ST-18, NT-16 to NT-22) ----
   function seg(host, items, selected, onPick) {

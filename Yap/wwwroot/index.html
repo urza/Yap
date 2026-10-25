@@ -674,7 +674,7 @@
             <div class="push-prompt-card" role="dialog" aria-modal="true">
                 <div class="push-prompt-icon"><svg width="56" height="56" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg></div>
                 <h2 class="push-prompt-heading">One more step</h2>
-                <p class="push-prompt-body">Please enable notifications so Yap can send you notifs about new DM messages / mentions when the app is not open. You can always change this later in Settings, and you can also disable notifications temporarily.</p>
+                <p class="push-prompt-body">Turn on notifications, and this device shows new messages when Yap is closed. You can change this any time in Settings.</p>
                 <button class="push-prompt-enable" type="button">Enable Notifications</button>
                 <button class="push-prompt-later" type="button">Maybe Later</button>
             </div>
@@ -887,37 +887,40 @@
                         <h3>Install as App</h3>
                         <div class="pwa-installed-info" hidden>
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="pwa-check-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" /></svg>
-                            <span>Yap is installed as an app on this device.</span>
+                            <span><span class="pwa-name">Yap</span> is installed as an app on this <span class="pwa-device">device</span>.</span>
                         </div>
                         <div class="pwa-not-installed">
-                            <p class="pwa-description">Install Yap to your home screen for a full-screen experience with push notifications and quick access.</p>
+                            <p class="pwa-description">Install <span class="pwa-name">Yap</span> <span class="pwa-where">on your home screen</span> for full screen and quick access. Then open the app and turn on notifications.</p>
                             <button class="upload-button install-app" type="button">Install Yap</button>
                         </div>
                     </div>
 
+                    <!-- settings.js fills the texts of this card for the person's situation (ST-17): they say what the person
+                         sees on this device, with the server's name in place of "Yap". The static texts are the fallbacks. -->
                     <div class="settings-section" data-section="push">
-                        <h3>Device Push Notifications</h3>
-                        <p class="section-intro">Push lets Yap notify a device even when the tab is closed. Each device subscribes separately.</p>
+                        <h3 class="push-heading">Notifications on This Device</h3>
+                        <p class="section-intro push-intro"></p>
                         <div class="notification-status">
-                            <div class="notification-row"><span class="notification-label">This device</span><span class="notification-value push-this"></span></div>
-                            <div class="notification-row push-permission-row"><span class="notification-label">Browser Permission</span><span class="notification-value push-permission"></span></div>
-                            <div class="notification-row"><span class="notification-label">Subscribed Devices</span><span class="notification-value push-count"></span></div>
+                            <div class="notification-row"><span class="notification-label push-this-label">This device</span><span class="notification-value push-this"></span></div>
+                            <div class="notification-row"><span class="notification-label">Phones and computers</span><span class="notification-value push-count"></span></div>
                         </div>
                         <div class="sessions-list push-list" style="margin-bottom: 1rem;"></div>
                         <div class="notification-actions">
                             <span class="form-hint push-reason" hidden></span>
-                            <div class="notification-buttons push-off-row" hidden><button class="remove-button push-off" type="button">Turn off push on this device</button></div>
-                            <span class="form-hint push-off-hint" hidden>Stops push for this device only. Other devices stay subscribed; remove them in the list above.</span>
-                            <button class="upload-button push-on" type="button" hidden>Enable push on this device</button>
-                            <span class="form-hint push-on-hint" hidden>Your browser will ask for permission. Yap can then notify this device even when the tab is closed.</span>
-                            <div class="notification-buttons push-test-row" style="margin-top: 8px;" hidden><button class="upload-button push-test" type="button">Send a test to all devices</button></div>
-                            <span class="form-hint push-test-hint" hidden>Sends a notification to every subscribed device — the ones that buzz are alive.</span>
+                            <div class="notification-buttons push-off-row" hidden><button class="remove-button push-off" type="button">Turn off notifications on this device</button></div>
+                            <span class="form-hint push-off-hint" hidden>Your other phones and computers keep theirs. Use Remove in the list to drop one.</span>
+                            <button class="upload-button push-on" type="button" hidden>Turn on notifications on this device</button>
+                            <span class="form-hint push-on-hint" hidden>Your browser will ask you to allow notifications. Click Allow.</span>
+                            <div class="notification-buttons push-test-row" style="margin-top: 8px;" hidden><button class="upload-button push-test" type="button">Send a test to all my devices</button></div>
+                            <span class="form-hint push-test-hint" hidden>Each phone and computer in the list gets a test. One that stays quiet is not set up.</span>
                             <span class="save-status push-status" style="margin-top: 4px;" hidden></span>
-                            <span class="form-hint">Push only makes delivery possible. What actually notifies you is set in <a href="#notification-settings" class="to-mutes">Allow / Mute Notifications</a> below.</span>
+                            <span class="form-hint">This switch only decides whether notifications reach <span class="push-device-word">this device</span>. Which messages notify you is set in <a href="#notification-settings" class="to-mutes">Allow / Mute Notifications</a> below. Rooms are quiet until you allow them. You get no notification while <span class="push-name">Yap</span> is open on your screen on any device.</span>
                         </div>
                     </div>
 
                     <div class="settings-section" id="notification-settings" data-section="mutes">
+                        <!-- Red (ST-27): this device gets no notifications, and the rules below cannot change that. -->
+                        <div class="push-off-notice" role="status" hidden><span class="push-off-notice-icon">🔕</span><span class="push-off-notice-text"></span></div>
                         <h3>Allow / Mute Notifications</h3>
                         <p class="section-intro">Choose what actually notifies you. These rules follow your account on every device.</p>
                         <div class="notif-row">

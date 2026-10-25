@@ -8,7 +8,7 @@ Settings is the one page where the user changes their profile, appearance, sign-
 
 1. **Frame.** The same header and sidebar as a conversation. The title area shows a back arrow and "Settings".
 2. **Page heading.** "Settings", with a chip on the right and the line "Changes are saved automatically." For profile changes, the chip reads "Saving..." and then "Saved".
-3. **Cards.** One column of cards, at most 600 px wide, in this order: Profile, Appearance, Text Size, Login Link, Secret Code (only for an account that still has a code), Active Sessions, Install as App, Device Push Notifications, Allow / Mute Notifications, Time & Date, My GIFs, and a collapsed DEBUG INFO card at the end.
+3. **Cards.** One column of cards, at most 600 px wide, in this order: Profile, Appearance, Text Size, Login Link, Secret Code (only for an account that still has a code), Active Sessions, Install as App, Notifications on This Device (the heading names the device: iPhone, iPad, Phone or Computer), Allow / Mute Notifications, Time & Date, My GIFs, and a collapsed DEBUG INFO card at the end.
 4. **Notice.** An amber notice above the heading, with a close control. It shows after "Sign out all other devices".
 
 ## Rules
@@ -53,13 +53,15 @@ Settings is the one page where the user changes their profile, appearance, sign-
 
 **ST-15** Active Sessions lists the account's connected devices. Each device has a phone or desktop icon, the network address and "Active {time}". The current device shows "This device" and is always listed. "Sign out all other devices" is always available, because a device can stay signed in without a connection. It is disabled during the first hour of the current device, with the text that says when it is available. It acts without a confirmation. After it, the page shows the notice "All other devices have been signed out." with the new secret code, when one exists.
 
-**ST-16** Install as App shows "Install Yap" with its explanation. Inside the installed app, it shows "Yap is installed as an app on this device." instead. See [Offline and installation](offline.md).
+**ST-16** Install as App shows "Install {name}" with its explanation. The explanation tells the person to open the app after the install and turn on notifications there. Inside the installed app, it shows "{name} is installed as an app on this {device}." instead. {name} is the server's name, which is also the name under the installed app's icon. See [Offline and installation](offline.md).
 
 ### Notifications
 
-**ST-17** Device Push Notifications shows the state of this device, the browser permission, the number of subscribed devices and the device list. Each device in the list has "Remove". The card shows one action that matches the state. The action is enable on this device or turn off on this device. When neither is possible, the card shows the reason. "Send a test to all devices" shows when there are devices.
+**ST-17** The notifications card is named for the device: "Notifications on This iPhone", "This iPad", "This Phone" or "This Computer". Its text says what the person will see on this device when the app is closed, and nothing about push: a notification and a number on the app's icon for the installed app on a phone, a pop-up in the corner of the screen and a count in the tab title for a browser on a computer. A phone user reads that the phone treats the app like any other app, with its own entry under the phone's Settings. A browser on an iPhone or iPad cannot show notifications; the card says so and points to Install as App. The card shows the state of this device ("On", "Off", "Blocked", "Not possible here" or "Not set up on this server"), the number of phones and computers that get notifications, and their list. Each entry has "Remove". The card shows one action that matches the state: turn notifications on or off on this device. When neither is possible, the card gives the reason. For a block, it gives the exact steps for this browser, or for the phone's Settings in the installed app. The card redraws when the person comes back to it, so a fix made in the phone's Settings shows at once. "Send a test to all my devices" shows when there are devices. The server's name stands in for "Yap" throughout. *Why:* the people who asked "why is my phone quiet" had installed the app and never found the switch behind "push" and "subscribe".
 
 **ST-18** Allow / Mute Notifications starts with the server-wide "Allow" or "Mute" with a duration. Below it are the "Direct messages" and "Rooms" rows, each with "Allow all", "Individual" and "Mute all". In Individual mode, a row lists its conversations, each with a bell. The rules are on the [notifications page](notifications.md#NT-16). The mute hint reads "Muted for another {time}." with the correct singular form. The hint counts down while the page is open.
+
+**ST-27** A red notice sits at the top of Allow / Mute Notifications when this device gets no notifications: they are off or blocked on this device, or this browser cannot show them. It says so in one sentence and links to the card above that has the switch or the fix. It goes away as soon as notifications are on here. *Why:* the rules below belong to the account. A person with a quiet phone would otherwise change the mutes and see no effect.
 
 ### Time & Date
 
@@ -98,7 +100,7 @@ Settings is the one page where the user changes their profile, appearance, sign-
 | New Code | mouse, touch | The new code shows. A green status shows for 3 s. |
 | Disable | mouse, touch | A confirmation, then the Secret Code card disappears. A green status shows under Login Link for 3 s. |
 | Sign out all other devices | mouse, touch | The other devices are signed out. The amber notice shows, and the code is revealed. |
-| Enable push | mouse, touch | The browser asks for permission. "Subscribed" shows, and a device row appears. |
+| Turn on notifications | mouse, touch | The browser or the phone asks for permission. "On" shows, a device row appears, and the red notice above Allow / Mute goes away. |
 | Send a test | mouse, touch | Every device gets the test notification. A result line shows for 3 s. |
 | Mute picked | mouse, touch | The direct message and room rows are hidden. The card shows "Muted until you turn notifications back on." |
 | Mute with a duration | mouse, touch | "Muted for another {time}." |
@@ -120,7 +122,7 @@ Settings is the one page where the user changes their profile, appearance, sign-
 | Appearance | "Appearance"; "Pick a color theme. Changes apply instantly and sync across your devices."; "Discord Dark"; "Midnight"; "Nord"; "Ocean"; "Sunset"; "Aurora"; "Terminal"; "Neon Glow"; "Tea House"; "Daylight"; "Solarized Light" |
 | Text Size | "Text Size"; "Scales all text in the app. Applies instantly and syncs across your devices."; "Aa"; "14px"; "15px"; "Default"; "17px"; "18px"; "20px" |
 | Login Link, Secret Code, Active Sessions | see the [sign-in page](sessions.md#wording) |
-| Install | "Install as App"; "Install Yap to your home screen for a full-screen experience with push notifications and quick access."; "Install Yap"; "Yap is installed as an app on this device." |
+| Install | "Install as App"; "Install {name} on your home screen for full screen and quick access. Then open the app and turn on notifications." (on a computer "as an app on this computer" replaces "on your home screen"); "Install {name}"; "{name} is installed as an app on this {device}." |
 | Push and mutes | see the [notifications page](notifications.md#wording); mute time "1 minute", "{n} minutes", "1 hour", "{n} hours", "1 day", "{n} days", "a moment" |
 | Time & Date | "Time & Date"; "Your time"; "−"; "+"; "−1 hour"; "+1 hour"; "Detect"; "Adjust if the time doesn't match your clock"; "Clock"; "Date order"; "Separators"; "Detected: {time zone} · {locale}" |
 | My GIFs | "My GIFs"; "Your GIF pool — everything you've starred plus your own uploads. Organize with folders, edit search keywords, or bring a whole collection: import files or a zip, and export everything as a zip you can take anywhere."; "All"; "Unsorted"; "Filter by keyword…"; "＋ Add GIFs"; "Uploading…"; "Import zip"; "Export"; "{used} of {quota} used"; "Only your own uploads count — starred GIFs are free"; "Uploading… {p}% ({done} of {total})"; "Importing… {done} of {total}"; "Imported {done} of {total}"; "processing…"; "add keywords…"; "+{n}"; "comma, separated, tags"; "(unsorted)"; "＋ New folder…"; "folder name"; "Delete"; "Sure?"; "Still used in chat or by others — removed from your library instead."; "You can only delete your own uploads."; "Nothing here yet — star GIFs in the picker, or add your collection above."; "No GIFs match your filter."; "Nothing in this folder."; "Show 24 more ({n} left)"; "Show {n} more"; "Show less"; "ffmpeg not detected — video conversion is off, only .gif/.webp files can be imported." |

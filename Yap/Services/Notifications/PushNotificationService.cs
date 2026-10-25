@@ -60,6 +60,7 @@ public class PushNotificationService
     private readonly bool _isConfigured;
     private readonly PushKeyStatus _keyStatus;
     private readonly string? _keyStatusDetail;
+    private readonly string _projectName;
 
     public PushNotificationService(
         IConfiguration configuration,
@@ -70,6 +71,7 @@ public class PushNotificationService
         _subscriptionStore = subscriptionStore;
         _audit = audit;
         _logger = logger;
+        _projectName = configuration["ChatSettings:ProjectName"] ?? "Yap";   // the name under the installed app's icon
 
         var httpClient = new HttpClient(new PushLogHandler(logger))
         {
@@ -289,8 +291,8 @@ public class PushNotificationService
     {
         var payload = new PushPayload
         {
-            Title = "Yap test notification",
-            Body = "If you can see this, push notifications work on this device.",
+            Title = $"{_projectName} test notification",
+            Body = "If you can see this, notifications work on this device.",
             Icon = "/icon-192.png",
             Badge = "/icon-192.png",
             Tag = "yap-test",

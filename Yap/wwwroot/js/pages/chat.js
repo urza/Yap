@@ -23,6 +23,7 @@ function notificationPrompt() {
   if (prompted || !push.promptWanted()) return;
   prompted = true;
   const overlay = clone('t-push-prompt');
+  overlay.querySelector('.push-prompt-body').textContent = `Turn on notifications, and this ${push.where().device} shows new messages when ${push.appName()} is closed. You can change this any time in Settings.`;
   const enable = overlay.querySelector('.push-prompt-enable');
   const close = () => { overlay.classList.add('hiding'); setTimeout(() => layer(), 300); };
   enable.addEventListener('click', async () => { enable.disabled = true; enable.textContent = 'Enabling...'; await push.subscribe(); close(); });   // SH-39: closes whatever the answer
