@@ -773,6 +773,10 @@
        z-index: -1 escapes to an ancestor and the scene disappears behind the page.
        overflow: hidden alone does NOT create one. */
     isolation: isolate;
+    /* The containing block of the scene layers (.theme-scene, .theme-scrim). They are
+       position: absolute so that they cover the frame and nothing above it - see the
+       note at .theme-scene. */
+    position: relative;
 }
 
 /* ==========================================================================
@@ -783,8 +787,13 @@
    images load) but BELOW every in-flow child. That is why the header, sidebar
    and message list need no z-index of their own and no component was touched.
 
-   position: fixed, not background-attachment: fixed - the latter repaints on
-   every scroll and misbehaves on iOS Safari. These composite once.
+   position: absolute inside .chat-container (position: relative), not fixed. A
+   fixed layer spans the viewport, and the notice strip (SH-20) sits above the
+   frame, outside this stacking context, so a fixed scene painted over the strip:
+   in Tea House the strip showed as a band of garden. Not background-attachment:
+   fixed either - that repaints on every scroll and misbehaves on iOS Safari. The
+   container itself never scrolls (the list inside it does), so an absolute layer
+   composites once, as the fixed one did.
 
    The five backgrounds are one element rather than five divs; the shorthand
    lists below are positionally matched, so a layer a theme leaves as `none`
@@ -792,7 +801,7 @@
    the reverse of the source theme's paint order.
    ========================================================================== */
 .theme-scene {
-    position: fixed;
+    position: absolute;
     inset: 0;
     z-index: -1;
     /* Sits behind content but still spans gaps in the shell, where it would
@@ -827,7 +836,7 @@
    arrives there will be two .theme-scene elements at varying opacity, and a scrim
    attached to them would fade along with the artwork. */
 .theme-scrim {
-    position: fixed;
+    position: absolute;
     inset: 0;
     z-index: -1; /* same layer as the scene; later in the DOM, so it paints over */
     pointer-events: none;
