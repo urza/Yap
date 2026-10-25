@@ -1,6 +1,6 @@
 # Message row and actions
 
-A message row is one message as it appears in the conversation. The row shows who wrote the message and when, the text or media, the message it replies to, its reactions, and the actions that the reader can do on it. Rows from the same author within one hour make a group under one header. The reader does all actions on a message in its row. These actions are react, reply, edit, delete, copy and open media. "Phone" on this page means a window 600 px wide or less, as in the [general rules](general-rules.md#GEN-14).
+A message row is one message as it appears in the conversation. The row shows who wrote the message and when, the text or media, the message it replies to, its reactions, and the actions that the reader can do on it. Rows from the same author within 30 minutes make a group under one header. The reader does all actions on a message in its row. These actions are react, reply, edit, delete, copy and open media. "Phone" on this page means a window 600 px wide or less, as in the [general rules](general-rules.md#GEN-14).
 
 ## Anatomy
 
@@ -26,7 +26,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 ### Header and grouping
 
-**MR-01** A row shows a header (avatar, name, time) when it is the first message shown, when its author is different from the author of the previous message, when it is a reply, or when one hour or more passed since the previous message. Other rows show only their content, aligned to the same text column.
+**MR-01** A row shows a header (avatar, name, time) when it is the first message shown, when its author is different from the author of the previous message, when it is a reply, or when 30 minutes or more passed since the previous message. Other rows show only their content, aligned to the same text column.
 
 **MR-02** A header row has 17 px of space above it. Rows inside a group have no space above them.
 
@@ -218,8 +218,8 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 | State or trigger | Input | What the user sees |
 | --- | --- | --- |
-| Same author within an hour | all | One header, then rows without avatar, name or time. |
-| Author change, reply, or an hour passed | all | A new header with 17 px above it. |
+| Same author within 30 minutes | all | One header, then rows without avatar, name or time. |
+| Author change, reply, or 30 minutes passed | all | A new header with 17 px above it. |
 | Pointer over a row | mouse | Row tinted, action bar at the top right. |
 | Keyboard focus on a bar button | keyboard | The bar is visible. |
 | Pointer over the reply quote | mouse | The bar is hidden. |
