@@ -10,6 +10,40 @@ export const supported = () => 'serviceWorker' in navigator && 'PushManager' in 
 export const permission = () => (supported() ? Notification.permission : 'unsupported');
 export const installed = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
+// The server's name. It is also the name under the installed app's icon, so "the {name} app" is what the person taps.
+export const appName = () => state.config?.projectName ?? 'Yap';
+
+// Where the person is, for the words of the Settings card and of the fix for a block (ST-17). The card speaks of what
+// the person sees: a phone treats the installed app like any other app, a browser on an iPhone cannot show
+// notifications at all, and a browser on a computer shows a pop-up. iPadOS reports a Mac; the touch points tell.
+export function where() {
+  const ua = navigator.userAgent;
+  const ios = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const android = !ios && /Android/.test(ua);
+  const device = ios ? (/iPhone|iPod/.test(ua) ? 'iPhone' : 'iPad') : android ? 'phone' : 'computer';
+  const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\/|FxiOS/.test(ua) ? 'Firefox' : /Chrome\/|CriOS/.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'This browser';
+  return { ios, android, phone: ios || android, installed: installed(), device, browser };
+}
+
+// Only the installed app can show notifications on an iPhone or iPad (NT-23); elsewhere it is an old or locked-down browser.
+export function cannotHint() {
+  const w = where(), name = appName();
+  return w.ios ? `${w.browser} cannot show ${name} notifications. Add ${name} to your home screen first.` : 'This browser cannot show notifications.';
+}
+
+// After a block, the steps that allow notifications again, for the place where that switch lives. The installed app
+// has its own entry in the phone's Settings, like any other app; a browser keeps the switch at the address bar.
+export function blockedHint() {
+  const w = where(), name = appName();
+  if (w.installed && w.ios) return `Notifications for ${name} are turned off on this ${w.device}. Open the Settings app, tap Notifications, scroll to ${name}, and turn on Allow Notifications. Then come back here and tap Turn on.`;
+  if (w.installed && w.android) return `Notifications for ${name} are turned off on this phone. Press and hold the ${name} icon on your home screen, tap App info, tap Notifications, and turn them on. Then come back here and tap Turn on.`;
+  if (w.installed) return `Notifications for ${name} are turned off. Click the three dots at the top of the ${name} window, choose App info, set Notifications to Allow, and open the app again.`;
+  if (w.android) return 'Notifications are blocked for this site. Tap the lock icon next to the address, tap Permissions, then Notifications, and choose Allow. Then reload this page.';
+  if (w.browser === 'Firefox') return 'Notifications are blocked for this site. Click the icon on the left of the address bar, remove the Blocked entry next to Notifications, and reload this page.';
+  if (w.browser === 'Safari') return 'Notifications are blocked for this site. In the Safari menu, open Settings, then Websites, then Notifications. Set this site to Allow and reload this page.';
+  return 'Notifications are blocked for this site. Click the icon on the left of the address bar, set Notifications to Allow, and reload this page.';
+}
+
 function keyBytes(value) {
   const padded = value + '='.repeat((4 - value.length % 4) % 4);
   return Uint8Array.from(atob(padded.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
@@ -39,13 +73,13 @@ export async function current() {
 // Subscribes (or keeps a subscription made with the same key) and registers it with the server.
 // Returns { ok } or { ok: false, reason }.
 export async function subscribe() {
-  if (!supported()) return { ok: false, reason: 'Push notifications are not supported in this browser.' };
+  if (!supported()) return { ok: false, reason: cannotHint() };
   const key = state.config?.vapidPublicKey;
-  if (!key) return { ok: false, reason: 'Push notifications are not configured on this server.' };
-  if (Notification.permission === 'denied') return { ok: false, reason: 'Notification permission was denied. Reset it in your browser settings to re-enable.' };
+  if (!key) return { ok: false, reason: 'Notifications are not set up on this server.' };
+  if (Notification.permission === 'denied') return { ok: false, reason: blockedHint() };
   if (Notification.permission !== 'granted') {
     const answer = await Notification.requestPermission();
-    if (answer !== 'granted') return { ok: false, reason: 'The browser closed the permission prompt without granting.' };
+    if (answer !== 'granted') return { ok: false, reason: 'Notifications stay off. You closed the question without choosing Allow.' };
   }
   const bytes = keyBytes(key);
   let subscription;
@@ -56,7 +90,7 @@ export async function subscribe() {
     subscription ??= await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes });
   } catch (e) {
     const text = e ? `${e.name || 'Error'}: ${e.message || e}` : 'unknown error';
-    return { ok: false, reason: `This browser could not reach its push service (${text}). A firewall or ad-block can cause this; in Brave, enable "Use Google services for push messaging".` };
+    return { ok: false, reason: `This browser could not reach its notification service (${text}). A firewall or an ad blocker can cause this. In Brave, turn on "Use Google services for push messaging".` };
   }
   const json = subscription.toJSON();
   try { await api.post('/api/push/subscribe', { username: state.user.username, endpoint: json.endpoint, p256dh: json.keys?.p256dh, auth: json.keys?.auth }); }

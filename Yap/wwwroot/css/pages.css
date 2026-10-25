@@ -3196,6 +3196,32 @@
     color: var(--text-white);
 }
 
+/* The red notice at the top of Allow / Mute (ST-27): this device gets no notifications, and the rules below cannot
+   change that. Red on purpose: the person came to this card because the phone is quiet, and the fix is one card up. */
+.push-off-notice {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    margin-bottom: 1rem;
+    color: var(--color-danger);
+    background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-danger) 40%, transparent);
+    border-radius: 8px;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.push-off-notice-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.push-off-notice a {
+    color: inherit;
+    font-weight: 600;
+}
+
 /* Active sessions */
 .sessions-list {
     display: flex;

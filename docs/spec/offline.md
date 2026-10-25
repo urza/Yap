@@ -73,7 +73,7 @@ Yap runs in the browser and can also be installed as an app on a phone or a desk
 | Where | Text |
 | --- | --- |
 | Install dialog | see the [frame page](frame.md#SH-40) |
-| Settings, install section | "Install as App"; "Install Yap to your home screen for a full-screen experience with push notifications and quick access."; "Install Yap"; "Yap is installed as an app on this device." |
+| Settings, install section | "Install as App"; "Install {name} on your home screen for full screen and quick access. Then open the app and turn on notifications." (on a computer "as an app on this computer" replaces "on your home screen"); "Install {name}"; "{name} is installed as an app on this {device}." ({name} is the server's name, also the name under the icon) |
 | Bot welcome, phones | "📱 I noticed you're on a phone. It's a much better experience if you install it to your homescreen — it will look and feel like a normal app. Please also allow notifications when prompted so you don't miss messages. You can change this anytime in Settings." |
 | New version | "You are awesome and so is the new version of this app. Please refresh."; "Reload" |
 | Connection bubble | "Offline. Messages are sent when the connection returns."; "Reconnecting…" |
