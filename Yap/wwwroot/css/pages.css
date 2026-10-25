@@ -1406,15 +1406,6 @@
     .log-filters {
         flex-direction: column;
     }
-
-    /* A phone drops one wide column from each paged table: Info in Logs and Type in Media are the 5th;
-       User-Agent in Visitors is the 6th, because Country sits between IP and Action. */
-    .logs-table:not(.visitors-table) th:nth-child(5),
-    .logs-table:not(.visitors-table) td:nth-child(5),
-    .visitors-table th:nth-child(6),
-    .visitors-table td:nth-child(6) {
-        display: none;
-    }
 }
 
 /* Action Logs */

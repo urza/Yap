@@ -392,7 +392,7 @@ export function mount(root, route) {
   }
 
   // ---- Logs (AD-18), Media (AD-19), Visitors (AD-20): one page of 100, Load more for the next ----
-  function paged(host, { title, route, filters, stats, toolbar, columns, rowOf, emptyText, countOf, onRemove, tableClass = '' }) {
+  function paged(host, { title, route, filters, stats, toolbar, columns, rowOf, emptyText, countOf, onRemove }) {
     let rows = [], skip = 0, data = null, selected = null;
     const filterValues = {};
     const list = el('div');
@@ -414,7 +414,7 @@ export function mount(root, route) {
     const removeRow = r => { rows = rows.filter(x => x !== r); if (data?.stats) onRemove?.(r, data.stats); draw(); drawStats(); };
     const draw = () => {
       countNode.textContent = countOf(rows, data);
-      replace(list, rows.length ? [table(columns, rows.map(r => rowOf(r, () => { selected = selected === r ? null : r; drawDetail(); }, () => removeRow(r))), `users-table logs-table ${tableClass}`.trim())] : [empty(emptyText)]);
+      replace(list, rows.length ? [table(columns, rows.map(r => rowOf(r, () => { selected = selected === r ? null : r; drawDetail(); }, () => removeRow(r))), 'users-table logs-table')] : [empty(emptyText)]);
       more.hidden = !(rows.length && rows.length % 100 === 0);
       drawDetail();
     };
@@ -509,7 +509,7 @@ export function mount(root, route) {
   const visitors = host => paged(host, { title: 'Visitors', route: '/api/admin/visitors', emptyText: 'No visitor data yet. Visitors are tracked when they load the login page or an invite while signed out.', countOf: (rows, d) => `${d?.stats?.visits ?? rows.length} visits tracked`,
     stats: s => [statCard('Total Visits', String(s.visits ?? 0)), statCard('Login Failures', String(s.failures ?? 0)), statCard('Unique IPs', String(s.uniqueIps ?? 0)), statCard('Today', String(s.today ?? 0))],
     filters: [{ key: 'action', options: [['', 'All'], ['VISIT', 'Visits only'], ['LOGIN_FAIL', 'Login failures only']] }],
-    columns: ['Date', 'IP', 'Country', 'Action', 'Details', 'User-Agent'], rowOf: visitorsRow, tableClass: 'visitors-table' });
+    columns: ['Date', 'IP', 'Country', 'Action', 'Details', 'User-Agent'], rowOf: visitorsRow });
 
   // ---- GIFs (AD-21 to AD-23) ----
   function gifs(host) {
