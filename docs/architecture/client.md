@@ -28,6 +28,7 @@ wwwroot/
     notify.js             the sound, the tab title, the app badge
     push.js               the push subscription of this device and the prompt of the installed app
     pwa.js                the install dialog, the browser's install prompt, the add-to-home-screen guide
+    scene.js              the place for the Tea House sun: the device's time zone city, stored for the inline script
     render/dom.js         el(), clone(), replace()
     render/text.js        message text to DOM nodes: links, :shortcode: images, emoji images
     render/time.js        timestamps with the account's zone, clock and date order
@@ -330,7 +331,7 @@ export function mount(root, { roomId, dmUser }) {
 
 ## Start-up
 
-1. The browser loads `index.html`. The service worker answers it, and every file of the shell, from the device's copy (OF-18), so nothing waits for the network before the first paint; a first visit and a new build fetch them. An inline script reads the cached theme and text size from localStorage and sets them on `<html>`, before the first paint. Without this the page would flash the default theme.
+1. The browser loads `index.html`. The service worker answers it, and every file of the shell, from the device's copy (OF-18), so nothing waits for the network before the first paint; a first visit and a new build fetch them. An inline script reads the cached theme and text size from localStorage and sets them on `<html>`, before the first paint. Without this the page would flash the default theme. The same script sets the Tea House scene (ST-09): it computes sunrise and sunset for the place `scene.js` stored (the device's time zone city) and divides the day among seven scenes and the night among five.
 2. The browser loads `main.js` and its imports. The server writes an import map and a `<link rel="modulepreload">` for every module into `index.html` (`ShellAssets`), so every module has a URL with the build stamp and the browser requests all of them at once instead of one level at a time.
 3. `main.js` reads the stored bootstrap document from IndexedDB and applies it: the frame paints with the last known state, and the chat page paints the stored tail of the conversation (TL-02), under a "Catching up…" pill until the server answers (TL-39). `hub.connect()` starts at once. Without a stored document (a first load, or after a sign-out) `main.js` requests `GET /api/bootstrap` first: without `user` in the answer, the router shows the login, verify or invite page with the texts from the answer.
 4. The hub connects over a direct WebSocket, without the negotiate round trip. When that socket does not open, it builds the connection again with negotiation and every transport, and keeps that for the page.
