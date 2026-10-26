@@ -2947,6 +2947,25 @@
     text-align: right;   /* a wrapped value ("none yet" on a narrow phone) keeps its right edge */
 }
 
+/* The mark before the state of this device (ST-17): a green check for On, a red crossed bell for every quiet
+   state. The bell is red even next to the grey "Off": the mark says "no notifications", the word says why.
+   The mark is inline, not a flex item: a long state ("Not set up on this server") wraps on a phone, and a flex
+   item would centre the mark across both lines and leave a hole before the right-aligned first line. */
+.status-icon {
+    width: 16px;
+    height: 16px;
+    vertical-align: -0.2em;
+    margin-right: 0.375rem;
+}
+
+.status-icon-on {
+    color: var(--color-success);
+}
+
+.status-icon-off {
+    color: var(--color-danger);
+}
+
 .notification-value.status-enabled {
     color: var(--color-success);
 }
