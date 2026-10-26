@@ -589,6 +589,22 @@ await step(16, 'Phone, 20 px text: the choices of a notification row wrap instea
   await P.screenshot({ path: SHOTS + '27-phone-mute-20px.png' });
   check(fit.length === 2 && fit.every(f => f.n === 3 && f.inside), `at 20 px on 320 px: ${JSON.stringify(fit)}`);
   await ctx.close();
+  // On a 375 px phone the three choices share one line at the largest text size (ST-26); only 320 px may wrap.
+  const ctx375 = await browser.newContext({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
+  watchContext(ctx375, 'Q');
+  const Q = await ctx375.newPage(); watchPage(Q, 'Q');
+  await signIn(Q, 'phoneuser');
+  await menu(Q, 'settings');
+  await Q.waitForSelector('.dm-seg .seg-btn', { timeout: 5000 });
+  await sleep(300);
+  const oneLine = await Q.evaluate(() => [...document.querySelectorAll('.dm-seg, .room-seg')].map(seg => {
+    const box = seg.getBoundingClientRect();
+    const btns = [...seg.querySelectorAll('.seg-btn')].map(b => b.getBoundingClientRect());
+    return { n: btns.length, width: Math.round(box.width), lines: new Set(btns.map(b => Math.round(b.top))).size, inside: btns.every(b => b.right <= box.right + 1 && b.left >= box.left - 1), slack: Math.round(box.width - btns.reduce((s, b) => s + b.width, 0)) };
+  }));
+  await Q.screenshot({ path: SHOTS + '27-phone-mute-20px-375.png' });
+  check(oneLine.length === 2 && oneLine.every(f => f.n === 3 && f.inside && f.lines === 1), `at 20 px on 375 px: ${JSON.stringify(oneLine)}`);
+  await ctx375.close();
 });
 
 await step(17, 'Sign out A', async (check) => {
