@@ -359,7 +359,9 @@ export function mount(root, route) {
       $('.mute-hint').textContent = muteHint();
       return;
     }
-    const modes = [['allowAll', 'Allow all', BELL], ['individual', 'Individual', SLIDERS], ['muteAll', 'Mute all', BELL_OFF]];
+    // "Allow" and "Mute", not "Allow all" and "Mute all": the three choices must share one line on a phone at
+    // the 20 px text size (ST-26), and the server row above uses the same two words.
+    const modes = [['allowAll', 'Allow', BELL], ['individual', 'Individual', SLIDERS], ['muteAll', 'Mute', BELL_OFF]];
     seg($('.dm-seg'), modes, mutes.dmMode, v => { mergeMe({ mutes: { ...mutes, dmMode: v } }); putMutes({ dmMode: v }); });
     const dmList = $('.dm-list');
     dmList.hidden = mutes.dmMode !== 'individual';

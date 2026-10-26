@@ -2621,6 +2621,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 0.75rem;   /* on a 320 px phone at the 20 px text size the label and the value both wrap; without the gap they touch */
     padding: 0.5rem 0.75rem;
     background: var(--bg-input);
     border-radius: 4px;
@@ -2634,6 +2635,7 @@
 .notification-value {
     font-size: 0.875rem;
     font-weight: 500;
+    text-align: right;   /* a wrapped value ("none yet" on a narrow phone) keeps its right edge */
 }
 
 .notification-value.status-enabled {
@@ -2943,13 +2945,18 @@
     display: flex;
     flex-direction: column;
     gap: 0.125rem;
+    flex: 1;   /* the text takes what the icon and the Remove button leave, so a long platform name wraps at a space */
     min-width: 0;
 }
 
+/* The badge and the name go onto two lines when the row is narrow: on a phone, "This device" next to
+   "Google (Chrome / Edge / Android)" does not fit beside the Remove button, and without the wrap the name
+   is squeezed into a word-per-line column. */
 .session-line {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.25rem 0.5rem;
 }
 
 .session-badge {
@@ -2980,6 +2987,20 @@
 
     .page-settings .settings-section {
         padding: 1rem;
+    }
+
+    /* A device row on a phone: the Remove button goes under the text, in the corner. Beside the text it left
+       a column of 119 px at the 20 px text size, and "Google (Chrome / Edge / Android)" came out one word
+       per line. The grid puts the icon in the first column and the text and the button in the second. */
+    .session-item {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.5rem 0.75rem;
+    }
+
+    .session-remove {
+        grid-column: 2;
+        justify-self: end;
     }
 
     .profile-picture-section {
@@ -3415,11 +3436,13 @@
         flex-wrap: wrap;
     }
 
-    /* 44px is the thumb-target floor; the desktop 36px is a mouse size. */
+    /* 44px is the thumb-target floor; the desktop 36px is a mouse size. The side padding is narrow so the
+       three choices of a row share one line on a 375 px phone at every text size (ST-26); the wrap above
+       is the fallback for a 320 px phone at the largest size. */
     .seg-btn {
         flex: 1 1 0;
         min-height: 44px;
-        padding: 0.4rem 0.5rem;
+        padding: 0.4rem 0.25rem;
     }
 
     .segmented-wrap .seg-btn {
