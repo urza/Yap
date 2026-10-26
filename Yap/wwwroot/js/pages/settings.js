@@ -265,6 +265,8 @@ export function mount(root, route) {
       item.querySelector('.session-ip').textContent = d.platform;
       item.querySelector('.session-activity').textContent = `Added ${ago(d.addedAt)}`;
       if (d.deliveredAt) { const extra = item.querySelector('.session-extra'); extra.hidden = false; extra.textContent = `Delivered ${ago(d.deliveredAt)}`; }
+      // Remove is the only way off, this device included: a "Turn off" button for this device did the same
+      // thing under a second name, so it went (2026-10-26).
       const remove = item.querySelector('.session-remove'); remove.hidden = false;
       remove.addEventListener('click', async () => { try { await api.delete('/api/push/devices', { endpoint: d.endpoint }); if (current) await push.unsubscribe(); drawPush(); } catch (e) { saved(pushStatus, e.message, 'error'); } });
       return item;
@@ -274,12 +276,9 @@ export function mount(root, route) {
     const text = !possible ? (w.ios ? null : 'This browser cannot show notifications.') : !configured ? 'Notifications are not set up on this server.' : blocked ? push.blockedHint() : null;
     reason.hidden = !text; if (text) reason.textContent = text;
     const stuck = !possible || !configured || blocked;
-    $('.push-off-row').hidden = stuck || !mine; $('.push-off-hint').hidden = stuck || !mine;
     $('.push-on').hidden = stuck || !!mine; $('.push-on-hint').hidden = stuck || !!mine;
     $('.push-on').textContent = `Turn on notifications on this ${device}`;
     $('.push-on-hint').textContent = w.phone ? `Your ${device} will ask you to allow notifications. Tap Allow.` : 'Your browser will ask you to allow notifications. Click Allow.';
-    $('.push-off').textContent = `Turn off notifications on this ${device}`;
-    $('.push-device-word').textContent = `this ${device}`;
     const canTest = configured && devices.length > 0;
     $('.push-test-row').hidden = !canTest; $('.push-test-hint').hidden = !canTest;
     // The red notice above Allow / Mute (ST-27): the rules there belong to the account and cannot wake a quiet device.
@@ -300,12 +299,6 @@ export function mount(root, route) {
     if (!result.ok) saved(pushStatus, result.reason, 'error');
     e.target.disabled = false;
     drawPush();   // also restores the label
-  });
-  $('.push-off').addEventListener('click', async e => {
-    e.target.disabled = true; e.target.textContent = 'Turning off...';
-    await push.unsubscribe();
-    e.target.disabled = false;
-    drawPush();
   });
   $('.push-test').addEventListener('click', async e => {
     e.target.disabled = true; e.target.textContent = 'Sending...';
