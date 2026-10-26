@@ -19,6 +19,10 @@ import { confirm } from '../ui/confirm.js';
 const FONT_SIZES = [14, 15, 16, 17, 18, 20];   // ST-10
 const BELL = '<svg class="seg-icon" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>';
 const BELL_OFF = '<svg class="seg-icon" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm0-15.5c2.49 0 4 2.02 4 4.5v5h2v1H6v-1h2v-5c0-3.07 1.63-5.64 4.5-6.32V4c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5v.68c-.17.04-.33.09-.5.14zM5.41 3.35L4 4.76l2.81 2.81C6.29 8.57 6 9.74 6 11v5l-2 2v1h14.24l1.35 1.35 1.41-1.41L5.41 3.35z"/></svg>';
+// The state of this device gets a mark next to its word: a green check when the device gets notifications, a red
+// crossed bell when it does not (Off, Blocked, Not possible here, Not set up on this server). The crossed bell is
+// the app's sign for "no notifications" (the muted bells, the red notice); a cross would read as delete or close.
+const CHECK_CIRCLE = '<svg class="status-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>';
 const SLIDERS = '<svg class="seg-icon" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>';
 const EYE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
 const EYE_OFF = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
@@ -254,7 +258,9 @@ export function mount(root, route) {
     $('.push-this-label').textContent = `This ${device}`;
     const thisValue = $('.push-this');
     const thisState = !possible ? ['Not possible here', 'status-unavailable'] : !configured ? ['Not set up on this server', 'status-unavailable'] : blocked ? ['Blocked', 'status-denied'] : mine ? ['On', 'status-enabled'] : ['Off', 'status-disabled'];
-    thisValue.textContent = thisState[0]; thisValue.className = `notification-value push-this ${thisState[1]}`;   // push-this stays: the next draw looks it up
+    const on = thisState[1] === 'status-enabled';
+    const mark = icon(on ? CHECK_CIRCLE : BELL_OFF); mark.setAttribute('class', `status-icon ${on ? 'status-icon-on' : 'status-icon-off'}`);
+    thisValue.replaceChildren(mark, thisState[0]); thisValue.className = `notification-value push-this ${thisState[1]}`;   // push-this stays: the next draw looks it up
     $('.push-count').textContent = devices.length ? String(devices.length) : 'none yet';
     replace($('.push-list'), devices.map(d => {
       const item = clone('t-session-item');
