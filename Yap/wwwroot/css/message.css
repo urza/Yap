@@ -332,6 +332,13 @@
     color: var(--text-white);
     font-size: 1rem;
     font-weight: 500;
+    /* A flex item never shrinks below its longest word, and a display name can be 64 characters with no space.
+       Beside "Yesterday 14:32" such a name pushed the header past the row on a phone, and the timeline became a
+       sideways scroller. The name is clipped at the row edge: not wrapped, and no ellipsis, because the user
+       would rather see three more letters of the name than three dots. */
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
 }
 
 .message-group .bot-badge {
@@ -356,6 +363,9 @@
     color: var(--text-muted);
     font-size: 0.75rem;
     font-weight: 400;
+    /* The time keeps its full width on one line; the name is the part that gives way (see .message-username). */
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 /* Message content */

@@ -278,6 +278,10 @@
 .messages {
     flex: 1;
     overflow-y: auto;
+    /* overflow-y: auto alone turns overflow-x into auto as well. Any row that spilled past the right edge
+       then made the timeline scroll sideways, and on a phone the finger moved the view on two axes: the
+       chat drifted while scrolling up. Nothing is meant to poke out to the right, so the spill is clipped. */
+    overflow-x: hidden;
     padding: 1rem 0 0.25rem 0;
     min-width: 0; /* Allow flex item to shrink below content size */
 }
