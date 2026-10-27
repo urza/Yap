@@ -1,4 +1,8 @@
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+# Exact patch tags, not the floating 10.0: the runtime carries the fix for CVE-2026-111497 (an out-of-bounds
+# write in the Brotli decoder, fixed in 10.0.14 on 2026-10-25). A floating tag resolves to whatever image the
+# Docker host has cached, so a rebuild can keep an old runtime with no change in this file. Bump both tags
+# together on each .NET 10 patch release (the SDK tag below ships the same runtime).
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.14 AS base
 # ffmpeg/ffprobe are pinned static builds, not distro packages: the GIF preview pipeline decodes
 # animated WebP, which needs ffmpeg >= 9.0 — no 6.x/7.x/8.x release has the decoder, so no distro
 # repo qualifies (noble ships 6.1, resolute 8.0; verified against real library files 2026-08-08).
@@ -21,7 +25,7 @@ COPY --from=denoland/deno:bin-2.9.6 /deno /usr/local/bin/deno
 WORKDIR /app
 EXPOSE 8080
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.403 AS build
 WORKDIR /src
 COPY ["Yap.csproj", "."]
 RUN dotnet restore
