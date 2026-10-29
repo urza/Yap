@@ -42,7 +42,7 @@ async function install() {
 function showGuide() {
   const start = () => {
     if (!window.AddToHomeScreen) return;
-    window.AddToHomeScreen({ appName: 'Yap', appIconUrl: 'icon-192.png', assetUrl: `${GUIDE_CDN}/assets/img/`, allowClose: true, showArrow: true }).show('en');
+    window.AddToHomeScreen({ appName: appName(), appIconUrl: 'icon-192.png', assetUrl: `${GUIDE_CDN}/assets/img/`, allowClose: true, showArrow: true }).show('en');
   };
   if (window.AddToHomeScreen) { start(); return; }
   document.head.append(el('link', { rel: 'stylesheet', href: `${GUIDE_CDN}/add-to-homescreen.min.css` }));
