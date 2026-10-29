@@ -19,7 +19,27 @@ const CHART_CDN = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.mi
 
 const stamp = iso => iso ? new Date(iso).toISOString().slice(0, 16).replace('T', ' ') : '—';
 const header = (title, count, extra) => el('div', { class: 'section-header' }, el('h3', null, title), el('span', { class: 'section-count' }, count ?? ''), extra ?? null);
-const table = (headers, rows, cls = 'users-table') => el('div', { class: 'table-wrapper' }, el('table', { class: cls }, el('thead', null, el('tr', null, headers.map(h => el('th', typeof h === 'string' ? null : { 'data-tip': h.title }, typeof h === 'string' ? h : h.text)))), el('tbody', null, rows)));   // { text, title }: the bubble of tooltip.js
+// A table wider than its box slides sideways when the header row is dragged with the mouse; the header is sticky,
+// so it is always there to take. Only the header: a drag across the body selects text, and the admin copies IPs
+// and invite links from these tables. Touch pans the box natively, and the wheel with Shift scrolls it sideways;
+// this is the mouse's third way. The hand cursor (.can-pan) is decided as the pointer comes in, not watched.
+const pannable = wrap => {
+  wrap.addEventListener('pointerenter', () => wrap.classList.toggle('can-pan', wrap.scrollWidth > wrap.clientWidth));
+  wrap.addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'mouse' || e.button !== 0 || !e.target.closest('thead') || wrap.scrollWidth <= wrap.clientWidth) return;
+    const x0 = e.clientX, left0 = wrap.scrollLeft;
+    const move = ev => { wrap.scrollLeft = left0 + x0 - ev.clientX; };
+    const end = () => { wrap.classList.remove('panning'); wrap.removeEventListener('pointermove', move); wrap.removeEventListener('pointerup', end); wrap.removeEventListener('pointercancel', end); };
+    wrap.setPointerCapture(e.pointerId);   // the slide goes on outside the box; the release lands on the box, not on a header cell, so no tooltip tap
+    wrap.classList.add('panning');
+    wrap.addEventListener('pointermove', move);
+    wrap.addEventListener('pointerup', end);
+    wrap.addEventListener('pointercancel', end);
+    e.preventDefault();   // no text selection of the header while it slides
+  });
+  return wrap;
+};
+const table = (headers, rows, cls = 'users-table') => pannable(el('div', { class: 'table-wrapper' }, el('table', { class: cls }, el('thead', null, el('tr', null, headers.map(h => el('th', typeof h === 'string' ? null : { 'data-tip': h.title }, typeof h === 'string' ? h : h.text)))), el('tbody', null, rows))));   // { text, title }: the bubble of tooltip.js
 const td = (content, cls) => el('td', cls ? { class: cls } : null, content);
 const pill = (text, cls) => el('span', { class: `action-pill ${cls ?? ''}` }, text);
 const fail = e => notice({ title: 'That did not work', text: e.message });   // an action the server refused: the app's dialog, not the browser's alert

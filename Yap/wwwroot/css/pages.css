@@ -477,12 +477,49 @@
     font-size: 0.8125rem;
 }
 
-/* Table */
+/* Table. The wrapper is a box that scrolls both ways, at most 70 % of the viewport tall. The admin tables
+   outgrow a narrow window sideways and a long list downwards. In a wrapper that only scrolled sideways, the
+   sideways scrollbar sat at the bottom of the whole table, off screen with many rows; in a box never taller
+   than the viewport it is always in reach. The box is also what the sticky header holds to: sticky holds to
+   the nearest scrolling ancestor, and this wrapper is one anyway (overflow-x: auto makes overflow-y auto too),
+   so a header could never hold to the page scroller above it. */
 .table-wrapper {
-    overflow-x: auto;
+    overflow: auto;
+    max-height: 70vh;
     border-radius: 8px;
     border: 1px solid var(--border-dark);
 }
+
+/* Both scrollbars in the theme's colours, in a lane wide enough to take with the mouse: the browser's own bar
+   on Windows 11 is a hairline that grows on hover, and the sideways one is easy to miss. The thumb is an 8 px
+   pill in a 14 px lane; the transparent border keeps the whole lane as the grab area. The standard properties
+   are for Firefox alone, inside the @supports: in Chrome 121+ a scrollbar-color on the element switches the
+   ::-webkit-scrollbar rules off. */
+.table-wrapper::-webkit-scrollbar { width: 14px; height: 14px; }
+.table-wrapper::-webkit-scrollbar-track, .table-wrapper::-webkit-scrollbar-corner { background: transparent; }
+.table-wrapper::-webkit-scrollbar-thumb {
+    background: var(--bg-muted);
+    background-clip: padding-box;   /* after the shorthand, which would reset it */
+    border: 3px solid transparent;
+    border-radius: 7px;
+}
+.table-wrapper::-webkit-scrollbar-thumb:hover { background-color: var(--text-muted); }
+@supports not selector(::-webkit-scrollbar) {
+    .table-wrapper { scrollbar-color: var(--bg-muted) transparent; }
+}
+
+/* The header row stays while the rows scroll. */
+.table-wrapper th {
+    position: sticky;
+    top: 0;
+    z-index: 1;   /* a row with opacity (a closed connection in Diagnostics) is a stacking context that would paint over the header */
+    background: var(--bg-sidebar);   /* the thead background stays behind when the cells stick */
+    box-shadow: inset 0 -1px 0 var(--border-dark);   /* the line under the header: a collapsed border is painted by the table and stays behind too */
+}
+
+/* A table wider than its box slides when the header row is dragged (admin.js, pannable). The hand shows only then. */
+.table-wrapper.can-pan th { cursor: grab; }
+.table-wrapper.panning, .table-wrapper.panning * { cursor: grabbing; user-select: none; }
 
 .users-table {
     width: 100%;
@@ -503,7 +540,6 @@
     text-transform: uppercase;
     letter-spacing: 0.02em;
     white-space: nowrap;
-    border-bottom: 1px solid var(--border-dark);
 }
 
 .users-table td {
@@ -899,7 +935,6 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.02em;
-    border-bottom: 1px solid var(--border-dark);
     white-space: nowrap;
 }
 
@@ -4008,22 +4043,6 @@
 
 /* Diagnostics, latency by user (AD-26): a connection row sits under its user, so its first cell steps in. */
 .logs-table td.diag-indent { padding-left: 28px; }
-
-/* Diagnostics tables scroll inside their own box, both ways, at most 70 % of the viewport tall. Two reasons.
-   The wide tables (latency by user has ten columns) outgrow the screen, and the sideways scrollbar of a wrapper
-   that only scrolls sideways sits at the bottom of the whole table: with many rows it is off screen. In a box that
-   is never taller than the viewport, the scrollbar is always in reach. And a sticky header holds to the nearest
-   scrolling ancestor; with the page as the scroller it would hold to nothing, because the wrapper is a scroll
-   container of its own (overflow-x: auto makes overflow-y auto too). */
-.diag-chart-card .table-wrapper { max-height: 70vh; }
-.diag-chart-card .users-table th {
-    position: sticky;
-    top: 0;
-    z-index: 1;   /* a closed-connection row has opacity, so it is a stacking context that would paint over the header */
-    background: var(--bg-sidebar);   /* the thead background stays behind when the cells stick */
-    border-bottom: 0;
-    box-shadow: inset 0 -1px 0 var(--border-dark);   /* a collapsed border stays behind too; the shadow travels with the cell */
-}
 
 /* The explanation bubble (js/ui/tooltip.js): one node on <body>, placed by script, so a table that scrolls
    sideways cannot clip it. Larger type than the native title, wraps at 280 px, shows on touch too. */
