@@ -64,7 +64,7 @@ that name the class get it. 150 selectors in total. In the old markup, every pre
 
 1. `.dot` is not prefixed. The typing dots sit in `.typing-indicator-container`, a sibling of
    `.message-input-container`, so that prefix would break them. `.typing-dots .dot` and `.reconnect-dots .dot`
-   already keep the two rule sets apart.
+   kept the two rule sets apart until the reconnect dots went (2026-10-29).
 2. `.section-hint` was not on the list. It has different rules in Admin and ChannelSettings, so it got a prefix (rule 3).
 3. The Admin page renders GifLibraryManager, which uses the same `.gif-tag*` names with different rules
    (for example `margin: -4px` and `min-width: 140px` exist only in Admin). `.page-admin` alone would reach into the
@@ -97,9 +97,9 @@ that name the class get it. 150 selectors in total. In the old markup, every pre
   the five state rules `#components-reconnect-modal.<state> .components-*-visible` (three of them also show `.reconnect-dots`);
   `#components-reconnect-modal button`, `:hover` and `:active`; `#components-seconds-to-next-attempt`.
   Their comments and the Blazor state list in the header comment went too.
-  Kept: `.reconnect-banner-content`, `.reconnect-dots`, `.reconnect-dots .dot` with its three `:nth-child` delays,
-  `@keyframes reconnect-dot-pulse`. The fixed top position, `z-index: 10000` and the slide-in transform were on
-  `#components-reconnect-modal`, so the new strip needs its own positioning. The dots now show whenever they are in the DOM.
+  Kept at first: `.reconnect-banner-content`, `.reconnect-dots`, `.reconnect-dots .dot` with its three `:nth-child`
+  delays, `@keyframes reconnect-dot-pulse`. The vanilla client never used them (the connection dot and the notice
+  strip in app.css took the role), so they went on 2026-10-29.
 - The sources had no `[b-...]` selectors and no `.blazor-error-boundary` rules.
 
 ## Classes each component expects on its markup
@@ -110,7 +110,6 @@ that name the class get it. 150 selectors in total. In the old markup, every pre
 | ChatHeader | frame | chat-header, back-button, dm-header-title, header-controls, mailbox-button (has-unread), mailbox-badge, pins-button, pins-badge, users-toggle, icon-hamburger, icon-people, online-count, status-dropdown-container, status-button (status-online, status-away, status-invisible), status-indicator, status-username, dropdown-backdrop, status-dropdown, dropdown-item (active, signout), dropdown-divider, status-dot (online, away, invisible), checkmark |
 | ChatSidebar | frame | users-sidebar (sidebar-open), sidebar-section, rooms-list, room-item (active, has-unread), room-icon, room-name, room-settings, add-room, users-list, user-item (current-user, active-dm), user-name, user-status-dot (online, away, invisible), admin-badge, bot-badge, unread-dot, unread-badge, mute-bell, profile-info-btn, profile-popup (is-mobile; a sibling of the sidebar), profile-popup-backdrop |
 | ChatLayout | frame, timeline | chat-container (data-context), theme-scene, theme-scrim, header-line, chat-main, messages-container, sidebar-backdrop (show), error-content, error-retry-button, error-reload-button; messages, messages-flow, messages-spacer, system-message, loading-more, loading-spinner, history-start |
-| ReconnectModal | frame | reconnect-banner-content, reconnect-dots, dot |
 | PushPermissionPrompt | frame | push-prompt-overlay (hiding), push-prompt-card, push-prompt-icon, push-prompt-heading, push-prompt-body, push-prompt-enable, push-prompt-later |
 | PwaInstallBanner | frame | pwa-install-banner (hiding), pwa-banner-content, pwa-banner-illustration, pwa-banner-text, pwa-banner-actions, pwa-install-btn, pwa-dismiss-btn |
 | Pinned messages panel | frame | pins-layer, pins-backdrop, pins-panel, pins-head, pins-title, pins-close, pins-list, pin-entry (jumping), pin-entry-header, pin-avatar, pin-author, pin-time, pin-unpin, pin-text, pin-media, pin-frame, pin-picture, pin-gif, pin-play, pin-card, pin-card-title, pin-attachment-label, pin-entry-foot, pin-by |
