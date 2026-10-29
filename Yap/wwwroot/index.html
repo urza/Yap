@@ -11,16 +11,25 @@
          boots: the worker serves this page cache-first, and the chat page sets the full title only once it mounts (SH-45). -->
     <title>{{project}}</title>
 
-    <!-- Theme, text size and the time-of-day scene before the first paint, so the page never flashes the default.
-         The values are the account's, cached in localStorage by the client after each bootstrap. -->
+    <!-- The phone's status bar takes its tint from this meta. It stays above the script below, which sets it from the
+         cached colour before the first paint; a meta after the script would not exist yet when the script runs. -->
+    <meta name="theme-color" content="#1a1a2e" />
+
+    <!-- Theme, text size, status-bar colour and the time-of-day scene before the first paint, so the page never
+         flashes the default. The values are the account's, cached in localStorage by the client after each bootstrap. -->
     <script>
         (function () {
             var root = document.documentElement;
+            var themeColorMeta = document.querySelector('meta[name="theme-color"]');
             try {
                 var theme = localStorage.getItem('yap.theme');
                 if (theme) root.dataset.theme = theme;
                 var size = parseInt(localStorage.getItem('yap.fontSize'), 10);
                 if (size >= 12 && size <= 24) root.style.fontSize = size + 'px';
+                // The colour syncThemeColorMeta stored on the last visit: the theme's background, which the
+                // stylesheets have not delivered yet. Without it the status bar showed the default for every load.
+                var color = localStorage.getItem('yap.themeColor');
+                if (color && themeColorMeta) themeColorMeta.content = color;
             } catch (e) { /* private mode */ }
 
             // The scene of the scene themes (Tea House) follows the sun (ST-09): the seven day scenes share the time
@@ -50,11 +59,11 @@
             }
             function syncThemeColorMeta() {
                 // The phone's status bar takes its tint from this meta. Before the stylesheets load the computed
-                // colour is transparent; keep the default then.
+                // colour is transparent; keep the cached or default colour then.
                 var bg = getComputedStyle(root).backgroundColor;
                 if (!bg || bg === "transparent" || bg === "rgba(0, 0, 0, 0)") return;
-                var meta = document.querySelector('meta[name="theme-color"]');
-                if (meta && meta.content !== bg) meta.content = bg;
+                if (themeColorMeta && themeColorMeta.content !== bg) themeColorMeta.content = bg;
+                try { localStorage.setItem('yap.themeColor', bg); } catch (e) { /* private mode */ }   // for the next load's first paint
             }
             function applyScene() {
                 var now = new Date(), s = "314am";
@@ -98,7 +107,6 @@
     <!-- use-credentials: the manifest fetch must send the cookie, or every install would get the anonymous start_url -->
     <link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials" />
     <link rel="apple-touch-icon" href="icon-192.png" />
-    <meta name="theme-color" content="#1a1a2e" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
