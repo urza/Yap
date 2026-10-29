@@ -232,6 +232,12 @@ h1:focus {
     outline: none;
 }
 
+/* The start spinner (SH-51): a first load, or a load after a sign-out, has nothing stored to paint and waits for the
+   server with an empty page. Fixed over the page, so the first mount neither moves nor waits for it; main.js removes
+   it. The spinner class and the 400 ms appear animation come from css/timeline.css, which every page loads. */
+.start-loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; opacity: 0; animation: loading-tail-appear 150ms ease-out 400ms forwards; }
+.start-loading .loading-spinner { width: 24px; height: 24px; border-width: 3px; }
+
 /* The start-failure screen (SH-41): shown by main.js when the app cannot start at all. */
 #start-error {
     display: none;
@@ -392,6 +398,7 @@ img.emoji-pill { height: 18px; width: 18px; vertical-align: -3px; }
 .notice-strip { display: flex; align-items: center; justify-content: center; gap: 0.75rem; padding: 0.375rem 1rem; background: #f0a030; color: #1a1a1a; font-size: 0.875rem; }
 .notice-action { background: #1a1a1a; color: #fff; border: none; border-radius: 4px; padding: 0.25rem 0.75rem; cursor: pointer; font-size: inherit; }
 .notice-action:empty { display: none; }
+.notice-action:disabled { opacity: 0.6; cursor: default; }   /* "Updating…" while the reload waits for the new copy (OF-18) */
 
 /* The notice strip sits above the frame, so the frame takes the rest of the window instead of a full
    viewport height: the conversation is shorter while the strip shows (SH-20). */

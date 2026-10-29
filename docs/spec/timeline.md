@@ -104,7 +104,7 @@ The timeline is the scrolling list of messages in a conversation. The oldest loa
 
 ### Without a connection
 
-**TL-34** Without a connection, the list shows the last messages that it had for the conversation. The user can read and scroll them. The user cannot get older messages that were not loaded. The top of the list shows "Needs a connection", and the pill of TL-39 floats over it.
+**TL-34** Without a connection, the list shows the last messages that it had for the conversation. The user can read and scroll them. The user cannot get older messages that were not loaded. The top of the list shows "Needs a connection", and the pill of TL-39 floats over it. While a connection is on its way, the top of the list shows nothing, and the pill alone says "Catching up…".
 
 **TL-35** When the connection returns, the newest messages load again and the loaded rows are updated. When more messages arrived than one page holds, the missing messages load as the user scrolls up. If the view did not follow, it stays where it is. If the view followed, it stays at the bottom.
 

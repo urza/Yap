@@ -180,7 +180,10 @@ export function Timeline(root) {
     if (!open) { replace(top, []); return; }
     if (open.loading && state.connection !== 'offline') { replace(top, [clone('t-loading-tail')]); return; }   // the first answer is on its way (TL-02)
     if (open.hasMore) {
-      if (state.connection !== 'connected') { replace(top, [el('div', { class: 'history-start' }, 'Needs a connection')]); return; }
+      // "Needs a connection" only without one (TL-34): offline, or every try failed. While a connection is on its way the
+      // slot stays empty: the pill of TL-39 says "Catching up…", and a link to older messages could not be served yet.
+      if (state.connection === 'offline' || state.connectionFailed) { replace(top, [el('div', { class: 'history-start' }, 'Needs a connection')]); return; }
+      if (state.connection !== 'connected') { replace(top, []); return; }
       if (!loading && list.scrollHeight <= list.clientHeight + 1) {   // the pill stands in for the link while the page loads
         const button = clone('t-load-earlier');
         button.addEventListener('click', loadOlder);

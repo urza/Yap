@@ -126,6 +126,8 @@ The frame contains all parts around a conversation. The header shows the title, 
 
 **SH-41** When a page fails, the conversation area shows "Something went wrong" with "Try Again" and "Reload Page". The header and the sidebar stay. Try Again draws the page again. Reload Page reloads the page. Drafts and unsent messages are kept after both actions. When Yap cannot start at all, the gremlin screen shows "Oops! The gremlins got us" with "Reload & Try Again".
 
+**SH-51** When Yap starts with nothing stored on the device (a first visit, or a visit after a sign-out), the page is empty until the server answers. From 400 ms on, a spinner shows in the middle of the page, until the first page is on screen. A start from the stored copy paints before that and never shows the spinner.
+
 ### Routes and the tab
 
 **SH-42** The routes are /lobby for the default room, /room/{id}, /dm/{username}, /settings, /admin, /channel/new, /channel/{id}/settings, /login, /verify/{username}, /invite/{code}, and / for the start. When the user is signed in, a room or direct message link opens directly. When the user is signed out, the login page opens, and the link opens after the sign-in. An unknown address shows "Not Found".
