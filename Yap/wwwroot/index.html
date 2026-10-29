@@ -129,6 +129,11 @@
 
     <div id="app"></div>
 
+    <!-- The spinner of a start with nothing stored on the device (SH-51): the page has nothing to paint until the server
+         answers. Invisible for the first 400 ms like the loading line, so a start from the stored copy never shows it.
+         main.js removes it before the first page mounts. -->
+    <div id="start-loading" class="start-loading" role="status" aria-label="Loading"><div class="loading-spinner"></div></div>
+
     <!-- When Yap cannot start at all (SH-41). main.js shows it; nothing else touches it. -->
     <div id="start-error" data-nosnippet>
         <div class="error-modal-content">

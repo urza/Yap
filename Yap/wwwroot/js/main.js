@@ -88,8 +88,11 @@ on('config', () => {
 
 // The new build's worker may still be installing when the person taps Reload (the strip shows one round trip after
 // the load, the install takes a few seconds on a slow link). The shell is cache-first (OF-18), so a reload before the
-// new worker takes over would serve the old shell again and show the strip again. Wait for it, up to 15 s.
+// new worker takes over would serve the old shell again and show the strip again. Wait for it, up to 15 s. The strip
+// changes at the tap: before 2026-10-29 those seconds passed in silence, and a button that does nothing reads as broken.
 async function reloadForNewBuild() {
+  notice('Getting the new version…', 'Updating…');
+  document.querySelector('#notice .notice-action').disabled = true;   // the page reloads next, so nothing enables it again
   const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration().catch(() => null) : null;
   if (reg && (reg.installing || reg.waiting)) await Promise.race([new Promise(r => navigator.serviceWorker.addEventListener('controllerchange', r, { once: true })), new Promise(r => setTimeout(r, 15_000))]);
   location.reload();
@@ -175,6 +178,7 @@ async function start() {
     snapshot.clearAll();                                     // nothing of a previous account stays for the next one (GEN-05)
   }
   state.drafts = await snapshot.loadDrafts();
+  document.getElementById('start-loading')?.remove();   // the first page paints next: the spinner of a start with nothing stored goes (SH-51). Optional: an old page under a new script (SH-50) has no spinner
   router.start();
 }
 
@@ -188,4 +192,4 @@ async function fetchBootstrap() {
 // into a second page load; the browser stores the cookie of the redirect answer all the same.
 const handoff = token => fetch(`/pwa-launch?lt=${encodeURIComponent(token)}`, { redirect: 'manual', credentials: 'same-origin' }).catch(() => {});
 
-start().catch(e => { console.error('Yap could not start', e); document.getElementById('start-error').classList.add('show'); });   // SH-41
+start().catch(e => { console.error('Yap could not start', e); document.getElementById('start-loading')?.remove(); document.getElementById('start-error').classList.add('show'); });   // SH-41
