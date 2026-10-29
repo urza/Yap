@@ -3,7 +3,7 @@
 
 import { state, on, isMuted, unreadTotal, dmByChannel } from './store.js';
 
-let baseTitle = document.title;
+let baseTitle = document.title;   // the shell's <title>: the project name, stamped by the server (ShellEndpoints)
 let hiddenCount = 0;
 let audio = null;
 let lastUnread = {};

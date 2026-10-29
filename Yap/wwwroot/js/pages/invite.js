@@ -20,7 +20,9 @@ export function mount(root, { code }) {
   const error = page.querySelector('.validation-error');
   page.querySelector('.build-info').textContent = document.documentElement.dataset.build ?? '';
   const project = state.config?.projectName ?? 'Yap';
-  document.title = project;
+  // Only with a config: a load with no bootstrap answer (offline, signed out) must not write the "Yap" fallback over
+  // the project name the server stamped into the shell's <title> (SH-45).
+  if (state.config?.projectName) document.title = project;
   let live = true;
 
   function link(label, href) { secondary.textContent = label; secondary.href = href; secondary.hidden = false; secondary.onclick = e => { e.preventDefault(); router.navigate(href); }; }

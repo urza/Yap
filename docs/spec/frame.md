@@ -134,7 +134,7 @@ The frame contains all parts around a conversation. The header shows the title, 
 
 **SH-44** Browser back goes to the previous conversation or page. The header back arrow always goes to the lobby.
 
-**SH-45** The tab title is "{Project} | #{room}" in a room and "{Project} | @{username}" in a direct message. On the Settings and Admin pages, it is "Settings" and "Admin". While the tab is hidden, a "({n}) " prefix counts the arrivals by the rules on the [notifications page](notifications.md). The prefix resets when the user returns.
+**SH-45** The tab title is "{Project} | #{room}" in a room and "{Project} | @{username}" in a direct message. On the Settings and Admin pages, it is "Settings" and "Admin". Before a page sets it, the tab shows the project name: the server writes it into the page, so the tab never shows "Yap" while the client loads. While the tab is hidden, a "({n}) " prefix counts the arrivals by the rules on the [notifications page](notifications.md). The prefix resets when the user returns.
 
 **SH-46** The installed app's icon shows the unread total as a badge where the system supports it. Yap does not ask for permission for the badge. The badge clears when the total is zero.
 

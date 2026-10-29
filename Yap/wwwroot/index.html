@@ -7,7 +7,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
     <!-- every client route serves this page, so relative URLs must resolve from the root, not from /dm/... -->
     <base href="/" />
-    <title>Yap</title>
+    <!-- The server writes the project name in (ShellEndpoints), so the tab never shows the default while the client
+         boots: the worker serves this page cache-first, and the chat page sets the full title only once it mounts (SH-45). -->
+    <title>{{project}}</title>
 
     <!-- Theme, text size and the time-of-day scene before the first paint, so the page never flashes the default.
          The values are the account's, cached in localStorage by the client after each bootstrap. -->

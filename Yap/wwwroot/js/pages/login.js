@@ -39,7 +39,9 @@ export function mount(root) {
   const guide = page.querySelector('.multidevice-guide');
   const form = page.querySelector('.username-form');
   const waiting = page.querySelector('.waiting-message');
-  document.title = project;
+  // Only with a config: a load with no bootstrap answer (offline, signed out) must not write the "Yap" fallback over
+  // the project name the server stamped into the shell's <title> (SH-45).
+  if (state.config?.projectName) document.title = project;
   page.querySelector('.signed-out-notice').hidden = !session.signInNotice();   // AU-21: this device was signed out from elsewhere
 
   let check = null;        // the server's answer for the current name
