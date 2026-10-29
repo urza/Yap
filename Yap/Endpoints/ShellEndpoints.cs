@@ -14,7 +14,9 @@ namespace Yap.Endpoints;
 /// reload and the installed app's start URL all land in the same shell and the router in the browser takes over
 /// (SH-42). Both files are templates: the build stamp, the import map, the modulepreload links, the worker's shell
 /// list and the client routes are written in at request time (ShellAssets), so the client and its worker know which
-/// build they run (the new-version strip, the shell cache) and no list of files is kept by hand.
+/// build they run (the new-version strip, the shell cache) and no list of files is kept by hand. The project name goes
+/// into the page's title the same way: the worker serves the shell cache-first, so the title is the first thing the tab
+/// shows, and a fixed "Yap" there flashed before the chat page set the real one (SH-45).
 /// </summary>
 public static class ShellEndpoints
 {
@@ -27,6 +29,7 @@ public static class ShellEndpoints
     {
         var env = app.Environment;
         var assets = new ShellAssets(env.WebRootPath, BuildInfo.Time);
+        var config = app.Services.GetRequiredService<ServerConfig>();   // a singleton; the name comes from appsettings and changes with a restart
         // The client routes as one pattern for the worker: "{id:guid}" and "{user}" become one path segment.
         var routePattern = string.Join("|", Routes.Select(r => Regex.Replace(r, @"\{[^}]*\}", "[^/]+")));
         string? cachedShell = null, cachedWorker = null;
@@ -38,6 +41,7 @@ public static class ShellEndpoints
             using var reader = new StreamReader(env.WebRootFileProvider.GetFileInfo(file).CreateReadStream());
             return reader.ReadToEnd()
                 .Replace("{{build}}", BuildInfo.Time)
+                .Replace("{{project}}", WebUtility.HtmlEncode(config.ProjectName))
                 .Replace("{{importmap}}", assets.ImportMap)
                 .Replace("{{modulepreload}}", assets.ModulePreloads)
                 .Replace("{{shell}}", assets.ShellList)
