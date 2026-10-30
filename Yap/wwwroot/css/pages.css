@@ -100,12 +100,6 @@
     pointer-events: auto; /* keep the tooltip explaining why */
 }
 
-.gif-lib-ffmpeg-note {
-    color: var(--text-muted);
-    font-size: 0.78rem;
-    font-style: italic;
-}
-
 /* Quota */
 .gif-lib-quota {
     display: flex;
@@ -361,9 +355,6 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
-
-/* ==== MainLayout (was Yap/Components/Layout/MainLayout.razor.css) ==== */
-/* Every rule here styled #blazor-error-ui (Blazor only); all dropped. */
 
 /* ==== Admin (was Yap/Components/Pages/Admin.razor.css) ==== */
 
@@ -816,11 +807,6 @@
 .tag-green {
     background: rgba(59, 165, 92, 0.15);
     color: var(--status-online);
-}
-
-.tag-orange {
-    background: rgba(250, 166, 26, 0.15);
-    color: var(--status-away);
 }
 
 .tag-muted {
@@ -1708,16 +1694,6 @@
     flex-wrap: wrap;
 }
 
-.diag-stat-card {
-    background: var(--bg-sidebar);
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    min-width: 90px;
-}
-
 .diag-charts {
     display: flex;
     flex-direction: column;
@@ -1801,11 +1777,6 @@
 @media (max-width: 600px) {
     .diag-stats {
         gap: 0.5rem;
-    }
-
-    .diag-stat-card {
-        flex: 1 1 calc(33.333% - 0.375rem);
-        min-width: 0;
     }
 
     .diag-chart-wrapper {
@@ -2708,10 +2679,6 @@
     margin-bottom: 0.5rem;
 }
 
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
 .rejection-notice {
     color: var(--color-danger) !important;
     font-size: 0.875rem !important;
@@ -2917,14 +2884,6 @@
 
 .page-settings .form-hint a:hover {
     text-decoration: underline;
-}
-
-.form-counter {
-    display: block;
-    color: var(--text-muted);
-    font-size: 0.75rem;
-    text-align: right;
-    margin-top: 0.25rem;
 }
 
 /* Auto-save status indicator */

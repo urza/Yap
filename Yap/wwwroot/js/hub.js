@@ -283,14 +283,15 @@ export async function reportLoad() {
   });
 }
 
+const idleSeconds = () => Math.round((Date.now() - lastInputAt) / 1000);
+
 async function beat() {
   if (!connected()) return;
   const visible = document.visibilityState === 'visible';
-  const idleSeconds = Math.round((Date.now() - lastInputAt) / 1000);
   const batch = samples; samples = [];
   const started = performance.now();
   try {
-    await connection.invoke('heartbeat', visible, idleSeconds, lastRttMs, batch.length ? batch : null);
+    await connection.invoke('heartbeat', visible, idleSeconds(), lastRttMs, batch.length ? batch : null);
     // A hidden tab's timers are throttled, so its round trip measures the throttle, not the wire: no sample.
     lastRttMs = visible ? Math.round(performance.now() - started) : null;
   } catch { /* the connection is going down; onclose follows */ }
@@ -318,8 +319,6 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') lastInputAt = Date.now();
   beat();
 });
-
-export const idleSeconds = () => Math.round((Date.now() - lastInputAt) / 1000);
 
 // The person is looking at the open conversation (NT-07): the page is visible, the account is not away (chosen or
 // automatic, PR-24), and this device saw input within five minutes (PR-10). The server learns of this device's

@@ -19,7 +19,6 @@ export function openGallery(message, startIndex = 0) {
   const strip = modal.querySelector('.gallery-strip');
   const items = message.images.map(i => ({ image: i }));
   if (!items.length) return;
-  strip.dataset.start = String(startIndex);
   strip.append(...items.map((item, i) => {
     const stage = el('div', { class: 'modal-stage' });
     const img = el('img', { src: item.image.large, alt: 'Full size image', draggable: 'false', loading: i === startIndex ? 'eager' : 'lazy' });

@@ -214,7 +214,6 @@ function yieldLock() {
 }
 if (navigator.locks) requestLock();
 on('connection', () => { if (state.updateAvailable) yieldLock(); });   // setUpdateAvailable announces on this event (SH-17)
-export const isHolder = () => holder;   // for the browser tests
 
 hub.onConnected(wake);                                     // what queued while offline goes out (OF-10)
 addEventListener('online', wake);

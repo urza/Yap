@@ -423,7 +423,9 @@ export function Timeline(root) {
   document.addEventListener('visibilitychange', () => {   // TL-15, NT-07
     if (document.visibilityState === 'visible' && following) { scrollToBottom(); markReadIfSeen(); }
   }, { signal });
-  const offInput = (() => { const h = () => markReadIfSeen(); document.addEventListener('pointerdown', h, { capture: true, passive: true, signal }); document.addEventListener('keydown', h, { capture: true, passive: true, signal }); return () => {}; })();   // input after an idle away (PR-13)
+  const onInput = () => markReadIfSeen();                 // input after an idle away (PR-13)
+  document.addEventListener('pointerdown', onInput, { capture: true, passive: true, signal });
+  document.addEventListener('keydown', onInput, { capture: true, passive: true, signal });
 
   // ---- lobby lines (MR-73) ----
   function onPresence(detail) {

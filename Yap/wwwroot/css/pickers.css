@@ -58,7 +58,7 @@
     background: var(--bg-input);
 }
 
-/* Active tab rides on the root's data-active-tab, flipped client-side (chat.js). */
+/* Active tab rides on the root's data-active-tab, flipped client-side (composer.js). */
 .combined-picker[data-active-tab="gifs"] .combined-tab[data-combined-tab="gifs"],
 .combined-picker[data-active-tab="emoji"] .combined-tab[data-combined-tab="emoji"] {
     color: var(--text-primary);
@@ -481,11 +481,7 @@
     border: 2px solid var(--bg-input);
     border-top-color: var(--text-primary);
     border-radius: 50%;
-    animation: gif-spin 0.7s linear infinite;
-}
-
-@keyframes gif-spin {
-    to { transform: rotate(360deg); }
+    animation: spin 0.7s linear infinite;
 }
 
 /* Busy overlay shown while a custom GIF/WebP is uploading & processing.
@@ -509,7 +505,7 @@
     border: 3px solid rgba(255, 255, 255, 0.25);
     border-top-color: #fff;
     border-radius: 50%;
-    animation: gif-spin 0.7s linear infinite;
+    animation: spin 0.7s linear infinite;
 }
 
 .gif-upload-overlay-text {

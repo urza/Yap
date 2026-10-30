@@ -286,8 +286,6 @@ function armTypingSweep() {
   }, Math.max(0, Math.min(...times) - Date.now()));
 }
 
-export function typists() { return Object.keys(state.open?.typists ?? {}); }
-
 // ---- the shared parts, one hub message each ----
 
 export function setUnread(channelId, count) {

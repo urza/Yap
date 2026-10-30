@@ -18,7 +18,7 @@ The six files under `wwwroot/css/` were flattened from the component stylesheets
 Blazor client. `wwwroot/css/README.md` lists the class names each component expects and the root classes
 (`.page-login`, `.page-admin`, `.emoji-picker`, ...) that stand in front of selectors whose names collided.
 The JavaScript sets state through classes and a few data attributes (`data-picker`, `data-active-tab`,
-`data-search-miss`, `data-search-empty`, `data-context`, `data-dragging`, `data-composing`); the README names them.
+`data-search-miss`, `data-search-empty`, `data-context`, `data-dragging`); the README names them.
 
 Two width tiers apply: 768 px for the sidebar and the people count, 600 px for the compact components
 (`docs/spec/general-rules.md`, GEN-14). The JavaScript reads the 600 px tier with the same media query

@@ -228,10 +228,6 @@ html, body {
     overflow: hidden;
 }
 
-h1:focus {
-    outline: none;
-}
-
 /* The start spinner (SH-51): a first load, or a load after a sign-out, has nothing stored to paint and waits for the
    server with an empty page. Fixed over the page, so the first mount neither moves nor waits for it; main.js removes
    it. The spinner class and the 400 ms appear animation come from css/timeline.css, which every page loads. */
@@ -262,6 +258,12 @@ h1:focus {
 @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
+}
+
+/* The one spinner: the login button, the history pill and the GIF tiles. A keyframe name is global, so the
+   component files do not define their own. */
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 
 @keyframes bounceIn {
@@ -336,10 +338,6 @@ h1:focus {
     font-style: italic;
 }
 
-.custom-emoji {
-    object-fit: contain;
-}
-
 /* ==========================================================================
    Rules of the vanilla client that the flattened component files do not have.
    ========================================================================== */
@@ -406,9 +404,6 @@ body { display: flex; flex-direction: column; min-height: 100vh; min-height: 100
 #app { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 #app > .chat-container { height: auto; flex: 1; min-height: 0; }
 
-/* The chat column needs a positioned parent for the pill. */
-.messages-container { position: relative; }
-
 /* A row's reason for two seconds (MR-75). */
 .row-reason { position: absolute; right: 1rem; top: 0.25rem; background: var(--bg-tooltip, #111); color: #fff; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 4px; z-index: 6; }
 
@@ -419,9 +414,6 @@ body { display: flex; flex-direction: column; min-height: 100vh; min-height: 100
 .message-group.touched { background: var(--bg-hover); }
 .message-group.touched .message-actions { opacity: 1; pointer-events: auto; }
 .message-group.editing .message-actions { opacity: 0 !important; pointer-events: none; }
-
-/* The sidebar scrolls when its content is taller than the screen (SH-27). */
-.users-sidebar { overflow-y: auto; }
 
 /* Controls that show on hover on desktop are always visible on a touch screen (GEN-16, SH-24, PK-21, MR-30). */
 @media (hover: none) {

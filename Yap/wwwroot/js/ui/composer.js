@@ -131,8 +131,6 @@ export function Composer(root) {
   });
   area.addEventListener('click', () => { caret = area.selectionStart; closePicker(); });  // a tap on the draft closes the picker (IB-42)
   area.addEventListener('keyup', () => { caret = area.selectionStart; });
-  area.addEventListener('focus', () => { container.dataset.composing = ''; });
-  area.addEventListener('blur', () => { delete container.dataset.composing; });
 
   // The phone sheet takes the keyboard's place, so it wants the keyboard's height (IB-41). No API gives it; the visible
   // height of the page does: it shrinks by the keyboard while a text field has the focus. Read at every keyboard open,
