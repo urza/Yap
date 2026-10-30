@@ -149,16 +149,6 @@ public class Channel
         Participant1Id == userId ? Participant2Id : Participant1Id;
 
     /// <summary>
-    /// For DMs: check if this channel is between these two users (by username)
-    /// </summary>
-    public bool IsDMBetween(string user1, string user2) =>
-        Type == ChannelType.DirectMessage &&
-        ((Participant1?.Equals(user1, StringComparison.OrdinalIgnoreCase) == true &&
-          Participant2?.Equals(user2, StringComparison.OrdinalIgnoreCase) == true) ||
-         (Participant1?.Equals(user2, StringComparison.OrdinalIgnoreCase) == true &&
-          Participant2?.Equals(user1, StringComparison.OrdinalIgnoreCase) == true));
-
-    /// <summary>
     /// For DMs: check if this channel is between these two users (by UserId)
     /// </summary>
     public bool IsDMBetween(Guid userId1, Guid userId2) =>

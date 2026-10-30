@@ -60,7 +60,7 @@ production once and the failure is silent on the client side.
 | `WelcomePageEnabled` | bool | true | Show `Data/welcome/welcome.html` before the login page, if the file exists |
 | `Bot` | object | | The system bot. `Enabled`, `Username`, `DisplayName`, `WelcomeMessage` (`{server}` or `{0}` is the project name). The display name applies when the bot account is created; the welcome text applies until the admin saves one. After that the admin panel owns the display name, the picture and the three parts of the welcome message, in `Data/bot-settings.json` and the bot's user row |
 | `Persistence` | object | | `Enabled`, `ConnectionStrings.SQLite`. With persistence off, everything lives in memory and is wiped on restart. `Load.MaxMessagesPerChannel` and `Load.MaxDays` bound what the start loads per conversation: the newest messages, at most that many and at most that many days old. 0 or absent = no bound. Older messages stay in the database and nobody can read them until the bound changes and the server restarts |
-| `GifSettings` | object | | `Provider` (`"klipy"`), `UserQuotaMB`, `MaxPackSizeMB`, `Klipy.ApiKey` (free key from partner.klipy.com), `Klipy.CustomerId`, `Klipy.Locale`. Without an API key, provider search and trending are off. Own uploads and server collections still work |
+| `GifSettings` | object | | `UserQuotaMB`, `MaxPackSizeMB`, `Klipy.ApiKey` (free key from partner.klipy.com), `Klipy.CustomerId`, `Klipy.Locale`. Without an API key, provider search and trending are off. Own uploads and server collections still work |
 | `FunnyTexts` | object | | Randomized UI text, see below |
 
 The comments in `Yap/appsettings.json` are the source of truth for these keys. If this table and

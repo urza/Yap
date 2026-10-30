@@ -236,18 +236,6 @@ public class UserService
     }
 
     /// <summary>
-    /// Checks if a username is the admin.
-    /// </summary>
-    public bool IsAdmin(string username)
-    {
-        if (_usernameToId.TryGetValue(username, out var userId))
-        {
-            return IsAdmin(userId);
-        }
-        return false;
-    }
-
-    /// <summary>
     /// Gets the admin username.
     /// </summary>
     public string? GetAdminUsername()

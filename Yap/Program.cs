@@ -227,8 +227,8 @@ await app.Services.GetRequiredService<UserActionLogService>().CleanupAsync();
 
 var uploads = app.Services.GetRequiredService<UploadPaths>();
 
-// Clear uploads folder on start if configured
-if (builder.Configuration.GetValue<bool>("ChatSettings:ClearUploadsOnStart", true))
+// Clear the uploads folder on start when asked. Off when the key is absent: a config without it must not delete files.
+if (builder.Configuration.GetValue<bool>("ChatSettings:ClearUploadsOnStart", false))
 {
     var uploadsPath = uploads.Root;
     if (Directory.Exists(uploadsPath))
@@ -430,7 +430,7 @@ api.MapAccount();
 api.MapEmoji();
 api.MapGifs();
 
-// Routes kept from before the rewrite.
+// These map their own full paths (/api/tus, /api/push, and the PWA files at the root), so they take the app, not the /api group.
 app.MapTusEndpoints();
 app.MapPushEndpoints();
 app.MapPwaEndpoints();
