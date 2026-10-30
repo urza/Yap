@@ -20,7 +20,7 @@ so a fresh checkout does not carry it over). Created an empty
 `.claude-memory/` folder. `.gitignore` already excludes it
 (`.claude-memory/*`), so no question for the user was needed.
 
-## Task 2 — Prompt spellcheck
+## Task 2 - Prompt spellcheck
 
 **Goal:** Claude Code underlines misspelled words in the prompt input.
 
@@ -40,7 +40,7 @@ so a fresh checkout does not carry it over). Created an empty
    }
    ```
 
-   **Caution:** This must go in the **user** settings file (`~/.claude/settings.json`). Claude Code ignores a `spellcheck` block in project or local settings. If the file already exists, merge the block into it — do not overwrite the other keys. A safe merge command:
+   **Caution:** This must go in the **user** settings file (`~/.claude/settings.json`). Claude Code ignores a `spellcheck` block in project or local settings. If the file already exists, merge the block into it. Do not overwrite the other keys. A safe merge command:
 
    ```bash
    mkdir -p ~/.claude
@@ -48,30 +48,30 @@ so a fresh checkout does not carry it over). Created an empty
    jq '.spellcheck = {"enabled": true}' ~/.claude/settings.json > ~/.claude/settings.json.tmp \
      && mv ~/.claude/settings.json.tmp ~/.claude/settings.json
    ```
-3. Set Case-insensitive checking
 
-Without this, lowercase `english` is flagged because the dictionary only
-has `English`. The fix is one line in `~/.aspell.conf`:
+3. Set case-insensitive checking.
 
-```
-ignore-case true
-```
+   Without this, lowercase `english` is flagged because the dictionary only
+   has `English`. The fix is one line in `~/.aspell.conf`:
 
-This personal config applies to every aspell run by this user, including
-the Claude Code spellcheck process. With it, one lowercase entry in the
-personal dictionary also covers all case forms.
+   ```
+   ignore-case true
+   ```
 
+   This personal config applies to every aspell run by this user, including
+   the Claude Code spellcheck process. With it, one lowercase entry in the
+   personal dictionary also covers all case forms.
 
 4. Verify:
 
    ```bash
-   command -v aspell            # must show a path
+   command -v aspell                        # must show a path
    jq .spellcheck ~/.claude/settings.json   # must show {"enabled": true}
-   Note: aspell can do only one language. The guide to merge dictionaries manually is in `aspell-spellcheck.md`.
+   ```
 
-   The underline shows after the next session restart.
-
-   Note: aspell can do only one laguage, guide how to manually merge dictionaries is in 
+   aspell can do only one language per run. The guide to merge two
+   dictionaries by hand is in `aspell-spellcheck.md`. The underline shows
+   after the next session restart.
 
 **Result:** Fresh sandbox, aspell was not installed. Installed aspell,
 aspell-en and aspell-cs. Added
@@ -83,14 +83,13 @@ prints only `qqqzz`. The underline appears after a session restart.
 
 ## Task 3 - Status line
 
-Install Calude code cli status line customization from statusline.sh - read that file, there are instructions inside.
-   
-**Result:** Project folder is now `Yap-r2`, with its own `statusline.sh` at
-the repo root. Added `"statusLine": {"type": "command", "command": "bash
-/d/PROJECTS/Yap-r2/statusline.sh"}` to `~/.claude/settings.json`. jq is
-present. This sandbox has no git repo yet, so the branch segment drops out
-by design. A test with a sample stdin snapshot renders
-`Yap-r2 > Sonnet 5 (max) > 72% cntx` with the context part in yellow.
+Install the Claude Code CLI status line customization from `statusline.sh`. Read that file, the instructions are inside.
+
+**Result:** Added `"statusLine": {"type": "command", "command": "bash
+/d/PROJECTS/Yap/statusline.sh"}` to `~/.claude/settings.json` (the repo lives
+at `/d/PROJECTS/Yap`; an older sandbox had it at `Yap-r2`). jq is present.
+A test with a sample stdin snapshot renders
+`Yap > Sonnet 5 (max) > 72% cntx` with the context part in yellow.
 
 ---
 
