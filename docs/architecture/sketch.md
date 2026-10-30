@@ -1,6 +1,6 @@
 # Architecture sketch: Yap without Blazor
 
-Written 2026-10-14, before any code. The brief is `docs/refactor-prompt-2026-10-14.md`. The wire contract is a separate page, [Wire contract](wire-contract.md). This page gives the two sides of the wire and the decisions behind them.
+Written 2026-10-14, before any code. The wire contract is a separate page, [Wire contract](wire-contract.md). This page gives the two sides of the wire and the decisions behind them.
 
 ## Principles
 
