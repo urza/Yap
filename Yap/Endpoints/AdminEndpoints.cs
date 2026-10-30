@@ -370,29 +370,6 @@ public static class AdminEndpoints
             var series = load.Last(seconds, Math.Clamp(step, 1, 60));
             return Results.Ok(new { latest = load.Last(1).LastOrDefault(), series });
         });
-
-        admin.MapGet("/generate-thumbnails", (ImageService imageService, UploadPaths uploads) =>
-        {
-            var uploadsPath = uploads.Root;
-            if (!Directory.Exists(uploadsPath)) return Results.Ok(new { message = "No uploads folder" });
-
-            string[] extensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
-            var originals = Directory.GetFiles(uploadsPath)
-                .Where(f => extensions.Contains(Path.GetExtension(f).ToLowerInvariant()))
-                .Where(f => !Path.GetFileNameWithoutExtension(f).EndsWith("_800px") && !Path.GetFileNameWithoutExtension(f).EndsWith("_1600px"))
-                .ToList();
-            var toProcess = originals.Where(f => !File.Exists(Path.Combine(uploadsPath, $"{Path.GetFileNameWithoutExtension(f)}_800px.webp"))).ToList();
-
-            _ = Task.Run(async () =>
-            {
-                await Parallel.ForEachAsync(toProcess, new ParallelOptions { MaxDegreeOfParallelism = 12 }, async (path, _) =>
-                {
-                    try { await imageService.GenerateThumbnailsAsync(path); }
-                    catch (Exception ex) { Console.WriteLine($"[Thumbnails] Failed: {Path.GetFileName(path)} - {ex.Message}"); }
-                });
-            });
-            return Results.Ok(new { message = "Processing started in background", toProcess = toProcess.Count, total = originals.Count });
-        });
     }
 
     private static object SessionRow(Session s, PresenceService presence, ChatService chat) => new

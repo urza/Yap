@@ -15,7 +15,7 @@ namespace Yap.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.10");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.14");
 
             modelBuilder.Entity("Yap.Models.Accounts.AccessLink", b =>
                 {
@@ -135,9 +135,6 @@ namespace Yap.Migrations
                     b.Property<string>("ProfilePictureUrl")
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");
-
-                    b.Property<bool>("PushMuted")
-                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("PwaInstalledAt")
                         .HasColumnType("TEXT");
