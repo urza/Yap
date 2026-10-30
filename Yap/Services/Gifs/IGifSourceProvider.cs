@@ -20,7 +20,6 @@ public interface IGifSourceProvider
 
     Task<GifSearchResult> SearchAsync(string query, string? cursor, int limit, CancellationToken ct);
     Task<GifSearchResult> GetTrendingAsync(string? cursor, int limit, CancellationToken ct);
-    Task<List<GifCategory>> GetCategoriesAsync(CancellationToken ct);
 
     /// <summary>Notify provider that a user shared this GIF (TOS / analytics requirement for some providers; no-op for others).</summary>
     Task RegisterShareAsync(string sourceId, string? query, CancellationToken ct);

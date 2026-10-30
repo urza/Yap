@@ -59,61 +59,6 @@ public class KlipyGifProvider : IGifSourceProvider
                   CommonPaginationParams(cursor, limit);
         return FetchSearchAsync(url, cursor, ct);
     }
-
-    public async Task<List<GifCategory>> GetCategoriesAsync(CancellationToken ct)
-    {
-        if (!IsConfigured) return new();
-
-        var url = $"{BaseUrl}{_apiKey}/gifs/categories?locale={_locale}&rating={RatingParam()}";
-        try
-        {
-            var client = _httpClientFactory.CreateClient("Klipy");
-            using var response = await client.GetAsync(url, ct);
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogWarning("Klipy categories failed: {Status}", response.StatusCode);
-                return new();
-            }
-
-            await using var stream = await response.Content.ReadAsStreamAsync(ct);
-            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
-
-            // Klipy categories format isn't formally documented; we accept either the wrapped
-            // {result, data:[...]} shape Klipy uses elsewhere, or a flat top-level array.
-            JsonElement arr = default;
-            var found = false;
-            if (doc.RootElement.TryGetProperty("data", out var data))
-            {
-                if (data.ValueKind == JsonValueKind.Array) { arr = data; found = true; }
-                else if (data.ValueKind == JsonValueKind.Object && data.TryGetProperty("data", out var inner) && inner.ValueKind == JsonValueKind.Array)
-                {
-                    arr = inner; found = true;
-                }
-            }
-            if (!found && doc.RootElement.ValueKind == JsonValueKind.Array)
-            {
-                arr = doc.RootElement; found = true;
-            }
-            if (!found) return new();
-
-            var results = new List<GifCategory>();
-            foreach (var c in arr.EnumerateArray())
-            {
-                var searchTerm = TryGetString(c, "search_term", "searchterm", "name");
-                var name = TryGetString(c, "name", "search_term") ?? searchTerm;
-                var image = TryGetString(c, "image", "image_url", "thumbnail");
-                if (!string.IsNullOrEmpty(searchTerm) && !string.IsNullOrEmpty(image))
-                    results.Add(new GifCategory(searchTerm!, name ?? searchTerm!, image!));
-            }
-            return results;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to fetch Klipy categories");
-            return new();
-        }
-    }
-
     public async Task RegisterShareAsync(string sourceId, string? query, CancellationToken ct)
     {
         if (!IsConfigured || string.IsNullOrEmpty(sourceId)) return;

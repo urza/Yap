@@ -68,9 +68,9 @@ public class NotificationSettingsService
     {
         if (!user.NotifServerMuted) return false;
 
-        // A timed mute expires on its own. The stored flag is left alone here (this runs on hot
-        // read paths and must not write); ClearExpiredServerMute tidies it when the user
-        // next opens the settings.
+        // A timed mute expires on its own. The stored flag is left alone (this runs on hot read
+        // paths and must not write); the settings page reads this method, not the flag, and the
+        // next SetServerMute overwrites it.
         return user.NotifServerMuteUntil is not { } until || until > DateTime.UtcNow;
     }
 
@@ -91,13 +91,6 @@ public class NotificationSettingsService
                     ? muted
                     : DefaultForUntouchedChannel(user, isDirectMessage)
         };
-    }
-
-    /// <inheritdoc cref="IsMuted(User, Guid, bool)"/>
-    public bool IsMuted(Guid userId, Guid channelId, bool isDirectMessage)
-    {
-        var user = _userService.GetById(userId);
-        return user != null && IsMuted(user, channelId, isDirectMessage);
     }
 
     /// <summary>
@@ -158,20 +151,6 @@ public class NotificationSettingsService
         var channels = _overrides.Where(o => o.Key.UserId == userId).ToDictionary(o => o.Key.ChannelId, o => o.Value);
         return new MutesDto(new ServerMuteDto(IsServerMuted(user), user.NotifServerMuted ? user.NotifServerMuteUntil : null),
             user.NotifDmMode, user.NotifRoomMode, user.NotifNewDmsMuted, channels);
-    }
-
-    /// <summary>
-    /// Turns a server mute that has run out back into a plain "allowed" state, so the settings UI
-    /// and the stored row agree. Returns true when something changed.
-    /// </summary>
-    public bool ClearExpiredServerMute(User user)
-    {
-        if (!user.NotifServerMuted) return false;
-        if (user.NotifServerMuteUntil is not { } until || until > DateTime.UtcNow) return false;
-
-        _userService.SetServerMute(user.Id, muted: false, until: null);
-        _logger.LogDebug("Cleared expired server mute for {Username}", user.Username);
-        return true;
     }
 
     /// <summary>

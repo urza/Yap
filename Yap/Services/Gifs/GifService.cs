@@ -305,9 +305,6 @@ public partial class GifService
             foreach (var key in _shownItems.Where(e => now - e.Value.At > TimeSpan.FromHours(1)).Select(e => e.Key).ToList()) _shownItems.TryRemove(key, out _);
     }
 
-    public Task<List<GifCategory>> GetCategoriesAsync(CancellationToken ct)
-        => _provider.GetCategoriesAsync(ct);
-
     public List<GifEntry> GetFavorites(Guid userId)
     {
         if (!_favoritesByUser.TryGetValue(userId, out var map)) return new();

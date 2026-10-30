@@ -48,7 +48,7 @@ public partial class CustomEmojiService
         var serverFolder = Path.Combine(env.ContentRootPath, "Data", "custom-emojis");
         Directory.CreateDirectory(serverFolder);
         AddPack(ServerPackKey, "Custom",
-            ScanFolder(serverFolder, "/custom-emojis", ServerPackKey, isBuiltIn: false));
+            ScanFolder(serverFolder, "/custom-emojis", ServerPackKey));
 
         AddBuiltInPacks(Path.Combine(env.WebRootPath, "emoji-packs"));
 
@@ -73,7 +73,7 @@ public partial class CustomEmojiService
             // Prefixed so a pack may be named after a standard Unicode category ("food") without
             // colliding with it in the picker's data-section / data-category keys.
             var key = $"pack-{name.ToLowerInvariant()}";
-            AddPack(key, CapitalizeFirst(name), ScanFolder(dir, $"/emoji-packs/{name}", key, isBuiltIn: true));
+            AddPack(key, CapitalizeFirst(name), ScanFolder(dir, $"/emoji-packs/{name}", key));
         }
     }
 
@@ -81,7 +81,7 @@ public partial class CustomEmojiService
     /// Registers every valid image in <paramref name="folder"/> under its filename-derived shortcode
     /// and returns the ones it actually claimed (i.e. minus anything a higher-priority source owns).
     /// </summary>
-    private List<CustomEmoji> ScanFolder(string folder, string urlBase, string pack, bool isBuiltIn)
+    private List<CustomEmoji> ScanFolder(string folder, string urlBase, string pack)
     {
         var claimed = new List<CustomEmoji>();
         var keywords = LoadKeywords(folder);
@@ -120,10 +120,8 @@ public partial class CustomEmojiService
             var emoji = new CustomEmoji
             {
                 Shortcode = shortcode,
-                Filename = filename,
                 Url = $"{urlBase}/{filename}",
                 Pack = pack,
-                IsBuiltIn = isBuiltIn,
                 Keywords = string.IsNullOrEmpty(kw) ? shortcode : $"{shortcode} {kw}"
             };
 
@@ -186,8 +184,6 @@ public partial class CustomEmojiService
             _packs.Add(new EmojiPack(key, displayName, emojis));
     }
 
-    public IReadOnlyCollection<CustomEmoji> GetAll() => _emojis.Values;
-
     private static string CapitalizeFirst(string s) =>
         string.IsNullOrEmpty(s) ? s : char.ToUpper(s[0]) + s[1..];
 }
@@ -203,11 +199,9 @@ public record EmojiPack(string Key, string DisplayName, IReadOnlyList<CustomEmoj
 public class CustomEmoji
 {
     public required string Shortcode { get; init; }
-    public required string Filename { get; init; }
     public required string Url { get; init; }
     /// <summary>Owning pack's <see cref="EmojiPack.Key"/>.</summary>
     public required string Pack { get; init; }
-    public required bool IsBuiltIn { get; init; }
     /// <summary>
     /// The picker's full search corpus for this emoji: the shortcode, followed by any terms the
     /// folder's keywords.json adds. Lowercase, space-separated, built once at scan time so the

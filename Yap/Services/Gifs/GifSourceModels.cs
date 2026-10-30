@@ -27,5 +27,3 @@ public record MediaFormat(
     int Height,
     long SizeBytes
 );
-
-public record GifCategory(string SearchTerm, string Name, string ImageUrl);
