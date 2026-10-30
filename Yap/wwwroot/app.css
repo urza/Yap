@@ -420,9 +420,11 @@ body { display: flex; flex-direction: column; min-height: 100vh; min-height: 100
   .room-settings, .gif-fav-btn, .gif-message-fav, .gif-message-uploader { opacity: 1 !important; visibility: visible !important; }
 }
 
-/* Every text field is 16 px on a phone, so the page never zooms when a field gets focus (GEN-15). */
+/* Every text field is 16 px on a phone, so the page never zooms when a field gets focus (GEN-15). !important: the
+   component files load later and size these fields in rem at the same specificity, so a plain rule here lost the
+   tie and the fields stayed under 16 px. */
 @media (max-width: 600px) {
-  .emoji-search input, .gif-search input, .gif-lib-filter, .gif-tags-input, .edit-input { font-size: 16px; }
+  .emoji-search input, .gif-search input, .gif-lib-filter, .gif-tags-input, .edit-input { font-size: 16px !important; }
 }
 
 /* A theme card is a button: a button's default alignment leaves the preview without width. */
