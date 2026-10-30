@@ -75,23 +75,27 @@ public sealed record WaitSample(string Name, int Ms);
 /// <summary>
 /// One page load as the client measured it (AD-41): six phases in ms from the navigation start, and what the network
 /// did. A phase the load did not reach is null. Sent once per load, by the first conversation of the load, over the
-/// connection that load opened; a reconnect is a new connection and carries no report.
+/// connection that load opened; a reconnect is a new connection and carries no report. Build is the build stamp the
+/// page ran and Worker the stamp that registered its service worker: a device left behind after a deploy shows as a
+/// build older than the server's (an iPhone did that on 2026-10-30, and nothing here could show it). An old client
+/// sends neither, so both are optional.
 /// </summary>
 public sealed record LoadReport(int? Html, int? Scripts, int? Bootstrap, int? Paint, int? Socket, int? Rows,
-    string? Protocol, int Requests, int Cached, long Bytes, bool Hidden)
+    string? Protocol, int Requests, int Cached, long Bytes, bool Hidden, string? Build = null, string? Worker = null)
 {
     public DateTime At { get; init; } = DateTime.UtcNow;
 
     /// <summary>Client numbers are untrusted: a phase outside 0..10 min (the same bound as the waits) becomes null, the
-    /// counts are clamped and the protocol is cut to a short token, so a forged report cannot poison the table.</summary>
+    /// counts are clamped and the protocol and the stamps are cut to short tokens, so a forged report cannot poison the table.</summary>
     public LoadReport Clean() => this with
     {
         Html = Phase(Html), Scripts = Phase(Scripts), Bootstrap = Phase(Bootstrap), Paint = Phase(Paint), Socket = Phase(Socket), Rows = Phase(Rows),
-        Protocol = Protocol is { Length: > 0 and <= 16 } p ? p : null,
+        Protocol = Token(Protocol, 16), Build = Token(Build, 24), Worker = Token(Worker, 24),
         Requests = Math.Clamp(Requests, 0, 10_000), Cached = Math.Clamp(Cached, 0, 10_000), Bytes = Math.Clamp(Bytes, 0, 1L << 40),
     };
 
     private static int? Phase(int? ms) => ms is >= 0 and <= 600_000 ? ms : null;
+    private static string? Token(string? s, int max) => s is { Length: > 0 } && s.Length <= max ? s : null;
 }
 
 /// <summary>

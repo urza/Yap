@@ -95,7 +95,7 @@ async function loadReport(page, after) {
 }
 const PHASES = ['html', 'scripts', 'bootstrap', 'paint', 'socket', 'rows'];
 const line = (title, s) => s
-  ? `${title.padEnd(14)} ${PHASES.map(p => `${p} ${String(s.load[p] ?? '—').padStart(5)}`).join('  ')}   files ${s.load.requests}, cached ${s.load.cached}, ${Math.round(s.load.bytes / 1024)} KB, ${s.load.protocol}, ${s.browser} ${s.os}${s.pwa ? ' app' : ''}${s.load.hidden ? ' (hidden)' : ''}`
+  ? `${title.padEnd(14)} ${PHASES.map(p => `${p} ${String(s.load[p] ?? '—').padStart(5)}`).join('  ')}   files ${s.load.requests}, cached ${s.load.cached}, ${Math.round(s.load.bytes / 1024)} KB, ${s.load.protocol}, ${s.browser} ${s.os}${s.pwa ? ' app' : ''}${s.load.build ? `, build ${s.load.build}` : ''}${s.load.hidden ? ' (hidden)' : ''}`
   : `${title.padEnd(14)} no report arrived`;
 
 let cookies;
