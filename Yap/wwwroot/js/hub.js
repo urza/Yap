@@ -280,8 +280,15 @@ export async function reportLoad() {
     cached: files.filter(r => r.transferSize === 0).length,
     bytes: files.reduce((sum, r) => sum + (r.transferSize || 0), 0),
     hidden: hiddenDuringLoad,
+    build: document.documentElement.dataset.build ?? null,   // the build this page runs: a device left behind after a deploy shows here
+    worker: workerStamp(),
   });
 }
+
+// The build that registered the controlling service worker (the ?v= of its address, main.js), or null when no worker
+// controls the page. It differs from the page's build when the worker stayed on an older registration: on 2026-10-30
+// an iPhone's installed app stayed on an old build and nothing on the server could show it (AD-41).
+const workerStamp = () => { const url = navigator.serviceWorker?.controller?.scriptURL; return url ? new URL(url).searchParams.get('v') || 'unstamped' : null; };
 
 const idleSeconds = () => Math.round((Date.now() - lastInputAt) / 1000);
 

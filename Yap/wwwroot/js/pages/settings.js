@@ -2,6 +2,7 @@
 // another device back into the page. Inside the frame (ST-03).
 
 import { state, on, mergeMe, serverMuted, displayName } from '../store.js';
+import { build, reloadForNewBuild } from '../update.js';
 import { api } from '../api.js';
 import { clone, el, replace, classes } from '../render/dom.js';
 import { inline } from '../render/text.js';
@@ -452,6 +453,21 @@ export function mount(root, route) {
 
   // ---- My GIFs (ST-21 to ST-24) ----
   const unmountLibrary = GifLibrary($('.gif-library-host'), { server: false });
+
+  // ---- APP VERSION (ST-28) ----
+  // The build this page runs, the server's when it is newer, and the same move as the strip's Reload: the page comes
+  // from the server, so the device gets the new build even when its service worker stays on an old one (update.js).
+  const drawVersion = () => {
+    const server = state.config?.buildStamp;
+    const newer = !!server && !!build && server !== build;
+    $('.version-page').textContent = build || '—';
+    $('.version-server-row').hidden = !newer;
+    $('.version-server').textContent = server ?? '';
+    $('.version-hint').textContent = newer ? 'A newer version is on the server. Reload to get it.' : 'This is the latest version.';
+  };
+  drawVersion();
+  offs.push(on('config', drawVersion));
+  $('.version-reload').addEventListener('click', () => { $('.version-reload').disabled = true; reloadForNewBuild(); });
 
   // ---- DEBUG INFO (ST-25) ----
   $('.debug-info').addEventListener('toggle', e => { if (e.target.open) cacheReport(); }, { once: true });

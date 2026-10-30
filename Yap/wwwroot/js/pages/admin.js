@@ -627,8 +627,16 @@ export function mount(root, route) {
       { key: 'socket', text: 'Socket', title: 'The live connection is up.' },
       { key: 'rows', text: 'Rows', title: "The server's rows of the first conversation on screen." },
     ];
+    // The build the page ran, red when this server runs a newer one, with the build that registered its service worker
+    // when that one differs. On 2026-10-30 an iPhone's installed app stayed on an old build through every Reload tap and
+    // nothing here could show it; now a device left behind is one red cell. An old client reports no build.
+    const buildCell = load => {
+      if (!load.build) return td('—');
+      const text = load.worker && load.worker !== load.build ? `${load.build} · worker ${load.worker}` : load.build;
+      return el('td', load.build !== state.config?.buildStamp ? { style: { color: 'var(--color-danger)', fontWeight: 600 } } : null, text);
+    };
     const loadRow = s => el('tr', s.load.hidden ? { style: { opacity: 0.55 } } : null,
-      td(s.username), td(`${s.isMobile ? '📱' : '🖥️'} ${[s.browser, s.os].filter(Boolean).join(' · ') || '—'}${s.pwa ? ' · app' : ''}`),
+      td(s.username), td(`${s.isMobile ? '📱' : '🖥️'} ${[s.browser, s.os].filter(Boolean).join(' · ') || '—'}${s.pwa ? ' · app' : ''}`), buildCell(s.load),
       td(s.load.protocol ?? '—'), ...PHASES.map(p => td(ms(s.load[p.key]))), td(`${s.load.cached} / ${s.load.requests}`), td(ms(s.load.bytes / 1024)), td(ago(s.load.at)));
     const loadRows = d => [...d.sessions, ...d.recentlyClosed].filter(s => s.load).sort((a, b) => (b.load.rows ?? -1) - (a.load.rows ?? -1)).map(loadRow);
     async function refresh() {
@@ -645,7 +653,7 @@ export function mount(root, route) {
             latencyRows(d), 'users-table logs-table') : el('p', { style: { color: 'var(--text-secondary)', margin: 0 } }, 'No connections tracked yet.')),
         el('div', { class: 'diag-chart-card', style: { marginBottom: '16px' } }, el('h4', null, 'Load time'),
           el('p', { class: 'section-hint', style: { margin: '0 0 8px' } }, 'One row per page load since the restart, milliseconds from the start of the load, the slowest server rows first. Grey: the tab was hidden while it loaded.'),
-          loads.length ? table(['Who', 'Device', { text: 'HTTP', title: 'h2, h3 or http/1.1: how the page came' }, ...PHASES.map(p => ({ text: p.text, title: p.title })), { text: 'Cached / files', title: 'Same-origin files a cache answered with no bytes on the wire / all files of the load, the page included' }, { text: 'KB', title: 'Kilobytes on the wire, same-origin files' }, 'When'],
+          loads.length ? table(['Who', 'Device', { text: 'Build', title: "The build the page ran; red when this server runs a newer one. 'worker' names the build that registered the service worker when it is not the same." }, { text: 'HTTP', title: 'h2, h3 or http/1.1: how the page came' }, ...PHASES.map(p => ({ text: p.text, title: p.title })), { text: 'Cached / files', title: 'Same-origin files a cache answered with no bytes on the wire / all files of the load, the page included' }, { text: 'KB', title: 'Kilobytes on the wire, same-origin files' }, 'When'],
             loads, 'users-table logs-table') : el('p', { style: { color: 'var(--text-secondary)', margin: 0 } }, 'No load reported yet.')),
         el('div', { class: 'diag-chart-card', style: { marginBottom: '16px' } }, el('h4', null, 'Push notifications'),
           d.push.keyStatus === 'valid' ? el('p', { style: { color: 'var(--color-success)', margin: 0 } }, '✅ Configured — VAPID keypair verified at startup.')

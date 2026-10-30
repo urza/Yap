@@ -8,7 +8,7 @@ Settings is the one page where the user changes their profile, appearance, sign-
 
 1. **Frame.** The same header and sidebar as a conversation. The title area shows a back arrow and "Settings".
 2. **Page heading.** "Settings", with a chip on the right and the line "Changes are saved automatically." For profile changes, the chip reads "Saving..." and then "Saved".
-3. **Cards.** One column of cards, at most 600 px wide, in this order: Profile, Appearance, Text Size, Login Link, Secret Code (only for an account that still has a code), Active Sessions, Install as App, Notifications on This Device (the heading names the device: iPhone, iPad, Phone or Computer), Allow / Mute Notifications, Time & Date, My GIFs, and a collapsed DEBUG INFO card at the end.
+3. **Cards.** One column of cards, at most 600 px wide, in this order: Profile, Appearance, Text Size, Login Link, Secret Code (only for an account that still has a code), Active Sessions, Install as App, Notifications on This Device (the heading names the device: iPhone, iPad, Phone or Computer), Allow / Mute Notifications, Time & Date, My GIFs, App version, and a collapsed DEBUG INFO card at the end.
 4. **Notice.** An amber notice above the heading, with a close control. It shows after "Sign out all other devices".
 
 ## Rules
@@ -79,6 +79,10 @@ Settings is the one page where the user changes their profile, appearance, sign-
 
 **ST-24** "Delete" on one of the user's own uploads asks "Sure?" before it deletes the file. When the file is still used in chat or by others, it is removed from the pool instead. It still counts against the quota while it exists. "✕" removes the star at once. Six cards show first, then 24 more for each tap.
 
+### App version
+
+**ST-28** The App version card shows the build this device runs and, when the server runs a newer one, the server's build and a note. "Reload the app" fetches the page from the server, so the device gets the server's build even when its service worker stays on an old one, and the person lands back on Settings.
+
 ### Debug
 
 **ST-25** DEBUG INFO is a collapsed card. It shows what the browser keeps for Yap on this device: cached files by group with their size, and the storage estimate. It also has "Clear this cache" for the media cache. Clearing keeps drafts and unsent messages.
@@ -127,6 +131,7 @@ Settings is the one page where the user changes their profile, appearance, sign-
 | Time & Date | "Time & Date"; "Your time"; "−"; "+"; "−1 hour"; "+1 hour"; "Detect"; "Adjust if the time doesn't match your clock"; "Clock"; "Date order"; "Separators"; "Detected: {time zone} · {locale}" |
 | My GIFs | "My GIFs"; "Your GIF pool — everything you've starred plus your own uploads. Organize with folders, edit search keywords, or bring a whole collection: import files or a zip, and export everything as a zip you can take anywhere."; "All"; "Unsorted"; "Filter by keyword…"; "＋ Add GIFs"; "Uploading…"; "Import zip"; "Export"; "{used} of {quota} used"; "Only your own uploads count — starred GIFs are free"; "Uploading… {p}% ({done} of {total})"; "Importing… {done} of {total}"; "Imported {done} of {total}"; "processing…"; "add keywords…"; "+{n}"; "comma, separated, tags"; "(unsorted)"; "＋ New folder…"; "folder name"; "Delete"; "Sure?"; "Still used in chat or by others — removed from your library instead."; "You can only delete your own uploads."; "Nothing here yet — star GIFs in the picker, or add your collection above."; "No GIFs match your filter."; "Nothing in this folder."; "Show 24 more ({n} left)"; "Show {n} more"; "Show less"; "ffmpeg not detected — video conversion is off, only .gif/.webp files can be imported." |
 | My GIFs errors | "\"{name}\" — unsupported file type"; "\"{name}\" — too large ({n} MB, max {m} MB)"; "\"{name}\" — {error}" with "upload failed" when there is none; "GIF storage quota exceeded"; "Not allowed"; "Could not process this file as a GIF"; "Upload failed — something went wrong."; "GIF storage quota exceeded — import stopped"; "import failed — the zip could not be read"; " ({n} skipped)"; " — {n} skipped" |
+| App version | "App version"; "On this device"; "On the server"; "This is the latest version."; "A newer version is on the server. Reload to get it."; "Reload the app" |
 | Debug | "DEBUG INFO"; "Reading cache…"; "Cache report unavailable."; "Cached files"; "1 file" or "{n} files" with "· {size}"; "Origin storage estimate"; "{used} of {quota}"; groups "Media — saved chat attachments", "App — offline interface", "Emoji — downloaded artwork"; "Empty"; "Clear this cache"; "Clearing a cache keeps your locally saved drafts and outgoing messages." |
 
 ## Related
