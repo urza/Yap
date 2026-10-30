@@ -382,10 +382,12 @@ uploads/
 /Yap/Data/uploads/
 /Yap/Data/media-cache/*
 /Yap/Data/gif-cache/*
+/Yap/Data/cloudflare-ips.json
+/Yap/Data/branding/*
+/Yap/Data/link-token.key
 
 # Local Claude instructions (machine-specific, not shared)
 CLAUDE.local.md
-/Yap/Data/link-token.key
 
 # Review evidence logs are part of the record, not runtime output.
 !reviews/**/*.log
