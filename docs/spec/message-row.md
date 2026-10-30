@@ -210,9 +210,9 @@ A message row is one message as it appears in the conversation. The row shows wh
 
 ### Pinning
 
-**MR-77** A conversation has up to three pinned messages. In a direct message, both people can pin and unpin. In a room, the admin can always pin and unpin. Other people follow the room's pin setting: nobody, everyone, or a list of selected people. See [Administration](admin.md#AD-37). A pending message cannot be pinned. The [header page](frame.md#SH-47) specifies the pin button and the panel that show the pins.
+**MR-77** A conversation has up to six pinned messages. In a direct message, both people can pin and unpin. In a room, the admin can always pin and unpin. Other people follow the room's pin setting: nobody, everyone, or a list of selected people. See [Administration](admin.md#AD-37). A pending message cannot be pinned. The [header page](frame.md#SH-47) specifies the pin button and the panel that show the pins.
 
-**MR-78** "Pin Message" pins the row for every reader, and the header's pin count changes at once. When the conversation has three pins, the server refuses with "Up to 3 pinned messages. Unpin one first.", and the text shows at the row for two seconds. "Unpin Message" removes the pin. A pin or an unpin that the server refuses is undone, and the reason shows at the row. A pin that the server accepts shows a system line (MR-80).
+**MR-78** "Pin Message" pins the row for every reader, and the header's pin count changes at once. When the conversation has six pins, the server refuses with "Up to 6 pinned messages. Unpin one first.", and the text shows at the row for two seconds. "Unpin Message" removes the pin. A pin or an unpin that the server refuses is undone, and the reason shows at the row. A pin that the server accepts shows a system line (MR-80).
 
 ## States
 
@@ -290,7 +290,7 @@ A message row is one message as it appears in the conversation. The row shows wh
 | Bar tooltips | the emoji itself; "Add Reaction"; "Reply"; "Edit"; "More" |
 | Video play control | "Play video" |
 | More menu | "Copy Text"; "Pin Message"; "Unpin Message"; "Delete Message" |
-| Pin refusals | "Up to 3 pinned messages. Unpin one first."; "You cannot pin messages here."; "You cannot unpin messages here."; "A system line cannot be pinned." |
+| Pin refusals | "Up to 6 pinned messages. Unpin one first."; "You cannot pin messages here."; "You cannot unpin messages here."; "A system line cannot be pinned." |
 | System line refusals | "A system line cannot be edited."; "A system line cannot be quoted."; "System lines do not accept reactions." |
 | Editor | "✓ Save" (tooltip "Save"); "✕ Cancel" (tooltip "Cancel"); "Enter to save · Shift+Enter for newline · Esc to cancel" |
 | Delete dialog | "Delete Message"; "Are you sure you want to delete this message?"; "GIF attachment"; "Voice message"; preview alt texts "Attachment", "Video attachment"; "Pro tip: hold Shift when deleting to skip this confirmation." with Shift as a keycap; "Cancel"; "Delete" |

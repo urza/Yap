@@ -57,7 +57,7 @@ with it, exit code -1. Start Without Debugging and `dotnet run` were never affec
 - **PWA installable** - Add to home screen on mobile, install as app on desktop, get notifications
 - **Image/Video sharing** - Upload image(s) or videos and see them in inline gallery
 - **Voice messages** - Record from the + menu, up to 5 minutes, and play inline with a waveform and a speed button. Needs ffmpeg on the server
-- **Pinned messages** - Up to 3 per conversation, in a panel behind the header's pin button. The admin picks who can pin in each room
+- **Pinned messages** - Up to 6 per conversation, in a panel behind the header's pin button. The admin picks who can pin in each room
 - **Social media previews/embeds** - Yap downloads that tiktok/youtube video so users dont need to go to these evil sites
 
 

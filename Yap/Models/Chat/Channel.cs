@@ -33,7 +33,7 @@ public class Channel
     /// </summary>
     public List<Pin> Pins { get; set; } = new();
 
-    public const int MaxPins = 3;
+    public const int MaxPins = 6;
 
     // The two participants (by UserId)
     public Guid? Participant1Id { get; set; }

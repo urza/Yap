@@ -121,7 +121,7 @@ export function mayPin() { return !!(state.open && state.user); }
 // server refuses. A full list is not changed locally (MR-77): the server's refusal arrives and shows, and nothing flickers.
 export function pinLocally(m) {
   const open = state.open;
-  if (!open || isPinned(m.id) || open.pins.length >= 3) return null;
+  if (!open || isPinned(m.id) || open.pins.length >= 6) return null;   // 6 mirrors Channel.MaxPins on the server
   open.pins = [{ messageId: m.id, username: m.username, text: m.text || null, timestamp: m.timestamp, media: pinMediaOf(m),
                  pinnedBy: state.user.username, pinnedAt: new Date().toISOString() }, ...open.pins];
   changed('pins');
