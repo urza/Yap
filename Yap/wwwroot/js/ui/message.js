@@ -52,7 +52,6 @@ export function renderRow(m, { header }) {
   if (m.kind) return systemRow(m);
   const row = clone('t-message');
   row.id = `msg-${m.id}`;
-  row.dataset.author = m.username;
   classes(row, { 'has-header': header, 'has-reply': !!m.replyTo, pending: !!m.pending, failed: !!m.failed, 'reply-target': m.id === replyTargetId });
   const u = state.users[m.username];
 

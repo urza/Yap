@@ -78,7 +78,7 @@ export function record({ maxMs, onLevel, onTick }) {
 
 // The stored waveform: BARS bars, each the loudest level of its slice of the recording, scaled so the loudest bar
 // is 'z'. One base-36 digit per bar (VoiceAttachment.Peaks). Empty when the meter never ran.
-export function peaksOf(levels, bars = BARS) {
+function peaksOf(levels, bars = BARS) {
   if (!levels.length) return '';
   let max = 0;
   for (const l of levels) max = Math.max(max, l);

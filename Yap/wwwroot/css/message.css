@@ -535,16 +535,12 @@
     border-radius: 50%;
     pointer-events: none;
     opacity: 0;
-    animation: gif-spin 0.7s linear infinite, gif-spinner-in 0.01s linear 0.25s forwards;
+    animation: spin 0.7s linear infinite, gif-spinner-in 0.01s linear 0.25s forwards;
 }
 
 .gif-message.gif-loaded::after,
 .gif-message:has(.gif-message-missing)::after {
     display: none;
-}
-
-@keyframes gif-spin {
-    to { transform: rotate(360deg); }
 }
 
 @keyframes gif-spinner-in {

@@ -64,8 +64,7 @@
     transition: none;           /* the picture follows the finger with no lag */
 }
 
-.modal-stage img,
-.modal-stage .modal-video {
+.modal-stage img {
     /* margin:auto centres a smaller picture but, unlike justify-content:center, lets a larger
        one overflow to the right only, so the left edge is always reachable by scrolling. */
     margin: auto;
@@ -218,8 +217,7 @@
         --bg-alpha: 1;
     }
 
-    .modal-stage img,
-    .modal-stage .modal-video {
+    .modal-stage img {
         max-width: 100%;
         max-height: 100%;
     }
@@ -320,23 +318,6 @@
     background: var(--bg-darkest);
 }
 
-/* System messages (for DM notice) */
-.system-message {
-    text-align: center;
-    margin: 0 !important;
-    padding: 0.0625rem 1rem !important;
-}
-
-.system-message .message-content {
-    display: inline-block;
-    color: var(--text-muted);
-    font-style: italic;
-    font-size: 0.8125rem;
-    padding: 0;
-    background: transparent;
-    line-height: 1.4;
-}
-
 /* The "Loading messages..." line (TL-02). The older-page pill is .top-pill below. */
 .loading-more {
     display: flex;
@@ -355,10 +336,6 @@
     border-top-color: var(--text-primary);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
 }
 
 /* The line shown while a conversation's first answer is on its way (TL-02). On a fast connection the answer

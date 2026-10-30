@@ -132,10 +132,6 @@ self.addEventListener('notificationclick', event => {
     }));
 });
 
-self.addEventListener('message', event => {
-    if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
-});
-
 // Browsers rotate push subscriptions (iOS often, and after the server prunes a dead one). The worker
 // subscribes again and tells the server, so notifications keep working without a new permission prompt.
 self.addEventListener('pushsubscriptionchange', event => { event.waitUntil(resubscribe()); });

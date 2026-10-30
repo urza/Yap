@@ -4,7 +4,7 @@
 const stack = [];
 
 export const phone = matchMedia('(max-width: 600px)');
-export const touch = matchMedia('(hover: none)');
+const touch = matchMedia('(hover: none)');
 export const isPhone = () => phone.matches;
 export const isTouch = () => touch.matches;
 
@@ -23,7 +23,7 @@ export function open(layer) {
   return entry.close;
 }
 
-export function top() { return stack.at(-1) ?? null; }
+function top() { return stack.at(-1) ?? null; }
 function closeTop() { top()?.close(); }
 export function closeAll() { while (stack.length) stack.at(-1).close(); }
 export function anyOpen() { return stack.length > 0; }

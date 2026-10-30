@@ -20,17 +20,18 @@ after the global files. Sections inside each file use the same order. Cases that
 
 | File | Sections |
 |---|---|
-| frame.css | Avatar, ChatHeader, ChatSidebar, ChatLayout (frame part), ReconnectModal (strip and dots only), PushPermissionPrompt, PwaInstallBanner, UserProfileCard |
+| frame.css | Avatar, ChatHeader, ChatSidebar, ChatLayout (frame part), PushPermissionPrompt, UserProfileCard |
 | pickers.css | CombinedPicker, EmojiPicker, GifPicker (PickerPane had no CSS file) |
 | timeline.css | ImageGalleryModal, ChatLayout (timeline part), ShowMoreButton |
 | composer.css | MessageInput |
 | message.css | LinkPreviewCard, MediaPlayer, MessageItem |
-| pages.css | GifLibraryManager, MainLayout (empty, all rules dropped), Admin, ChannelSettings, Invite, Login, Settings, VerifyDevice |
+| pages.css | GifLibraryManager, Admin, ChannelSettings, Invite, Login, Settings, VerifyDevice |
 
 ChatLayout split: frame.css has `.chat-container`, `.theme-scene`, `.theme-scrim`, `.header-line`, `.chat-main`,
 `.messages-container`, `.sidebar-backdrop` (and its media query), `.error-content` and the error buttons.
 timeline.css has `.messages` and its scrollbar, `.messages-flow`, the scroll-dismiss rule, `.messages-spacer`,
-`.system-message`, `.loading-more`, `.loading-spinner`, `@keyframes spin` and `.history-start`.
+`.loading-more`, `.loading-spinner` and `.history-start`. `.system-message` is in message.css only; the
+timeline.css copy said the same and went (2026-10-30).
 ChatLayout has no "pill" rule. The only pill near messages is `.reaction-pill` in message.css.
 
 ## Root classes (prefixes)
@@ -75,13 +76,14 @@ that name the class get it. 150 selectors in total. In the old markup, every pre
 5. Some listed classes have identical rules in both files. They got the prefix anyway, as asked: `.build-info`
    (Invite, Login), `.toggle-switch/-slider/-label/-info/-hint` (Admin, Settings), `.settings-content/-header/-section`
    (ChannelSettings, Settings). `.form-counter` is identical in ChannelSettings and Settings and was not on the list,
-   so it has no prefix.
+   so it has no prefix. It is defined once, in the ChannelSettings section (2026-10-30).
 6. Not prefixed, with no conflict: state classes that always join a component class (`.active`, `.selected`,
    `.online`, `.disabled` ...), and the old `::deep` overrides that are meant to reach another component
    (`.dm-header-title .avatar`, `.reply-preview .avatar`, `.profile-card-avatar .avatar`, `.combined-pane .emoji-picker`,
    `.emoji-picker-container .emoji-picker`, `.emoji-picker-wrapper .emoji-picker`, `.system-message .message-content`).
-7. Some keyframe names occur twice with identical bodies: `spin` (ChatLayout, Login), `gif-spin` (MessageItem,
-   GifPicker), `fadeIn` (MessageInput, app.css). Blazor scoped them per component. Flat, the last one wins, with the same result.
+7. Some keyframe names occurred twice with identical bodies: `spin` (ChatLayout, Login), `gif-spin` (MessageItem,
+   GifPicker), `fadeIn` (MessageInput, app.css). Blazor scoped them per component. Flat, a keyframe name is global,
+   so app.css defines `fadeIn` and `spin` once (2026-10-30); `gif-spin` had the body of `spin` and went.
 8. Three guard comments mark deliberate oddities: decisions 3 and 4, and the MessageInput `[data-picker-pane]` hide
    rule. That rule now ties with the reveal rule after it and loses only by source order, so keep that order.
 9. New leaks: in the old Admin markup, the "Load more" buttons used `.upload-button` (styled in Settings) and
@@ -107,19 +109,18 @@ that name the class get it. 150 selectors in total. In the old markup, every pre
 | Component | File | Main classes (states in brackets) |
 |---|---|---|
 | Avatar | frame | avatar (avatar-small, avatar-medium, avatar-large), avatar-image, avatar-initials |
-| ChatHeader | frame | chat-header, back-button, dm-header-title, header-controls, mailbox-button (has-unread), mailbox-badge, pins-button, pins-badge, users-toggle, icon-hamburger, icon-people, online-count, status-dropdown-container, status-button (status-online, status-away, status-invisible), status-indicator, status-username, dropdown-backdrop, status-dropdown, dropdown-item (active, signout), dropdown-divider, status-dot (online, away, invisible), checkmark |
+| ChatHeader | frame | chat-header, back-button, dm-header-title, header-controls, mailbox-button (has-unread), mailbox-badge, pins-button, pins-badge, users-toggle, icon-hamburger, icon-people, online-count, status-dropdown-container, status-button (status-online, status-away, status-invisible), status-indicator, status-username, dropdown-backdrop, status-dropdown, dropdown-item (active, signout), dropdown-divider, status-dot (online, away, invisible) |
 | ChatSidebar | frame | users-sidebar (sidebar-open), sidebar-section, rooms-list, room-item (active, has-unread), room-icon, room-name, room-settings, add-room, users-list, user-item (current-user, active-dm), user-name, user-status-dot (online, away, invisible), admin-badge, bot-badge, unread-dot, unread-badge, mute-bell, profile-info-btn, profile-popup (is-mobile; a sibling of the sidebar), profile-popup-backdrop |
 | ChatLayout | frame, timeline | chat-container (data-context), theme-scene, theme-scrim, header-line, chat-main, messages-container, sidebar-backdrop (show), error-content, error-retry-button, error-reload-button; messages, messages-flow, messages-spacer, system-message, loading-more, loading-spinner, history-start |
 | PushPermissionPrompt | frame | push-prompt-overlay (hiding), push-prompt-card, push-prompt-icon, push-prompt-heading, push-prompt-body, push-prompt-enable, push-prompt-later |
-| PwaInstallBanner | frame | pwa-install-banner (hiding), pwa-banner-content, pwa-banner-illustration, pwa-banner-text, pwa-banner-actions, pwa-install-btn, pwa-dismiss-btn |
 | Pinned messages panel | frame | pins-layer, pins-backdrop, pins-panel, pins-head, pins-title, pins-close, pins-list, pin-entry (jumping), pin-entry-header, pin-avatar, pin-author, pin-time, pin-unpin, pin-text, pin-media, pin-frame, pin-picture, pin-gif, pin-play, pin-card, pin-card-title, pin-attachment-label, pin-entry-foot, pin-by |
 | UserProfileCard | frame | profile-card, profile-card-banner, profile-card-avatar, profile-card-body, profile-card-identity, profile-card-name, profile-card-badge, profile-card-username, profile-card-statusline, profile-card-status-dot (online, away, offline), profile-card-divider, profile-card-section, profile-card-label, profile-card-bio, profile-card-empty, profile-card-meta |
 | CombinedPicker | pickers | combined-picker (data-active-tab), combined-tabs, combined-tab, combined-body, combined-pane |
 | EmojiPicker | pickers | emoji-picker, emoji-sidebar, category-btn (active), emoji-content, emoji-search, emoji-search-clear, emoji-section, section-header, emoji-grid, emoji-btn, emoji, emoji-empty |
 | GifPicker | pickers | gif-picker, gif-sidebar, category-btn (active), gif-content, gif-search, gif-search-clear, gif-upload-btn (is-busy), gif-spinner, gif-upload-overlay, gif-results, gif-section-header, gif-grid, gif-card, gif-fav-btn (favorited), gif-empty, gif-no-provider, gif-tile-grid, gif-folder-tile, gif-folder-back, gif-manage-link, gif-attribution |
-| ImageGalleryModal | timeline | image-modal (closing), gallery-strip, modal-stage (dragging, fill, fill-w), modal-video, modal-close, modal-nav (prev, next), modal-fill, modal-counter |
+| ImageGalleryModal | timeline | image-modal (closing), gallery-strip, modal-stage (dragging, fill, fill-w), modal-close, modal-nav (prev, next), modal-fill, modal-counter |
 | ShowMoreButton | timeline | show-more |
-| MessageInput | composer | typing-indicator-container, typing-indicator, typing-dots, dot, upload-progress-row, reply-bar, reply-bar-text, reply-bar-close, message-input-container (has-reply-bar, data-picker, data-recording), input-box, message-input, image-upload-button, emoji-toggle-wrapper, emoji-toggle-button, gif-toggle-button, gif-toggle-badge, emoji-picker-container (data-picker-pane), emoji-picker-backdrop, send-button (disabled), recorder, recorder-trash, recorder-dot, recorder-time, recorder-bars, warning-modal-backdrop, warning-modal, readonly-bar |
+| MessageInput | composer | typing-indicator-container, typing-indicator, typing-dots, dot, upload-progress-track, upload-progress-fill, reply-bar, reply-bar-text, reply-bar-close, message-input-container (has-reply-bar, data-picker, data-recording), input-box, message-input, image-upload-button, emoji-toggle-wrapper, emoji-toggle-button, gif-toggle-button, gif-toggle-badge, emoji-picker-container (data-picker-pane), emoji-picker-backdrop, send-button (disabled), recorder, recorder-trash, recorder-dot, recorder-time, recorder-bars, warning-modal-backdrop, warning-modal, readonly-bar |
 | LinkPreviewCard | message | link-preview-card, link-preview-content, link-preview-site, link-preview-title, link-preview-description, link-preview-thumbnail |
 | MediaPlayer | message | media-player-container, cached-video-player, video-info, video-site, video-title, cached-audio-player, audio-thumbnail, audio-info, audio-title, audio-site, audio-element |
 | Voice player | message | voice-message (playing), voice-play, play-icon, pause-icon, voice-bars, voice-time, voice-speed |

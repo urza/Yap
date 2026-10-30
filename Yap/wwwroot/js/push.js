@@ -26,7 +26,7 @@ export function where() {
 }
 
 // Only the installed app can show notifications on an iPhone or iPad (NT-23); elsewhere it is an old or locked-down browser.
-export function cannotHint() {
+function cannotHint() {
   const w = where(), name = appName();
   return w.ios ? `${w.browser} cannot show ${name} notifications. Add ${name} to your home screen first.` : 'This browser cannot show notifications.';
 }
