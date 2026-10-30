@@ -402,7 +402,7 @@ public class ChatTests : IClassFixture<YapFactory>
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
     }
 
-    [Fact(DisplayName = "MR-77, MR-78, SH-48: in a direct message both people pin and unpin, three at most, the other side hears the change")]
+    [Fact(DisplayName = "MR-77, MR-78, SH-48: in a direct message both people pin and unpin, six at most, the other side hears the change")]
     public async Task Dm_pins_both_ways_and_the_limit()
     {
         var alice = await _app.SignInAsync("alice_pin");
@@ -413,7 +413,7 @@ public class ChatTests : IClassFixture<YapFactory>
         await bobHub.InvokeAsync<Conversation>("OpenDm", "alice_pin");
 
         var sent = new List<MessageDto>();
-        for (var i = 0; i < 4; i++)
+        for (var i = 0; i < 7; i++)
             sent.Add((await (await alice.Http.PostAsJsonAsync("/api/dm/bob_pin/messages", new { clientId = Guid.NewGuid(), text = $"pin me {i}" })).Content.ReadFromJsonAsync<MessageDto>())!);
 
         var bobSees = new Expectation<IReadOnlyList<Pin>>();
@@ -426,14 +426,15 @@ public class ChatTests : IClassFixture<YapFactory>
         Assert.Equal("pin me 0", pins[0].Text);
 
         Assert.Null(await bobHub.InvokeAsync<HubError?>("Pin", dm, sent[1].Id));   // the other side pins too
-        Assert.Null(await aliceHub.InvokeAsync<HubError?>("Pin", dm, sent[2].Id));
-        Assert.Equal("Up to 3 pinned messages. Unpin one first.", (await aliceHub.InvokeAsync<HubError?>("Pin", dm, sent[3].Id))?.Error);
+        for (var i = 2; i < 6; i++)
+            Assert.Null(await aliceHub.InvokeAsync<HubError?>("Pin", dm, sent[i].Id));
+        Assert.Equal("Up to 6 pinned messages. Unpin one first.", (await aliceHub.InvokeAsync<HubError?>("Pin", dm, sent[6].Id))?.Error);
 
         var reopened = await bobHub.InvokeAsync<Conversation>("OpenDm", "alice_pin");
-        Assert.Equal([sent[2].Id, sent[1].Id, sent[0].Id], reopened.Pins.Select(p => p.MessageId));   // the newest pin first
+        Assert.Equal([sent[5].Id, sent[4].Id, sent[3].Id, sent[2].Id, sent[1].Id, sent[0].Id], reopened.Pins.Select(p => p.MessageId));   // the newest pin first
 
         Assert.Null(await bobHub.InvokeAsync<HubError?>("Unpin", dm, sent[0].Id));   // the other side's pin
-        Assert.Equal(2, _app.Service<ChatService>().PinsFor(dm, null).Count);
+        Assert.Equal(5, _app.Service<ChatService>().PinsFor(dm, null).Count);
         await aliceHub.DisposeAsync();
         await bobHub.DisposeAsync();
     }
