@@ -27,6 +27,12 @@ server, runs its steps, prints PASS or FAIL for each step, and stops the server 
   from a return after a frozen background with a dead socket to the server's rows. It asserts nothing on the
   numbers; run it before and after a change and compare. The link is a TCP proxy inside the script, so the
   service worker and the WebSocket go through it too.
+- `update.mjs` replays a deploy: build A is served, the browser stores the shell through the worker, then build
+  B takes the same port and the page is reloaded, as an installed app is at its next launch. It watches the
+  worker's registration, taps the new-version strip's Reload, and says whether the page ends on build B with no
+  strip. It needs two build copies made in different minutes, `--dllA=<dir> --dllB=<dir>`. `--stuckworker`
+  makes build B serve build A's worker bytes, the iPhone case of 2026-10-30 where the worker never changed;
+  `--signin` runs it on the settings page of an account and checks that the route survives.
 - `screenshots.mjs` regenerates the images of the product spec in `docs/spec/img/`. It seeds people, rooms,
   messages, mutes and statuses, builds the state that each image's caption names, and overwrites the image. A
   step that fails keeps the old image. The run takes about three minutes: it waits for an offline person
