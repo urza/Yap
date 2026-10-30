@@ -47,6 +47,7 @@ export function applyBootstrap(doc) {
 export function applyAnonymous(doc) { state.texts = doc.texts; state.config = doc.config; changed('texts'); changed('config'); }
 
 export function setUpdateAvailable() { state.updateAvailable = true; changed('connection'); }   // the dot turns red (SH-17)
+export function clearUpdateAvailable() { state.updateAvailable = false; changed('connection'); }   // the server's own answer named this page's build after all
 
 export function setConnection(value) {
   if (state.connection === value) return;

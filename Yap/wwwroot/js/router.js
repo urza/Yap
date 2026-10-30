@@ -2,6 +2,7 @@
 // last conversation route is kept in localStorage, and '/' opens it (SH-43).
 
 const LAST_ROUTE = 'yap.lastRoute';
+const FRESH_LOAD_TO = 'yap.freshLoadTo';   // one route for the next load only: a fresh load of a new build comes in through '/'
 
 const patterns = [
   [/^\/$/, () => ({ page: 'chat', lobby: true })],
@@ -35,7 +36,7 @@ export function onRoute(fn) { handler = fn; }
 export function start() {
   current = parse(location.pathname + location.hash);   // main.js rewrites the installed app's launch address to '/' before this
   if (current.path === '/') {
-    const last = read(LAST_ROUTE) || '/lobby';
+    const last = takeFreshLoadRoute() || read(LAST_ROUTE) || '/lobby';
     history.replaceState(null, '', last); current = parse(last);
   }
   addEventListener('popstate', () => { current = parse(location.pathname + location.hash); handler(current); });
@@ -51,6 +52,15 @@ export function navigate(path, { replace = false } = {}) {
 }
 
 export function rememberRoute(path) { write(LAST_ROUTE, path); }
+
+// The route a fresh load of a new build comes back to. The load goes in through '/' so that the server answers it
+// (main.js reloadForNewBuild), and '/' alone would open the last conversation (SH-43), not the settings page the
+// person was on. Session storage: the same tab, the next load only.
+export function keepForFreshLoad(route) { try { sessionStorage.setItem(FRESH_LOAD_TO, route); } catch { /* private mode: '/' opens the last conversation */ } }
+function takeFreshLoadRoute() {
+  try { const route = sessionStorage.getItem(FRESH_LOAD_TO); if (route) sessionStorage.removeItem(FRESH_LOAD_TO); return route; }
+  catch { return null; }
+}
 
 export function roomPath(room, lobbyId) { return room.id === lobbyId ? '/lobby' : `/room/${room.id}`; }
 export function dmPath(username) { return `/dm/${encodeURIComponent(username)}`; }

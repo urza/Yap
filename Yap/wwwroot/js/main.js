@@ -2,7 +2,7 @@
 // frame and the page; the hub connects at once and requests the bootstrap. The pages inside the frame share one
 // mounted frame (SH-01).
 
-import { state, on, applyBootstrap, applyAnonymous, setUpdateAvailable } from './store.js';
+import { state, on, applyBootstrap, applyAnonymous, setUpdateAvailable, clearUpdateAvailable } from './store.js';
 import { api, onSignedOut } from './api.js';
 import * as hub from './hub.js';
 import * as router from './router.js';
@@ -80,22 +80,40 @@ on('user', () => {
 
 on('catalog', () => text.useCatalog(state.catalog));
 
-// A new build on the server: the strip asks for a reload and nothing reloads by itself (SH-20, OF-04).
+// A new build on the server: the strip asks for a reload and nothing reloads by itself (SH-20, OF-04). The stored
+// bootstrap speaks first (OF-06) and can name an older build than this page when its last save failed; the server's
+// own answer then takes the strip down again, so a stale copy costs one flash, not a strip that no tap removes.
 const build = document.documentElement.dataset.build;
 on('config', () => {
-  if (state.config?.buildStamp && build && state.config.buildStamp !== build) { notice('You are awesome and so is the new version of this app. Please refresh.', 'Reload', reloadForNewBuild); setUpdateAvailable(); }
+  const server = state.config?.buildStamp;
+  if (!server || !build) return;
+  if (server !== build) { notice('You are awesome and so is the new version of this app. Please refresh.', 'Reload', reloadForNewBuild); setUpdateAvailable(); }
+  else if (state.updateAvailable) { document.getElementById('notice').hidden = true; clearUpdateAvailable(); }
 });
 
-// The new build's worker may still be installing when the person taps Reload (the strip shows one round trip after
-// the load, the install takes a few seconds on a slow link). The shell is cache-first (OF-18), so a reload before the
-// new worker takes over would serve the old shell again and show the strip again. Wait for it, up to 15 s. The strip
-// changes at the tap: before 2026-10-29 those seconds passed in silence, and a button that does nothing reads as broken.
+// The page of the new build comes from the server, not from the worker. The shell is cache-first (OF-18): a plain
+// reload asks the worker, and a worker that did not update answers with the old page and the strip again. On
+// 2026-10-30 an iPhone's installed app did exactly that through every Reload tap after a deploy, while the same code
+// updated in Chrome; iOS gave no reason. The worker passes '/' and the login paths to the server (service-worker.js
+// SERVER_FIRST), every worker since 2026-10-22 included, so the new page arrives whatever the worker did, and the
+// route is kept for the router (SH-43). Before the move the page asks the browser for the update and gives the new
+// worker up to 15 s to take over, so the common case finds the new shell cache in place. Every worker promise is
+// bounded: navigator.serviceWorker.ready has hung on iOS before (push.js), and a tap must end in a page. The strip
+// changes at the tap, because a button that does nothing reads as broken (SH-51).
+const SERVER_FIRST = /^\/(?:login|verify\/[^/]+|invite\/[^/]+)?$/;   // the worker's own list; keep the two the same
 async function reloadForNewBuild() {
   notice('Getting the new version…', 'Updating…');
   document.querySelector('#notice .notice-action').disabled = true;   // the page reloads next, so nothing enables it again
-  const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration().catch(() => null) : null;
-  if (reg && (reg.installing || reg.waiting)) await Promise.race([new Promise(r => navigator.serviceWorker.addEventListener('controllerchange', r, { once: true })), new Promise(r => setTimeout(r, 15_000))]);
-  location.reload();
+  const within = (promise, ms) => Promise.race([promise, new Promise(r => setTimeout(r, ms))]);
+  const reg = 'serviceWorker' in navigator ? await within(navigator.serviceWorker.getRegistration().catch(() => null), 3000) : null;
+  if (reg) {
+    await within(reg.update().catch(() => {}), 10_000);
+    if (reg.installing || reg.waiting) await within(new Promise(r => navigator.serviceWorker.addEventListener('controllerchange', r, { once: true })), 15_000);
+  }
+  const route = router.current.path + (router.current.hash ? `#${router.current.hash}` : '');
+  if (SERVER_FIRST.test(router.current.path)) { location.replace(route); return; }
+  router.keepForFreshLoad(route);
+  location.replace('/');
 }
 
 function notice(text, action, onAction) {
