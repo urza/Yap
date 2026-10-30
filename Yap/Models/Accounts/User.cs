@@ -104,13 +104,6 @@ public class User
     public string? Password { get; set; }
 
     /// <summary>
-    /// DEPRECATED — no longer read or written anywhere. Was "send the badge but suppress the
-    /// banner", replaced by the per-channel mute settings below (which suppress the notification
-    /// outright). The column stays because the DB is live and dropping it buys nothing.
-    /// </summary>
-    public bool PushMuted { get; set; }
-
-    /// <summary>
     /// Whether the user muted every notification on this server. Overrides both mode fields below.
     /// </summary>
     public bool NotifServerMuted { get; set; }

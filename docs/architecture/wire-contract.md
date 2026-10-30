@@ -232,4 +232,3 @@ All behind the admin policy: 404 to everyone else. Reads compose from the servic
 | `GET /api/admin/gifs/export` | kept |
 | `GET /api/admin/diagnostics` | AD-24 to AD-28: `{ latest, series[], sessions[], recentlyClosed[], push: { keyStatus, detail, decisions[], results[] }, unread[], writer: { enabled, depth, lastError, lastErrorAt }, events }`. Replaces `/api/diagnostics` and `/api/diagnostics/circuits`. |
 | `GET /api/admin/load?seconds=&step=` | AD-24. `{ latest, series[] }`: one-second samples of the process (CPU, memory, GC, thread pool, hub rates, writer depth), up to an hour (`seconds`, default 60). `step` (1 to 60, default 1) averages them into buckets of that many seconds; `latest` is always the real last second. |
-| `GET /api/admin/generate-thumbnails` | kept |

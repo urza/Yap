@@ -17,8 +17,6 @@ public class ImageService
     public const int SizeMedium = 800;  // Gallery and single image preview
     public const int SizeLarge = 1600;  // Lightbox (caps very large uploads)
 
-    private static readonly int[] AllSizes = [SizeMedium, SizeLarge];
-
     // All thumbnails are WebP for best compression
     private static readonly WebpEncoder WebpEncoder = new() { Quality = 90 };
 
@@ -29,31 +27,6 @@ public class ImageService
     // concurrent decodes of 1500 px images took the process down on a Windows dev machine (2026-10-15)
     // while the same files passed one after another. The wait is a few hundred ms per picture.
     private static readonly SemaphoreSlim Gate = new(1, 1);
-
-    /// <summary>
-    /// Generates all thumbnail sizes as WebP files.
-    /// For small files (under 500KB), converts to WebP without resizing.
-    /// </summary>
-    public async Task GenerateThumbnailsAsync(string originalPath)
-    {
-        try
-        {
-            var (directory, filename, originalExtension, skipResizing) = GetFileInfo(originalPath);
-
-            using var image = await Image.LoadAsync(originalPath);
-            image.Mutate(x => x.AutoOrient());
-
-            foreach (var size in AllSizes)
-            {
-                var thumbPath = Path.Combine(directory, $"{filename}_{size}px.webp");
-                await SaveThumbnailAsync(image, thumbPath, size, originalExtension, skipResizing);
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to generate thumbnails for {originalPath}: {ex.Message}");
-        }
-    }
 
     /// <summary>
     /// Generates only the medium (800px) thumbnail for fast initial display.
