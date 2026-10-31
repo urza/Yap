@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text.Json;
+
 namespace Yap.Services.Emoji;
 
 /// <summary>
@@ -40,7 +43,11 @@ public sealed class EmojiImages(CustomEmojiService custom, IWebHostEnvironment e
             ? Directory.GetFiles(dir, "*.png").Select(f => Path.GetFileNameWithoutExtension(f).ToLowerInvariant()).Where(n => !n.StartsWith('_')).Order().ToList()
             : [];
 
-        return new EmojiImagesDto(TwemojiBase, OverridesBase, overrides, packs);
+        // The stamp names this content. The client sends it with every bootstrap request, and the server leaves the rules
+        // out of the answer while they match (BootstrapEndpoints). A hash, not a value per process, so a restart with
+        // the same packs and overrides sends nothing again either.
+        var stamp = Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { TwemojiBase, OverridesBase, overrides, packs })))[..16];
+        return new EmojiImagesDto(TwemojiBase, OverridesBase, overrides, packs, stamp);
     }
 }
 
@@ -49,7 +56,7 @@ public sealed class EmojiImages(CustomEmojiService custom, IWebHostEnvironment e
 /// unless the sequence contains a ZWJ (U+200D). An override is named by the fully qualified codepoints, each padded
 /// to four digits, FE0F kept.
 /// </summary>
-public sealed record EmojiImagesDto(string TwemojiBase, string OverridesBase, List<string> Overrides, List<EmojiPackDto> Packs);
+public sealed record EmojiImagesDto(string TwemojiBase, string OverridesBase, List<string> Overrides, List<EmojiPackDto> Packs, string Stamp);
 
 public sealed record EmojiPackDto(string Key, string Name, List<PackEmojiDto> Emojis);
 

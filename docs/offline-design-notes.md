@@ -57,7 +57,7 @@ On connect, fetch the tail of the open conversation and the unread counts in one
 
 History stays visible after a reload while offline. Each time the client fetches a conversation's tail, it stores that response under the conversation id. On an offline reload it paints that. One record per conversation, overwritten whole, never merged. On phones the browser kills the app often, so without this cache "readable with what it already has" would mean almost nothing.
 
-The stored tail also carries its pictures (2026-10-31): the emoji and pack images its rows draw, as blobs by image URL, fetched through the worker's cache once per URL and page. The stored paint turns them into object URLs before it draws, so the emoji land in the same frame as the text. Without them every emoji was an empty box until the worker answered from its cache, the last visible gap of a cold open. A picture above 64 KB (an animated custom emoji) is left out and loads the usual way, and a tail keeps at most 64 of them.
+The stored tail also carries its pictures (2026-10-31): the emoji and pack images its rows draw, as blobs by image URL, fetched through the worker's cache once per URL and page. The stored paint turns them into object URLs before it draws, so the emoji land in the same frame as the text. Without them every emoji was an empty box until the worker answered from its cache, the last visible gap of a cold open. The record is written twice when a picture is still coming: the text at once, the pictures when they arrive, so an app killed during a slow fetch still has the text. A picture above 64 KB (an animated custom emoji) is never kept, and a record holds at most 256 KB of pictures in all, newest row first; the rest load the usual way.
 
 ## Tabs
 

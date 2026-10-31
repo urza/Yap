@@ -34,19 +34,24 @@ export function changed(part, detail) {
 // ---- the bootstrap ----
 
 export function applyBootstrap(doc) {
+  // The server leaves emojiImages out when the stamp the client sent names the rules it holds (hub.js); the copy stays.
+  // A stored copy from a build before 2026-10-31 has none either, and the hub's bootstrap brings them.
+  const emojiImages = doc.emojiImages ?? state.emojiImages;
   Object.assign(state, {
     user: doc.user, config: doc.config, texts: doc.texts, rooms: doc.rooms,
     users: Object.fromEntries(doc.users.map(u => [u.username, u])),
     presence: doc.presence, dms: doc.dms, unread: doc.unread, mutes: doc.mutes, emoji: doc.emoji,
-    favoriteGifIds: new Set(doc.favoriteGifIds), emojiImages: doc.emojiImages,
+    favoriteGifIds: new Set(doc.favoriteGifIds), emojiImages,
   });
-  for (const part of ['user', 'config', 'texts', 'rooms', 'users', 'presence', 'dms', 'unread', 'mutes', 'emoji', 'favoriteGifIds', 'emojiImages']) changed(part);
+  // 'emojiImages' first: the listeners of 'user', 'rooms' and 'users' draw names through inline(), and they must draw
+  // with the rules of this document. Fired last, a new pack or override reached the sidebar only at its next redraw.
+  for (const part of ['emojiImages', 'user', 'config', 'texts', 'rooms', 'users', 'presence', 'dms', 'unread', 'mutes', 'emoji', 'favoriteGifIds']) changed(part);
 }
 
 // The texts-only answer of the bootstrap, for the sign-in pages.
 export function applyAnonymous(doc) {
-  Object.assign(state, { texts: doc.texts, config: doc.config, emojiImages: doc.emojiImages });
-  for (const part of ['texts', 'config', 'emojiImages']) changed(part);
+  Object.assign(state, { texts: doc.texts, config: doc.config });
+  for (const part of ['texts', 'config']) changed(part);
 }
 
 export function setUpdateAvailable() { state.updateAvailable = true; changed('connection'); }   // the dot turns red (SH-17)

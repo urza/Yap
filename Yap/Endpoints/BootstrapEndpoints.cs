@@ -18,9 +18,12 @@ namespace Yap.Endpoints;
 /// GET /api/bootstrap: one document with every value the client needs to draw the frame. Fetched at start and
 /// after every hub connect; the client replaces its shared store with it and applies hub messages on top. The
 /// device stores it and paints from the copy before any answer, so it carries everything the first paint needs,
-/// the emoji image rules included.
+/// the emoji image rules included. The rules are the largest part and change only with a deploy, so a client that
+/// names the stamp of the rules it holds (?emojiStamp=) gets null in their place while they are current.
 /// Anonymous: without a user it returns the project name and the login texts only, so the login, verify and
-/// invite pages get their texts in the same first call (docs/architecture/bootstrap-and-events.md).
+/// invite pages get their texts in the same first call (docs/architecture/bootstrap-and-events.md). Those pages
+/// set their texts as plain text, so the emoji image rules are not in this answer: they would list every custom
+/// pack to anyone who asks.
 /// </summary>
 public static class BootstrapEndpoints
 {
@@ -30,10 +33,10 @@ public static class BootstrapEndpoints
         api.MapGet("/bootstrap", (HttpContext http, ClaimsPrincipal principal,
             UserService users, ChatService chat, PresenceService presence, NotificationSettingsService mutes, GifService gifs,
             AccessLinkService links, RegistrationGateService gate, LinkPreviewSettingsService previews,
-            PushNotificationService push, SystemBotService bot, ServerConfig config, EmojiImages images) =>
+            PushNotificationService push, SystemBotService bot, ServerConfig config, EmojiImages images, string? emojiStamp) =>
         {
             if (!principal.IsSignedIn())
-                return Results.Ok(new { config = new { config.ProjectName }, texts = config.LoginTexts(), emojiImages = images.Rules });   // the login texts draw emoji as images too (GEN-20)
+                return Results.Ok(new { config = new { config.ProjectName }, texts = config.LoginTexts() });
 
             var me = users.GetById(principal.Id());
             if (me is null) return Results.Unauthorized();
@@ -59,7 +62,7 @@ public static class BootstrapEndpoints
                 Mutes: mutes.For(me.Id),
                 Emoji: new EmojiStateDto(users.GetRecentEmojis(me.Username), chat.QuickReactions(me.Id)),
                 FavoriteGifIds: gifs.GetFavorites(me.Id).Select(g => g.Id).ToList(),
-                EmojiImages: images.Rules));   // where emoji pictures come from: the client needs it before its first paint (text.js useImages)
+                EmojiImages: images.Rules.Stamp == emojiStamp ? null : images.Rules));   // where emoji pictures come from (text.js useImages); null: the client's copy is current
         }).AllowAnonymous();
     }
 }
@@ -67,7 +70,7 @@ public static class BootstrapEndpoints
 public sealed record BootstrapDto(
     MeDto User, ClientConfigDto Config, TextsDto Texts, List<RoomDto> Rooms, List<UserDto> Users,
     Dictionary<string, EffectiveStatus> Presence, List<DmDto> Dms, Dictionary<Guid, int> Unread, MutesDto Mutes,
-    EmojiStateDto Emoji, List<Guid> FavoriteGifIds, EmojiImagesDto EmojiImages);
+    EmojiStateDto Emoji, List<Guid> FavoriteGifIds, EmojiImagesDto? EmojiImages);
 
 public sealed record ClientConfigDto(
     string ProjectName, string UploadUrl, int MaxUploadMB, int VoiceMaxSeconds, string BeaconUrl,

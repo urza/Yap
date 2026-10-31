@@ -81,6 +81,11 @@ let signedOutHandler = () => {};
 
 export function onSignedOut(fn) { signedOutHandler = fn; }
 
+// The bootstrap request names the emoji image rules the device holds, by their stamp. The server leaves them out of
+// its answer when they are current (wire contract, "Bootstrap"): the custom packs are the largest part of the document
+// and change only with a deploy, while this request goes out after every connect, on a phone many times a day.
+const bootstrapUrl = () => store.state.emojiImages?.stamp ? `/api/bootstrap?emojiStamp=${encodeURIComponent(store.state.emojiImages.stamp)}` : '/api/bootstrap';
+
 // A hook runs after every connect, in parallel with the bootstrap request: the chat page re-opens its
 // conversation here, the sender posts the outbox (wire contract, "Bootstrap").
 export function onConnected(fn) { connectedHooks.add(fn); return () => connectedHooks.delete(fn); }
@@ -109,13 +114,16 @@ export async function connect() {
   retryFailedImages();   // emoji pictures that the CDN did not deliver while the network was poor (MR-15)
 
   const results = await Promise.allSettled([
-    api.get('/api/bootstrap'),
+    api.get(bootstrapUrl()),
     ...[...connectedHooks].map(fn => fn()),
   ]);
   const bootstrap = results[0];
   if (bootstrap.status === 'fulfilled') {
     if (bootstrap.value.user) {
-      store.applyBootstrap(bootstrap.value); saveBootstrap(bootstrap.value); beacon(bootstrap.value.config);
+      const doc = bootstrap.value;
+      store.applyBootstrap(doc);
+      saveBootstrap({ ...doc, emojiImages: store.state.emojiImages });   // the answer left the rules out when they matched (bootstrapUrl); the stored copy needs them
+      beacon(doc.config);
       if (!wasReconnect && !performance.getEntriesByName('bootstrap', 'mark').length) performance.mark('bootstrap');   // the server's bootstrap of this load (AD-41); a first load marked it in main.js
     }
     else signedOut();                      // the cookie died while we were away

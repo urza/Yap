@@ -156,7 +156,12 @@ export function imageUrls(text) {
 // object URLs stay for the life of the page: a few kilobytes each, and the rows keep pointing at them.
 const pictures = new Map();
 export function usePictures(stored) {
-  for (const [url, blob] of Object.entries(stored ?? {})) if (!pictures.has(url)) pictures.set(url, URL.createObjectURL(blob));
+  for (const [url, blob] of Object.entries(stored ?? {})) {
+    // A Blob only: a record from another build, or from a browser that does not keep Blobs in IndexedDB, holds
+    // something else, and createObjectURL would throw before setOpen draws the rows. Storage is a convenience,
+    // never a dependency (db.js).
+    if (blob instanceof Blob && !pictures.has(url)) pictures.set(url, URL.createObjectURL(blob));
+  }
 }
 
 function splitShortcodes(text) {

@@ -18,55 +18,92 @@ export const keyOf = open => open.partner ? `dm:${open.partner}` : open.channelI
 export async function saveBootstrap(doc) { await db.put(db.STORES.snapshots, { doc, at: Date.now() }, BOOTSTRAP); }
 
 // The stored document, when it belongs to the account that is signed in (a different account starts empty). A copy
-// without the image rules is from a build before 2026-10-31 and does not count: it would paint the device's own emoji
-// font once, before the hub's bootstrap stores the new shape.
+// from a build before 2026-10-31 has no emoji image rules and counts all the same: its paint draws emoji as text
+// once, and the hub's bootstrap brings the rules. Treating it as no copy made main.js fetch, and offline the failed
+// fetch read as "nobody signed in", which cleared the outbox and the drafts.
 export async function loadBootstrap() {
   const row = await db.get(db.STORES.snapshots, BOOTSTRAP);
-  return row?.doc?.user && row.doc.emojiImages ? row.doc : null;
+  return row?.doc?.user ? row.doc : null;
 }
 
 // The drafts, one per conversation, kept through a reload (IB-53, GEN-21).
 export async function loadDrafts() { return (await db.get(db.STORES.kv, 'drafts')) ?? {}; }
 
-let tailGeneration = 0;
+// One counter per conversation: a save that a newer save of the same conversation overtakes while its pictures come
+// writes nothing more, because the newer record holds everything. One counter for all conversations dropped the save
+// of the room the person just left as soon as the next conversation's save started, so that room was never stored.
+const generations = new Map();   // key -> the number of its latest save
+
 async function saveTail(key, conversation) {
   // The tail only: a page of older messages is not stored (OF-14 keeps the promise modest).
   const messages = conversation.messages.slice(-50);
-  const generation = ++tailGeneration;
-  const pictures = await picturesOf(messages);
-  if (generation !== tailGeneration) return;   // a newer save started while the pictures came; its record holds everything
-  await db.put(db.STORES.snapshots, { channelId: conversation.channelId, partner: conversation.partner ?? null, messages, hasMore: conversation.hasMore && messages.length === conversation.messages.length, restricted: conversation.restricted, typists: [], pins: conversation.pins ?? [], pictures, at: Date.now() }, tail(key));
+  const pins = conversation.pins ?? [];
+  const generation = (generations.get(key) ?? 0) + 1;
+  generations.set(key, generation);
+  const put = pictures => db.put(db.STORES.snapshots, { channelId: conversation.channelId, partner: conversation.partner ?? null, messages, hasMore: conversation.hasMore && messages.length === conversation.messages.length, restricted: conversation.restricted, typists: [], pins, pictures, at: Date.now() }, tail(key));
+  const urls = imageUrlsOf(messages, pins);
+  const missing = urls.filter(url => !have.has(url));
+  // The text first, with the pictures the device already holds: a fetch takes seconds on a poor connection, and the
+  // app may be killed before it answers. The record with every picture follows.
+  if (missing.length) await put(choose(urls));
+  await Promise.all(missing.map(fetchPicture));
+  if (generation !== generations.get(key)) return;
+  await put(choose(urls));
 }
 
 // The pictures of a tail: the emoji and pack images its rows draw, as the device has them (render/text.js usePictures).
 // With them, the stored paint shows the emoji in the same frame as the text. Without them each emoji was an empty
 // box until the worker answered from its cache, the last visible gap of a cold open (2026-10-31). The bytes come
-// through the worker's cache-first fetch, once per URL for the life of the page. A picture above MAX_PICTURE_BYTES
-// (an animated custom emoji) is left out and loads the usual way; MAX_PICTURES bounds the record for rows full of
-// distinct emoji. Both keep a tail at some tens of kilobytes.
-const MAX_PICTURES = 64, MAX_PICTURE_BYTES = 64 * 1024;
-const fetched = new Map();   // url -> Promise<Blob | null>
+// through the worker's cache-first fetch, once per URL for the life of the page.
+//
+// Two bounds. A picture above MAX_PICTURE_BYTES (an animated custom emoji) is never kept. A record holds at most
+// PICTURE_BUDGET of pictures in all, newest row first: a room full of custom PNG emoji would otherwise store
+// megabytes, written again at every save, and the rows that lose their pictures are the oldest, scrolled away at
+// open. A picture that is not in the record loads the usual way, through the worker's cache.
+const MAX_PICTURE_BYTES = 64 * 1024, PICTURE_BUDGET = 256 * 1024;
+const FETCH_TIMEOUT = 10_000;   // a CDN request that hangs must not hold the record for the browser's own minutes
+const have = new Map();         // url -> Blob, or null when the picture is too big or the server answered an error
+const fetching = new Map();     // url -> Promise, while the request is in the air
 
-async function picturesOf(messages) {
-  const urls = new Set(messages.flatMap(m => drawnTexts(m).flatMap(text.imageUrls)));
-  const entries = await Promise.all([...urls].slice(0, MAX_PICTURES).map(async url => [url, await picture(url)]));
-  return Object.fromEntries(entries.filter(([, blob]) => blob));
+// The URLs of the images a record draws, each once, newest row first: the order choose() fills the budget in.
+function imageUrlsOf(messages, pins) {
+  const texts = [...messages].reverse().flatMap(drawnTexts).concat(pins.flatMap(pinTexts));
+  return [...new Set(texts.flatMap(text.imageUrls))];
 }
 
-// What a stored row draws through inline(): the text, the quoted reply, the names, the reaction emoji.
+// What a stored row draws through inline() (ui/message.js): the text, the quoted reply, the names, the bot badge,
+// the reaction emoji.
 function drawnTexts(m) {
   const names = [m.username, m.replyTo?.username].filter(Boolean).map(displayName);
-  return [m.text, m.replyTo?.text, ...names, ...(m.reactions ?? []).map(r => r.emoji)].filter(Boolean);
+  const badge = state.users[m.username]?.isBot ? ['🤖'] : [];
+  return [m.text, m.replyTo?.text, ...names, ...badge, ...(m.reactions ?? []).map(r => r.emoji)].filter(Boolean);
 }
 
-function picture(url) {
-  if (!fetched.has(url)) {
-    fetched.set(url, fetch(url)
-      .then(r => r.ok ? r.blob() : null)
-      .then(blob => blob && blob.size <= MAX_PICTURE_BYTES ? blob : null)
-      .catch(() => { fetched.delete(url); return null; }));   // offline: the next save tries again
+// What the pins panel draws from the stored pins (ui/pins.js): the text, the author, who pinned it.
+function pinTexts(p) { return [p.text, displayName(p.username), displayName(p.pinnedBy)].filter(Boolean); }
+
+// The pictures the device has for these URLs, in this order, up to the budget.
+function choose(urls) {
+  const pictures = {};
+  let total = 0;
+  for (const url of urls) {
+    const blob = have.get(url);
+    if (!blob || total + blob.size > PICTURE_BUDGET) continue;
+    pictures[url] = blob;
+    total += blob.size;
   }
-  return fetched.get(url);
+  return pictures;
+}
+
+function fetchPicture(url) {
+  if (!fetching.has(url)) {
+    fetching.set(url, fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT) })
+      .then(r => r.ok ? r.blob() : null)
+      .then(blob => { have.set(url, blob && blob.size <= MAX_PICTURE_BYTES ? blob : null); })
+      .catch(() => {})   // offline, or timed out: not settled, so the next save tries again
+      .finally(() => fetching.delete(url)));
+  }
+  return fetching.get(url);
 }
 
 export async function loadTail(key) {

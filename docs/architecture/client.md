@@ -169,10 +169,11 @@ export function changed(...parts) {      // the writer calls this after it chang
 }
 
 export function applyBootstrap(doc) {    // replaces the shared data as a whole; see the wire contract, "Bootstrap"
+  const emojiImages = doc.emojiImages ?? state.emojiImages;   // null when the rules the client holds are current
   Object.assign(state, { user: doc.user, config: doc.config, texts: doc.texts, rooms: doc.rooms,
     users: Object.fromEntries(doc.users.map(u => [u.username, u])), presence: doc.presence, dms: doc.dms,
-    unread: doc.unread, mutes: doc.mutes, emoji: doc.emoji, favoriteGifIds: new Set(doc.favoriteGifIds), emojiImages: doc.emojiImages });
-  changed('user', 'rooms', 'users', 'presence', 'dms', 'unread', 'mutes', 'emoji', 'favoriteGifIds', 'emojiImages');
+    unread: doc.unread, mutes: doc.mutes, emoji: doc.emoji, favoriteGifIds: new Set(doc.favoriteGifIds), emojiImages });
+  changed('emojiImages', 'user', 'rooms', 'users', 'presence', 'dms', 'unread', 'mutes', 'emoji', 'favoriteGifIds');   // the rules first: the others draw names with them
 }
 ```
 

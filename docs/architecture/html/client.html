@@ -236,10 +236,11 @@ figure.diagram svg { display: block; max-width: 100%; height: auto; }
 }
 
 <span class="k">export</span> <span class="k">function</span> applyBootstrap(doc) {    <span class="c">// replaces the shared data as a whole; see the wire contract, &quot;Bootstrap&quot;</span>
+  <span class="k">const</span> emojiImages = doc.emojiImages ?? state.emojiImages;   <span class="c">// null when the rules the client holds are current</span>
   <span class="t">Object</span>.assign(state, { user: doc.user, config: doc.config, texts: doc.texts, rooms: doc.rooms,
     users: <span class="t">Object</span>.fromEntries(doc.users.map(u =&gt; [u.username, u])), presence: doc.presence, dms: doc.dms,
-    unread: doc.unread, mutes: doc.mutes, emoji: doc.emoji, favoriteGifIds: <span class="k">new</span> <span class="t">Set</span>(doc.favoriteGifIds), emojiImages: doc.emojiImages });
-  changed(<span class="s">&#x27;user&#x27;</span>, <span class="s">&#x27;rooms&#x27;</span>, <span class="s">&#x27;users&#x27;</span>, <span class="s">&#x27;presence&#x27;</span>, <span class="s">&#x27;dms&#x27;</span>, <span class="s">&#x27;unread&#x27;</span>, <span class="s">&#x27;mutes&#x27;</span>, <span class="s">&#x27;emoji&#x27;</span>, <span class="s">&#x27;favoriteGifIds&#x27;</span>, <span class="s">&#x27;emojiImages&#x27;</span>);
+    unread: doc.unread, mutes: doc.mutes, emoji: doc.emoji, favoriteGifIds: <span class="k">new</span> <span class="t">Set</span>(doc.favoriteGifIds), emojiImages });
+  changed(<span class="s">&#x27;emojiImages&#x27;</span>, <span class="s">&#x27;user&#x27;</span>, <span class="s">&#x27;rooms&#x27;</span>, <span class="s">&#x27;users&#x27;</span>, <span class="s">&#x27;presence&#x27;</span>, <span class="s">&#x27;dms&#x27;</span>, <span class="s">&#x27;unread&#x27;</span>, <span class="s">&#x27;mutes&#x27;</span>, <span class="s">&#x27;emoji&#x27;</span>, <span class="s">&#x27;favoriteGifIds&#x27;</span>);   <span class="c">// the rules first: the others draw names with them</span>
 }</code></pre></figure>
 <p>The part names are the field names of the bootstrap document, plus <code>connection</code>, <code>open</code>, <code>pending</code> and <code>drafts</code>. There is no diffing. A component that listens to <code>rooms</code> redraws its room list. A room list has at most a few dozen rows, so a full redraw is cheap. The message list is the one component that updates rows in place, because it can hold hundreds of rows. The timeline page describes that.</p>
 <h2 id="the-hub-module">The hub module</h2>
