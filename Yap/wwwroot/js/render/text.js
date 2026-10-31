@@ -72,10 +72,11 @@ function overrideName(emoji) {
 let images = null;           // { twemojiBase, overridesBase, overrides: Set }
 let packs = new Map();       // shortcode -> url
 
-// Called once with the catalogue from GET /api/emoji (store.catalog).
-export function useCatalog(catalog) {
-  images = { ...catalog.images, overrides: new Set(catalog.images.overrides.map(o => o.replace(/\.\w+$/, ''))) };
-  packs = new Map(catalog.packs.flatMap(p => p.emojis.map(e => [e.shortcode, e.url])));
+// Called with the bootstrap's emojiImages (store.js), before the first paint: the stored copy carries them, so no
+// row is ever drawn with the device's own emoji font and then redrawn (GEN-20). Null before any bootstrap: text.
+export function useImages(rules) {
+  images = rules && { ...rules, overrides: new Set(rules.overrides) };
+  packs = new Map(rules?.packs.flatMap(p => p.emojis.map(e => [e.shortcode, e.url])) ?? []);
 }
 
 function emojiUrl(emoji) {

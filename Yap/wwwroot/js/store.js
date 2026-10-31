@@ -7,7 +7,7 @@ export const state = {
   connectionFailed: false,      // the last connect attempt failed: the catching-up pill stops spinning (TL-39)
   user: null, config: null, texts: null,
   rooms: [], users: {}, presence: {}, dms: [], unread: {}, mutes: null, emoji: null, favoriteGifIds: new Set(),
-  catalog: null,                // the emoji catalogue from GET /api/emoji, loaded once per build
+  emojiImages: null,            // where emoji pictures come from (render/text.js useImages); part of the bootstrap, so the stored copy paints with it
   open: null,                   // { channelId, partner, messages, hasMore, restricted, typists: { username: expiresAt }, pins }
   pending: [],                  // outbox rows of the open conversation, drawn as faded rows (OF-08)
   drafts: {},                   // conversation key (offline/snapshot.js keyOf) -> { text, replyToId }
@@ -38,13 +38,16 @@ export function applyBootstrap(doc) {
     user: doc.user, config: doc.config, texts: doc.texts, rooms: doc.rooms,
     users: Object.fromEntries(doc.users.map(u => [u.username, u])),
     presence: doc.presence, dms: doc.dms, unread: doc.unread, mutes: doc.mutes, emoji: doc.emoji,
-    favoriteGifIds: new Set(doc.favoriteGifIds),
+    favoriteGifIds: new Set(doc.favoriteGifIds), emojiImages: doc.emojiImages,
   });
-  for (const part of ['user', 'config', 'texts', 'rooms', 'users', 'presence', 'dms', 'unread', 'mutes', 'emoji', 'favoriteGifIds']) changed(part);
+  for (const part of ['user', 'config', 'texts', 'rooms', 'users', 'presence', 'dms', 'unread', 'mutes', 'emoji', 'favoriteGifIds', 'emojiImages']) changed(part);
 }
 
 // The texts-only answer of the bootstrap, for the sign-in pages.
-export function applyAnonymous(doc) { state.texts = doc.texts; state.config = doc.config; changed('texts'); changed('config'); }
+export function applyAnonymous(doc) {
+  Object.assign(state, { texts: doc.texts, config: doc.config, emojiImages: doc.emojiImages });
+  for (const part of ['texts', 'config', 'emojiImages']) changed(part);
+}
 
 export function setUpdateAvailable() { state.updateAvailable = true; changed('connection'); }   // the dot turns red (SH-17)
 export function clearUpdateAvailable() { state.updateAvailable = false; changed('connection'); }   // the server's own answer named this page's build after all
@@ -61,7 +64,6 @@ export function setConnectionFailed(value) {
   changed('connection');
 }
 
-export function setCatalog(doc) { state.catalog = doc; changed('catalog'); }
 
 // ---- the open conversation ----
 // 'messages' listeners receive a detail that says what changed, so the timeline can update one row

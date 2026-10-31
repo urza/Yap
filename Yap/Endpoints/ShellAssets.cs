@@ -31,7 +31,10 @@ public sealed class ShellAssets
             .Concat(Files(webRoot, "images", "*.png")).Concat(Files(webRoot, "images", "*.svg"));
 
         ImportMap = JsonSerializer.Serialize(new { imports = modules.ToDictionary(p => p, p => $"{p}?v={v}") });
-        ModulePreloads = string.Join("\n    ", modules.Select(p => $"""<link rel="modulepreload" href="{p}?v={v}" />"""));
+        // Data modules (js/data: the picker's emoji list, 44 KB) are imported on demand and must not be preloaded: a preload
+        // fetches and compiles them at every start, for a picker that may never open (PK-11). They stay in the import map
+        // and in the worker's list, so the import on first use carries the build stamp and is a cache hit.
+        ModulePreloads = string.Join("\n    ", modules.Where(p => !p.StartsWith("/js/data/")).Select(p => $"""<link rel="modulepreload" href="{p}?v={v}" />"""));
         ShellList = JsonSerializer.Serialize(new[] { "/login" }.Concat(versioned).Concat(plain));
     }
 

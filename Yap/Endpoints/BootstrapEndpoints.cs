@@ -6,6 +6,7 @@ using Yap.Models.Chat;
 using Yap.Models.Notifications;
 using Yap.Services.Accounts;
 using Yap.Services.Chat;
+using Yap.Services.Emoji;
 using Yap.Services.Gifs;
 using Yap.Services.Media;
 using Yap.Services.Notifications;
@@ -15,7 +16,9 @@ namespace Yap.Endpoints;
 
 /// <summary>
 /// GET /api/bootstrap: one document with every value the client needs to draw the frame. Fetched at start and
-/// after every hub connect; the client replaces its shared store with it and applies hub messages on top.
+/// after every hub connect; the client replaces its shared store with it and applies hub messages on top. The
+/// device stores it and paints from the copy before any answer, so it carries everything the first paint needs,
+/// the emoji image rules included.
 /// Anonymous: without a user it returns the project name and the login texts only, so the login, verify and
 /// invite pages get their texts in the same first call (docs/architecture/bootstrap-and-events.md).
 /// </summary>
@@ -27,10 +30,10 @@ public static class BootstrapEndpoints
         api.MapGet("/bootstrap", (HttpContext http, ClaimsPrincipal principal,
             UserService users, ChatService chat, PresenceService presence, NotificationSettingsService mutes, GifService gifs,
             AccessLinkService links, RegistrationGateService gate, LinkPreviewSettingsService previews,
-            PushNotificationService push, SystemBotService bot, ServerConfig config) =>
+            PushNotificationService push, SystemBotService bot, ServerConfig config, EmojiImages images) =>
         {
             if (!principal.IsSignedIn())
-                return Results.Ok(new { config = new { config.ProjectName }, texts = config.LoginTexts() });
+                return Results.Ok(new { config = new { config.ProjectName }, texts = config.LoginTexts(), emojiImages = images.Rules });   // the login texts draw emoji as images too (GEN-20)
 
             var me = users.GetById(principal.Id());
             if (me is null) return Results.Unauthorized();
@@ -55,7 +58,8 @@ public static class BootstrapEndpoints
                 Unread: chat.UnreadCounts(me.Id),
                 Mutes: mutes.For(me.Id),
                 Emoji: new EmojiStateDto(users.GetRecentEmojis(me.Username), chat.QuickReactions(me.Id)),
-                FavoriteGifIds: gifs.GetFavorites(me.Id).Select(g => g.Id).ToList()));
+                FavoriteGifIds: gifs.GetFavorites(me.Id).Select(g => g.Id).ToList(),
+                EmojiImages: images.Rules));   // where emoji pictures come from: the client needs it before its first paint (text.js useImages)
         }).AllowAnonymous();
     }
 }
@@ -63,7 +67,7 @@ public static class BootstrapEndpoints
 public sealed record BootstrapDto(
     MeDto User, ClientConfigDto Config, TextsDto Texts, List<RoomDto> Rooms, List<UserDto> Users,
     Dictionary<string, EffectiveStatus> Presence, List<DmDto> Dms, Dictionary<Guid, int> Unread, MutesDto Mutes,
-    EmojiStateDto Emoji, List<Guid> FavoriteGifIds);
+    EmojiStateDto Emoji, List<Guid> FavoriteGifIds, EmojiImagesDto EmojiImages);
 
 public sealed record ClientConfigDto(
     string ProjectName, string UploadUrl, int MaxUploadMB, int VoiceMaxSeconds, string BeaconUrl,

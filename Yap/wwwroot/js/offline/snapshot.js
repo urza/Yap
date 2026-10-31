@@ -16,10 +16,12 @@ export const keyOf = open => open.partner ? `dm:${open.partner}` : open.channelI
 
 export async function saveBootstrap(doc) { await db.put(db.STORES.snapshots, { doc, at: Date.now() }, BOOTSTRAP); }
 
-// The stored document, when it belongs to the account that is signed in (a different account starts empty).
+// The stored document, when it belongs to the account that is signed in (a different account starts empty). A copy
+// without the image rules is from a build before 2026-10-31 and does not count: it would paint the device's own emoji
+// font once, before the hub's bootstrap stores the new shape.
 export async function loadBootstrap() {
   const row = await db.get(db.STORES.snapshots, BOOTSTRAP);
-  return row?.doc?.user ? row.doc : null;
+  return row?.doc?.user && row.doc.emojiImages ? row.doc : null;
 }
 
 // The drafts, one per conversation, kept through a reload (IB-53, GEN-21).
@@ -54,9 +56,9 @@ function queueTail() {
 
 // The bootstrap document, rebuilt from the store: the same shape the server sends.
 function docFromState() {
-  const { user, config, texts, rooms, users, presence, dms, unread, mutes, emoji, favoriteGifIds } = state;
+  const { user, config, texts, rooms, users, presence, dms, unread, mutes, emoji, favoriteGifIds, emojiImages } = state;
   if (!user) return null;
-  return { user, config, texts, rooms, users: Object.values(users), presence, dms, unread, mutes, emoji, favoriteGifIds: [...favoriteGifIds] };
+  return { user, config, texts, rooms, users: Object.values(users), presence, dms, unread, mutes, emoji, favoriteGifIds: [...favoriteGifIds], emojiImages };
 }
 
 function queueBootstrap() {
@@ -66,4 +68,4 @@ function queueBootstrap() {
 
 on('messages', queueTail);
 on('drafts', () => { clearTimeout(draftTimer); draftTimer = setTimeout(() => db.put(db.STORES.kv, { ...state.drafts }, 'drafts'), 500); });
-for (const part of ['users', 'presence', 'rooms', 'dms', 'unread', 'mutes', 'emoji', 'favoriteGifIds']) on(part, queueBootstrap);
+for (const part of ['users', 'presence', 'rooms', 'dms', 'unread', 'mutes', 'emoji', 'favoriteGifIds', 'emojiImages']) on(part, queueBootstrap);

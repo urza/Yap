@@ -10,7 +10,6 @@ import * as router from './router.js';
 import * as frame from './ui/frame.js';
 import * as overlays from './ui/overlays.js';
 import * as session from './session.js';
-const { loadCatalog } = session;
 import * as text from './render/text.js';
 import * as time from './render/time.js';
 import { clone } from './render/dom.js';
@@ -79,7 +78,7 @@ on('user', () => {
   time.usePreferences(u);
 });
 
-on('catalog', () => text.useCatalog(state.catalog));
+on('emojiImages', () => text.useImages(state.emojiImages));   // registered before start(): the rules are in place when the stored copy paints
 
 // The new-version strip and the fresh load of a new build live in update.js (SH-20, OF-18).
 
@@ -147,7 +146,6 @@ async function start() {
   }
   if (doc?.user) {
     applyBootstrap(doc);
-    loadCatalog();
     hub.connect();
   } else {
     if (doc) applyAnonymous(doc);                            // the login texts, without an account

@@ -161,7 +161,7 @@ app.UseMiddleware<RequestLoggingMiddleware>();                       // kept; th
 app.MapHub<ChatHub>("/hub");
 app.MapShell();                                                      // index.html with the build stamp, the welcome page
 var api = app.MapGroup("/api").RequireAuthorization();
-api.MapBootstrap(); api.MapAccount(); api.MapMessages(); api.MapRooms(); api.MapGifs(); api.MapPush(); api.MapEmoji();
+api.MapBootstrap(); api.MapAccount(); api.MapMessages(); api.MapRooms(); api.MapGifs(); api.MapPush();
 api.MapGroup("/admin").RequireAuthorization("admin").MapAdmin();
 app.MapSignIn(); app.MapTus(); app.MapPwa(); app.MapBeacon();        // their own auth rules, as today
 
@@ -176,7 +176,7 @@ As built, Program.cs registers the services in one flat list (the per-area `AddX
 | --- | --- |
 | `AddRazorComponents().AddInteractiveServerComponents()`, `CircuitOptions`, `RegisterPersistentService` | gone |
 | `AddCircuitHandler<ChatCircuitHandler>`, `CircuitTracker`, `CircuitIdentity` | PresenceService |
-| scoped `UserStateService`, `ChatNavigationState`, `ChatConfigService`, `EmojiService` | principal, client state, `ChatTexts` singleton, `EmojiCatalog` singleton |
+| scoped `UserStateService`, `ChatNavigationState`, `ChatConfigService`, `EmojiService` | principal, client state, `ChatTexts` singleton, `EmojiImages` singleton |
 | `UseAntiforgery` | gone; the API is JSON with SameSite cookies, the kept form POSTs already opt out |
 | `UseExceptionHandler("/Error")`, `UseStatusCodePagesWithReExecute("/not-found")` | ProblemDetails for the API; the client shows "Not Found" for an unknown app route (SH-42) |
 | `AuthMiddleware`, `DeviceDetectionMiddleware` | the handler; one User-Agent check at hub connect |

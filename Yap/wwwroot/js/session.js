@@ -21,13 +21,6 @@ tabs?.addEventListener('message', e => {
   else if (e.data === 'started' && !store.state.user) signedIn({ tell: false });
 });
 
-// The emoji catalogue (GET /api/emoji): loaded once per build, after a start with a cookie and after a sign-in.
-export async function loadCatalog() {
-  if (store.state.catalog) return;
-  try { store.setCatalog(await api.get(`/api/emoji?v=${encodeURIComponent(document.documentElement.dataset.build ?? '')}`)); }
-  catch { /* emoji show as text until the next start */ }
-}
-
 export function rememberReturnTo(path) { try { sessionStorage.setItem(RETURN_TO, path); } catch { /* private mode */ } }
 
 function takeReturnTo() {
@@ -40,7 +33,6 @@ export async function signedIn({ tell = true } = {}) {
   if (!doc.user) return false;
   setNotice(null);   // back in: the login page has nothing to say next time (AU-21)
   store.applyBootstrap(doc);
-  loadCatalog();
   hub.resume();
   hub.connect();
   router.navigate(takeReturnTo() || '/', { replace: true });
