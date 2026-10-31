@@ -56,13 +56,18 @@ async function saveTail(key, conversation) {
 // box until the worker answered from its cache, the last visible gap of a cold open (2026-10-31). The bytes come
 // through the worker's cache-first fetch, once per URL for the life of the page.
 //
+// Each picture is a data URL, not a Blob: the bytes travel inside the address, so an <img> can use it for as long as
+// the page lives. The first build kept Blobs and drew from object URLs (URL.createObjectURL), and on iOS those stopped
+// resolving after an hour in the background while the page lived on: the header chip, redrawn at every reconnect,
+// showed the name's emoji as empty boxes until a force close. A data URL has nothing that can die.
+//
 // Two bounds. A picture above MAX_PICTURE_BYTES (an animated custom emoji) is never kept. A record holds at most
-// PICTURE_BUDGET of pictures in all, newest row first: a room full of custom PNG emoji would otherwise store
+// PICTURE_BUDGET of data URLs in all, newest row first: a room full of custom PNG emoji would otherwise store
 // megabytes, written again at every save, and the rows that lose their pictures are the oldest, scrolled away at
 // open. A picture that is not in the record loads the usual way, through the worker's cache.
-const MAX_PICTURE_BYTES = 64 * 1024, PICTURE_BUDGET = 256 * 1024;
+const MAX_PICTURE_BYTES = 64 * 1024, PICTURE_BUDGET = 256 * 1024;   // base64 makes a data URL a third longer than its bytes
 const FETCH_TIMEOUT = 10_000;   // a CDN request that hangs must not hold the record for the browser's own minutes
-const have = new Map();         // url -> Blob, or null when the picture is too big or the server answered an error
+const have = new Map();         // url -> data URL, or null when the picture is too big or the server answered an error
 const fetching = new Map();     // url -> Promise, while the request is in the air
 
 // The URLs of the images a record draws, each once, newest row first: the order choose() fills the budget in.
@@ -87,10 +92,10 @@ function choose(urls) {
   const pictures = {};
   let total = 0;
   for (const url of urls) {
-    const blob = have.get(url);
-    if (!blob || total + blob.size > PICTURE_BUDGET) continue;
-    pictures[url] = blob;
-    total += blob.size;
+    const picture = have.get(url);
+    if (!picture || total + picture.length > PICTURE_BUDGET) continue;
+    pictures[url] = picture;
+    total += picture.length;
   }
   return pictures;
 }
@@ -99,16 +104,34 @@ function fetchPicture(url) {
   if (!fetching.has(url)) {
     fetching.set(url, fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT) })
       .then(r => r.ok ? r.blob() : null)
-      .then(blob => { have.set(url, blob && blob.size <= MAX_PICTURE_BYTES ? blob : null); })
+      .then(blob => blob && blob.size <= MAX_PICTURE_BYTES ? dataUrl(blob) : null)
+      .then(picture => { have.set(url, picture); })
       .catch(() => {})   // offline, or timed out: not settled, so the next save tries again
       .finally(() => fetching.delete(url)));
   }
   return fetching.get(url);
 }
 
+// data:<type>;base64,... with the type the server named for the bytes: an SVG draws only under image/svg+xml.
+function dataUrl(blob) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(blob);
+  });
+}
+
 export async function loadTail(key) {
   const row = await db.get(db.STORES.snapshots, tail(key));
-  return row ?? null;
+  if (!row) return null;
+  // Strings only: a record of the builds of 2026-10-31 holds Blobs, and "[object Blob]" would be a broken image. Such a
+  // record paints without pictures, and the next save rewrites it. Storage is a convenience, never a dependency (db.js).
+  row.pictures = Object.fromEntries(Object.entries(row.pictures ?? {}).filter(([, picture]) => typeof picture === 'string'));
+  // The record's pictures are pictures the device has. Without this, the first save of a page wrote the record
+  // without them until the fetches answered, and offline with nothing in the worker's cache it lost them for good.
+  for (const [url, picture] of Object.entries(row.pictures)) if (!have.has(url)) have.set(url, picture);
+  return row;
 }
 
 export async function clearAll() {
