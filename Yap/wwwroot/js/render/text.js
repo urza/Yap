@@ -92,7 +92,7 @@ export function emojiImage(emoji, size = 'text', { lazy = false } = {}) {
   const src = emojiUrl(emoji);
   if (!src) return document.createTextNode(emoji);
   // crossorigin: the CDN answers with CORS headers, so the service worker can store a real response, not an opaque one.
-  return el('img', { class: `emoji emoji-${size}`, src: pictures.get(src) ?? src, alt: emoji, draggable: 'false', crossorigin: 'anonymous', loading: lazy ? 'lazy' : null, onerror: imageFailed });
+  return el('img', { class: `emoji emoji-${size}`, ...pictureAttrs(src), alt: emoji, draggable: 'false', crossorigin: 'anonymous', loading: lazy ? 'lazy' : null, onerror: imageFailed });
 }
 
 // An image that did not arrive (a poor connection, a short outage of the CDN, the device offline) would stay a
@@ -105,6 +105,17 @@ const RETRY_DELAYS = [3000, 10000, 30000];
 const failed = new Set();
 export function imageFailed(event) {
   const img = event.target;
+  // A dead object URL (pictureAttrs): on iOS the object URLs of a page stop resolving after a long background, while
+  // a fresh page's work. Retrying the same URL cannot help, so the network URL loads instead, through the worker's
+  // cache. One dead object URL means they all are: every later draw uses the network URL, and every image on screen
+  // that still points at one moves now, this one included. The people list is not rebuilt while nothing in it
+  // changed, and a picture that is decoded today can be purged while the page sleeps. Found 2026-10-31: after an
+  // hour in the background the header chip drew the name's emoji as empty boxes until the app was force closed.
+  if (img.src.startsWith('blob:') && img.dataset.url) {
+    pictures.clear();
+    for (const picture of document.querySelectorAll('img[src^="blob:"][data-url]')) picture.src = picture.dataset.url;
+    return;
+  }
   const attempts = (Number(img.dataset.attempts) || 0) + 1;
   img.dataset.attempts = attempts;
   const delay = RETRY_DELAYS[attempts - 1];
@@ -122,7 +133,7 @@ export function retryFailedImages() {
 
 export function packImage(shortcode, size = 'text', { lazy = false } = {}) {
   const url = packs.get(shortcode);
-  return url ? el('img', { class: `emoji emoji-${size} emoji-custom`, src: pictures.get(url) ?? url, alt: `:${shortcode}:`, draggable: 'false', loading: lazy ? 'lazy' : null }) : null;
+  return url ? el('img', { class: `emoji emoji-${size} emoji-custom`, ...pictureAttrs(url), alt: `:${shortcode}:`, draggable: 'false', loading: lazy ? 'lazy' : null, onerror: imageFailed }) : null;
 }
 
 const SHORTCODE = /:([a-zA-Z0-9_-]+):/g;
@@ -153,8 +164,17 @@ export function imageUrls(text) {
 // The pictures the device stored with the tail it paints from (offline/snapshot.js), by image URL. An <img> built
 // while its URL is here gets an object URL instead, so the stored paint draws the emoji with the text in one frame
 // instead of an empty box until the worker answers; the rows the server sends a moment later use them too. The
-// object URLs stay for the life of the page: a few kilobytes each, and the rows keep pointing at them.
+// object URLs stay until one of them fails to load (imageFailed): a few kilobytes each, and the rows keep pointing
+// at them.
 const pictures = new Map();
+
+// The src of an emoji or pack image: the object URL while the device has one, with the network URL kept on the
+// element so a dead object URL can fall back to it (imageFailed).
+function pictureAttrs(url) {
+  const picture = pictures.get(url);
+  return picture ? { src: picture, dataset: { url } } : { src: url };
+}
+
 export function usePictures(stored) {
   for (const [url, blob] of Object.entries(stored ?? {})) {
     // A Blob only: a record from another build, or from a browser that does not keep Blobs in IndexedDB, holds
