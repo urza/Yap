@@ -6,7 +6,8 @@
 // reach the disk a moment later, so an offline reload shows what the page last showed.
 
 import * as db from './db.js';
-import { state, on } from '../store.js';
+import { state, on, displayName } from '../store.js';
+import * as text from '../render/text.js';
 
 const BOOTSTRAP = 'bootstrap';
 const tail = key => `tail:${key}`;
@@ -27,10 +28,45 @@ export async function loadBootstrap() {
 // The drafts, one per conversation, kept through a reload (IB-53, GEN-21).
 export async function loadDrafts() { return (await db.get(db.STORES.kv, 'drafts')) ?? {}; }
 
+let tailGeneration = 0;
 async function saveTail(key, conversation) {
   // The tail only: a page of older messages is not stored (OF-14 keeps the promise modest).
   const messages = conversation.messages.slice(-50);
-  await db.put(db.STORES.snapshots, { channelId: conversation.channelId, partner: conversation.partner ?? null, messages, hasMore: conversation.hasMore && messages.length === conversation.messages.length, restricted: conversation.restricted, typists: [], pins: conversation.pins ?? [], at: Date.now() }, tail(key));
+  const generation = ++tailGeneration;
+  const pictures = await picturesOf(messages);
+  if (generation !== tailGeneration) return;   // a newer save started while the pictures came; its record holds everything
+  await db.put(db.STORES.snapshots, { channelId: conversation.channelId, partner: conversation.partner ?? null, messages, hasMore: conversation.hasMore && messages.length === conversation.messages.length, restricted: conversation.restricted, typists: [], pins: conversation.pins ?? [], pictures, at: Date.now() }, tail(key));
+}
+
+// The pictures of a tail: the emoji and pack images its rows draw, as the device has them (render/text.js usePictures).
+// With them, the stored paint shows the emoji in the same frame as the text. Without them each emoji was an empty
+// box until the worker answered from its cache, the last visible gap of a cold open (2026-10-31). The bytes come
+// through the worker's cache-first fetch, once per URL for the life of the page. A picture above MAX_PICTURE_BYTES
+// (an animated custom emoji) is left out and loads the usual way; MAX_PICTURES bounds the record for rows full of
+// distinct emoji. Both keep a tail at some tens of kilobytes.
+const MAX_PICTURES = 64, MAX_PICTURE_BYTES = 64 * 1024;
+const fetched = new Map();   // url -> Promise<Blob | null>
+
+async function picturesOf(messages) {
+  const urls = new Set(messages.flatMap(m => drawnTexts(m).flatMap(text.imageUrls)));
+  const entries = await Promise.all([...urls].slice(0, MAX_PICTURES).map(async url => [url, await picture(url)]));
+  return Object.fromEntries(entries.filter(([, blob]) => blob));
+}
+
+// What a stored row draws through inline(): the text, the quoted reply, the names, the reaction emoji.
+function drawnTexts(m) {
+  const names = [m.username, m.replyTo?.username].filter(Boolean).map(displayName);
+  return [m.text, m.replyTo?.text, ...names, ...(m.reactions ?? []).map(r => r.emoji)].filter(Boolean);
+}
+
+function picture(url) {
+  if (!fetched.has(url)) {
+    fetched.set(url, fetch(url)
+      .then(r => r.ok ? r.blob() : null)
+      .then(blob => blob && blob.size <= MAX_PICTURE_BYTES ? blob : null)
+      .catch(() => { fetched.delete(url); return null; }));   // offline: the next save tries again
+  }
+  return fetched.get(url);
 }
 
 export async function loadTail(key) {

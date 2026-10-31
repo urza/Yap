@@ -92,7 +92,7 @@ export function emojiImage(emoji, size = 'text', { lazy = false } = {}) {
   const src = emojiUrl(emoji);
   if (!src) return document.createTextNode(emoji);
   // crossorigin: the CDN answers with CORS headers, so the service worker can store a real response, not an opaque one.
-  return el('img', { class: `emoji emoji-${size}`, src, alt: emoji, draggable: 'false', crossorigin: 'anonymous', loading: lazy ? 'lazy' : null, onerror: imageFailed });
+  return el('img', { class: `emoji emoji-${size}`, src: pictures.get(src) ?? src, alt: emoji, draggable: 'false', crossorigin: 'anonymous', loading: lazy ? 'lazy' : null, onerror: imageFailed });
 }
 
 // An image that did not arrive (a poor connection, a short outage of the CDN, the device offline) would stay a
@@ -122,7 +122,7 @@ export function retryFailedImages() {
 
 export function packImage(shortcode, size = 'text', { lazy = false } = {}) {
   const url = packs.get(shortcode);
-  return url ? el('img', { class: `emoji emoji-${size} emoji-custom`, src: url, alt: `:${shortcode}:`, draggable: 'false', loading: lazy ? 'lazy' : null }) : null;
+  return url ? el('img', { class: `emoji emoji-${size} emoji-custom`, src: pictures.get(url) ?? url, alt: `:${shortcode}:`, draggable: 'false', loading: lazy ? 'lazy' : null }) : null;
 }
 
 const SHORTCODE = /:([a-zA-Z0-9_-]+):/g;
@@ -135,6 +135,28 @@ export function inline(text, size = 'inline') {
     for (const seg of splitEmoji(part.text)) nodes.push(seg.emoji ? emojiImage(seg.emoji, size) : document.createTextNode(seg.text));
   }
   return nodes;
+}
+
+// The URLs of the emoji and pack images that inline(text) draws: what the snapshot stores with a conversation's tail.
+export function imageUrls(text) {
+  const urls = [];
+  for (const part of splitShortcodes(text)) {
+    if (part.shortcode) { urls.push(packs.get(part.shortcode)); continue; }
+    for (const seg of splitEmoji(part.text)) {
+      const url = seg.emoji && emojiUrl(seg.emoji);
+      if (url) urls.push(url);
+    }
+  }
+  return urls;
+}
+
+// The pictures the device stored with the tail it paints from (offline/snapshot.js), by image URL. An <img> built
+// while its URL is here gets an object URL instead, so the stored paint draws the emoji with the text in one frame
+// instead of an empty box until the worker answers; the rows the server sends a moment later use them too. The
+// object URLs stay for the life of the page: a few kilobytes each, and the rows keep pointing at them.
+const pictures = new Map();
+export function usePictures(stored) {
+  for (const [url, blob] of Object.entries(stored ?? {})) if (!pictures.has(url)) pictures.set(url, URL.createObjectURL(blob));
 }
 
 function splitShortcodes(text) {
@@ -154,7 +176,8 @@ function splitShortcodes(text) {
 
 // ---- links (MR-12) ----
 
-const URL = /(?:https?:\/\/|www\.)[^\s<>"']*[^\s<>"'.,;:!?-]|(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+(?:com|org|net|io|dev|app|co|me|info|edu|gov)\b(?:\/[^\s<>"']*)?/gi;
+// Named LINK, not URL: usePictures above calls the global URL.createObjectURL, and a const of that name would hide it.
+const LINK = /(?:https?:\/\/|www\.)[^\s<>"']*[^\s<>"'.,;:!?-]|(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+(?:com|org|net|io|dev|app|co|me|info|edu|gov)\b(?:\/[^\s<>"']*)?/gi;
 
 // Trailing punctuation stays outside the link; a ")" that balances a "(" in the address stays inside.
 function trimLink(url) {
@@ -168,9 +191,9 @@ function trimLink(url) {
 // Addresses in text, as the server finds them for the preview cards.
 function findLinks(text) {
   const links = [];
-  URL.lastIndex = 0;
+  LINK.lastIndex = 0;
   let m;
-  while ((m = URL.exec(text))) {
+  while ((m = LINK.exec(text))) {
     const url = trimLink(m[0]);
     if (!url) continue;
     if (text[m.index - 1] === '@') continue;        // the domain of an e-mail address is not a link (MR-13)
