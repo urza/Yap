@@ -19,8 +19,8 @@ public sealed class Context(int worker, YapApi api, Controls controls, Stats sta
     public ConcurrentBag<string> ImagePool { get; } = [];
     public const int ImagePoolSize = 20;
 
-    /// <summary>Custom emoji shortcodes from /api/emoji, fetched once by the first user that connects.</summary>
+    /// <summary>Custom emoji shortcodes from the bootstrap's emojiImages, kept by the first user that connects.</summary>
     public volatile IReadOnlyList<string> Shortcodes = [];
-    private int _catalogFetched;
-    public bool ClaimCatalogFetch() => Interlocked.Exchange(ref _catalogFetched, 1) == 0;
+    private int _shortcodesClaimed;
+    public bool ClaimShortcodes() => Interlocked.Exchange(ref _shortcodesClaimed, 1) == 0;
 }

@@ -22,11 +22,11 @@ public sealed record UserDto(string Username, bool IsAdmin, bool IsBot);
 public sealed record MeDto(Guid Id, string Username, bool IsAdmin);
 public sealed record LinkDto(string Code, string Url);
 public sealed record ClientConfigDto(string UploadUrl, int MaxUploadMB, bool LinkPreviews, bool MediaCaching);
-public sealed record BootstrapDto(MeDto? User, ClientConfigDto? Config, List<RoomDto>? Rooms, List<UserDto>? Users);
+public sealed record BootstrapDto(MeDto? User, ClientConfigDto? Config, List<RoomDto>? Rooms, List<UserDto>? Users, EmojiImages? EmojiImages);
 public sealed record Conversation(Guid ChannelId, List<MessageDto> Messages);
 public sealed record EmojiEntry(string Shortcode);
 public sealed record EmojiPack(string Key, List<EmojiEntry> Emojis);
-public sealed record EmojiCatalog(List<EmojiPack>? Packs);
+public sealed record EmojiImages(List<EmojiPack>? Packs);
 public sealed record TusInfo(string? Url, string? Type);
 
 public sealed record SendMessageRequest(Guid ClientId, string? Text, Guid? ReplyToId, List<string>? Images);

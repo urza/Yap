@@ -20,21 +20,27 @@ export function EmojiPicker({ onPick, recordUse = true }) {
   const clear = picker.querySelector('.emoji-search-clear');
   const empty = picker.querySelector('.emoji-search-empty');
   let built = false;
+  let keywords = {};   // the list's search words, kept for Recent (PK-07); filled by build()
 
-  function build() {
-    const catalog = state.catalog;
-    if (!catalog) return;
+  // The first open imports the picker's list (js/data/emoji-list.js). It ships with the shell and the worker has it, so
+  // the wait is a cache hit, and a closed picker costs the start nothing (PK-11). The packs are runtime data and come
+  // with the bootstrap.
+  async function build() {
     built = true;
+    let data;
+    try { data = await import('../data/emoji-list.js'); }
+    catch { built = false; return; }   // offline before the worker stored the shell: the next open tries again
+    keywords = data.keywords;
     const list = [];   // { key, title, icon(), cells: [{ value, keywords, node() }] }
     list.push({ key: 'recent', title: 'Recent', icon: () => emojiImage('🕐', 'inline', { lazy: true }), cells: [] });
-    for (const pack of catalog.packs) {
+    for (const pack of state.emojiImages?.packs ?? []) {
       if (!pack.emojis.length) continue;
       list.push({ key: pack.key, title: pack.name, icon: () => packImage(pack.emojis[0].shortcode, 'inline'),
         cells: pack.emojis.map(e => ({ value: `:${e.shortcode}:`, keywords: `${e.shortcode} ${e.keywords ?? ''}`.toLowerCase(), title: `:${e.shortcode}:`, node: () => packImage(e.shortcode, 'text', { lazy: true }) })) });
     }
-    for (const c of catalog.categories) {
+    for (const c of data.categories) {
       list.push({ key: c.id, title: CATEGORY_NAMES[c.id] ?? c.id, icon: () => emojiImage(c.icon, 'inline', { lazy: true }),
-        cells: c.emojis.map(e => ({ value: e, keywords: (catalog.keywords[e] ?? '').toLowerCase(), node: () => emojiImage(e, 'text', { lazy: true }) })) });
+        cells: c.emojis.map(e => ({ value: e, keywords: (keywords[e] ?? '').toLowerCase(), node: () => emojiImage(e, 'text', { lazy: true }) })) });
     }
     replace(sidebar, list.map(s => el('button', { class: 'category-btn', type: 'button', 'data-category': s.key, title: s.title, onclick: () => goTo(s.key) }, s.icon())));
     replace(sections, list.map(s => {
@@ -71,7 +77,7 @@ export function EmojiPicker({ onPick, recordUse = true }) {
     const recent = state.emoji?.recent ?? [];
     if (!recent.length) { replace(grid, [el('div', { class: 'emoji-empty' }, 'No recent emojis yet')]); return; }
     replace(grid, recent.map(v => cell(v.startsWith(':') ? { value: v, keywords: v.toLowerCase(), title: v, node: () => packImage(v.slice(1, -1), 'text') ?? document.createTextNode(v) }
-                                                        : { value: v, keywords: (state.catalog?.keywords[v] ?? '').toLowerCase(), node: () => emojiImage(v, 'text', { lazy: true }) })));
+                                                        : { value: v, keywords: (keywords[v] ?? '').toLowerCase(), node: () => emojiImage(v, 'text', { lazy: true }) })));
   }
 
   function goTo(key) {
@@ -117,8 +123,8 @@ export function EmojiPicker({ onPick, recordUse = true }) {
 
   return {
     element: picker,
-    opened() {
-      if (!built) build();
+    async opened() {
+      if (!built) await build();
       fillRecent();
       search.value = ''; filter('');
       content.scrollTop = 0;

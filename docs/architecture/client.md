@@ -67,11 +67,11 @@ Four kinds of module:
 | Kind | Modules | Role |
 | --- | --- | --- |
 | core | `store`, `api`, `hub`, `router` | hold the state and talk to the server. They know nothing about the DOM. |
-| render | `render/*` | turn a value into DOM nodes or strings. No DOM state; `text` keeps the emoji catalogue it was given and `time` the account's format, nothing else. |
+| render | `render/*` | turn a value into DOM nodes or strings. No DOM state; `text` keeps the emoji image rules it was given and `time` the account's format, nothing else. |
 | ui | `ui/*` | one visible component each. A component reads the store, draws itself, and reacts to input. |
 | pages | `pages/*` | one route each. A page mounts the components it needs and removes them when the route changes. |
 
-`session`, `catalog`, `sender`, `upload`, `notify` and the offline modules are helpers. They are called by the ui modules, by `main` and by `hub`.
+`session`, `sender`, `upload`, `notify` and the offline modules are helpers. They are called by the ui modules, by `main` and by `hub`.
 
 ## How the modules depend on each other
 
@@ -171,8 +171,8 @@ export function changed(...parts) {      // the writer calls this after it chang
 export function applyBootstrap(doc) {    // replaces the shared data as a whole; see the wire contract, "Bootstrap"
   Object.assign(state, { user: doc.user, config: doc.config, texts: doc.texts, rooms: doc.rooms,
     users: Object.fromEntries(doc.users.map(u => [u.username, u])), presence: doc.presence, dms: doc.dms,
-    unread: doc.unread, mutes: doc.mutes, emoji: doc.emoji, favoriteGifIds: new Set(doc.favoriteGifIds) });
-  changed('user', 'rooms', 'users', 'presence', 'dms', 'unread', 'mutes', 'emoji', 'favoriteGifIds');
+    unread: doc.unread, mutes: doc.mutes, emoji: doc.emoji, favoriteGifIds: new Set(doc.favoriteGifIds), emojiImages: doc.emojiImages });
+  changed('user', 'rooms', 'users', 'presence', 'dms', 'unread', 'mutes', 'emoji', 'favoriteGifIds', 'emojiImages');
 }
 ```
 

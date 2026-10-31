@@ -146,7 +146,7 @@ builder.Services.AddSingleton<IGifSourceProvider, KlipyGifProvider>();
 builder.Services.AddSingleton<GifService>();
 builder.Services.AddSingleton<GeoLocationService>();
 builder.Services.AddSingleton<CustomEmojiService>();
-builder.Services.AddSingleton<EmojiCatalog>();
+builder.Services.AddSingleton<EmojiImages>();
 builder.Services.AddSingleton<UploadPaths>();
 builder.Services.AddSingleton<MediaSizes>();   // picture and poster sizes, read from the files once: the row's box before the load
 builder.Services.AddSingleton<ImageService>();
@@ -426,7 +426,6 @@ var api = app.MapGroup("/api").RequireAuthorization();
 api.MapBootstrap();   // anonymous inside: it answers both states
 api.MapMessages();
 api.MapAccount();
-api.MapEmoji();
 api.MapGifs();
 
 // These map their own full paths (/api/tus, /api/push, and the PWA files at the root), so they take the app, not the /api group.

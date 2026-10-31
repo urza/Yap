@@ -119,7 +119,7 @@ await step(4, 'Emoji-only and mixed', async (check) => {
 });
 
 await step(5, 'Pack emoji', async (check) => {
-  const sc = await A.evaluate(() => fetch('/api/emoji').then(r => r.json()).then(d => d.packs?.[0]?.emojis?.[0]?.shortcode ?? null));
+  const sc = await A.evaluate(() => fetch('/api/bootstrap').then(r => r.json()).then(d => d.emojiImages?.packs?.[0]?.emojis?.[0]?.shortcode ?? null));
   check(!!sc, `packs[0].emojis[0].shortcode = ${sc}`);
   if (!sc) return;
   await send(A, `:${sc}:`);

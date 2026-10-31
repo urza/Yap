@@ -18,7 +18,7 @@ The contract between the vanilla JavaScript client and the ASP.NET Core server. 
 The route is anonymous and answers both states. Without a valid cookie it returns 200 with this shape and nothing else, so the login, verify and invite pages get their texts in the same first call:
 
 ```
-{ config: { projectName }, texts: { loginHeadings[], loginButtons[], loginPlaceholders[] } }
+{ config: { projectName }, texts: { loginHeadings[], loginButtons[], loginPlaceholders[] }, emojiImages: { ...as below } }
 ```
 
 The client branches on the presence of `user`.
@@ -44,8 +44,10 @@ What the client keeps across a reconnect: the view position, the draft, the pend
   unread: { channelId: count },
   mutes:  { server: { muted, until }, dmMode, roomMode, newDmsMuted, channels: { channelId: muted } },
   emoji:  { recent[], quickReactions[] },
-  favoriteGifIds: []
-}
+  favoriteGifIds: [],
+  emojiImages: { twemojiBase, overridesBase, overrides[],            // where emoji pictures come from (GEN-20): the device stores it with the rest,
+                 packs: [ { key, name, emojis: [ { shortcode, url, keywords } ] } ] }   // so the first paint never shows the device's own emoji font. The picker's
+}                                                                    // own list (categories, keywords) is a static module, js/data/emoji-list.js
 ```
 
 ## Hub methods (client to server)
@@ -137,7 +139,6 @@ Kept routes keep their exact behaviour; their contracts are in the current code.
 | --- | --- |
 | `GET /`, `/lobby`, `/room/{id}`, `/dm/{user}`, `/settings`, `/admin`, `/channel/new`, `/channel/{id}/settings`, `/login`, `/verify/{user}`, `/invite/{code}` | `index.html` with the build stamp injected (new). `/` serves `Data/welcome/welcome.html` to a signed-out visitor when the welcome page is enabled. |
 | `GET /manifest.webmanifest`, `GET /pwa-launch` | kept |
-| `GET /api/emoji` | Catalogue: `{ categories[], keywords{}, packs[], images: { twemojiBase, overridesBase, overrides[] } }`. Signed in. Immutable; the client appends the build stamp (new). |
 | static: `/uploads`, `/gif-cache`, `/media-cache`, `/custom-emojis`, `/emoji-packs`, `/welcome-content`, branding overrides | kept |
 
 ### Sign-in

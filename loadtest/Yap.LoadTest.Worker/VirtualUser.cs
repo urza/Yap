@@ -112,7 +112,8 @@ public sealed class VirtualUser(Context ctx, string username, string token, int 
         if (_homeRoom == Guid.Empty) _homeRoom = HomeRoom();
         if (_channel == Guid.Empty) _channel = _homeRoom;
         await OpenAsync(hub, _channel, ct);
-        if (ctx.ClaimCatalogFetch()) _ = FetchCatalogAsync(ct);
+        // The custom shortcodes travel with the bootstrap; the first user to get one keeps them for all.
+        if (ctx.ClaimShortcodes()) ctx.Shortcodes = (b.EmojiImages?.Packs ?? []).SelectMany(p => p.Emojis).Select(e => e.Shortcode).ToList();
     }
 
     // Test rooms are lt-room-NN; user i lives in room i mod N. One room means the lobby.
@@ -132,16 +133,6 @@ public sealed class VirtualUser(Context ctx, string username, string token, int 
             _recent.Clear();
             foreach (var m in conversation.Messages.TakeLast(50)) _recent.Enqueue(m.Id);
         }
-    }
-
-    private async Task FetchCatalogAsync(CancellationToken ct)
-    {
-        try
-        {
-            var catalog = await ctx.Api.GetAsync<EmojiCatalog>("/api/emoji", token, ct);
-            ctx.Shortcodes = (catalog?.Packs ?? []).SelectMany(p => p.Emojis).Select(e => e.Shortcode).ToList();
-        }
-        catch { /* custom emoji are optional; the mix falls back to unicode */ }
     }
 
     // ---- incoming ---------------------------------------------------------------------------------------
