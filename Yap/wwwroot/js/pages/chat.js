@@ -9,7 +9,6 @@ import { Timeline } from '../ui/timeline.js';
 import { Composer } from '../ui/composer.js';
 import { el } from '../render/dom.js';
 import * as snapshot from '../offline/snapshot.js';
-import { usePictures } from '../render/text.js';
 import { setTitle } from '../notify.js';
 import * as push from '../push.js';
 import { clone } from '../render/dom.js';
@@ -99,7 +98,6 @@ function resolve({ lobby: wantsLobby, roomId, dmUser }) {
 async function paintStored(target, me) {
   const stored = await snapshot.loadTail(snapshot.keyOf({ partner: target.partner ?? null, channelId: target.channelId }));
   if (me !== generation || state.open) return;
-  usePictures(stored?.pictures);   // the emoji pictures the device kept with the tail: the rows draw them with no request
   setOpen(stored ?? { channelId: target.channelId ?? null, messages: [], hasMore: true, restricted: false, typists: [], loading: true },
           target.kind === 'dm' ? target.partner : null, { fromDevice: !!stored });
   if (stored) markOnce('paint');   // rows from the device (AD-41); the placeholder is not rows

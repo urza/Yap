@@ -92,7 +92,7 @@ export function emojiImage(emoji, size = 'text', { lazy = false } = {}) {
   const src = emojiUrl(emoji);
   if (!src) return document.createTextNode(emoji);
   // crossorigin: the CDN answers with CORS headers, so the service worker can store a real response, not an opaque one.
-  return el('img', { class: `emoji emoji-${size}`, src: pictures.get(src) ?? src, alt: emoji, draggable: 'false', crossorigin: 'anonymous', loading: lazy ? 'lazy' : null, onerror: imageFailed });
+  return el('img', { class: `emoji emoji-${size}`, src, alt: emoji, draggable: 'false', crossorigin: 'anonymous', loading: lazy ? 'lazy' : null, onerror: imageFailed });
 }
 
 // An image that did not arrive (a poor connection, a short outage of the CDN, the device offline) would stay a
@@ -122,7 +122,7 @@ export function retryFailedImages() {
 
 export function packImage(shortcode, size = 'text', { lazy = false } = {}) {
   const url = packs.get(shortcode);
-  return url ? el('img', { class: `emoji emoji-${size} emoji-custom`, src: pictures.get(url) ?? url, alt: `:${shortcode}:`, draggable: 'false', loading: lazy ? 'lazy' : null, onerror: imageFailed }) : null;
+  return url ? el('img', { class: `emoji emoji-${size} emoji-custom`, src: url, alt: `:${shortcode}:`, draggable: 'false', loading: lazy ? 'lazy' : null, onerror: imageFailed }) : null;
 }
 
 const SHORTCODE = /:([a-zA-Z0-9_-]+):/g;
@@ -135,30 +135,6 @@ export function inline(text, size = 'inline') {
     for (const seg of splitEmoji(part.text)) nodes.push(seg.emoji ? emojiImage(seg.emoji, size) : document.createTextNode(seg.text));
   }
   return nodes;
-}
-
-// The URLs of the emoji and pack images that inline(text) draws: what the snapshot stores with a conversation's tail.
-export function imageUrls(text) {
-  const urls = [];
-  for (const part of splitShortcodes(text)) {
-    if (part.shortcode) { urls.push(packs.get(part.shortcode)); continue; }
-    for (const seg of splitEmoji(part.text)) {
-      const url = seg.emoji && emojiUrl(seg.emoji);
-      if (url) urls.push(url);
-    }
-  }
-  return urls;
-}
-
-// The pictures the device stored with the tail it paints from (offline/snapshot.js), by image URL: data URLs, good
-// for as long as the page holds them. An <img> built while its URL is here gets the data URL instead, so the stored
-// paint draws the emoji with the text in one frame instead of an empty box until the worker answers; the rows the
-// server sends a moment later use them too. Not object URLs: on iOS those stopped resolving after an hour in the
-// background while the page lived on, and the header chip, redrawn at every reconnect, showed the name's emoji as
-// empty boxes until a force close (2026-10-31).
-const pictures = new Map();
-export function usePictures(stored) {
-  for (const [url, picture] of Object.entries(stored ?? {})) if (!pictures.has(url)) pictures.set(url, picture);
 }
 
 function splitShortcodes(text) {
