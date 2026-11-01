@@ -168,7 +168,7 @@ The resume in the script (35 s hidden and frozen, the socket's server side gone)
 
 Deploy. Read the Load time table after a few days. The slowest phase per device class is the next target. Likely candidates, to confirm with numbers and not before: the 50-row tail with media thumbnails, the size of the page (91 KB raw), the emoji catalog fetch at boot.
 
-2026-10-31: the emoji catalogue fetch at boot is gone. Its two parts went where they belong. The image rules (the Twemoji base, the override names, the custom packs) travel with the bootstrap as `emojiImages`, so the stored copy paints with them and no row shows the device's own emoji font first. The picker's list (categories, keywords) is a static module, `js/data/emoji-list.js`, precached with the shell and imported by the picker on its first open; `ShellAssets` leaves `js/data/` out of the modulepreload links, so the start neither fetches nor compiles it.
+2026-10-31: the emoji catalogue fetch at boot is gone. Its two parts went where they belong. The image rules (the Twemoji base, the override names, the custom packs) travel with the bootstrap as `emojiImages`, so the stored copy paints with them and no row shows the device's own emoji font first. The picker's list (categories, keywords) is a static module, `js/data/emoji-list.js`, precached with the shell and imported by the picker on its first open; `ShellAssets` leaves `js/data/` out of the modulepreload links, so the start neither fetches nor compiles it. The stored tail then also carries the bytes of the emoji its rows draw (offline-design-notes.md, Reading), so the stored paint shows them with the text in one frame instead of an empty box per emoji until the worker answers.
 
 ## Open points
 

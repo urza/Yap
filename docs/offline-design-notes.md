@@ -57,6 +57,8 @@ On connect, fetch the tail of the open conversation and the unread counts in one
 
 History stays visible after a reload while offline. Each time the client fetches a conversation's tail, it stores that response under the conversation id. On an offline reload it paints that. One record per conversation, overwritten whole, never merged. On phones the browser kills the app often, so without this cache "readable with what it already has" would mean almost nothing.
 
+The stored tail carries no pictures. For one day (2026-10-31) it held the emoji and pack images its rows draw, as data URLs by image URL, so that the stored paint drew the emoji in the same frame as the text. After that change every open jerked once the emoji had drawn. The probable cause: WebKit decodes a data URL image again for each `<img>` element that carries it, and the rows are rebuilt three times at every open (the bootstrap's users and emoji redraws, then the server's rows), so the emoji vanished and came back at each rebuild. An `<img>` carries the image's URL: the browser decodes it once per page and shares it, and the worker's cache answers it a frame or two after the text. The emoji boxes have fixed sizes, so a late picture moves nothing.
+
 ## Tabs
 
 Tabs do not merge each other's state. History comes from the server in every tab. The outbox is shared storage. A Web Lock makes one tab the sender:

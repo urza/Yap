@@ -122,7 +122,7 @@ export function retryFailedImages() {
 
 export function packImage(shortcode, size = 'text', { lazy = false } = {}) {
   const url = packs.get(shortcode);
-  return url ? el('img', { class: `emoji emoji-${size} emoji-custom`, src: url, alt: `:${shortcode}:`, draggable: 'false', loading: lazy ? 'lazy' : null }) : null;
+  return url ? el('img', { class: `emoji emoji-${size} emoji-custom`, src: url, alt: `:${shortcode}:`, draggable: 'false', loading: lazy ? 'lazy' : null, onerror: imageFailed }) : null;
 }
 
 const SHORTCODE = /:([a-zA-Z0-9_-]+):/g;
@@ -154,7 +154,8 @@ function splitShortcodes(text) {
 
 // ---- links (MR-12) ----
 
-const URL = /(?:https?:\/\/|www\.)[^\s<>"']*[^\s<>"'.,;:!?-]|(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+(?:com|org|net|io|dev|app|co|me|info|edu|gov)\b(?:\/[^\s<>"']*)?/gi;
+// Named LINK, not URL: a const named URL would hide the global URL class for the whole module.
+const LINK = /(?:https?:\/\/|www\.)[^\s<>"']*[^\s<>"'.,;:!?-]|(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+(?:com|org|net|io|dev|app|co|me|info|edu|gov)\b(?:\/[^\s<>"']*)?/gi;
 
 // Trailing punctuation stays outside the link; a ")" that balances a "(" in the address stays inside.
 function trimLink(url) {
@@ -168,9 +169,9 @@ function trimLink(url) {
 // Addresses in text, as the server finds them for the preview cards.
 function findLinks(text) {
   const links = [];
-  URL.lastIndex = 0;
+  LINK.lastIndex = 0;
   let m;
-  while ((m = URL.exec(text))) {
+  while ((m = LINK.exec(text))) {
     const url = trimLink(m[0]);
     if (!url) continue;
     if (text[m.index - 1] === '@') continue;        // the domain of an e-mail address is not a link (MR-13)

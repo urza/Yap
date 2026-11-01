@@ -22,7 +22,8 @@ The endpoint asks each service for its part and puts the parts in one object. Th
 // Endpoints/BootstrapEndpoints.cs (sketch)
 api.MapGet("/bootstrap", (HttpContext http, ClaimsPrincipal principal, UserService users, ChatService chat,
                           PresenceService presence, NotificationSettingsService mutes, GifService gifs,
-                          AccessLinkService links, ServerConfig config, PushNotificationService push) =>   // as built: ServerConfig holds the texts too
+                          AccessLinkService links, ServerConfig config, PushNotificationService push,
+                          EmojiImages images, string? emojiStamp) =>   // as built: ServerConfig holds the texts too; emojiStamp is the query value
 {
     if (principal.Identity?.IsAuthenticated != true)
         return Results.Ok(new { config = new { config.ProjectName }, texts = texts.ForLogin() });
@@ -46,7 +47,7 @@ api.MapGet("/bootstrap", (HttpContext http, ClaimsPrincipal principal, UserServi
         Mutes = mutes.For(me.Id),
         Emoji = new(users.RecentEmojis(me.Id), chat.TopReactionEmojis(me.Id, 3)),
         FavoriteGifIds = gifs.FavoriteIds(me.Id),
-        EmojiImages = images.Rules,                                  // where emoji pictures come from; the first paint needs it
+        EmojiImages = images.Rules.Stamp == emojiStamp ? null : images.Rules,   // where emoji pictures come from; null: the client named the stamp of the rules it holds
     });
 }).AllowAnonymous();
 ```
@@ -66,7 +67,7 @@ api.MapGet("/bootstrap", (HttpContext http, ClaimsPrincipal principal, UserServi
 | `mutes` | NotificationSettingsService | the server mute and its end time, the DM mode, the room mode, the new-DMs bell, the per-conversation choices (NT-16) |
 | `emoji` | UserService, ChatService | the 20 most recent emoji (PK-07) and the three quick reactions (MR-41) |
 | `favoriteGifIds` | GifService | the ids of the person's favourite GIFs. The star on a GIF in a message uses this (MR-30) |
-| `emojiImages` | EmojiImages, CustomEmojiService | where emoji pictures come from (GEN-20): the Twemoji base URL, the names of the self-hosted overrides, the custom packs with their shortcodes. It is in the bootstrap, and not in a document of its own, because the stored copy paints before any answer: with these rules in it, no row is ever drawn with the device's own emoji font and redrawn later. The picker's list (categories, keywords) is fixed for a build and ships with the shell as `js/data/emoji-list.js` |
+| `emojiImages` | EmojiImages, CustomEmojiService | where emoji pictures come from (GEN-20): the Twemoji base URL, the names of the self-hosted overrides, the custom packs with their shortcodes, and a stamp of that content. It is in the bootstrap, and not in a document of its own, because the stored copy paints before any answer: with these rules in it, no row is ever drawn with the device's own emoji font and redrawn later. The client sends the stamp it holds as `?emojiStamp=`, and the part is `null` while the rules match, so the packs do not travel on every connect. The picker's list (categories, keywords) is fixed for a build and ships with the shell as `js/data/emoji-list.js` |
 
 ### Values the client computes itself
 

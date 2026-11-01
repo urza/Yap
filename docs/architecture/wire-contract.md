@@ -18,10 +18,10 @@ The contract between the vanilla JavaScript client and the ASP.NET Core server. 
 The route is anonymous and answers both states. Without a valid cookie it returns 200 with this shape and nothing else, so the login, verify and invite pages get their texts in the same first call:
 
 ```
-{ config: { projectName }, texts: { loginHeadings[], loginButtons[], loginPlaceholders[] }, emojiImages: { ...as below } }
+{ config: { projectName }, texts: { loginHeadings[], loginButtons[], loginPlaceholders[] } }
 ```
 
-The client branches on the presence of `user`.
+The client branches on the presence of `user`. The emoji image rules are not in the anonymous answer: the sign-in pages set their texts as plain text, and the rules list every custom pack.
 
 The client fetches it **every time the hub connects**: after a sleep, after a deploy, and at start, where a device with a stored copy paints that copy first and makes no separate request before the connect. There is no second "state" route. The document replaces the shared parts of the store whole (rooms, users, presence, unread, mutes, favourites); hub events that arrive after it apply on top. Because the request is made after the hub is connected, no change can fall between the snapshot and the first event. Until the document arrives, the client shows the cached copy from the previous visit, as it does for a conversation tail (TL-02). In the same handler the client re-opens the current conversation (`openRoom` or `openDm`) and wakes the outbox sender (OF-13, TL-35).
 
@@ -46,9 +46,12 @@ What the client keeps across a reconnect: the view position, the draft, the pend
   emoji:  { recent[], quickReactions[] },
   favoriteGifIds: [],
   emojiImages: { twemojiBase, overridesBase, overrides[],            // where emoji pictures come from (GEN-20): the device stores it with the rest,
-                 packs: [ { key, name, emojis: [ { shortcode, url, keywords } ] } ] }   // so the first paint never shows the device's own emoji font. The picker's
-}                                                                    // own list (categories, keywords) is a static module, js/data/emoji-list.js
+                 packs: [ { key, name, emojis: [ { shortcode, url, keywords } ] } ],   // so the first paint never shows the device's own emoji font. The picker's
+                 stamp }                                             // own list (categories, keywords) is a static module, js/data/emoji-list.js
+}
 ```
+
+`emojiImages` is the largest part and changes only with a deploy. The client sends the stamp of the rules it holds as `?emojiStamp=`, and the server answers `emojiImages: null` while they match; the client keeps its copy. A request without a stamp (the first start of a device, the tests) gets the rules.
 
 ## Hub methods (client to server)
 
