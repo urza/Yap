@@ -225,6 +225,12 @@ public class UserService
     }
 
     /// <summary>
+    /// Whether a username is the admin. Main removed this overload on 2026-10-30 (no caller there). This branch cuts
+    /// its events by username (ChatHubBroadcaster.ToWatchersOf and SendPresences), so it stays here.
+    /// </summary>
+    public bool IsAdmin(string username) => _usernameToId.TryGetValue(username, out var userId) && IsAdmin(userId);
+
+    /// <summary>
     /// Checks if a user is the admin.
     /// </summary>
     public bool IsAdmin(Guid userId)
