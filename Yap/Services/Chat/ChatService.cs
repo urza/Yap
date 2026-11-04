@@ -276,6 +276,27 @@ public class ChatService
         }
     }
 
+    private const int Before = 25, After = 24;   // one page around the target: the window replaces the rows, and a page is what they hold after an open (TL-41)
+
+    /// <summary>SH-49, MR-34, TL-41: the messages around one message. A direct message has no history cutoff (TL-05), so
+    /// the window can reach the oldest message. HasNewer false means the window reaches the newest message, and the client
+    /// treats it as a tail.</summary>
+    public (List<ChatMessage> Messages, bool HasMore, bool HasNewer, string? Error) Around(Guid channelId, Guid messageId, Guid viewerId)
+    {
+        if (!_channels.TryGetValue(channelId, out var channel) || !channel.CanAccess(viewerId) || !_channelMessages.TryGetValue(channelId, out var all))
+            return ([], false, false, "Message not found.");
+        lock (LockOf(channelId))
+        {
+            var index = all.FindIndex(m => m.Id == messageId);
+            // A delete removes the pin too (Delete), so a pin whose message is not in memory points before the startup
+            // load (SH-48): the reader learns that, instead of "not found".
+            if (index < 0) return ([], false, false, channel.Pins.Any(p => p.MessageId == messageId) ? "Too old to load" : "Message not found.");
+            var start = Math.Max(0, index - Before);
+            var end = Math.Min(all.Count, index + 1 + After);
+            return (all.GetRange(start, end - start), start > 0, end < all.Count, null);
+        }
+    }
+
     /// <summary>Whether the person may read this message: the person is one of the two in its conversation. The one
     /// rule for history pages, the quote of a reply and live events.</summary>
     public bool MayRead(Guid viewerId, ChatMessage m) =>

@@ -274,6 +274,100 @@ public class ChatTests : IClassFixture<YapFactory>
         await readerHub.DisposeAsync();
     }
 
+    // The admin's conversation with a new person, filled with generated messages, and every message the admin's hub
+    // gives, oldest first: the tail and the older pages.
+    private async Task<(Channel Dm, List<MessageDto> All)> DmWithMessages(HubConnection adminHub, string person, int count, TimeSpan span)
+    {
+        var admin = await _app.AdminAsync();
+        await _app.SignInAsync(person);
+        var dm = Chat.GetOrCreateDm(IdOf(admin.Username), IdOf(person))!;
+        Assert.Equal(count, Chat.GenerateTestMessages(dm.Id, count, span));
+        return (dm, await Readable(adminHub, person));
+    }
+
+    private static async Task<List<MessageDto>> Readable(HubConnection hub, string partner)
+    {
+        var tail = await hub.InvokeAsync<Conversation>("OpenDm", partner);
+        var all = tail.Messages.ToList();
+        for (var more = tail.HasMore; more && all.Count > 0;)
+        {
+            var page = await hub.InvokeAsync<Page>("Older", tail.ChannelId, all[0].Timestamp, all[0].Id);
+            all.InsertRange(0, page.Messages);
+            more = page.HasMore;
+        }
+        return all;
+    }
+
+    [Fact(DisplayName = "SH-49, TL-41: around returns 25 messages before the target and 24 after it")]
+    public async Task Around_returns_the_target_in_the_middle()
+    {
+        var hub = await (await _app.AdminAsync()).ConnectAsync();
+        var (dm, all) = await DmWithMessages(hub, "around_middle", 200, TimeSpan.FromHours(5));
+        Assert.Equal(200, all.Count);
+
+        var window = await hub.InvokeAsync<Window>("Around", dm.Id, all[100].Id);
+        Assert.Null(window.Error);
+        Assert.Equal(50, window.Messages.Count);
+        Assert.Equal(all[100].Id, window.Messages[25].Id);
+        Assert.Equal(all.Skip(75).Take(50).Select(m => m.Id), window.Messages.Select(m => m.Id));
+        Assert.True(window.HasMore);
+        Assert.True(window.HasNewer);
+        await hub.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "SH-49, TL-41: near the oldest message the window has no more; near the newest it is a tail")]
+    public async Task Around_near_the_ends()
+    {
+        var hub = await (await _app.AdminAsync()).ConnectAsync();
+        var (dm, all) = await DmWithMessages(hub, "around_ends", 200, TimeSpan.FromHours(5));
+
+        var early = await hub.InvokeAsync<Window>("Around", dm.Id, all[3].Id);
+        Assert.Equal(28, early.Messages.Count);   // 3 before, the target, 24 after
+        Assert.Equal(all[3].Id, early.Messages[3].Id);
+        Assert.False(early.HasMore);
+        Assert.True(early.HasNewer);
+
+        var late = await hub.InvokeAsync<Window>("Around", dm.Id, all[190].Id);
+        Assert.Equal(35, late.Messages.Count);    // 25 before, the target, the 9 newest
+        Assert.Equal(all[^1].Id, late.Messages[^1].Id);
+        Assert.True(late.HasMore);
+        Assert.False(late.HasNewer);
+        await hub.DisposeAsync();
+    }
+
+    // Main tests the history cutoff here (TL-05). A direct message has none; the refusal to test is a stranger's.
+    [Fact(DisplayName = "SH-49: around answers not found in a conversation the caller is not in")]
+    public async Task Around_outside_the_conversation()
+    {
+        var admin = await (await _app.AdminAsync()).ConnectAsync();
+        var (dm, all) = await DmWithMessages(admin, "around_owner", 10, TimeSpan.FromHours(1));
+        await admin.DisposeAsync();
+
+        var stranger = await (await _app.SignInAsync("around_stranger")).ConnectAsync();
+        var refused = await stranger.InvokeAsync<Window>("Around", dm.Id, all[5].Id);
+        Assert.Equal("Message not found.", refused.Error);
+        Assert.Empty(refused.Messages);
+        await stranger.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "SH-48, SH-49: an unknown id is not found; a pin whose message is not in memory is too old to load")]
+    public async Task Around_of_an_unknown_id()
+    {
+        var hub = await (await _app.AdminAsync()).ConnectAsync();
+        var (dm, _) = await DmWithMessages(hub, "around_unknown", 10, TimeSpan.FromHours(1));
+
+        var unknown = await hub.InvokeAsync<Window>("Around", dm.Id, Guid.NewGuid());
+        Assert.Equal("Message not found.", unknown.Error);
+
+        // A pin from before the startup load: the channel keeps it while the message stays in the database (SH-48).
+        var gone = Guid.NewGuid();
+        dm.Pins = [new Pin(gone, "someone", "old news", DateTime.UtcNow.AddYears(-1), [], "someone", DateTime.UtcNow.AddYears(-1))];
+        var old = await hub.InvokeAsync<Window>("Around", dm.Id, gone);
+        Assert.Equal("Too old to load", old.Error);
+        Assert.Empty(old.Messages);
+        await hub.DisposeAsync();
+    }
+
     [Fact(DisplayName = "NT-01, NT-03, NT-06: a message counts for the other person until they open the conversation")]
     public async Task Unread_counts_and_mark_read()
     {
