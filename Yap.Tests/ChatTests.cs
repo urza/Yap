@@ -647,27 +647,26 @@ public class ChatTests : IClassFixture<YapFactory>
     [Fact(DisplayName = "SH-48, TL-24: a pinned picture carries the row's large and original files, and a pinned GIF stays a GIF")]
     public async Task Pin_media_carries_what_the_viewer_needs()
     {
-        await using var app = new YapFactory();   // its own lobby: the shared one may hold three pins of other tests (MR-78)
-        var boss = await app.AdminAsync();
-        var chat = app.Service<ChatService>();
-        var lobby = chat.LobbyId;
+        var boss = await _app.AdminAsync();
+        await _app.SignInAsync("pat_pin_media");
+        var chat = _app.Service<ChatService>();
         var hub = await boss.ConnectAsync();
-        await hub.InvokeAsync<Conversation>("OpenRoom", lobby);
+        var dm = (await hub.InvokeAsync<Conversation>("OpenDm", "pat_pin_media")).ChannelId;
 
-        var album = (await (await boss.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId = Guid.NewGuid(), images = new[] { "/uploads/a.png", "/uploads/b.jpg" } })).Content.ReadFromJsonAsync<MessageDto>())!;
-        Assert.Null(await hub.InvokeAsync<HubError?>("Pin", lobby, album.Id));
-        var shots = chat.PinsFor(lobby, null).Single(p => p.MessageId == album.Id).Media;
+        var album = (await (await boss.Http.PostAsJsonAsync($"/api/channels/{dm}/messages", new { clientId = Guid.NewGuid(), images = new[] { "/uploads/a.png", "/uploads/b.jpg" } })).Content.ReadFromJsonAsync<MessageDto>())!;
+        Assert.Null(await hub.InvokeAsync<HubError?>("Pin", dm, album.Id));
+        var shots = chat.PinsFor(dm).Single(p => p.MessageId == album.Id).Media;
         Assert.Equal(album.Images.Select(i => (i.Medium, i.Large, i.Original)), shots.Select(m => (m.Src!, m.Large!, m.Original!)));
         Assert.All(shots, m => Assert.Equal("image", m.Kind));
 
-        Directory.CreateDirectory(app.Service<UploadPaths>().Gifs);
-        var source = Path.Combine(app.ContentRoot, "pinned.gif");
+        Directory.CreateDirectory(_app.Service<UploadPaths>().Gifs);
+        var source = Path.Combine(_app.ContentRoot, "pinned.gif");
         await File.WriteAllBytesAsync(source, Convert.FromBase64String("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"));
-        var me = app.Service<UserService>().GetByUsername(boss.Username)!.Id;
-        var accepted = (await app.Service<GifService>().TryAcceptAsGifAsync(source, "image/gif", isExplicitGif: true, me, "pinned.gif"))!;
-        var gif = (await (await boss.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", new { clientId = Guid.NewGuid(), gifs = new[] { new { entryId = accepted.GifEntryId } } })).Content.ReadFromJsonAsync<MessageDto>())!;
-        Assert.Null(await hub.InvokeAsync<HubError?>("Pin", lobby, gif.Id));
-        var item = Assert.Single(chat.PinsFor(lobby, null).Single(p => p.MessageId == gif.Id).Media);
+        var me = _app.Service<UserService>().GetByUsername(boss.Username)!.Id;
+        var accepted = (await _app.Service<GifService>().TryAcceptAsGifAsync(source, "image/gif", isExplicitGif: true, me, "pinned.gif"))!;
+        var gif = (await (await boss.Http.PostAsJsonAsync($"/api/channels/{dm}/messages", new { clientId = Guid.NewGuid(), gifs = new[] { new { entryId = accepted.GifEntryId } } })).Content.ReadFromJsonAsync<MessageDto>())!;
+        Assert.Null(await hub.InvokeAsync<HubError?>("Pin", dm, gif.Id));
+        var item = Assert.Single(chat.PinsFor(dm).Single(p => p.MessageId == gif.Id).Media);
         Assert.Equal("gif", item.Kind);   // also when the file is a picture: the panel keeps every GIF out of the viewer (TL-22)
         Assert.Equal(gif.Gifs[0].IsImage, item.IsImage);
         await hub.DisposeAsync();
