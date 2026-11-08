@@ -2,7 +2,7 @@
 // opens the conversation on the hub, and re-opens it after every reconnect (TL-35). A person opens the admin
 // only; the admin opens anyone (docs/dmonly.md).
 
-import { state, on, setOpen, closeOpen } from '../store.js';
+import { state, on, setOpen, closeOpen, projectName } from '../store.js';
 import * as hub from '../hub.js';
 import * as router from '../router.js';
 import * as frame from '../ui/frame.js';
@@ -23,7 +23,7 @@ function notificationPrompt() {
   if (prompted || !push.promptWanted()) return;
   prompted = true;
   const overlay = clone('t-push-prompt');
-  overlay.querySelector('.push-prompt-body').textContent = `Turn on notifications, and this ${push.where().device} shows new messages when ${push.appName()} is closed. You can change this any time in Settings.`;
+  overlay.querySelector('.push-prompt-body').textContent = `Turn on notifications, and this ${push.where().device} shows new messages when ${projectName()} is closed. You can change this any time in Settings.`;
   const enable = overlay.querySelector('.push-prompt-enable');
   const close = () => { overlay.classList.add('hiding'); setTimeout(() => layer(), 300); };
   enable.addEventListener('click', async () => { enable.disabled = true; enable.textContent = 'Enabling...'; await push.subscribe(); close(); });   // SH-39: closes whatever the answer
@@ -53,7 +53,7 @@ export function mount(root, params) {
   }
 
   frame.setTitle('dm', { partner });                                   // SH-06
-  setTitle(`${state.config.projectName} | @${partner}`);               // SH-45
+  setTitle(`${projectName()} | @${partner}`);               // SH-45
 
   const painted = paintStored(partner, me);
   notificationPrompt();
