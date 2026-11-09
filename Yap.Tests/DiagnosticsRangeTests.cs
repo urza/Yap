@@ -59,7 +59,7 @@ public class DiagnosticsRangeTests(YapFactory app) : IClassFixture<YapFactory>
         for (var i = 0; i < 10; i++)
         {
             var busy = i == 3;   // one snapshot with a short visit
-            collector.Record(new DiagnosticsSnapshot(Start.AddSeconds(30 * i), UserSessions: busy ? 9 : 1, UniqueUsers: busy ? 5 : 1, Channels: 0, RoomChannels: 0,
+            collector.Record(new DiagnosticsSnapshot(Start.AddSeconds(30 * i), UserSessions: busy ? 9 : 1, UniqueUsers: busy ? 5 : 1, Channels: 0,
                 DmChannels: 0, TotalMessages: 100 + i, ActiveConnections: busy ? 7 : 1, DisconnectedConnections: 0, TotalConnections: 0, TotalEventSubscribers: 0));
         }
 
