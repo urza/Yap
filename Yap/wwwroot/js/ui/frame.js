@@ -1,5 +1,5 @@
 // The frame around a conversation (frame.md): the header with the title, the connection dot, the status
-// chip and its menu, and the mailbox; the header line; the profile card. Mounted once; the pages change only
+// chip and its menu, the pin button and the mailbox; the header line; the profile card. Mounted once; the pages change only
 // the content column (SH-01). There is no sidebar in this build: a person has one conversation, and the
 // admin has the people page as the home (docs/dmonly.md).
 

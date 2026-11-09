@@ -110,6 +110,9 @@ file is not a supported setup in either build.
   to the people page. The page rebuilds its rows at most four times a second and skips a rebuild when nothing a
   row shows has changed; at a few thousand accounts the rebuild itself would still cost, and a windowed list is
   the next step then.
+- Three things stay as main has them, so that a sync does not conflict there, and nothing on this branch uses
+  them: the `.page-channel` half of `:is(.page-channel, .page-settings)` in `css/pages.css`, the icons `lock`,
+  `menu` and `chevron-up` in `t-icons`, and the text of `css/README.md` apart from the row for `css/people.css`.
 
 ## Files
 
@@ -121,4 +124,5 @@ Server: `Models/Chat/Channel.cs`, `Conversation.cs`, `SendMessage.cs`, `Services
 Client: `js/router.js`, `main.js`, `store.js`, `pages/people.js` (new), `pages/chat.js`, `ui/frame.js`, and
 small cuts in `hub.js`, `session.js`, `notify.js`, `offline/snapshot.js`, `ui/timeline.js`, `ui/composer.js`,
 `pages/settings.js`, `pages/admin.js`, `pages/invite.js`, `service-worker.js`, `index.html`, `app.css`,
-`css/frame.css`, `css/pages.css`, `css/composer.css`. Removed: `pages/channel-settings.js`.
+`css/frame.css`, `css/people.css` (new, in the place of main's `css/channel-settings.css`), `css/composer.css`.
+Removed: `pages/channel-settings.js`, `ui/sidebar.js`, `css/channel-settings.css`.
