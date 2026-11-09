@@ -2,7 +2,7 @@
 // with that person. Inside the frame, in the conversation column. The rows follow the store: presence, the
 // unread counts, the mutes and the last message of each conversation.
 
-import { state, on, displayName, isMuted, showsBell } from '../store.js';
+import { state, on, displayName, isMuted, showsBell, projectName } from '../store.js';
 import * as router from '../router.js';
 import * as frame from '../ui/frame.js';
 import * as overlays from '../ui/overlays.js';
@@ -19,8 +19,8 @@ export function mount(root) {
   const list = page.querySelector('.people-list');
   const filter = page.querySelector('.people-filter');
   root.replaceChildren(page);
-  frame.setTitle('home', { text: state.config.projectName });
-  setTitle(state.config.projectName);
+  frame.setTitle('home', { text: projectName() });
+  setTitle(projectName());
 
   let timer = 0, at = 0, sig = '';   // before the first render() below: a let is dead until its line runs, a function is not
   filter.addEventListener('input', render);
