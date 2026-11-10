@@ -663,7 +663,7 @@ public class ChatTests : IClassFixture<YapFactory>
         var source = Path.Combine(_app.ContentRoot, "pinned.gif");
         await File.WriteAllBytesAsync(source, Convert.FromBase64String("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"));
         var me = _app.Service<UserService>().GetByUsername(boss.Username)!.Id;
-        var accepted = (await _app.Service<GifService>().TryAcceptAsGifAsync(source, "image/gif", isExplicitGif: true, me, "pinned.gif"))!;
+        var accepted = (await _app.Service<GifService>().TryAcceptAsGifAsync(source, ".gif", "image/gif", isExplicitGif: true, me, "pinned.gif"))!;
         var gif = (await (await boss.Http.PostAsJsonAsync($"/api/channels/{dm}/messages", new { clientId = Guid.NewGuid(), gifs = new[] { new { entryId = accepted.GifEntryId } } })).Content.ReadFromJsonAsync<MessageDto>())!;
         Assert.Null(await hub.InvokeAsync<HubError?>("Pin", dm, gif.Id));
         var item = Assert.Single(chat.PinsFor(dm).Single(p => p.MessageId == gif.Id).Media);
