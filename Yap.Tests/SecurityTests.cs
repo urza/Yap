@@ -339,8 +339,8 @@ public class SecurityTests : IClassFixture<YapFactory>
     public async Task Media_urls_stay_inside_the_uploads()
     {
         var mia = await _app.SignInAsync("mia_media_url");
-        var lobby = _app.Service<ChatService>().LobbyId;
-        Task<HttpResponseMessage> Send(object body) => mia.Http.PostAsJsonAsync($"/api/channels/{lobby}/messages", body);
+        var boss = (await _app.AdminAsync()).Username;   // a person's one conversation (docs/dmonly.md); main posts to the lobby
+        Task<HttpResponseMessage> Send(object body) => mia.Http.PostAsJsonAsync($"/api/dm/{boss}/messages", body);
 
         // Each of these starts with /uploads/, and a browser asks for another path of this server, with the reader's cookie.
         foreach (var url in new[]
