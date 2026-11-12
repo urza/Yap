@@ -132,7 +132,8 @@ The search finds messages in the open conversation by their text. The user types
 | Count line while the answer loads | "Searching…" |
 | Hint | "Type 2 or more characters" |
 | Reach line | "Search covers messages in {name} since {date}." |
-| Search row of the sidebar; accessible name of the fields | "Search this conversation" |
+| Search row of the sidebar | "Search this chat" |
+| Accessible name of the fields | "Search this conversation" |
 | Tooltips | "Clear search"; "Close search"; "Back to results" |
 | Refusals | "Needs a connection"; "Conversation not found."; "Message not found."; "Too old to load" |
 

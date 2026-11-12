@@ -219,6 +219,18 @@
         font-size: 0.875rem;
         text-align: left;
         cursor: pointer;
+        /* One line at every text size (ST-10). The sidebar is 240 px wide, in px, and the text grows in rem. The
+           first text, "Search this conversation", took 163 of the 164 px at the default size in the test browser,
+           and broke into two lines on a real phone and at every larger size (2026-11-12). A text that is too wide
+           for the row is cut at the edge. */
+        white-space: nowrap;
+        overflow: hidden;
+    }
+
+    /* The text gives way in a row that is too narrow, not the icon: without this rule the flex layout shrank the
+       icon to 0 px before it cut the text (measured at a text size of 24 px). */
+    .search-row svg {
+        flex: none;
     }
 
     /* SR-25: the screen covers the frame, its header included. SR-30: it comes from the right with the move of the
