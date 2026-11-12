@@ -202,7 +202,9 @@ export function Sidebar(frame, profile) {
     const row = clone('t-user-row');
     const status = state.presence[username] ?? 'invisible';   // grey, as offline (SH-29, SH-31)
     row.querySelector('.user-status-dot').className = `user-status-dot ${status}`;
-    replace(row.querySelector('.user-name'), [...inline(displayName(username)), username === me ? ' (you)' : null]);
+    // The own row has no " (you)" after the name since 2026-11-12. Beside a long name the row cut the label to "(…".
+    // The text colour of .current-user (frame.css) marks the row. A name made only of emoji gets no mark; that is accepted for now.
+    replace(row.querySelector('.user-name'), inline(displayName(username)));
     row.querySelector('.admin-badge').hidden = !u?.isAdmin;   // the template carries both icons
     row.querySelector('.bot-badge').hidden = !u?.isBot;
     const dm = dmOf[username];
