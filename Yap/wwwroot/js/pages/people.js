@@ -96,9 +96,8 @@ function row(u, dm) {
   r.querySelector('.person-avatar').append(avatar(u.username, u.avatarUrl, 'medium'));
   r.querySelector('.user-status-dot').className = `user-status-dot ${status}`;
   replace(r.querySelector('.person-name-text'), inline(displayName(u.username)));
-  const adminBadge = r.querySelector('.admin-badge'), botBadge = r.querySelector('.bot-badge');
-  adminBadge.hidden = !u.isAdmin; replace(adminBadge, inline('👑'));
-  botBadge.hidden = !u.isBot; replace(botBadge, inline('🤖'));
+  r.querySelector('.admin-badge').hidden = !u.isAdmin;   // the template carries both icons
+  r.querySelector('.bot-badge').hidden = !u.isBot;
   r.querySelector('.person-meta').textContent = status === 'online' ? 'Online' : status === 'away' ? 'Away' : 'Offline';
   r.querySelector('.person-time').textContent = dm ? ago(dm.lastMessageAt) : '';
 

@@ -96,12 +96,6 @@
     white-space: nowrap;
 }
 
-.person-row .admin-badge,
-.person-row .bot-badge {
-    opacity: 0.8;
-    font-size: 0.875rem;
-}
-
 .person-meta {
     font-size: 0.8125rem;
     color: var(--text-tertiary);
