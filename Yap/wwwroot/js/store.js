@@ -19,6 +19,9 @@
 //   drafts          state.drafts
 //   registrations   state.registrations, the admins' waiting list
 //   incoming        an event with no state: a hub message arrived, and the detail is the message (notify.js)
+//   tail            an event with no state: the open conversation went to its newest messages by a control of the
+//                   timeline, by a send or by a reconnect, never by a scroll (ui/timeline.js). The narrow search
+//                   ends on it (SR-28); the timeline does not know the search.
 //   gifImport       an event with no state: the progress of a GIF import (ui/gif-library.js)
 
 export const state = {
@@ -465,7 +468,7 @@ export function showsBell(channelId) {
   return isMuted(channelId);
 }
 
-// The people online, for the header's button and the sidebar's heading. Invisible people are absent from the map (PR-05).
+// The people online, for the sidebar's heading (SH-28). Invisible people are absent from the map (PR-05).
 export const onlineCount = () => Object.keys(state.presence).length;
 
 // The mailbox leaves out the open conversation (SH-09); the app badge counts it too (NT-11).
