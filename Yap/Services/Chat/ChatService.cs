@@ -472,7 +472,7 @@ public class ChatService
     public const int MaxQueryLength = 100;   // SR-05; the client's fields have the same limit
     private const int MinQueryLength = 2;    // SR-05: one character matches nearly every message
 
-    /// <summary>SR-01 to SR-06: the messages of one conversation whose text holds every word of the query, newest
+    /// <summary>SR-01 to SR-06, SR-33: the messages of one conversation whose text holds every term of the query, newest
     /// first, inside the viewer's history cutoff (TL-05). The cursor is the last result the client has, as in
     /// <see cref="Older"/>. Total counts every match and comes only without a cursor: a count taken again for each page
     /// would move while messages arrive (SR-11). Since is the time of the oldest message the viewer can see, null
@@ -483,7 +483,7 @@ public class ChatService
         if (!_channels.TryGetValue(channelId, out var channel) || !channel.CanAccess(viewerId) || !_channelMessages.TryGetValue(channelId, out var all))
             return ([], null, false, null, "Conversation not found.");
         var cutoff = Cutoff(channel, viewerId);
-        var words = SearchWords(query);
+        var terms = SearchTerms(query);
         (DateTime, Guid)? before = beforeId is { } id && beforeTimestamp is { } time ? (time, id) : null;
         var paged = before is not null;
 
@@ -499,7 +499,7 @@ public class ChatService
             visible = first < end ? all.GetRange(first, end - first) : [];
             since = first < all.Count ? all[first].Timestamp : null;
         }
-        if (words.Length == 0) return ([], paged ? null : 0, false, since, null);
+        if (terms.Length == 0) return ([], paged ? null : 0, false, since, null);   // also a query of quote marks alone
 
         var hits = new List<ChatMessage>(count);
         var matches = 0;
@@ -507,7 +507,7 @@ public class ChatService
         {
             var m = visible[i];
             if (m.Kind != MessageKind.Normal) continue;   // SR-01: a system line is not a result. A message without text needs no check: an empty text holds no word
-            if (!TextFold.HoldsAll(m.Content, words)) continue;
+            if (!TextFold.HoldsAll(m.Content, terms)) continue;
             matches++;
             if (hits.Count < count) hits.Add(m);
             else if (paged) break;   // a later page gives no total: one match past the page says there is more
@@ -515,13 +515,14 @@ public class ChatService
         return (hits, paged ? null : matches, matches > hits.Count, since, null);
     }
 
-    // The folded words of a query (SR-03, SR-05), none when the query is too short. The cut at the limit keeps a
-    // surrogate pair whole: half an emoji is a text that Fold cannot normalize.
-    private static string[] SearchWords(string? query)
+    // The folded terms of a query (SR-03, SR-05, SR-33), none when the query is too short. The cut at the limit keeps
+    // a surrogate pair whole: half an emoji is a text that Fold cannot normalize. A quote mark is a character of the
+    // query for both limits, as it is in the client's fields (search.js, ready).
+    private static SearchTerm[] SearchTerms(string? query)
     {
         var text = (query ?? "").Trim();
         if (text.Length > MaxQueryLength) text = text[..(char.IsHighSurrogate(text[MaxQueryLength - 1]) ? MaxQueryLength - 1 : MaxQueryLength)];
-        return text.Length < MinQueryLength ? [] : TextFold.Fold(text).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        return text.Length < MinQueryLength ? [] : TextFold.Terms(text);
     }
 
     /// <summary>A non-admin sees a room from the later of the room's history window and, when the room says so,

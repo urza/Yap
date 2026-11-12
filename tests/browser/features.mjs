@@ -573,6 +573,8 @@ await step(17, 'Search above 768 px: the field, the panel in the place of the si
   const long = Array.from({ length: 9 }, (_, i) => `line ${i + 1} of a long note about the move of the server`).join('\n') + '\nthe last line has the zebraword in it';
   await post(long);
   await post('Příliš žluťoučký kůň');
+  await post('only quokkas here');
+  await post('one quokka and two quokkas');
   const panel = A.locator('.search-panel'), sidebar = A.locator('.users-sidebar');
 
   // 1. No people button; the field is there with a placeholder. One character opens nothing; two open the panel.
@@ -624,8 +626,9 @@ await step(17, 'Search above 768 px: the field, the panel in the place of the si
   const emptyText = await A.locator('.search-empty').textContent().catch(() => '');
   await searchField(A).fill('q');
   const hint = await waitTrue(async () => (await A.locator('.search-hint').textContent().catch(() => '')) === 'Type 2 or more characters', 3000, 50);
-  check(empty && emptyText.length > 0 && /^Search covers messages in # lobby since .+\.$/.test(since) && hint && await panel.isVisible(),
-    `empty text ${empty} "${emptyText}"; reach line "${since}"; hint at one character ${hint}, panel open ${await panel.isVisible()}`);
+  const tip = await A.locator('.search-tip').textContent().catch(() => '');
+  check(empty && emptyText.length > 0 && /^Search covers messages in # lobby since .+\.$/.test(since) && hint && tip === 'Use quotes to find a whole word: "hi"' && await panel.isVisible(),
+    `empty text ${empty} "${emptyText}"; reach line "${since}"; hint at one character ${hint}, tip "${tip}", panel open ${await panel.isVisible()}`);
   // An emptied field keeps the panel (SR-20), and the X stays as the way out for a device with no Escape key (SR-22).
   await searchField(A).fill('');
   await sleep(200);
@@ -644,6 +647,18 @@ await step(17, 'Search above 768 px: the field, the panel in the place of the si
   const folded = await waitTrue(async () => (await results(A).count()) === 1, 5000, 50);
   const foldMarks = await results(A).first().locator('mark').allTextContents();
   check(folded && foldMarks.join('|') === 'Příliš|kůň', `"prilis kun" finds the text ${folded}; marks ${JSON.stringify(foldMarks)}`);
+
+  // 7b. A text in quotes is found and highlighted only as whole words (SR-33). Without quotes "quokka" is also in "quokkas".
+  const marksOf = async () => (await results(A).locator('mark').allTextContents().catch(() => [])).join('|');
+  await searchField(A).fill('quokka');
+  const loose = await waitTrue(async () => (await results(A).count()) === 2 && (await marksOf()) === 'quokka|quokka|quokka', 5000, 50);
+  await searchField(A).fill('"quokka"');
+  const whole = await waitTrue(async () => (await results(A).count()) === 1 && (await marksOf()) === 'quokka', 5000, 50);
+  const wholeText = await results(A).first().locator('.pin-text').textContent().catch(() => '');
+  await searchField(A).fill('„two quokkas“');   // the quote marks of a Czech phone keyboard, and two words together
+  const phrase = await waitTrue(async () => (await results(A).count()) === 1 && (await marksOf()) === 'two quokkas', 5000, 50);
+  check(loose && whole && wholeText === 'one quokka and two quokkas' && phrase,
+    `without quotes 2 results and 3 marks ${loose}; "quokka" in quotes finds "${wholeText}" with one mark ${whole}; two words in quotes get one mark ${phrase}; marks now "${await marksOf()}"`);
 
   // 8. A long text whose only match is in its last line shows the match inside the six lines (SR-09).
   await searchField(A).fill('zebraword');
@@ -685,6 +700,8 @@ await step(18, 'Search at 768 px or less: the sidebar row, the search screen, a 
   const hint = await N.locator('.search-hint').textContent().catch(() => '');
   const focus = await field.evaluate(n => document.activeElement === n);
   check(opened && sidebarClosed && hint === 'Type 2 or more characters' && focus, `screen open ${opened}; sidebar closed ${sidebarClosed}; hint "${hint}"; focus in the field ${focus}`);
+  await sleep(300);   // the screen slides in for 0.2 s (SR-30), and a picture taken before the end shows half of it
+  await N.screenshot({ path: SHOTS + '18-search-hint.png' });   // the hint and the line about quotes under it (SR-15)
 
   // 2. The count line names the conversation. A tap on a result that is not loaded: the message, the search header.
   await field.fill('ws-05');
@@ -808,7 +825,10 @@ await step(18, 'Search at 768 px or less: the sidebar row, the search screen, a 
   await N.screenshot({ path: SHOTS + '18-search-700.png' });
   await N.setViewportSize({ width: 1000, height: 900 });
   const tierEnds = await waitTrue(async () => !(await screen.isVisible()) && !(await N.locator('.search-panel').isVisible()) && (await searchField(N).inputValue()) === '', 3000, 50);
-  check(wide && covers && tierEnds && (await N.evaluate(() => history.state)) === null, `the screen at 700 px ${wide}, over the whole frame ${covers}; 1000 px ends the search ${tierEnds}; history state ${JSON.stringify(await N.evaluate(() => history.state))}`);
+  // The step leaves the history a moment after the search ends (router.js dropSteps: history.go does not move at
+  // once). Above 768 px the style sheet hides the screen at once, so the wait before this line can end first.
+  const noStep = await waitTrue(async () => (await N.evaluate(() => history.state)) === null, 2000, 50);
+  check(wide && covers && tierEnds && noStep, `the screen at 700 px ${wide}, over the whole frame ${covers}; 1000 px ends the search ${tierEnds}; history state ${JSON.stringify(await N.evaluate(() => history.state))}`);
 });
 
 await finish(browser, server);

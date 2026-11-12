@@ -1,4 +1,4 @@
-/* The message search of a conversation (docs/spec/search.md, SR-01 to SR-32).
+/* The message search of a conversation (docs/spec/search.md, SR-01 to SR-33).
    Modules: js/ui/search.js, js/ui/entry.js.
    Templates: t-frame (the field of the header, the results panel, the search row of the sidebar, the search screen,
    the header of a result), t-search-results, t-search-result.
@@ -183,6 +183,11 @@
 .search-error,
 .search-empty {
     padding-top: 2rem;
+}
+
+/* The line about quotes is the second line of the hint (SR-15), so it keeps close to the line above it. */
+.search-tip {
+    padding-top: 0;
 }
 
 .search-empty {

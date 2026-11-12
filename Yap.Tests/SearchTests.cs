@@ -52,6 +52,40 @@ public class SearchTests : IClassFixture<YapFactory>
         await hub.DisposeAsync();
     }
 
+    [Fact(DisplayName = "SR-33: a text in quotes is found only as whole words; the quote marks of a phone keyboard count, and so does a quote that is not closed")]
+    public async Task Quotes_find_whole_words()
+    {
+        var (room, hub) = await RoomWith("search_quotes",
+            "hi there", "this is a thing", "Hi! How are you", "oh hi", "hiss, chips and hi5", "řekni hí", "nehít",
+            "see you soon", "see, you fool", "you see");
+        async Task<IEnumerable<string>> Found(string query)
+        {
+            var page = await Search(hub, room.Id, query);
+            Assert.Null(page.Error);
+            return page.Hits.Select(h => h.Text);
+        }
+
+        Assert.Equal(7, (await Search(hub, room.Id, "hi")).Total);   // without quotes: also "this", "thing", "hiss", "chips", "hi5" and "nehít"
+        string[] whole = ["řekni hí", "oh hi", "Hi! How are you", "hi there"];   // a digit is a part of the word; "hí" has no mark after the fold (SR-04)
+        Assert.Equal(whole, await Found("\"hi\""));
+        Assert.Equal(whole, await Found("\"HÍ\""));    // the fold applies inside quotes
+        Assert.Equal(whole, await Found("“hi”"));      // an English phone keyboard
+        Assert.Equal(whole, await Found("„hi“"));      // a Czech or German one
+        Assert.Equal(whole, await Found("«hi»"));      // a French one
+        Assert.Equal(whole, await Found("\"hi"));      // not closed: the user still types
+        Assert.Equal(["hi there"], await Found("\"hi\" ther"));   // a word outside the quotes is still found inside a longer word
+
+        Assert.Equal(3, (await Search(hub, room.Id, "see you")).Total);
+        Assert.Equal(["see you soon"], await Found("\"see you\""));    // the words together, in this order
+        Assert.Equal(["see you soon"], await Found("\" see   you \""));   // spaces at the quotes and between the words do not count
+        Assert.Empty(await Found("\"see yo\""));                       // "yo" is not a whole word there
+
+        var marksOnly = await Search(hub, room.Id, "\"\"");   // 2 characters, and no term
+        Assert.Null(marksOnly.Error);
+        Assert.Equal(0, marksOnly.Total);
+        await hub.DisposeAsync();
+    }
+
     [Fact(DisplayName = "SR-06, SR-12: a reader finds nothing behind the history cutoff, and the reach starts at the oldest message the reader sees")]
     public async Task The_cutoff_holds()
     {

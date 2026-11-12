@@ -29,9 +29,11 @@ The search finds messages in the open conversation by their text. The user types
 
 **SR-03** The query is a list of words, divided at spaces. A message is a result when its text holds each word. The words can be in any order and at any place, also inside a longer word.
 
-**SR-04** Capital letters and accent marks do not count, in the query and in the text. "prilis" finds "Příliš". A letter that is a letter of its own, such as ł, ø, đ or ß, is found only as it is. A text with characters that cannot be compared in this way is searched as it is, without the accent rule.
+**SR-33** A text in quotes is found only as whole words: no letter and no digit stands directly before it or after it in the message. The query "hi" in quotes finds "Hi!" and "oh hi". It does not find "this" or "hi5". A quoted text of two or more words is found only with these words together, in this order, with one space between them. Words outside the quotes follow [SR-03](#SR-03). The quote marks of a phone keyboard count as the straight mark does: “ ”, „ “ and « ». A quote that is not closed reaches to the end of the query. *Why:* a short word such as "hi" is a part of many longer words, and a query without quotes finds all of them.
 
-**SR-05** A search needs 2 characters. A query has at most 100 characters.
+**SR-04** Capital letters and accent marks do not count, in the query and in the text, also inside quotes. "prilis" finds "Příliš". A letter that is a letter of its own, such as ł, ø, đ or ß, is found only as it is. A text with characters that cannot be compared in this way is searched as it is, without the accent rule.
+
+**SR-05** A search needs 2 characters. A query has at most 100 characters. A quote mark is a character of the query.
 
 **SR-06** A person finds only messages that the person can read. The history limit of a room applies ([TL-05](timeline.md#TL-05)). A conversation that the person cannot open answers with "Conversation not found.".
 
@@ -43,7 +45,7 @@ The search finds messages in the open conversation by their text. The user types
 
 **SR-09** A row shows at most 6 lines of the text. When the first matched word is below the sixth line, the row shows the lines around that word, with the word on the second line. An edge where text is cut fades out.
 
-**SR-10** Each matched word is highlighted in the rows of the results. A match that is inside an emoji, or that runs over the edge of a link, shows no highlight. The conversation shows no highlight of words.
+**SR-10** Each matched word is highlighted in the rows of the results. A text in quotes is highlighted only where it stands as whole words ([SR-33](#SR-33)). A match that is inside an emoji, or that runs over the edge of a link, shows no highlight. The conversation shows no highlight of words.
 
 **SR-11** The count line shows the number of all results: "{n} results" or "1 result". The list loads 25 results, and 25 more when the user scrolls near its end. The count does not change while more results load.
 
@@ -53,7 +55,7 @@ The search finds messages in the open conversation by their text. The user types
 
 **SR-14** While the answer loads, the count line shows "Searching…". The results of the query before stay on the screen until the answer comes.
 
-**SR-15** While the query has less than 2 characters, the list shows "Type 2 or more characters" and no results.
+**SR-15** While the query has less than 2 characters, the list shows "Type 2 or more characters" and no results. A second line under it says how to find a whole word ([SR-33](#SR-33)).
 
 **SR-16** A list of results does not change by itself. A new message, an edit or a deletion shows at the next search. A tap on a result whose message is gone shows "Message not found." at the row.
 
@@ -105,6 +107,7 @@ The search finds messages in the open conversation by their text. The user types
 | Query cut to 1 character | keyboard | The panel stays. "Type 2 or more characters". |
 | Scroll near the end of the list | mouse, touch | 25 more results. The reach line after the last one. |
 | Nothing found | all | The empty text and the reach line. |
+| A word in quotes | keyboard | Only the messages that hold the word as a whole word. The highlight is on the whole word only. |
 | No connection | all | "Needs a connection" in the place of the results. The results show when the connection returns. |
 | Click on a result, above 768 px | mouse, keyboard | The message centred and highlighted in the conversation. The panel stays. |
 | X or Escape, above 768 px | mouse, keyboard | The field empty, the sidebar back. |
@@ -131,6 +134,7 @@ The search finds messages in the open conversation by their text. The user types
 | Count line | "{n} results"; "1 result"; at 768 px or less "{n} results · {name}" |
 | Count line while the answer loads | "Searching…" |
 | Hint | "Type 2 or more characters" |
+| Second line of the hint | "Use quotes to find a whole word: "hi"" |
 | Reach line | "Search covers messages in {name} since {date}." |
 | Search row of the sidebar | "Search this chat" |
 | Accessible name of the fields | "Search this conversation" |

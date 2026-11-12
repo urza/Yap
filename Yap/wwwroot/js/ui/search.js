@@ -1,4 +1,4 @@
-// The message search of the open conversation (search.md, SR-01 to SR-32). The server finds the messages; this module
+// The message search of the open conversation (search.md, SR-01 to SR-33). The server finds the messages; this module
 // owns the two fields, the result list and the two ways it shows:
 //   above 768 px   the field is in the header, and the results take the place of the sidebar (SR-19, SR-20). The
 //                  conversation stays beside them, so a result is one click away from the next.
@@ -211,7 +211,7 @@ export function Search(frame, { closeSidebar }) {
   function entry(hit) {
     const node = messageEntry('t-search-result', hit, { onOpen: () => open(node, hit) });   // no openShots: a picture belongs to the entry, and its tap goes to the message
     const text = node.querySelector('.pin-text');
-    if (text) highlight(text, wordsOf(s.query));
+    if (text) highlight(text, termsOf(s.query));
     return node;
   }
 
@@ -219,7 +219,7 @@ export function Search(frame, { closeSidebar }) {
   // reaches (SR-12). No reach line while more results can load: it is the end of the list.
   const note = (kind, text) => el('div', { class: `search-note ${kind}` }, text);
   function tail() {
-    if (s.phase === 'hint') return [note('search-hint', 'Type 2 or more characters')];
+    if (s.phase === 'hint') return [note('search-hint', 'Type 2 or more characters'), note('search-tip', 'Use quotes to find a whole word: "hi"')];   // SR-15
     if (s.phase === 'error') return [note('search-error', s.error)];
     if (s.phase !== 'done' || s.hasMore) return [];
     const reach = s.since ? [note('search-since', `Search covers messages in ${conversationName()} since ${messageTime(s.since).replace(/^Yesterday/, 'yesterday')}.`)] : [];   // a row's time label, here inside a sentence   // no date: the reader sees no message at all
@@ -367,26 +367,41 @@ export function Search(frame, { closeSidebar }) {
 // The fold of the server (Helpers/TextFold.cs): case and accent marks do not count. One character at a time, so a
 // position in the folded text maps back to a position in the text on screen.
 const fold = ch => ch.normalize('NFD').replace(/\p{Mn}/gu, '').toLowerCase();
-const wordsOf = query => query.split(/\s+/).map(word => [...word].map(fold).join('')).filter(Boolean);
 
-// Wraps every occurrence of a word in <mark>. Only text nodes are read and split, and the mark is a made element: a
+// The terms of a query, as the server reads it (TextFold.Terms). A word outside quotes is found at any place (SR-03).
+// A text in quotes is one whole term: it counts only where no letter or digit stands next to it (SR-33). Every
+// second part of the split stood in quotes, and a quote that is not closed runs to the end.
+const QUOTES = /["“”„«»]/;             // the straight quote and the marks that a phone keyboard types in its place
+const WORD_CHARACTER = /[\p{L}\p{Nd}]/u;   // what the server's char.IsLetterOrDigit takes
+const termsOf = query => query.split(QUOTES).flatMap((part, i) => {
+  const words = [...part].map(fold).join('').split(/\s+/).filter(Boolean);
+  if (i % 2 === 0) return words.map(text => ({ text, whole: false }));
+  return words.length ? [{ text: words.join(' '), whole: true }] : [];
+});
+
+// Wraps every occurrence of a term in <mark>. Only text nodes are read and split, and the mark is a made element: a
 // message text is what a person typed, and it never becomes markup.
-function highlight(root, words) {
+function highlight(root, terms) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes = [];
   while (walker.nextNode()) nodes.push(walker.currentNode);
-  for (const node of nodes) markIn(node, words);
+  for (const node of nodes) markIn(node, terms);
 }
 
-function markIn(node, words) {
+function markIn(node, terms) {
   const raw = node.data;
   let folded = '';
   const rawAt = [];   // rawAt[i]: where the i-th folded character starts in the text. A decomposed letter is longer than its fold, so the two positions differ
   for (let i = 0; i < raw.length; i++) for (const c of fold(raw[i])) { folded += c; rawAt.push(i); }
   const ranges = [];
-  for (const word of words)
-    for (let at = folded.indexOf(word); at >= 0; at = folded.indexOf(word, at + word.length))
-      ranges.push([rawAt[at], at + word.length < rawAt.length ? rawAt[at + word.length] : raw.length]);   // up to the next folded character: a mark that follows the last letter stays with it
+  for (const { text, whole } of terms)
+    for (let at = folded.indexOf(text); at >= 0; at = folded.indexOf(text, at + 1)) {   // one step on: a whole term can stand after a place that did not count, and ranges that overlap are joined below
+      const end = at + text.length;
+      // The edge of the text node counts as the edge of a word. The server reads the whole text, so a word that a
+      // link or an emoji picture cuts in two can get a mark at a place that did not count there.
+      if (whole && (WORD_CHARACTER.test(folded[at - 1] ?? '') || WORD_CHARACTER.test(folded[end] ?? ''))) continue;
+      ranges.push([rawAt[at], end < rawAt.length ? rawAt[end] : raw.length]);   // up to the next folded character: a mark that follows the last letter stays with it
+    }
   ranges.sort((a, b) => a[0] - b[0]);
   const merged = [];
   for (const r of ranges) {

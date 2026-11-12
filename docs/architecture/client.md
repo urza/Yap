@@ -44,7 +44,7 @@ wwwroot/
     render/avatar.js      the avatar and the gradient of a username
     ui/frame.js           the frame and its header: the title, the status chip and menu, the connection dot, the pin
                           button, the mailbox, the hamburger; the profile card
-    ui/search.js          the message search (SR-01 to SR-32): the field of the header, the results in the place of
+    ui/search.js          the message search (SR-01 to SR-33): the field of the header, the results in the place of
                           the sidebar, and at 768 px or less the search screen and the header of a result
     ui/entry.js           one message outside the timeline, as the pins panel and the search results draw it
     ui/sidebar.js         the sidebar of the frame: the rooms, and the people list, which draws only the rows in view
