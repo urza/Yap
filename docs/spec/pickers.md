@@ -71,7 +71,7 @@ The emoji picker and the GIF picker open from the input box. The emoji picker pu
 
 ### GIF search and the provider
 
-**PK-23** The placeholder of the search field is "Search Klipy..." when there is a provider. Otherwise it is "Search your library...". The clear button shows while the field has text. A spinner shows while the provider search runs.
+**PK-23** The placeholder of the search field is "Search Klipy..." when there is a provider. Otherwise it is "Search your library...". The clear button shows while the field has text. A spinner shows while the provider search runs. On a device without touch input, the field has the focus when the picker opens, as the [input box](input-box.md#IB-72) describes.
 
 **PK-24** The search runs a quarter second after the last keystroke. Library hits show first, under the header "From your library". Provider hits show next, under the name of the provider. When the field is empty, the active tab shows again. When there are no hits at all, the picker shows "No matches".
 
@@ -148,7 +148,7 @@ The emoji picker and the GIF picker open from the input box. The emoji picker pu
 | Pointer over a cell | mouse | Cell background and a slight enlargement. |
 | Cell tap, composer picker | mouse, touch | Emoji added to the draft; picker stays open; Recent unchanged until reopen. |
 | Cell tap, reaction picker | mouse, touch | Picker closes; reaction toggled. |
-| GIF picker opens, first time | mouse | Browse (or Recent) with its data; the trending grid loading if needed. |
+| GIF picker opens, first time | mouse | Browse (or Recent) with its data; the trending grid loading if needed. Focus in the search field. |
 | GIF picker reopens | mouse, touch | Same tab and folder, search cleared, Recent refreshed. |
 | Tab tap | mouse, touch | Search cleared, tab data refreshed. |
 | Type in GIF search | keyboard | After a quarter second, library hits, then provider hits; a spinner until the provider hits show. |

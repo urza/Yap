@@ -169,7 +169,9 @@ The input box is the part of a conversation where the user writes and sends a me
 
 **IB-57** Focus does not move into the draft on page load or when the conversation changes. *Why:* on a phone, focus on the draft opens the keyboard, and the keyboard covers the messages that the user wants to read.
 
-**IB-58** Only a tap on the draft, Reply and the keyboard button of the phone sheet move focus into the draft. Emoji picks, Send, ✕, picker toggles and dialogs never move focus. On a phone, the emoji toggle takes the focus out of the draft, so that the keyboard closes and the sheet takes its place.
+**IB-58** Only a tap on the draft, Reply and the keyboard button of the phone sheet move focus into the draft. Emoji picks, Send, ✕, the emoji toggle and dialogs never move focus. The GIF toggle moves focus only as [IB-72](#IB-72) says. On a phone, the emoji toggle takes the focus out of the draft, so that the keyboard closes and the sheet takes its place.
+
+**IB-72** On a device without touch input, the GIF toggle puts the focus in the search field of the GIF picker. The user can type a search immediately. When the picker closes, the focus returns to the place where it was before the picker opened. When the user moved the focus to a different field while the picker was open, the focus stays there. On a device with touch input, the GIF toggle does not move the focus. The on-screen keyboard would cover the picker. The emoji picker does not take the focus when it opens. *Why:* an emoji pick goes into the draft, and the user continues to type there.
 
 ### Who is typing
 
@@ -215,8 +217,8 @@ The input box is the part of a conversation where the user writes and sends a me
 | Emoji picked at full height | touch | Emoji at the caret. The sheet returns to its first height. |
 | Emoji picked | mouse, touch | Emoji at the caret. Send bright. Picker stays open. The draft's focus unchanged; a keyboard open for the picker's search closes. |
 | Send tap with the sheet open | touch | Sends on the first tap. Sheet closes. Keyboard unchanged. |
-| GIF toggle tap, empty draft | mouse | GIF picker opens, badge bright. |
-| GIF card tap | mouse, touch | Picker closes, faded GIF row at the end of the list. |
+| GIF toggle tap, empty draft | mouse | GIF picker opens, badge bright. Focus in the search field of the picker. |
+| GIF card tap | mouse, touch | Picker closes, faded GIF row at the end of the list. Without touch input, the focus is where it was before the picker. |
 | Tap on + with a picker open | mouse, touch | Picker closes. The menu does not open. |
 | Tap on + | mouse, touch | The menu with Photo or video and Voice message. Phone: a bottom sheet over a dimmed page. |
 | Photo or video | mouse, touch | The menu closes. The file chooser opens. |

@@ -8,7 +8,8 @@ import { clone, el, replace } from '../render/dom.js';
 import * as overlays from './overlays.js';
 import * as router from '../router.js';
 
-// GifPicker({ onSend(gif), onUpload(), onWarn(title, text) }) returns { element, opened() }.
+// GifPicker({ onSend(gif), onUpload(), onWarn(title, text) }) returns { element, opened(), focusSearch() }.
+// The picker never takes the focus by itself: the input box decides that (IB-72), because the phone sheet must not (PK-47).
 // onSend gets { entryId, preview, isImage, width, height } for a library card, or
 // { provider: item, searchText, preview, isImage, width, height } for a provider card.
 // onUpload is called when an upload starts and returns the send function for its GIF: the conversation of that
@@ -295,5 +296,5 @@ export function GifPicker({ onSend, onUpload, onWarn }) {
   // A star elsewhere shows at once (PK-36); the lists refresh when the favourites change.
   on('favoriteGifIds', () => { if (everOpened) load('favorites').then(() => { if (folder && !(cache.favorites?.folders ?? []).includes(folder) && tab === 'favorites') { folder = null; render(); } }); render(); });   // PK-36
 
-  return { element: picker, opened };
+  return { element: picker, opened, focusSearch: () => search.focus() };
 }

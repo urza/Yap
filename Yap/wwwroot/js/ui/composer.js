@@ -59,6 +59,7 @@ export function Composer(root) {
   let placeholderPick = { channelId: null, text: '' };
   let typingPick = { key: '', text: '' };
   let caret = null;            // where an emoji pick goes (IB-44)
+  let focusBefore = null;      // what had the focus when the GIF search took it; closePicker gives it back (IB-72)
   let typingSentAt = 0, typingTimer = 0;
   let sendWanted = false;      // Enter came before the first open: the text goes when the conversation is there
 
@@ -419,6 +420,9 @@ export function Composer(root) {
     if (which === 'emoji') pickers.emoji.opened();
     if (which === 'gif' || overlays.isPhone()) pickers.gif.opened();
     emojiToggle.classList.toggle('open', which === 'emoji');
+    // IB-72: with a keyboard, the reader types the search at once. Not on a touch screen: its keyboard would open
+    // over the picker (PK-47). Not for the emoji picker: its picks go into the draft, so the draft keeps the caret.
+    if (which === 'gif' && !overlays.isTouch()) { focusBefore = document.activeElement; pickers.gif.focusSearch(); }
     if (overlays.isPhone()) {
       // The sheet takes the keyboard's place (IB-41): the draft gives up the focus, so the keyboard closes, and the
       // sheet gets the keyboard's height, so the box stays where it was. Half height on every open.
@@ -429,6 +433,12 @@ export function Composer(root) {
     }
   }
   function closePicker() {
+    // The borrowed focus goes back (IB-72), so a reader who typed in the draft types there again after the GIF.
+    // Only when the focus is still in the picker, or nowhere: a click outside the picker leaves it on the body.
+    // When the reader put it in a different field (the draft, the header search), that choice stays.
+    const at = document.activeElement;
+    if (focusBefore && (at === document.body || pickers.gif.element.contains(at))) focusBefore.focus();
+    focusBefore = null;
     delete container.dataset.picker;
     emojiToggle.classList.remove('open');
     sizeSheet(false);
