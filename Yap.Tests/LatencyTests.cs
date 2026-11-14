@@ -34,6 +34,17 @@ public class LatencyTests(YapFactory app) : IClassFixture<YapFactory>
         Assert.Equal(["open", "rtt"], s.Latency.Stats.Keys.Order());  // camelCase names for the JSON
     }
 
+    [Fact(DisplayName = "AD-26: the two GIF waits keep their two-word names from the client to the JSON")]
+    public void Gif_waits_keep_their_names()
+    {
+        var s = Connect("lat_gif", "l5");
+        _presence.Heartbeat("l5", visible: true, idleSeconds: 1, lastRttMs: null, samples: [new("gifSearch", 270), new("gifPicture", 650)]);
+
+        Assert.Equal(270, s.Latency.Of(Wait.GifSearch)!.Last);
+        Assert.Equal(650, s.Latency.Of(Wait.GifPicture)!.Last);
+        Assert.Equal(["gifPicture", "gifSearch"], s.Latency.Stats.Keys.Order());   // the keys the admin table reads (WAITS in admin.js)
+    }
+
     [Fact(DisplayName = "AD-26: unknown names, server-only names and out-of-range numbers are dropped")]
     public void Untrusted_samples_are_dropped()
     {

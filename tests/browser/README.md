@@ -32,7 +32,7 @@ server, runs its steps, prints PASS or FAIL for each step, and stops the server 
   persistence-only tabs, GIFs, diagnostics), Create Channel / Channel Settings (with `/lobby` after a reorder),
   the keyboard on the sidebar rows and the + button, and the notification choices at 20 px on a 320 px phone.
 - `latency.mjs` checks the latency table of the admin's Diagnostics tab (AD-26): one person loads a room, taps
-  a room, loads an older page, sends a text, jumps to a pin that is not loaded, loses and regains the connection, and every wait shows up on
+  a room, loads an older page, sends a text, jumps to a pin that is not loaded, searches a GIF, loses and regains the connection, and every wait shows up on
   the person and on the connection.
 - `load.mjs` prints the load and the resume of one person on a slow link (900 ms round trip, 1 Mbit/s): the six
   phases of the boot report (AD-41) for a cold load and a warm load, the files answered by a cache, and the time

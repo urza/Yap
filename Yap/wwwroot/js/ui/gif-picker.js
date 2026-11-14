@@ -4,6 +4,7 @@
 import { state, on, toggleFavoriteLocally, projectName } from '../store.js';
 import { uploadOne } from '../upload.js';
 import { api } from '../api.js';
+import * as hub from '../hub.js';
 import { clone, el, replace } from '../render/dom.js';
 import * as overlays from './overlays.js';
 import * as router from '../router.js';
@@ -101,13 +102,39 @@ export function GifPicker({ onSend, onUpload, onWarn }) {
     const seq = ++searchSeq;
     if (state.connection !== 'connected') { overlays.reason(picker, 'Needs a connection'); return; }
     spinner.hidden = !configured();
+    const sentAt = performance.now();
+    let answered = false;
     try {
       const data = await api.get(`/api/gifs/search?q=${encodeURIComponent(q)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
       if (seq !== searchSeq) return;
       searching = cursor && searching ? { q, library: searching.library, provider: [...searching.provider, ...data.provider], cursor: data.nextCursor }
                                       : { q, library: data.library, provider: data.provider, cursor: data.nextCursor };
+      answered = true;
     } catch { if (seq === searchSeq) searching = { q, library: [], provider: [], cursor: null }; }
-    if (seq === searchSeq) { spinner.hidden = true; render(); }
+    if (seq !== searchSeq) return;
+    spinner.hidden = true; render();
+    if (answered && !cursor) reportSearchWaits(sentAt);   // a "Load more" page is not a search the person waits for
+  }
+
+  // The two GIF waits of AD-26, both from the moment the request leaves (the 250 ms pause after the last
+  // keystroke is our own choice and the same for everyone, so it is not in the numbers):
+  //   gifSearch  until the cards are in the page: our server plus its call to the provider;
+  //   gifPicture until the first preview has loaded: the same, plus the file, which a provider card
+  //              takes straight from the provider's CDN.
+  // A search that a newer one replaced, and a request that failed in the browser, report nothing.
+  let pictureWait = null;
+  function reportSearchWaits(sentAt) {
+    hub.report('gifSearch', performance.now() - sentAt);
+    const shown = searching;
+    pictureWait?.abort();   // the search before this one got no picture; its listeners must not answer for this one
+    const heard = pictureWait = new AbortController();
+    const first = () => {
+      heard.abort();
+      // After a cleared search the same element shows a tab's cards, and their pictures are no search result.
+      if (searching === shown) hub.report('gifPicture', performance.now() - sentAt);
+    };
+    // load (an image) and loadeddata (a video's first frame) do not bubble: the listener has to capture.
+    for (const type of ['load', 'loadeddata']) results.addEventListener(type, first, { capture: true, signal: heard.signal });
   }
 
   // ---- drawing ----

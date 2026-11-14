@@ -570,6 +570,8 @@ const WAITS = [
   { key: 'open', text: 'Open room avg/max', show: ['avg', 'max'], title: "Tap on a conversation until the server's messages are on screen. Cached rows may show earlier; that is the device, not the wire." },
   { key: 'older', text: 'Older avg/max', show: ['avg', 'max'], title: 'The request for older messages, two screens before the top, until they are in place. The wait for a still view does not count.' },
   { key: 'jump', text: 'Jump avg/max', show: ['avg', 'max'], title: 'A tap on a pin or a quote until the message is on screen. A message that is loaded already scrolls and is not counted.' },
+  { key: 'gifSearch', text: 'GIF search avg/max', show: ['avg', 'max'], title: 'A search in the GIF picker, from the request until the cards are in the picker: this server and its call to the GIF provider. The pause after the last keystroke is not counted.' },
+  { key: 'gifPicture', text: 'GIF picture avg/max', show: ['avg', 'max'], title: 'The same search, from the request until its first picture has loaded. The device takes the pictures of provider GIFs straight from the provider.' },
   { key: 'start', text: 'Start last/max', show: ['last', 'max'], title: "Page load until the first conversation shows the server's messages: scripts, bootstrap, connection and room." },
   { key: 'reconnect', text: 'Reconnect last/max', show: ['last', 'max'], title: 'Connection lost, or the tab back from sleep, until the room is in sync again.' },
 ];

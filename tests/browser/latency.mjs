@@ -1,6 +1,7 @@
 // AD-26 end to end: the waits a person feels reach the admin's latency table. One person, one tab: a reload
 // (start), a tap on a room (open), the older page (older), a text send (send and post), a tap on a pin that is not
-// loaded (jump), an offline/online pair (reconnect). Then the Diagnostics tab. Run from tests/browser: node latency.mjs -- --port=5098
+// loaded (jump), a GIF search with one library hit (gifSearch and gifPicture), an offline/online pair (reconnect).
+// Then the Diagnostics tab. Run from tests/browser: node latency.mjs -- --port=5098
 
 import { chromium } from 'playwright';
 import { BASE, SHOTS, sleep, waitTrue, step, finish, startServer, signIn, watchContext, watchPage } from './lib.mjs';
@@ -66,6 +67,18 @@ await step(1, 'Sign in, history, reload, a room tap, older, send, reconnect', as
   const jumped = await waitTrue(async () => (await A.locator('.highlight-message').count()) > 0, 5000, 50);
   check(pinned && jumped, `the oldest message pinned, not loaded: ${pinned}; highlighted in its window: ${jumped}`);
 
+  // GIF search: the picker's + button puts cat.gif into the library and sends it; the file name is its tag, so a
+  // search for "cat" has one card (gifSearch) with one picture (gifPicture). No provider is necessary.
+  await A.click('.gif-toggle-button');
+  await A.setInputFiles('.gif-picker .gif-upload-btn input', { name: 'cat.gif', mimeType: 'image/gif', buffer: Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64') });
+  const added = await waitTrue(async () => (await A.locator('.message-group:not(.pending) .gif-message').count()) > 0, 20000, 200);
+  if (!(await A.locator('.gif-picker').isVisible())) await A.click('.gif-toggle-button');
+  await A.fill('.gif-picker .gif-search input', 'cat');
+  const found = await waitTrue(async () => (await A.locator('.gif-picker .gif-card').count()) > 0, 5000, 100);
+  const drawn = found && await waitTrue(() => A.locator('.gif-picker .gif-card img').first().evaluate(i => i.complete && i.naturalWidth > 0), 5000, 100);
+  check(added && found && drawn, `cat.gif sent: ${added}; a card for "cat": ${found}; its picture loaded: ${drawn}`);
+  await A.keyboard.press('Escape');
+
   // Reconnect: the offline event closes the connection; navigator.onLine stays true, so the retry loop reconnects
   // after its first 1 s delay, and the online event finds the connection already up.
   await A.evaluate(() => window.dispatchEvent(new Event('offline')));
@@ -83,7 +96,7 @@ await step(2, 'The samples reach the server, per person and per connection', asy
   const me = d.users.find(u => u.username === 'boss');
   check(!!me, `users with samples: ${JSON.stringify(d.users.map(u => u.username))}`);
   const stats = me?.latency?.stats ?? {};
-  for (const name of ['rtt', 'send', 'post', 'open', 'older', 'jump', 'start', 'reconnect']) check(name in stats, `${name}: ${JSON.stringify(stats[name] ?? null)}`);
+  for (const name of ['rtt', 'send', 'post', 'open', 'older', 'jump', 'gifSearch', 'gifPicture', 'start', 'reconnect']) check(name in stats, `${name}: ${JSON.stringify(stats[name] ?? null)}`);
   const conn = d.sessions.find(s => s.username === 'boss' && s.connected);
   const keys = Object.keys(conn?.latency?.stats ?? {});
   check(!!conn && keys.includes('rtt') && !keys.includes('post'), `live connection stats: ${JSON.stringify(keys)}; userId ${conn?.userId}`);
@@ -95,12 +108,12 @@ await step(3, 'The Diagnostics tab shows the table per person', async (check) =>
   const card = A.locator('.page-admin .diag-chart-card', { hasText: 'Latency by user' });
   await card.waitFor({ timeout: 10000 });
   const headers = (await card.locator('thead th').allInnerTexts()).map(t => t.trim().toLowerCase());   // the CSS uppercases them
-  check(headers.length === 11 && headers[0] === 'who' && headers.at(-1) === 'slow calls', `headers: ${JSON.stringify(headers)}`);
+  check(headers.length === 13 && headers[0] === 'who' && headers.at(-1) === 'slow calls', `headers: ${JSON.stringify(headers)}`);
   const first = (await card.locator('tbody tr td:first-child').allInnerTexts()).map(t => t.trim());
   check(first[0] === 'boss', `first column: ${JSON.stringify(first)}`);
   check((await card.locator('tbody td.diag-indent').count()) >= 1, `connection rows: ${await card.locator('tbody td.diag-indent').count()}`);
   const cells = (await card.locator('tbody tr').first().locator('td').allInnerTexts()).map(t => t.trim());
-  check(cells.slice(2, 10).every(c => c !== '—'), `boss row: ${JSON.stringify(cells)}`);
+  check(cells.slice(2, -1).every(c => c !== '—'), `boss row: ${JSON.stringify(cells)}`);
   const second = (await card.locator('tbody tr').nth(1).locator('td').allInnerTexts()).map(t => t.trim());
   check(second[4] === '—', `a connection row has no server send: ${JSON.stringify(second)}`);
   await card.screenshot({ path: SHOTS + '99-latency-by-user.png' });
