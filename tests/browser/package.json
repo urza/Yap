@@ -12,6 +12,7 @@
     "pages": "node pages.mjs",
     "latency": "node latency.mjs",
     "screenshots": "node screenshots.mjs",
+    "readme": "node readme.mjs",
     "load": "node load.mjs",
     "perf": "node perf.mjs",
     "update": "node update.mjs"

@@ -65,6 +65,11 @@ server, runs its steps, prints PASS or FAIL for each step, and stops the server 
   messages, mutes and statuses, builds the state that each image's caption names, and overwrites the image. A
   step that fails keeps the old image. The run takes about three minutes: it waits for an offline person
   (30 s) and for the bot's welcome messages (one minute after each sign-in).
+- `readme.mjs` takes `screenshot.png`, the picture of the repository's README. It seeds one room with a talk
+  (a gallery, reactions, a reply, a pin, a message link, a voice message), unread counts, an away person and
+  an offline person, then writes the picture in the Tea House theme. The run takes about two minutes and the
+  server needs ffmpeg. `--theme=nord,teahouse:8pm` writes one picture per theme to `shots/` and leaves
+  `screenshot.png` as it is.
 - `lib.mjs` holds the shared parts: the server start and stop, the sign-in, the collectors of browser errors,
   the step report, and a small PNG writer for upload tests and generated pictures.
 
@@ -88,6 +93,7 @@ npm run pages
 npm run latency
 npm run load
 npm run screenshots
+npm run readme
 ```
 
 Each run uses a new temporary content root under the system temp folder (`yap-browser-tests`). It copies
